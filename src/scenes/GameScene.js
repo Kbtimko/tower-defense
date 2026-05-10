@@ -60,6 +60,7 @@ export default class GameScene extends Phaser.Scene {
     // Show DOM UI
     document.getElementById('hud').style.display        = 'flex';
     document.getElementById('bottom-bar').style.display = 'flex';
+    document.getElementById('game-msg').style.display   = 'none';
 
     // Wire DOM buttons (use once-registered named functions; shutdown() cleans up via clone)
     this._bindDOMEvents();
@@ -368,6 +369,7 @@ export default class GameScene extends Phaser.Scene {
     document.getElementById('stat-lives').textContent = this.economy.lives;
     document.getElementById('stat-gold').textContent  = this.economy.gold;
     document.getElementById('stat-wave').textContent  = `${this.waveMgr.currentWave}/${MAPS[this.mapId].waveCount}`;
+    document.getElementById('stat-kills').textContent = this.kills;
   }
 
   _updateWaveButton() {
