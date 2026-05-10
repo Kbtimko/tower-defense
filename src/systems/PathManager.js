@@ -11,6 +11,7 @@ export class PathManager {
       const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
       const dx = p2.x - p1.x, dy = p2.y - p1.y;
       const len = Math.sqrt(dx * dx + dy * dy);
+      if (len === 0) continue;
       const px = -dy / len, py = dx / len;
       const offset = 56;
       for (const side of [1, -1]) {
@@ -29,6 +30,7 @@ export class PathManager {
       const p1 = this.path[i], p2 = this.path[i + 1];
       const dx = p2.x - p1.x, dy = p2.y - p1.y;
       const lenSq = dx * dx + dy * dy;
+      if (lenSq === 0) continue;
       const t = Math.max(0, Math.min(1, ((x - p1.x) * dx + (y - p1.y) * dy) / lenSq));
       if (Math.hypot(p1.x + t * dx - x, p1.y + t * dy - y) < margin) return true;
     }

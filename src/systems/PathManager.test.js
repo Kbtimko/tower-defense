@@ -27,4 +27,10 @@ describe('PathManager', () => {
     expect(pm.buildZones.length).toBeGreaterThan(0);
     expect(pm.buildZones[0]).toMatchObject({ cx: expect.any(Number), cy: expect.any(Number), radius: 22, occupied: false });
   });
+
+  it('build zones are not on the path', () => {
+    for (const z of pm.buildZones) {
+      expect(pm.isOnPath(z.cx, z.cy, 40)).toBe(false);
+    }
+  });
 });
