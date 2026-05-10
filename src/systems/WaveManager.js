@@ -28,7 +28,7 @@ export class WaveManager {
     for (const group of this.waves[this.currentWave]) {
       const def = ENEMY_DEFS[group.type];
       for (let i = 0; i < group.count; i++) {
-        this._spawnQ.push({ delayMs: delay, def, scaleFactor });
+        this._spawnQ.push({ delayMs: delay, def: { ...def }, scaleFactor });
         delay += group.interval;
       }
     }
