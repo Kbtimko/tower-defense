@@ -1,0 +1,28 @@
+export const MAPS = [
+  {
+    id: 0,
+    name: 'Outpost Sigma',
+    background: 0x1a2e1a,
+    pathColor: 0x7a6040,
+    waypoints: [[0,.35],[.18,.35],[.18,.72],[.45,.72],[.45,.25],[.72,.25],[.72,.65],[1,.65]],
+    startGold: 200,
+    startLives: 25,
+    unlockCost: 0,
+    waveCount: 10,
+    maxTierAllowed: 2,
+    storyKey: 'outpost_sigma',
+  },
+  {
+    id: 1,
+    name: 'Lunar Gate',
+    background: 0x1e1e2e,
+    pathColor: 0x6a5a5a,
+    waypoints: [[0,.2],[.3,.2],[.3,.55],[.15,.55],[.15,.82],[.55,.82],[.55,.4],[.75,.4],[.75,.78],[1,.78]],
+    startGold: 160,
+    startLives: 20,
+    unlockCost: 5,
+    waveCount: 10,
+    maxTierAllowed: 2,
+    storyKey: 'lunar_gate',
+  },
+];

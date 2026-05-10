@@ -1,0 +1,38 @@
+export const TOWER_DEFS = {
+  archer: {
+    name: 'Archer', icon: '🏹', cost: 60, color: 0x8B4513,
+    range: 120, damage: 15, fireRate: 1.0, splashRadius: 0, pierce: false, slow: 0,
+    tier2: { cost: 50, damage: 25, range: 135, label: 'Eagle Eye' },
+    tier3: { cost: 80, damage: 40, range: 150, label: 'Barrage' },
+    tier4A: { cost: 120, damage: 60, label: 'Volley', passiveEffect: 'Fires 2 arrows per shot' },
+    tier4B: { cost: 120, damage: 80, range: 180, label: 'Marksman', passiveEffect: '+50% range, armor piercing' },
+    ability: { label: 'Volley', cooldown: 15, description: 'All-target burst for 3s' },
+  },
+  mage: {
+    name: 'Mage', icon: '🔮', cost: 90, color: 0x6a0dad,
+    range: 100, damage: 30, fireRate: 0.6, splashRadius: 0, pierce: true, slow: 0,
+    tier2: { cost: 60, damage: 50, range: 115, label: 'Arcane Power' },
+    tier3: { cost: 90, damage: 80, range: 130, label: 'Sorcery' },
+    tier4A: { cost: 130, damage: 120, label: 'Archmage', passiveEffect: 'Chain lightning to 3 targets' },
+    tier4B: { cost: 130, damage: 60, splashRadius: 60, label: 'Frost Mage', passiveEffect: 'AoE frost on every shot, 30% slow' },
+    ability: { label: 'Slow Nova', cooldown: 20, description: 'AoE freeze in range for 2s' },
+  },
+  cannon: {
+    name: 'Cannon', icon: '💣', cost: 110, color: 0x666666,
+    range: 110, damage: 45, fireRate: 0.45, splashRadius: 45, pierce: false, slow: 0,
+    tier2: { cost: 70, damage: 70, range: 125, splashRadius: 55, label: 'Heavy Shell' },
+    tier3: { cost: 100, damage: 100, range: 140, splashRadius: 65, label: 'Mega Bomb' },
+    tier4A: { cost: 150, damage: 150, splashRadius: 80, label: 'Artillery', passiveEffect: 'Splits into 3 shells on impact' },
+    tier4B: { cost: 150, damage: 80, fireRate: 1.2, label: 'Rapid Cannon', passiveEffect: '3x fire rate, direct damage focus' },
+    ability: { label: 'Big Bomb', cooldown: 30, description: 'Massive AoE strike on target' },
+  },
+  ice: {
+    name: 'Ice', icon: '❄️', cost: 80, color: 0x4a8fa8,
+    range: 115, damage: 8, fireRate: 0.7, splashRadius: 0, pierce: false, slow: 0.45,
+    tier2: { cost: 55, damage: 12, range: 130, slow: 0.3, label: 'Deep Freeze' },
+    tier3: { cost: 85, damage: 18, range: 145, slow: 0.2, label: 'Blizzard' },
+    tier4A: { cost: 110, damage: 28, slow: 0.15, label: 'Permafrost', passiveEffect: 'Slows to 15% speed' },
+    tier4B: { cost: 110, damage: 50, splashRadius: 60, label: 'Shatter', passiveEffect: 'Frozen enemies take 2x damage' },
+    ability: { label: 'Blizzard', cooldown: 25, description: 'Freeze all enemies in range' },
+  },
+};
