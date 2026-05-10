@@ -338,11 +338,12 @@ export default class GameScene extends Phaser.Scene {
     if (!tierDef || !this.economy.spend(tierDef.cost)) { this._toast('Not enough gold!'); return; }
     tower.level++;
     tower.totalCost += tierDef.cost;
-    if (tierDef.damage)      tower.damage      = tierDef.damage;
-    if (tierDef.range)       tower.range       = tierDef.range;
-    if (tierDef.splashRadius)tower.splashRadius = tierDef.splashRadius;
-    if (tierDef.slow)        tower.slow        = tierDef.slow;
-    if (tierDef.fireRate)    tower.fireRate    = tierDef.fireRate;
+    if (tierDef.damage       !== undefined) tower.damage       = tierDef.damage;
+    if (tierDef.range        !== undefined) tower.range        = tierDef.range;
+    if (tierDef.splashRadius !== undefined) tower.splashRadius = tierDef.splashRadius;
+    if (tierDef.slow         !== undefined) tower.slow         = tierDef.slow;
+    if (tierDef.fireRate     !== undefined) tower.fireRate     = tierDef.fireRate;
+    if (tierDef.pierce       !== undefined) tower.pierce       = tierDef.pierce;
     const panel = document.getElementById('tower-panel');
     this._openTowerPanel(tower, parseInt(panel.style.left), parseInt(panel.style.top));
   }
