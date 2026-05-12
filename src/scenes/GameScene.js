@@ -8,6 +8,7 @@ import { WaveManager } from '../systems/WaveManager.js';
 import { EconomyManager } from '../systems/EconomyManager.js';
 import { TowerPlacementManager } from '../systems/TowerPlacementManager.js';
 import { Tower } from '../entities/Tower.js';
+import { Barracks } from '../entities/Barracks.js';
 import { Enemy } from '../entities/Enemy.js';
 import { Projectile } from '../entities/Projectile.js';
 
@@ -31,7 +32,9 @@ export default class GameScene extends Phaser.Scene {
     this.placementManager = new TowerPlacementManager(
       this.pathMgr.buildZones,
       this.economy,
-      (type, scene, opts) => new Tower(opts)
+      (type, scene, opts) => type === 'barracks'
+        ? new Barracks(scene, opts)
+        : new Tower(opts)
     );
 
     // Entity arrays
