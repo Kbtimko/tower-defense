@@ -50,4 +50,9 @@ describe('PathManager', () => {
     // L-path: (0,0)→(100,0)→(100,100), total length = 200, elbow at (100,0) is at 100/200 = 0.5
     expect(pm.getNearestPathProgress(100, 0)).toBeCloseTo(0.5, 5);
   });
+
+  it('getNearestPathProgress returns 0.75 for point nearest mid-second-segment', () => {
+    // nearest point on L-path to (80, 50) is (100, 50), progress = (100 + 50) / 200 = 0.75
+    expect(pm.getNearestPathProgress(80, 50)).toBeCloseTo(0.75, 5);
+  });
 });
