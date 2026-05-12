@@ -51,6 +51,10 @@ export default class GameScene extends Phaser.Scene {
     this.selectedTower  = null;
     this._openTowerId   = null;
 
+    // Reposition mode state
+    this.repositionMode        = false;
+    this.repositioningBarracks = null;
+
     // Phaser graphics (cleared + redrawn every frame)
     this.gfx = this.add.graphics();
     this.cameras.main.setBackgroundColor(map.background);
@@ -87,6 +91,7 @@ export default class GameScene extends Phaser.Scene {
     document.getElementById('speed-btn').addEventListener('click',         () => this._toggleSpeed());
     document.getElementById('panel-upgrade-btn').addEventListener('click', () => this._upgradeSelectedTower());
     document.getElementById('panel-sell-btn').addEventListener('click',    () => this._sellSelectedTower());
+    document.getElementById('panel-reposition-btn').addEventListener('click', () => this._startReposition());
     document.getElementById('msg-btn').addEventListener('click',           () => this.scene.restart({ mapId: this.mapId }));
   }
 
@@ -293,6 +298,28 @@ export default class GameScene extends Phaser.Scene {
 
   _onPointerDown(pointer) {
     const mx = pointer.x, my = pointer.y;
+
+    // Handle reposition mode
+    if (this.repositionMode && this.repositioningBarracks) {
+      const b = this.repositioningBarracks;
+      for (const pt of this.pathMgr.getPathPoints()) {
+        if (Math.hypot(pt.x - b.x, pt.y - b.y) <= b.range) {
+          if (Math.hypot(pt.x - mx, pt.y - my) < 8) {
+            const newProgress = this.pathMgr.getNearestPathProgress(mx, my);
+            b.repositionSoldiers(newProgress, this.pathMgr.getPathPoints());
+            this.repositionMode = false;
+            this.repositioningBarracks = null;
+            this._openTowerPanel(b, mx, my);
+            return;
+          }
+        }
+      }
+      this._toast('Click on the path within Barracks range!');
+      this.repositionMode = false;
+      this.repositioningBarracks = null;
+      return;
+    }
+
     for (const tower of this.placementManager.getTowers()) {
       if (Math.hypot(tower.x - mx, tower.y - my) < 22) {
         this.selectedType = null;
@@ -477,6 +504,16 @@ export default class GameScene extends Phaser.Scene {
     this._closeTowerPanel();
   }
 
+  _startReposition() {
+    if (!this.selectedTower || this.selectedTower.type !== 'barracks') return;
+    const barracks = this.selectedTower;
+    document.getElementById('tower-panel').style.display = 'none';
+    this.repositionMode = true;
+    this.repositioningBarracks = barracks;
+    this._redrawZones();
+    this._toast('Click on the path within Barracks range to reposition soldiers');
+  }
+
   _toggleSpeed() {
     this.speed = this.speed === 1 ? 2 : 1;
     document.getElementById('speed-btn').textContent = this.speed === 1 ? '⏩ 2x' : '⏸ 1x';
@@ -547,6 +584,18 @@ export default class GameScene extends Phaser.Scene {
       this.gfx.strokeCircle(zone.cx, zone.cy, zone.radius);
       if (this.selectedType && canAfford) {
         this.gfx.fillStyle(0xffd700, 0.07); this.gfx.fillCircle(zone.cx, zone.cy, zone.radius);
+      }
+    }
+
+    if (this.repositionMode && this.repositioningBarracks) {
+      const b = this.repositioningBarracks;
+      this.gfx.lineStyle(2, 0x4fc3f7, 0.7);
+      this.gfx.strokeCircle(b.x, b.y, b.range);
+      for (const pt of this.pathMgr.getPathPoints()) {
+        if (Math.hypot(pt.x - b.x, pt.y - b.y) <= b.range) {
+          this.gfx.fillStyle(0x4fc3f7, 0.45);
+          this.gfx.fillCircle(pt.x, pt.y, 6);
+        }
       }
     }
   }
