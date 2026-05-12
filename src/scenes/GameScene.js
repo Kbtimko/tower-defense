@@ -347,7 +347,7 @@ export default class GameScene extends Phaser.Scene {
     panel.style.top     = Math.min(my - 10, gameRect.height - 220) + 'px';
     panel.style.display = 'block';
 
-    this._selectedType = null;
+    this.selectedType = null;
     document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('selected'));
   }
 
