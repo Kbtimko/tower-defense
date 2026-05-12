@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import { TOWER_DEFS } from '../data/towers.js';
-import { ENEMY_DEFS } from '../data/enemies.js';
 import { MAPS } from '../data/maps.js';
 import { makeWaves } from '../data/waves.js';
 import { PathManager } from '../systems/PathManager.js';
@@ -40,12 +39,20 @@ export default class GameScene extends Phaser.Scene {
     this.selectedType   = null;
     this.selectedTower  = null;
 
-    // Phaser graphics (cleared + redrawn every frame)
-    this.gfx = this.add.graphics();
     this.cameras.main.setBackgroundColor(map.background);
 
-    // Static IN/OUT text labels
+    // Graphics layers — path drawn once, zones reactive, particles every frame
+    this.pathGfx     = this.add.graphics().setDepth(0);
+    this.zoneGfx     = this.add.graphics().setDepth(1);
+    this.particleGfx = this.add.graphics().setDepth(5);
+
+    // Draw path once (static for the lifetime of the scene)
+    this.pathMgr.renderPath(this.pathGfx, map.pathColor);
     const p = this.pathMgr.path;
+    this.pathGfx.fillStyle(0x27ae60, 1); this.pathGfx.fillCircle(p[0].x, p[0].y, 13);
+    this.pathGfx.fillStyle(0xc0392b, 1); this.pathGfx.fillCircle(p[p.length-1].x, p[p.length-1].y, 13);
+
+    // IN/OUT text labels
     this.add.text(p[0].x, p[0].y, 'IN',  { fontSize: '10px', color: '#fff', fontFamily: 'Georgia', fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
     this.add.text(p[p.length-1].x, p[p.length-1].y, 'OUT', { fontSize: '10px', color: '#fff', fontFamily: 'Georgia', fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
 
@@ -53,41 +60,31 @@ export default class GameScene extends Phaser.Scene {
     this.input.on('pointerdown', this._onPointerDown, this);
 
     // Scene events from systems
-    this.events.on('enemy:spawn',    this._spawnEnemy,  this);
-    this.events.on('economy:update', this._updateHUD,   this);
-    this.events.on('game:defeat',    this._onDefeat,    this);
+    this.events.on('enemy:spawn',    this._spawnEnemy,      this);
+    this.events.on('economy:update', this._onEconomyUpdate, this);
+    this.events.on('game:defeat',    this._handleDefeat,    this);
 
-    // Show DOM UI
-    document.getElementById('hud').style.display        = 'flex';
-    document.getElementById('bottom-bar').style.display = 'flex';
-    document.getElementById('game-msg').style.display   = 'none';
+    // Events from UIScene → GameScene
+    this.game.events.on('ui:wave-start',        () => this._startWave(),                          this);
+    this.game.events.on('ui:speed-toggle',      () => { this.speed = this.speed === 1 ? 2 : 1; }, this);
+    this.game.events.on('ui:tower-type-select', ({ type }) => this._onTowerTypeSelect(type),       this);
+    this.game.events.on('ui:tower-upgrade',     () => this._upgradeSelectedTower(),                this);
+    this.game.events.on('ui:tower-sell',        () => this._sellSelectedTower(),                   this);
+    this.game.events.on('ui:restart',           () => this.scene.restart({ mapId: this.mapId }),   this);
 
-    // Wire DOM buttons (use once-registered named functions; shutdown() cleans up via clone)
-    this._bindDOMEvents();
-    this._updateHUD();
-    this._updateWaveButton();
-  }
-
-  _bindDOMEvents() {
-    document.querySelectorAll('.tower-btn').forEach(btn => {
-      btn.addEventListener('click', () => this._selectTowerType(btn.dataset.type, btn));
-    });
-    document.getElementById('wave-btn').addEventListener('click',          () => this._startWave());
-    document.getElementById('speed-btn').addEventListener('click',         () => this._toggleSpeed());
-    document.getElementById('panel-upgrade-btn').addEventListener('click', () => this._upgradeSelectedTower());
-    document.getElementById('panel-sell-btn').addEventListener('click',    () => this._sellSelectedTower());
-    document.getElementById('msg-btn').addEventListener('click',           () => this.scene.restart({ mapId: this.mapId }));
+    // Launch UIScene — reads initial state from this scene in its own create()
+    this.scene.launch('UIScene');
+    this._redrawZones();
   }
 
   shutdown() {
-    // Remove all DOM listeners without tracking refs: clone replaces the node
-    ['wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.replaceWith(el.cloneNode(true));
-    });
-    document.querySelectorAll('.tower-btn').forEach(btn => btn.replaceWith(btn.cloneNode(true)));
-    document.getElementById('hud').style.display        = 'none';
-    document.getElementById('bottom-bar').style.display = 'none';
+    this.game.events.off('ui:wave-start',        null, this);
+    this.game.events.off('ui:speed-toggle',      null, this);
+    this.game.events.off('ui:tower-type-select', null, this);
+    this.game.events.off('ui:tower-upgrade',     null, this);
+    this.game.events.off('ui:tower-sell',        null, this);
+    this.game.events.off('ui:restart',           null, this);
+    this.scene.stop('UIScene');
   }
 
   // ─── Update loop ───────────────────────────────────────────────────────────
@@ -104,12 +101,7 @@ export default class GameScene extends Phaser.Scene {
     this._updateParticles(dt);
     this._checkWaveComplete();
 
-    this.gfx.clear();
-    this._drawPath();
-    this._drawZones();
-    this._drawTowers();
-    this._drawEnemies();
-    this._drawProjectiles();
+    this.particleGfx.clear();
     this._drawParticles();
   }
 
@@ -118,12 +110,12 @@ export default class GameScene extends Phaser.Scene {
   _startWave() {
     if (this.waveMgr.active) return;
     this.waveMgr.startWave();
-    this._updateWaveButton();
+    this._emitWaveState();
   }
 
   _spawnEnemy({ def, scaleFactor }) {
     const start = this.pathMgr.path[0];
-    this.enemies.push(new Enemy({ def, scaleFactor, startX: start.x, startY: start.y }));
+    this.enemies.push(new Enemy(this, { def, scaleFactor, startX: start.x, startY: start.y }));
   }
 
   _checkWaveComplete() {
@@ -131,8 +123,8 @@ export default class GameScene extends Phaser.Scene {
     if (this.waveMgr.hasQueuedEnemies || this.enemies.length > 0) return;
     this.waveMgr.active = false;
     this.economy.earn(38);
-    this._updateWaveButton();
-    if (this.waveMgr.done) this._onVictory();
+    this._emitWaveState();
+    if (this.waveMgr.done) this._handleVictory();
   }
 
   // ─── Enemies ───────────────────────────────────────────────────────────────
@@ -160,6 +152,7 @@ export default class GameScene extends Phaser.Scene {
         this.economy.loseLife();
       }
     }
+    for (const e of this.enemies) { if (e.dead) e.destroy(); }
     this.enemies = this.enemies.filter(e => !e.dead);
   }
 
@@ -177,7 +170,7 @@ export default class GameScene extends Phaser.Scene {
         }
       }
       if (best) {
-        this.projectiles.push(new Projectile({
+        this.projectiles.push(new Projectile(this, {
           x: tower.x, y: tower.y, target: best,
           damage: tower.damage, splashRadius: tower.splashRadius,
           pierce: tower.pierce, slowFactor: tower.slow,
@@ -207,6 +200,7 @@ export default class GameScene extends Phaser.Scene {
         proj.y += (dy / dist) * step;
       }
     }
+    for (const p of this.projectiles) { if (p.dead) p.destroy(); }
     this.projectiles = this.projectiles.filter(p => !p.dead);
   }
 
@@ -230,7 +224,7 @@ export default class GameScene extends Phaser.Scene {
     if (enemy.dead) {
       this.economy.earn(enemy.reward);
       this.kills++;
-      document.getElementById('stat-kills').textContent = this.kills;
+      this._emitHudUpdate();
     }
   }
 
@@ -254,79 +248,35 @@ export default class GameScene extends Phaser.Scene {
     for (const tower of this.towers) {
       if (Math.hypot(tower.x - mx, tower.y - my) < 22) {
         this.selectedType = null;
-        this._deselectButtons();
-        this._openTowerPanel(tower, mx, my);
+        if (this.selectedTower) this.selectedTower.hideRange();
+        this._panelX = mx; this._panelY = my;
+        this.game.events.emit('tower:panel-open', {
+          tower, def: TOWER_DEFS[tower.type], x: mx, y: my, mapId: this.mapId,
+        });
+        tower.showRange();
+        this.selectedTower = tower;
         return;
       }
     }
-    this._closeTowerPanel();
+    if (this.selectedTower) { this.selectedTower.hideRange(); this.selectedTower = null; }
+    this.game.events.emit('tower:panel-close');
     if (!this.selectedType) return;
     const def = TOWER_DEFS[this.selectedType];
     for (const zone of this.pathMgr.buildZones) {
       if (!zone.occupied && Math.hypot(zone.cx - mx, zone.cy - my) < zone.radius + 8) {
         if (!this.economy.spend(def.cost)) { this._toast('Not enough gold!'); return; }
-        this.towers.push(new Tower({
+        this.towers.push(new Tower(this, {
           type: this.selectedType, x: zone.cx, y: zone.cy, def,
           zoneIndex: this.pathMgr.buildZones.indexOf(zone),
         }));
         zone.occupied = true;
+        this._redrawZones();
         return;
       }
     }
   }
 
-  _selectTowerType(type, btn) {
-    if (this.selectedType === type) { this.selectedType = null; this._deselectButtons(); return; }
-    this.selectedType = type;
-    this.selectedTower = null;
-    this._closeTowerPanel();
-    this._deselectButtons();
-    btn.classList.add('selected');
-  }
-
-  _deselectButtons() {
-    document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('selected'));
-  }
-
   // ─── Tower panel ───────────────────────────────────────────────────────────
-
-  _openTowerPanel(tower, mx, my) {
-    this.selectedTower = tower;
-    const def = TOWER_DEFS[tower.type];
-    const map = MAPS[this.mapId];
-    document.getElementById('panel-name').textContent = def.icon + ' ' + def.name;
-    document.getElementById('panel-dmg').textContent  = 'Damage: ' + tower.damage;
-    document.getElementById('panel-rng').textContent  = 'Range: ' + tower.range;
-    document.getElementById('panel-spd').textContent  = 'Fire rate: ' + (tower.fireRate * 100).toFixed(0) + '%';
-    document.getElementById('panel-lvl').textContent  = 'Level: ' + tower.level + '/4';
-
-    const upgradeBtn = document.getElementById('panel-upgrade-btn');
-    const nextLevel  = tower.level + 1;
-    if (tower.level >= 4) {
-      upgradeBtn.textContent = 'MAX LEVEL';
-      upgradeBtn.className   = 'upgrade-btn maxed';
-    } else if (nextLevel > map.maxTierAllowed) {
-      const unlockMap = map.maxTierAllowed < 2 ? 3 : 5;
-      upgradeBtn.textContent = `🔒 Unlocked on Map ${unlockMap}`;
-      upgradeBtn.className   = 'upgrade-btn maxed';
-    } else {
-      const tierDef = def['tier' + nextLevel];
-      upgradeBtn.textContent = `Upgrade 💰${tierDef.cost}: ${tierDef.label}`;
-      upgradeBtn.className   = 'upgrade-btn';
-    }
-    document.getElementById('panel-sell-btn').textContent = `💰 Sell (${Math.floor(tower.totalCost * 0.6)}g)`;
-
-    const gameRect = document.getElementById('game').getBoundingClientRect();
-    const panel    = document.getElementById('tower-panel');
-    panel.style.left    = Math.min(mx + 10, gameRect.width  - 180) + 'px';
-    panel.style.top     = Math.min(my - 10, gameRect.height - 220) + 'px';
-    panel.style.display = 'block';
-  }
-
-  _closeTowerPanel() {
-    document.getElementById('tower-panel').style.display = 'none';
-    this.selectedTower = null;
-  }
 
   _upgradeSelectedTower() {
     if (!this.selectedTower) return;
@@ -337,68 +287,26 @@ export default class GameScene extends Phaser.Scene {
     if (tower.level >= 4 || nextLevel > map.maxTierAllowed) return;
     const tierDef = def['tier' + nextLevel];
     if (!tierDef || !this.economy.spend(tierDef.cost)) { this._toast('Not enough gold!'); return; }
-    tower.level++;
     tower.totalCost += tierDef.cost;
-    if (tierDef.damage       !== undefined) tower.damage       = tierDef.damage;
-    if (tierDef.range        !== undefined) tower.range        = tierDef.range;
-    if (tierDef.splashRadius !== undefined) tower.splashRadius = tierDef.splashRadius;
-    if (tierDef.slow         !== undefined) tower.slow         = tierDef.slow;
-    if (tierDef.fireRate     !== undefined) tower.fireRate     = tierDef.fireRate;
-    if (tierDef.pierce       !== undefined) tower.pierce       = tierDef.pierce;
-    const panel = document.getElementById('tower-panel');
-    this._openTowerPanel(tower, parseInt(panel.style.left), parseInt(panel.style.top));
+    tower.upgrade(nextLevel);
+    this.game.events.emit('tower:panel-open', {
+      tower, def, x: this._panelX, y: this._panelY, mapId: this.mapId,
+    });
   }
 
   _sellSelectedTower() {
     if (!this.selectedTower) return;
-    const tower = this.selectedTower;
-    this.economy.earn(Math.floor(tower.totalCost * 0.6));
+    const tower  = this.selectedTower;
+    const refund = tower.sell();
+    this.economy.earn(refund);
     this.towers = this.towers.filter(t => t !== tower);
     this.pathMgr.buildZones[tower.zoneIndex].occupied = false;
-    this._closeTowerPanel();
-  }
-
-  _toggleSpeed() {
-    this.speed = this.speed === 1 ? 2 : 1;
-    document.getElementById('speed-btn').textContent = this.speed === 1 ? '⏩ 2x' : '⏸ 1x';
-  }
-
-  // ─── HUD ───────────────────────────────────────────────────────────────────
-
-  _updateHUD() {
-    document.getElementById('stat-lives').textContent = this.economy.lives;
-    document.getElementById('stat-gold').textContent  = this.economy.gold;
-    document.getElementById('stat-wave').textContent  = `${this.waveMgr.currentWave}/${MAPS[this.mapId].waveCount}`;
-    document.getElementById('stat-kills').textContent = this.kills;
-  }
-
-  _updateWaveButton() {
-    const btn = document.getElementById('wave-btn');
-    if (!btn) return;
-    if (this.waveMgr.done) {
-      btn.disabled = true; btn.textContent = 'All Waves Done';
-    } else if (this.waveMgr.active) {
-      btn.disabled = true; btn.textContent = `Wave ${this.waveMgr.currentWave} in progress...`;
-    } else {
-      btn.disabled = false; btn.textContent = `▶ Send Wave ${this.waveMgr.currentWave + 1}`;
-    }
+    this.selectedTower = null;
+    this.game.events.emit('tower:panel-close');
+    this._redrawZones();
   }
 
   // ─── Game end ──────────────────────────────────────────────────────────────
-
-  _onVictory() {
-    this.won = true;
-    document.getElementById('msg-title').textContent = '🏆 Victory!';
-    document.getElementById('msg-body').textContent  = `Survived all ${MAPS[this.mapId].waveCount} waves! Kills: ${this.kills}`;
-    document.getElementById('game-msg').style.display = 'block';
-  }
-
-  _onDefeat() {
-    this.over = true;
-    document.getElementById('msg-title').textContent = '💀 Defeat';
-    document.getElementById('msg-body').textContent  = `The line did not hold. Wave ${this.waveMgr.currentWave}.`;
-    document.getElementById('game-msg').style.display = 'block';
-  }
 
   _toast(msg) {
     const el = document.createElement('div');
@@ -408,75 +316,69 @@ export default class GameScene extends Phaser.Scene {
     setTimeout(() => el.remove(), 1500);
   }
 
-  // ─── Rendering ─────────────────────────────────────────────────────────────
+  // ─── Event helpers ─────────────────────────────────────────────────────────
 
-  _drawPath() {
-    const map = MAPS[this.mapId];
-    this.pathMgr.renderPath(this.gfx, map.pathColor);
-    const p = this.pathMgr.path;
-    this.gfx.fillStyle(0x27ae60, 1); this.gfx.fillCircle(p[0].x, p[0].y, 13);
-    this.gfx.fillStyle(0xc0392b, 1); this.gfx.fillCircle(p[p.length-1].x, p[p.length-1].y, 13);
+  _emitHudUpdate() {
+    this.game.events.emit('hud:update', {
+      gold: this.economy.gold, lives: this.economy.lives,
+      wave: this.waveMgr.currentWave, waveCount: MAPS[this.mapId].waveCount,
+      kills: this.kills,
+    });
   }
 
-  _drawZones() {
+  _emitWaveState() {
+    this.game.events.emit('wave:state', {
+      active: this.waveMgr.active, done: this.waveMgr.done,
+      currentWave: this.waveMgr.currentWave,
+    });
+  }
+
+  _onEconomyUpdate() {
+    this._emitHudUpdate();
+    this._redrawZones();
+  }
+
+  _handleDefeat() {
+    this.over = true;
+    this.game.events.emit('game:defeat', { wave: this.waveMgr.currentWave });
+  }
+
+  _handleVictory() {
+    this.won = true;
+    this.game.events.emit('game:victory', { kills: this.kills, waveCount: MAPS[this.mapId].waveCount });
+  }
+
+  _onTowerTypeSelect(type) {
+    this.selectedType = type;
+    if (type !== null) {
+      if (this.selectedTower) this.selectedTower.hideRange();
+      this.selectedTower = null;
+      this.game.events.emit('tower:panel-close');
+    }
+    this._redrawZones();
+  }
+
+  // ─── Rendering ─────────────────────────────────────────────────────────────
+
+  _redrawZones() {
     const canAfford = this.selectedType && this.economy.gold >= (TOWER_DEFS[this.selectedType]?.cost ?? Infinity);
+    this.zoneGfx.clear();
     for (const zone of this.pathMgr.buildZones) {
       if (zone.occupied) continue;
       const color = this.selectedType ? (canAfford ? 0xffd700 : 0x884444) : 0x444444;
       const alpha = this.selectedType ? 1 : 0.3;
-      this.gfx.lineStyle(this.selectedType ? 2 : 1, color, alpha);
-      this.gfx.strokeCircle(zone.cx, zone.cy, zone.radius);
+      this.zoneGfx.lineStyle(this.selectedType ? 2 : 1, color, alpha);
+      this.zoneGfx.strokeCircle(zone.cx, zone.cy, zone.radius);
       if (this.selectedType && canAfford) {
-        this.gfx.fillStyle(0xffd700, 0.07); this.gfx.fillCircle(zone.cx, zone.cy, zone.radius);
-      }
-    }
-  }
-
-  _drawTowers() {
-    for (const tower of this.towers) {
-      if (this.selectedTower === tower) {
-        this.gfx.lineStyle(1, 0xffd700, 0.25); this.gfx.strokeCircle(tower.x, tower.y, tower.range);
-      }
-      this.gfx.fillStyle(0x2a2a3a, 1); this.gfx.fillCircle(tower.x, tower.y, 18);
-      this.gfx.lineStyle(2.5, TOWER_DEFS[tower.type].color, 1);
-      this.gfx.strokeCircle(tower.x, tower.y, 18);
-    }
-  }
-
-  _drawEnemies() {
-    for (const enemy of this.enemies) {
-      const r = enemy.def.radius;
-      this.gfx.fillStyle(0x000000, 0.25);
-      this.gfx.fillEllipse(enemy.x, enemy.y + r + 2, r * 1.5, 6);
-      this.gfx.fillStyle(enemy.def.color, 1);
-      this.gfx.fillCircle(enemy.x, enemy.y, r);
-      if (enemy.statusEffects.slow.active) {
-        this.gfx.lineStyle(2, 0x00eeff, 1); this.gfx.strokeCircle(enemy.x, enemy.y, r);
-      }
-      // HP bar
-      const bw = r * 2.2, bh = 4, bx = enemy.x - bw / 2, by = enemy.y - r - 8;
-      const pct = enemy.hp / enemy.maxHp;
-      this.gfx.fillStyle(0x222222, 1); this.gfx.fillRect(bx, by, bw, bh);
-      this.gfx.fillStyle(pct > 0.5 ? 0x2ecc40 : pct > 0.25 ? 0xf39c12 : 0xe74c3c, 1);
-      this.gfx.fillRect(bx, by, bw * pct, bh);
-    }
-  }
-
-  _drawProjectiles() {
-    for (const proj of this.projectiles) {
-      this.gfx.fillStyle(proj.color, 1);
-      this.gfx.fillCircle(proj.x, proj.y, proj.splashRadius > 0 ? 5 : 3);
-      if (proj.slowFactor > 0) {
-        this.gfx.lineStyle(1, 0xaaffff, 1);
-        this.gfx.strokeCircle(proj.x, proj.y, proj.slowFactor > 0 ? 5 : 3);
+        this.zoneGfx.fillStyle(0xffd700, 0.07); this.zoneGfx.fillCircle(zone.cx, zone.cy, zone.radius);
       }
     }
   }
 
   _drawParticles() {
     for (const p of this.particles) {
-      this.gfx.lineStyle(2, p.color, p.alpha);
-      this.gfx.strokeCircle(p.x, p.y, p.radius);
+      this.particleGfx.lineStyle(2, p.color, p.alpha);
+      this.particleGfx.strokeCircle(p.x, p.y, p.radius);
     }
   }
 }

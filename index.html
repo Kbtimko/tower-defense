@@ -65,11 +65,33 @@
   <div id="game">
     <div id="tower-panel">
       <div class="panel-name" id="panel-name">Tower</div>
-      <div class="panel-stat" id="panel-dmg">Damage: -</div>
-      <div class="panel-stat" id="panel-rng">Range: -</div>
-      <div class="panel-stat" id="panel-spd">Fire rate: -</div>
-      <div class="panel-stat" id="panel-lvl">Level: -</div>
+
+      <!-- Standard attack tower stats (Archer, Mage, Cannon, Ice, Sniper) -->
+      <div id="panel-std-stats">
+        <div class="panel-stat" id="panel-dmg">Damage: -</div>
+        <div class="panel-stat" id="panel-rng">Range: -</div>
+        <div class="panel-stat" id="panel-spd">Fire rate: -</div>
+        <div class="panel-stat" id="panel-lvl">Level: -</div>
+      </div>
+
+      <!-- Barracks soldier stats (hidden by default) -->
+      <div id="panel-barracks-stats" style="display: none;">
+        <div class="panel-stat">Soldiers: <span id="panel-soldier-count">-</span></div>
+        <div class="panel-stat">HP: <span id="panel-soldier-hp">-</span> each</div>
+        <div class="panel-stat">DMG: <span id="panel-soldier-dmg">-</span> each</div>
+        <div class="panel-stat">Respawn: <span id="panel-soldier-respawn">-</span>s</div>
+        <div class="panel-stat">Blocks: <span id="panel-soldier-blocks">-</span></div>
+      </div>
+
+      <!-- Branch picker (hidden by default, shown at Tier 3) -->
+      <div id="panel-branch-picker" style="display: none;" class="branch-header">
+        <div style="font-size: 12px; color: #f0a500; margin-bottom: 8px;">⚡ Choose Tier 4 Path</div>
+        <div class="branch-cards"></div>
+      </div>
+
+      <!-- Upgrade/Reposition buttons -->
       <button class="upgrade-btn" id="panel-upgrade-btn">Upgrade</button>
+      <button class="reposition-btn" id="panel-reposition-btn" style="display: none;">⟳ Reposition Soldiers</button>
       <button class="sell-btn" id="panel-sell-btn">💰 Sell</button>
     </div>
     <div id="game-msg">
@@ -90,6 +112,12 @@
     </button>
     <button class="tower-btn" data-type="ice">
       <span class="t-icon">❄️</span><span class="t-cost">80g</span><span class="t-name">Ice</span>
+    </button>
+    <button class="tower-btn" data-type="sniper">
+      <span class="t-icon">🎯</span><span class="t-cost">120g</span><span class="t-name">Sniper</span>
+    </button>
+    <button class="tower-btn" data-type="barracks">
+      <span class="t-icon">⚔️</span><span class="t-cost">100g</span><span class="t-name">Barracks</span>
     </button>
     <button id="wave-btn">▶ Send Wave 1</button>
   </div>
