@@ -45,6 +45,19 @@
     #tower-panel .sell-btn { width: 100%; background: #3a1a1a; border: 1px solid #8a3a3a;
                               color: #f07a7a; padding: 5px; border-radius: 4px;
                               cursor: pointer; font-size: 11px; margin-top: 3px; }
+    .branch-header { font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+                     color: #f0a500; margin-bottom: 7px; }
+    .branch-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 8px; }
+    .branch-card { border: 1px solid #555; border-radius: 5px; padding: 7px; font-size: 11px; }
+    .branch-card:not(.locked) { border-color: #f0a500; background: #1a1400; }
+    .branch-card.locked { opacity: 0.45; }
+    .branch-label { font-weight: bold; margin-bottom: 3px; }
+    .branch-effect { color: #888; margin-bottom: 4px; font-size: 10px; }
+    .branch-cost { color: #f0a500; font-weight: bold; margin-bottom: 5px; }
+    .reposition-btn { width: 100%; background: #1a2a3a; border: 1px solid #4fc3f7;
+                      color: #4fc3f7; padding: 5px; border-radius: 4px;
+                      cursor: pointer; font-size: 11px; margin-top: 3px; }
+    .reposition-btn:hover { background: #223344; }
     #game-msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
                 background: rgba(0,0,0,0.88); border: 3px solid #8b6914; border-radius: 12px;
                 padding: 28px 38px; text-align: center; display: none; z-index: 20; }
@@ -65,12 +78,23 @@
   <div id="game">
     <div id="tower-panel">
       <div class="panel-name" id="panel-name">Tower</div>
-      <div class="panel-stat" id="panel-dmg">Damage: -</div>
-      <div class="panel-stat" id="panel-rng">Range: -</div>
-      <div class="panel-stat" id="panel-spd">Fire rate: -</div>
+      <div id="panel-std-stats">
+        <div class="panel-stat" id="panel-dmg">Damage: -</div>
+        <div class="panel-stat" id="panel-rng">Range: -</div>
+        <div class="panel-stat" id="panel-spd">Fire rate: -</div>
+      </div>
+      <div id="panel-barracks-stats" style="display:none">
+        <div class="panel-stat" id="panel-soldier-count">Soldiers: -</div>
+        <div class="panel-stat" id="panel-soldier-hp">HP: -</div>
+        <div class="panel-stat" id="panel-soldier-dmg">DMG: -</div>
+        <div class="panel-stat" id="panel-soldier-respawn">Respawn: -</div>
+        <div class="panel-stat" id="panel-soldier-blocks">Blocks: -</div>
+      </div>
       <div class="panel-stat" id="panel-lvl">Level: -</div>
+      <div id="panel-branch-picker" style="display:none"></div>
       <button class="upgrade-btn" id="panel-upgrade-btn">Upgrade</button>
-      <button class="sell-btn" id="panel-sell-btn">💰 Sell</button>
+      <button class="reposition-btn" id="panel-reposition-btn" style="display:none">&#8635; Reposition Soldiers</button>
+      <button class="sell-btn" id="panel-sell-btn">&#128176; Sell</button>
     </div>
     <div id="game-msg">
       <h2 id="msg-title">Victory!</h2>
@@ -90,6 +114,12 @@
     </button>
     <button class="tower-btn" data-type="ice">
       <span class="t-icon">❄️</span><span class="t-cost">80g</span><span class="t-name">Ice</span>
+    </button>
+    <button class="tower-btn" data-type="sniper">
+      <span class="t-icon">🎯</span><span class="t-cost">120g</span><span class="t-name">Sniper</span>
+    </button>
+    <button class="tower-btn" data-type="barracks">
+      <span class="t-icon">⚔️</span><span class="t-cost">100g</span><span class="t-name">Barracks</span>
     </button>
     <button id="wave-btn">▶ Send Wave 1</button>
   </div>
