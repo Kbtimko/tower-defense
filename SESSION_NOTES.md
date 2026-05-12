@@ -77,3 +77,8 @@ Begin **Phase 3** brainstorm — scope TBD with user. Phase 2 non-goals deferred
 ## 2026-05-11 (auto-generated)
 **Commits this session:**
 - e16377e docs: add Phase 3 implementation plan — tower system, soldiers, branch picker
+
+## 2026-05-11 (auto-generated)
+**Commits this session:**
+- 7cc5921 chore: restore Phase 2 implementation (UIScene, Entity Containers, event-based panel)
+- e16377e docs: add Phase 3 implementation plan — tower system, soldiers, branch picker
