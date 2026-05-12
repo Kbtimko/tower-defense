@@ -20,19 +20,17 @@ export class Tower {
   }
 
   upgrade(tier, branch = null) {
+    const key     = tier === 4 && branch ? `tier4${branch}` : `tier${tier}`;
+    const tierDef = TOWER_DEFS[this.type][key];
+    if (!tierDef) return;
     this.level = tier;
-    if (branch) this.branch = branch;
-    const def = TOWER_DEFS[this.type];
-    const key = tier === 4 && branch ? `tier4${branch}` : `tier${tier}`;
-    const tierDef = def[key];
-    if (tierDef) {
-      if (tierDef.damage       !== undefined) this.damage       = tierDef.damage;
-      if (tierDef.range        !== undefined) this.range        = tierDef.range;
-      if (tierDef.splashRadius !== undefined) this.splashRadius = tierDef.splashRadius;
-      if (tierDef.slow         !== undefined) this.slow         = tierDef.slow;
-      if (tierDef.fireRate     !== undefined) this.fireRate     = tierDef.fireRate;
-      if (tierDef.pierce       !== undefined) this.pierce       = tierDef.pierce;
-    }
+    if (branch)                             this.branch       = branch;
+    if (tierDef.damage       !== undefined) this.damage       = tierDef.damage;
+    if (tierDef.range        !== undefined) this.range        = tierDef.range;
+    if (tierDef.splashRadius !== undefined) this.splashRadius = tierDef.splashRadius;
+    if (tierDef.slow         !== undefined) this.slow         = tierDef.slow;
+    if (tierDef.fireRate     !== undefined) this.fireRate     = tierDef.fireRate;
+    if (tierDef.pierce       !== undefined) this.pierce       = tierDef.pierce;
   }
 
   destroy() {

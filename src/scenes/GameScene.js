@@ -44,6 +44,7 @@ export default class GameScene extends Phaser.Scene {
     this.won         = false;
     this.selectedType   = null;
     this.selectedTower  = null;
+    this._openTowerId   = null;
 
     // Phaser graphics (cleared + redrawn every frame)
     this.gfx = this.add.graphics();
@@ -86,7 +87,7 @@ export default class GameScene extends Phaser.Scene {
 
   shutdown() {
     // Remove all DOM listeners without tracking refs: clone replaces the node
-    ['wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn'].forEach(id => {
+    ['wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','panel-reposition-btn'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.replaceWith(el.cloneNode(true));
     });
@@ -294,41 +295,130 @@ export default class GameScene extends Phaser.Scene {
   // ─── Tower panel ───────────────────────────────────────────────────────────
 
   _openTowerPanel(tower, mx, my) {
+    this._openTowerId = tower.id ?? null;
     this.selectedTower = tower;
     const def = TOWER_DEFS[tower.type];
     const map = MAPS[this.mapId];
-    document.getElementById('panel-name').textContent = def.icon + ' ' + def.name;
-    document.getElementById('panel-dmg').textContent  = 'Damage: ' + tower.damage;
-    document.getElementById('panel-rng').textContent  = 'Range: ' + tower.range;
-    document.getElementById('panel-spd').textContent  = 'Fire rate: ' + (tower.fireRate * 100).toFixed(0) + '%';
+
+    const branchLabel = tower.branch ? ` · ${def['tier4' + tower.branch]?.label ?? ''}` : '';
+    document.getElementById('panel-name').textContent = def.icon + ' ' + def.name + branchLabel;
     document.getElementById('panel-lvl').textContent  = 'Level: ' + tower.level + '/4';
 
-    const upgradeBtn = document.getElementById('panel-upgrade-btn');
-    const nextLevel  = tower.level + 1;
-    if (tower.level >= 4) {
-      upgradeBtn.textContent = 'MAX LEVEL';
-      upgradeBtn.className   = 'upgrade-btn maxed';
-    } else if (nextLevel > map.maxTierAllowed) {
-      const unlockMap = map.maxTierAllowed < 2 ? 3 : 5;
-      upgradeBtn.textContent = `🔒 Unlocked on Map ${unlockMap}`;
-      upgradeBtn.className   = 'upgrade-btn maxed';
+    if (tower.type === 'barracks') {
+      document.getElementById('panel-std-stats').style.display      = 'none';
+      document.getElementById('panel-barracks-stats').style.display = 'block';
+      const ss = tower.soldierStats;
+      document.getElementById('panel-soldier-count').textContent   = 'Soldiers: '  + ss.count;
+      document.getElementById('panel-soldier-hp').textContent      = 'HP: '        + ss.hp        + ' each';
+      document.getElementById('panel-soldier-dmg').textContent     = 'DMG: '       + ss.damage    + ' each';
+      document.getElementById('panel-soldier-respawn').textContent = 'Respawn: '   + ss.respawnDuration + 's';
+      document.getElementById('panel-soldier-blocks').textContent  = 'Blocks: '    + (ss.canBlockFlyers ? 'Ground + Air' : 'Ground');
     } else {
-      const tierDef = def['tier' + nextLevel];
-      upgradeBtn.textContent = `Upgrade 💰${tierDef.cost}: ${tierDef.label}`;
-      upgradeBtn.className   = 'upgrade-btn';
+      document.getElementById('panel-std-stats').style.display      = 'block';
+      document.getElementById('panel-barracks-stats').style.display = 'none';
+      document.getElementById('panel-dmg').textContent = 'Damage: '    + tower.damage;
+      document.getElementById('panel-rng').textContent = 'Range: '     + tower.range;
+      document.getElementById('panel-spd').textContent = 'Fire rate: ' + (tower.fireRate * 100).toFixed(0) + '%';
     }
-    document.getElementById('panel-sell-btn').textContent = `💰 Sell (${Math.floor(tower.totalCost * 0.6)}g)`;
+
+    const upgradeBtn = document.getElementById('panel-upgrade-btn');
+    const picker     = document.getElementById('panel-branch-picker');
+    picker.style.display = 'none';
+    picker.replaceChildren();
+    upgradeBtn.style.display = '';
+
+    if (tower.level === 3 && !tower.branch && tower.type !== 'barracks') {
+      upgradeBtn.style.display = 'none';
+      picker.style.display     = 'block';
+      this._renderBranchPicker(picker, def, map);
+    } else {
+      this._setUpgradeButton(upgradeBtn, tower, def, map);
+    }
+
+    document.getElementById('panel-reposition-btn').style.display =
+      tower.type === 'barracks' ? 'block' : 'none';
+
+    document.getElementById('panel-sell-btn').textContent =
+      '💰 Sell (' + Math.floor(tower.totalCost * 0.6) + 'g)';
 
     const gameRect = document.getElementById('game').getBoundingClientRect();
     const panel    = document.getElementById('tower-panel');
     panel.style.left    = Math.min(mx + 10, gameRect.width  - 180) + 'px';
     panel.style.top     = Math.min(my - 10, gameRect.height - 220) + 'px';
     panel.style.display = 'block';
+
+    this._selectedType = null;
+    document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('selected'));
   }
 
   _closeTowerPanel() {
-    document.getElementById('tower-panel').style.display = 'none';
+    document.getElementById('tower-panel').style.display         = 'none';
+    document.getElementById('panel-branch-picker').style.display = 'none';
+    document.getElementById('panel-branch-picker').replaceChildren();
+    document.getElementById('panel-upgrade-btn').style.display   = '';
+    document.getElementById('panel-std-stats').style.display     = 'block';
+    document.getElementById('panel-barracks-stats').style.display = 'none';
+    document.getElementById('panel-reposition-btn').style.display = 'none';
     this.selectedTower = null;
+  }
+
+  _setUpgradeButton(btn, tower, def, map) {
+    const nextLevel = tower.level + 1;
+    if (tower.level >= 4) {
+      btn.textContent = 'MAX LEVEL';
+      btn.className   = 'upgrade-btn maxed';
+    } else if (nextLevel > map.maxTierAllowed) {
+      const unlockMap = map.maxTierAllowed < 2 ? 3 : 5;
+      btn.textContent = '🔒 Unlocked on Map ' + unlockMap;
+      btn.className   = 'upgrade-btn maxed';
+    } else {
+      const tierDef   = def['tier' + nextLevel];
+      btn.textContent = 'Upgrade 💰' + tierDef.cost + ': ' + tierDef.label;
+      btn.className   = 'upgrade-btn';
+    }
+  }
+
+  _renderBranchPicker(container, def, map) {
+    const tierLocked = map.maxTierAllowed < 4;
+
+    const header = document.createElement('div');
+    header.className   = 'branch-header';
+    header.textContent = '⚡ Choose Tier 4 Path';
+    container.appendChild(header);
+
+    const cards = document.createElement('div');
+    cards.className = 'branch-cards';
+
+    for (const [branch, tierDef] of [['A', def.tier4A], ['B', def.tier4B]]) {
+      const card = document.createElement('div');
+      card.className = tierLocked ? 'branch-card locked' : 'branch-card';
+
+      const label = document.createElement('div');
+      label.className   = 'branch-label';
+      label.textContent = tierDef.label;
+
+      const effect = document.createElement('div');
+      effect.className   = 'branch-effect';
+      effect.textContent = tierDef.passiveEffect;
+
+      const cost = document.createElement('div');
+      cost.className   = 'branch-cost';
+      cost.textContent = tierDef.cost + 'g';
+
+      const btn = document.createElement('button');
+      btn.className   = 'upgrade-btn branch-choose-btn';
+      btn.textContent = 'Choose';
+      if (tierLocked) {
+        btn.disabled = true;
+        btn.title    = 'Unlocked on Map 5';
+      }
+      btn.addEventListener('click', () =>
+        this._upgradeSelectedTower(branch));
+
+      card.append(label, effect, cost, btn);
+      cards.appendChild(card);
+    }
+    container.appendChild(cards);
   }
 
   _upgradeSelectedTower(branch = null) {
