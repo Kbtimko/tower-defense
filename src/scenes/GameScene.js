@@ -13,6 +13,8 @@ import { Enemy } from '../entities/Enemy.js';
 import { Projectile } from '../entities/Projectile.js';
 
 const PROJ_COLORS = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
+const ENEMY_MELEE_DAMAGE = 20; // damage/second dealt by any enemy to a blocking soldier
+const MELEE_RANGE        = 30; // pixels — enemy halts this close to a living soldier
 
 export default class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
@@ -110,6 +112,7 @@ export default class GameScene extends Phaser.Scene {
     this._updateEnemies(dt);
     this._updateTowers(dt);
     this._updateProjectiles(dt);
+    this._updateSoldiers(dt);
     this._updateParticles(dt);
     this._checkWaveComplete();
 
@@ -150,6 +153,16 @@ export default class GameScene extends Phaser.Scene {
     const path = this.pathMgr.path;
     for (const enemy of this.enemies) {
       enemy.update(dt);
+      const blocker = this._checkSoldierBlock(enemy);
+      if (blocker) {
+        blocker.takeDamage(ENEMY_MELEE_DAMAGE * dt);
+        if (blocker.attackTimer <= 0) {
+          this._dealDamage(enemy, blocker.damage, false);
+          blocker.attackTimer = 1 / blocker.attackRate;
+        }
+        if (enemy.dead) continue;
+        continue;
+      }
       let rem = enemy.currentSpeed * dt;
       while (rem > 0 && enemy.waypointIndex < path.length - 1) {
         const tgt = path[enemy.waypointIndex + 1];
@@ -170,6 +183,25 @@ export default class GameScene extends Phaser.Scene {
       }
     }
     this.enemies = this.enemies.filter(e => !e.dead);
+  }
+
+  _checkSoldierBlock(enemy) {
+    for (const tower of this.placementManager.getTowers()) {
+      if (tower.type !== 'barracks') continue;
+      for (const soldier of tower.soldiers) {
+        if (soldier.dead) continue;
+        if (enemy.def.flying && !soldier.canBlockFlyers) continue;
+        if (Math.hypot(enemy.x - soldier.x, enemy.y - soldier.y) < MELEE_RANGE) return soldier;
+      }
+    }
+    return null;
+  }
+
+  _updateSoldiers(dt) {
+    for (const tower of this.placementManager.getTowers()) {
+      if (tower.type !== 'barracks') continue;
+      for (const soldier of tower.soldiers) soldier.update(dt);
+    }
   }
 
   // ─── Towers ────────────────────────────────────────────────────────────────
