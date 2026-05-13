@@ -75,7 +75,7 @@ export class Enemy extends Phaser.GameObjects.Container {
       // Body
       this._body.fillStyle(0xff6600, 1);
       this._body.fillPoints(this._diamondPoints(r * 1.4, r), true);
-      // Legs
+      // Legs — start at 60%/50% of radius from center, extend to 120%/110%
       this._body.lineStyle(1.5, 0xff6600, 0.8);
       for (const [lx, ly] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
         this._body.lineBetween(lx * r * 0.6, ly * r * 0.5, lx * r * 1.2, ly * r * 1.1);
