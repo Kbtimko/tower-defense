@@ -25,7 +25,7 @@ export default class GameScene extends Phaser.Scene {
     // Systems
     this.pathMgr  = new PathManager(map.waypoints, width, height);
     this.economy  = new EconomyManager(map.startGold, map.startLives, this.events);
-    this.waveMgr  = new WaveManager(MAP_WAVES[this.mapId], this.events);
+    this.waveMgr  = new WaveManager(MAP_WAVES[this.mapId] ?? MAP_WAVES[0], this.events);
 
     // Entity arrays
     this.towers      = [];
