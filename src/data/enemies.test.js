@@ -1,4 +1,3 @@
-import { describe, it, expect } from 'vitest';
 import { ENEMY_DEFS } from './enemies.js';
 
 describe('ENEMY_DEFS', () => {
