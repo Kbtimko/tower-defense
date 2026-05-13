@@ -225,6 +225,18 @@ export default class GameScene extends Phaser.Scene {
       this.economy.earn(enemy.reward);
       this.kills++;
       this._emitHudUpdate();
+      // Central flash
+      this._addParticle(enemy.x, enemy.y, enemy.def.color, 10);
+      // Radial burst
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI * 2 * i) / 6;
+        this._addParticle(
+          enemy.x + Math.cos(angle) * enemy.def.radius * 0.8,
+          enemy.y + Math.sin(angle) * enemy.def.radius * 0.8,
+          enemy.def.color,
+          5
+        );
+      }
     }
   }
 
