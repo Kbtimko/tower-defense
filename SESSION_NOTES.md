@@ -1,22 +1,23 @@
 # tower-defense — Session Notes
-_Last updated: 2026-05-10_
+_Last updated: 2026-05-13_
 
 ---
 
 ## CURRENT STATE
 
-**Branch:** `feature/phase-2-core-engine` — tagged `phase-2-complete` (8bc637c)
+**Branch:** `main` — Phase 3 deployed to production
 
 **Completed this session:**
-- Executed all 5 Phase 2 tasks inline (subagents were rejected; continued inline)
-- Tower, Enemy, Projectile converted to `Phaser.GameObjects.Container` subclasses (1f1d8d3, c37a489, cb3d7d4)
-- Rendering refactored: pathGfx drawn once, zoneGfx reactive, particleGfx per-frame (141f8e3)
-- UIScene created; all DOM removed from GameScene; cross-scene comms via `this.game.events` bus (1cedd76)
-- Speed button text reset bug caught and fixed in browser verify (8bc637c)
-- 25 tests green; browser verified full golden path (place/upgrade/sell/wave/HUD/restart)
+- Resolved all merge conflicts in PR #1 (index.html, Tower.js, GameScene.js) — integrated Phase 3 tower system with main branch updates
+- PR #1 merged to main (adc047c via merge commit on feature/phase-3-tower-system)
+- Deployed Phase 3 to Vercel production: https://tower-defense-black.vercel.app
+- All 6 towers live: Archer, Mage, Cannon, Ice, Sniper, Barracks
+- Tier 4 branching system with branch picker UI at Tier 3
+- Barracks soldiers with enemy blocking mechanics
+- Soldier reposition flow fully functional
 
 **Next action:**
-Begin **Phase 3** brainstorm — scope TBD with user. Phase 2 non-goals deferred: TowerPlacementManager extraction, branch picker UI, ability buttons, new enemy types, new maps.
+Phase 4 brainstorm — post-launch features TBD (ability mechanics, new enemy types, new maps, hero unit, etc.)
 
 ---
 
