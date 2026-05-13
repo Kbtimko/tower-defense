@@ -35,4 +35,22 @@ export const TOWER_DEFS = {
     tier4B: { cost: 110, damage: 50, splashRadius: 60, label: 'Shatter', passiveEffect: 'Frozen enemies take 2x damage' },
     ability: { label: 'Blizzard', cooldown: 25, description: 'Freeze all enemies in range' },
   },
+  sniper: {
+    name: 'Sniper', icon: '🎯', cost: 120, color: 0x556b2f,
+    range: 200, damage: 80, fireRate: 0.3, splashRadius: 0, pierce: true, slow: 0,
+    tier2: { cost: 80, damage: 130, range: 220, label: 'Long Barrel' },
+    tier3: { cost: 110, damage: 200, range: 240, label: 'Dead Eye' },
+    tier4A: { cost: 160, damage: 300, label: 'Assassin', passiveEffect: 'Ignores armor, stuns boss 1s' },
+    tier4B: { cost: 160, damage: 180, fireRate: 0.9, label: 'Rapid Fire', passiveEffect: '3x fire rate' },
+    ability: { label: 'Headshot', cooldown: 20, description: 'Instakill one non-boss enemy' },
+  },
+  barracks: {
+    name: 'Barracks', icon: '⚔️', cost: 100, color: 0x8b4513,
+    range: 80, damage: 20, fireRate: 1.2, splashRadius: 0, pierce: false, slow: 0,
+    tier2: { cost: 65, damage: 35, range: 90, label: 'Drill Sergeant' },
+    tier3: { cost: 95, damage: 55, range: 100, label: 'Elite Guard' },
+    tier4A: { cost: 140, damage: 80, label: 'Vanguard', passiveEffect: 'Soldiers block flying enemies' },
+    tier4B: { cost: 140, damage: 60, fireRate: 2.0, label: 'Rapid Assault', passiveEffect: 'Double attack speed' },
+    ability: { label: 'Reinforce', cooldown: 15, description: '+2 soldiers for 15s' },
+  },
 };
