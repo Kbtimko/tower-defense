@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/keithtimko/projects/tower-defense log --oneline -8)",
+      "Bash(git -C /Users/keithtimko/projects/tower-defense tag)",
+      "Bash(git -C /Users/keithtimko/projects/tower-defense branch -a)",
+      "Bash(git -C /Users/keithtimko/projects/tower-defense show 8bc637c --stat)",
+      "Bash(ls /Users/keithtimko/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/scripts/)",
+      "Read(//Users/keithtimko/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/scripts/**)",
+      "Bash(find /Users/keithtimko/.claude/plugins -name \"start-server.sh\" 2>/dev/null | head -5)",
+      "Read(//Users/keithtimko/.claude/plugins/**)",
+      "Bash(git -C /Users/keithtimko/projects/tower-defense show feature/phase-2-core-engine:src/scenes/GameScene.js)",
+      "Bash(git -C /Users/keithtimko/projects/tower-defense show feature/phase-2-core-engine:src/scenes/UIScene.js)",
+      "Bash(git -C /Users/keithtimko/projects/tower-defense show feature/phase-2-core-engine:index.html)",
+      "Bash(git -C /Users/keithtimko/projects/tower-defense show feature/phase-2-core-engine:src/entities/Tower.js)",
+      "Bash(git -C /Users/keithtimko/projects/tower-defense show feature/phase-2-core-engine:src/systems/PathManager.js)",
+      "Bash(git -C /Users/keithtimko/projects/tower-defense log --oneline -5)",
+      "Bash(mkdir -p /Users/keithtimko/.config/superpowers/worktrees/tower-defense)",
+      "Bash(git -C /Users/keithtimko/projects/tower-defense worktree add /Users/keithtimko/.config/superpowers/worktrees/tower-defense/feature/phase-3-tower-system -b feature/phase-3-tower-system)",
+      "Bash(cd /Users/keithtimko/.config/superpowers/worktrees/tower-defense/feature/phase-3-tower-system && npm test 2>&1)",
+      "Read(//Users/keithtimko/.config/superpowers/worktrees/tower-defense/feature/phase-3-tower-system/**)"
+    ],
+    "additionalDirectories": [
+      "/Users/keithtimko/.config/superpowers/worktrees/tower-defense/feature/phase-2-core-engine/src"
+    ]
+  }
+}

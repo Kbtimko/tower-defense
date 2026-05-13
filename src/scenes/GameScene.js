@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import { TOWER_DEFS } from '../data/towers.js';
-import { ENEMY_DEFS } from '../data/enemies.js';
 import { MAPS } from '../data/maps.js';
 import { makeWaves } from '../data/waves.js';
 import { PathManager } from '../systems/PathManager.js';
@@ -36,7 +35,7 @@ export default class GameScene extends Phaser.Scene {
       this.economy,
       (type, scene, opts) => type === 'barracks'
         ? new Barracks(scene, opts)
-        : new Tower(opts)
+        : new Tower(scene, opts)
     );
 
     // Entity arrays
@@ -646,5 +645,9 @@ export default class GameScene extends Phaser.Scene {
       this.gfx.lineStyle(2, p.color, p.alpha);
       this.gfx.strokeCircle(p.x, p.y, p.radius);
     }
+  }
+
+  _redrawZones() {
+    // Placeholder — redrawn every frame in update()
   }
 }

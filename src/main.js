@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import BootScene from './scenes/BootScene.js';
 import MenuScene from './scenes/MenuScene.js';
 import GameScene from './scenes/GameScene.js';
+import UIScene from './scenes/UIScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -13,7 +14,7 @@ const config = {
     autoCenter: Phaser.Scale.NONE,
   },
   backgroundColor: '#1a1a2e',
-  scene: [BootScene, MenuScene, GameScene],
+  scene: [BootScene, MenuScene, GameScene, UIScene],
 };
 
 new Phaser.Game(config);
