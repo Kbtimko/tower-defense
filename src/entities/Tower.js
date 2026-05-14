@@ -44,7 +44,8 @@ export class Tower extends Phaser.GameObjects.Container {
   }
 
   upgrade(tier, branch = null) {
-    const tierDef = TOWER_DEFS[this.type]['tier' + tier];
+    const key     = tier === 4 && branch ? `tier4${branch}` : `tier${tier}`;
+    const tierDef = TOWER_DEFS[this.type][key];
     if (!tierDef) return;
     this.level = tier;
     if (branch)                             this.branch       = branch;

@@ -37,6 +37,39 @@ export class PathManager {
     return false;
   }
 
+  getPathPoints() {
+    return this.path;
+  }
+
+  getNearestPathProgress(x, y) {
+    let totalLen = 0;
+    const segLens = [];
+    for (let i = 0; i < this.path.length - 1; i++) {
+      const len = Math.hypot(
+        this.path[i + 1].x - this.path[i].x,
+        this.path[i + 1].y - this.path[i].y
+      );
+      segLens.push(len);
+      totalLen += len;
+    }
+    if (totalLen === 0) return 0;
+    let bestDist = Infinity, bestProgress = 0, accumulated = 0;
+    for (let i = 0; i < this.path.length - 1; i++) {
+      const p1 = this.path[i], p2 = this.path[i + 1];
+      const dx = p2.x - p1.x, dy = p2.y - p1.y;
+      const lenSq = dx * dx + dy * dy;
+      const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, ((x - p1.x) * dx + (y - p1.y) * dy) / lenSq));
+      const cx = p1.x + t * dx, cy = p1.y + t * dy;
+      const dist = Math.hypot(cx - x, cy - y);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestProgress = (accumulated + t * segLens[i]) / totalLen;
+      }
+      accumulated += segLens[i];
+    }
+    return bestProgress;
+  }
+
   renderPath(gfx, pathColor) {
     if (this.path.length < 2) return;
     // Shadow
