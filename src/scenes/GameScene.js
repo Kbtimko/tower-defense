@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { TOWER_DEFS } from '../data/towers.js';
 import { MAPS } from '../data/maps.js';
-import { makeWaves } from '../data/waves.js';
+import { MAP_WAVES } from '../data/waves.js';
 import { PathManager } from '../systems/PathManager.js';
 import { WaveManager } from '../systems/WaveManager.js';
 import { EconomyManager } from '../systems/EconomyManager.js';
@@ -29,7 +29,7 @@ export default class GameScene extends Phaser.Scene {
     // Systems
     this.pathMgr  = new PathManager(map.waypoints, width, height);
     this.economy  = new EconomyManager(map.startGold, map.startLives, this.events);
-    this.waveMgr  = new WaveManager(makeWaves(this.mapId), this.events);
+    this.waveMgr  = new WaveManager(MAP_WAVES[this.mapId] ?? MAP_WAVES[0], this.events);
     this.placementManager = new TowerPlacementManager(
       this.pathMgr.buildZones,
       this.economy,
@@ -276,7 +276,19 @@ export default class GameScene extends Phaser.Scene {
     if (enemy.dead) {
       this.economy.earn(enemy.reward);
       this.kills++;
-      document.getElementById('stat-kills').textContent = this.kills;
+      this._emitHudUpdate();
+      // Central flash
+      this._addParticle(enemy.x, enemy.y, enemy.def.color, 10);
+      // Radial burst
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI * 2 * i) / 6;
+        this._addParticle(
+          enemy.x + Math.cos(angle) * enemy.def.radius * 0.8,
+          enemy.y + Math.sin(angle) * enemy.def.radius * 0.8,
+          enemy.def.color,
+          5
+        );
+      }
     }
   }
 
