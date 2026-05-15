@@ -181,13 +181,16 @@ export default class UIScene extends Phaser.Scene {
   _setUpgradeButton(btn, tower, def, map) {
     const nextLevel = tower.level + 1;
     if (tower.level >= 4) {
+      btn.disabled    = true;
       btn.textContent = 'MAX LEVEL';
       btn.className   = 'upgrade-btn maxed';
     } else if (nextLevel > map.maxTierAllowed) {
       const unlockMap = map.maxTierAllowed < 2 ? 3 : 5;
+      btn.disabled    = true;
       btn.textContent = '🔒 Unlocked on Map ' + unlockMap;
       btn.className   = 'upgrade-btn maxed';
     } else {
+      btn.disabled    = false;
       const tierDef   = def['tier' + nextLevel];
       btn.textContent = 'Upgrade 💰' + tierDef.cost + ': ' + tierDef.label;
       btn.className   = 'upgrade-btn';
