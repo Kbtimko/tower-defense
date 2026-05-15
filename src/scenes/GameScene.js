@@ -11,9 +11,9 @@ import { Barracks } from '../entities/Barracks.js';
 import { Enemy } from '../entities/Enemy.js';
 import { Projectile } from '../entities/Projectile.js';
 
-const PROJ_COLORS = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
-const ENEMY_MELEE_DAMAGE = 20; // damage/second dealt by any enemy to a blocking soldier
-const MELEE_RANGE        = 30; // pixels — enemy halts this close to a living soldier
+const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
+const ENEMY_MELEE_DAMAGE = 20;
+const MELEE_RANGE        = 30;
 
 export default class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
@@ -276,7 +276,7 @@ export default class GameScene extends Phaser.Scene {
     if (enemy.dead) {
       this.economy.earn(enemy.reward);
       this.kills++;
-      this._emitHudUpdate();
+      this._updateHUD();
       // Central flash
       this._addParticle(enemy.x, enemy.y, enemy.def.color, 10);
       // Radial burst
@@ -310,24 +310,18 @@ export default class GameScene extends Phaser.Scene {
   _onPointerDown(pointer) {
     const mx = pointer.x, my = pointer.y;
 
-    // Handle reposition mode
     if (this.repositionMode && this.repositioningBarracks) {
-      const b = this.repositioningBarracks;
-      for (const pt of this.pathMgr.getPathPoints()) {
-        if (Math.hypot(pt.x - b.x, pt.y - b.y) <= b.range) {
-          if (Math.hypot(pt.x - mx, pt.y - my) < 8) {
-            const newProgress = this.pathMgr.getNearestPathProgress(mx, my);
-            b.repositionSoldiers(newProgress, this.pathMgr.getPathPoints());
-            this.repositionMode = false;
-            this.repositioningBarracks = null;
-            this._openTowerPanel(b, mx, my);
-            return;
-          }
-        }
-      }
-      this._toast('Click on the path within Barracks range!');
-      this.repositionMode = false;
+      const barracks = this.repositioningBarracks;
+      this.repositionMode        = false;
       this.repositioningBarracks = null;
+      if (this.pathMgr.isOnPath(mx, my, 30) &&
+          Math.hypot(mx - barracks.x, my - barracks.y) <= barracks.range) {
+        const progress = this.pathMgr.getNearestPathProgress(mx, my);
+        barracks.repositionSoldiers(progress, this.pathMgr.getPathPoints());
+      } else {
+        this._toast('Click on the path within Barracks range!');
+      }
+      if (this.selectedTower) this._openTowerPanel(barracks, mx, my);
       return;
     }
 
@@ -347,6 +341,10 @@ export default class GameScene extends Phaser.Scene {
       if (!zone.occupied && Math.hypot(zone.cx - mx, zone.cy - my) < zone.radius + 8) {
         const tower = this.placementManager.placeTower(i, this.selectedType, this);
         if (!tower) { this._toast('Not enough gold!'); return; }
+        if (this.selectedType === 'barracks') {
+          tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(zone.cx, zone.cy);
+          tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
+        }
         return;
       }
     }
@@ -438,13 +436,16 @@ export default class GameScene extends Phaser.Scene {
   _setUpgradeButton(btn, tower, def, map) {
     const nextLevel = tower.level + 1;
     if (tower.level >= 4) {
+      btn.disabled    = true;
       btn.textContent = 'MAX LEVEL';
       btn.className   = 'upgrade-btn maxed';
     } else if (nextLevel > map.maxTierAllowed) {
-      const unlockMap = map.maxTierAllowed < 2 ? 3 : 5;
+      const unlockMap = nextLevel <= 3 ? 3 : 5;
+      btn.disabled    = true;
       btn.textContent = '🔒 Unlocked on Map ' + unlockMap;
       btn.className   = 'upgrade-btn maxed';
     } else {
+      btn.disabled    = false;
       const tierDef   = def['tier' + nextLevel];
       btn.textContent = 'Upgrade 💰' + tierDef.cost + ': ' + tierDef.label;
       btn.className   = 'upgrade-btn';
@@ -503,6 +504,9 @@ export default class GameScene extends Phaser.Scene {
     if (!this.placementManager.upgradeTower(tower, nextLevel, branch)) {
       this._toast('Not enough gold!');
       return;
+    }
+    if (tower.type === 'barracks') {
+      tower._rebuildSoldiers(this, this.pathMgr.getPathPoints());
     }
     const panel = document.getElementById('tower-panel');
     this._openTowerPanel(tower, parseInt(panel.style.left), parseInt(panel.style.top));

@@ -4,15 +4,14 @@ import { TOWER_DEFS } from '../data/towers.js';
 
 export class Barracks extends Tower {
   constructor(scene, { type, x, y, def, zoneIndex }) {
-    super({ type, x, y, def, zoneIndex });
+    super(scene, { type, x, y, def, zoneIndex });
     this.soldiers            = [];
     this.soldierPathProgress = 0.5;
     this.soldierStats        = def.soldierStats.tier1;
   }
 
   spawnSoldiers(scene, pathPoints) {
-    const count = this.soldierStats.count;
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < this.soldierStats.count; i++) {
       this.soldiers.push(new Soldier(scene, {
         barracks:     this,
         pathProgress: this.soldierPathProgress,
