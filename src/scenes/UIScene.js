@@ -43,7 +43,7 @@ export default class UIScene extends Phaser.Scene {
     this.game.events.off('tower:panel-close', this._onPanelClose, this);
     this.game.events.off('game:victory',      this._onVictory,    this);
     this.game.events.off('game:defeat',       this._onDefeat,     this);
-    this.game.events.off('ui:barracks-reposition', null, this);
+    this.game.events.off('ui:barracks-reposition', this._onBarracksReposition, this);
 
     ['wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','panel-reposition-btn'].forEach(id => {
       const el = document.getElementById(id);
@@ -89,6 +89,10 @@ export default class UIScene extends Phaser.Scene {
     this.game.events.emit('ui:speed-toggle');
   }
 
+  _onBarracksReposition() {
+    document.getElementById('tower-panel').style.display = 'none';
+  }
+
   _subscribeToGameEvents() {
     this.game.events.on('hud:update',       this._onHudUpdate,  this);
     this.game.events.on('wave:state',        this._onWaveState,  this);
@@ -96,9 +100,7 @@ export default class UIScene extends Phaser.Scene {
     this.game.events.on('tower:panel-close', this._onPanelClose, this);
     this.game.events.on('game:victory',      this._onVictory,    this);
     this.game.events.on('game:defeat',       this._onDefeat,     this);
-    this.game.events.on('ui:barracks-reposition', () => {
-      document.getElementById('tower-panel').style.display = 'none';
-    }, this);
+    this.game.events.on('ui:barracks-reposition', this._onBarracksReposition, this);
   }
 
   _onHudUpdate({ gold, lives, wave, waveCount, kills }) {
@@ -185,7 +187,7 @@ export default class UIScene extends Phaser.Scene {
       btn.textContent = 'MAX LEVEL';
       btn.className   = 'upgrade-btn maxed';
     } else if (nextLevel > map.maxTierAllowed) {
-      const unlockMap = map.maxTierAllowed < 2 ? 3 : 5;
+      const unlockMap = nextLevel <= 3 ? 3 : 5;
       btn.disabled    = true;
       btn.textContent = '🔒 Unlocked on Map ' + unlockMap;
       btn.className   = 'upgrade-btn maxed';
@@ -232,8 +234,9 @@ export default class UIScene extends Phaser.Scene {
 
   _onPanelClose() {
     document.getElementById('tower-panel').style.display          = 'none';
-    document.getElementById('panel-branch-picker').style.display  = 'none';
-    document.getElementById('panel-branch-picker').querySelector('.branch-cards').replaceChildren();
+    const picker = document.getElementById('panel-branch-picker');
+    picker.style.display = 'none';
+    picker.querySelector('.branch-cards').replaceChildren();
     document.getElementById('panel-upgrade-btn').style.display    = '';
     document.getElementById('panel-std-stats').style.display      = 'block';
     document.getElementById('panel-barracks-stats').style.display = 'none';
