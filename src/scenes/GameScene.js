@@ -6,6 +6,7 @@ import { PathManager } from '../systems/PathManager.js';
 import { WaveManager } from '../systems/WaveManager.js';
 import { EconomyManager } from '../systems/EconomyManager.js';
 import { Tower } from '../entities/Tower.js';
+import { Barracks } from '../entities/Barracks.js';
 import { Enemy } from '../entities/Enemy.js';
 import { Projectile } from '../entities/Projectile.js';
 
@@ -68,7 +69,7 @@ export default class GameScene extends Phaser.Scene {
     this.game.events.on('ui:wave-start',        () => this._startWave(),                          this);
     this.game.events.on('ui:speed-toggle',      () => { this.speed = this.speed === 1 ? 2 : 1; }, this);
     this.game.events.on('ui:tower-type-select', ({ type }) => this._onTowerTypeSelect(type),       this);
-    this.game.events.on('ui:tower-upgrade',     () => this._upgradeSelectedTower(),                this);
+    this.game.events.on('ui:tower-upgrade', ({ branch } = {}) => this._upgradeSelectedTower(branch ?? null), this);
     this.game.events.on('ui:tower-sell',        () => this._sellSelectedTower(),                   this);
     this.game.events.on('ui:restart',           () => this.scene.restart({ mapId: this.mapId }),   this);
 
@@ -160,6 +161,7 @@ export default class GameScene extends Phaser.Scene {
 
   _updateTowers(dt) {
     for (const tower of this.towers) {
+      if (!tower.fireRate) continue;
       tower.cooldown = Math.max(0, tower.cooldown - dt);
       if (tower.cooldown > 0) continue;
       let best = null, bestProg = -1;
@@ -265,10 +267,16 @@ export default class GameScene extends Phaser.Scene {
     for (const zone of this.pathMgr.buildZones) {
       if (!zone.occupied && Math.hypot(zone.cx - mx, zone.cy - my) < zone.radius + 8) {
         if (!this.economy.spend(def.cost)) { this._toast('Not enough gold!'); return; }
-        this.towers.push(new Tower(this, {
-          type: this.selectedType, x: zone.cx, y: zone.cy, def,
-          zoneIndex: this.pathMgr.buildZones.indexOf(zone),
-        }));
+        const zoneIndex = this.pathMgr.buildZones.indexOf(zone);
+        let tower;
+        if (this.selectedType === 'barracks') {
+          tower = new Barracks(this, { type: this.selectedType, x: zone.cx, y: zone.cy, def, zoneIndex });
+          tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(zone.cx, zone.cy);
+          tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
+        } else {
+          tower = new Tower(this, { type: this.selectedType, x: zone.cx, y: zone.cy, def, zoneIndex });
+        }
+        this.towers.push(tower);
         zone.occupied = true;
         this._redrawZones();
         return;
@@ -278,17 +286,21 @@ export default class GameScene extends Phaser.Scene {
 
   // ─── Tower panel ───────────────────────────────────────────────────────────
 
-  _upgradeSelectedTower() {
+  _upgradeSelectedTower(branch = null) {
     if (!this.selectedTower) return;
     const tower     = this.selectedTower;
     const def       = TOWER_DEFS[tower.type];
     const map       = MAPS[this.mapId];
     const nextLevel = tower.level + 1;
     if (tower.level >= 4 || nextLevel > map.maxTierAllowed) return;
-    const tierDef = def['tier' + nextLevel];
+    const key     = nextLevel === 4 && branch ? `tier4${branch}` : `tier${nextLevel}`;
+    const tierDef = def[key];
     if (!tierDef || !this.economy.spend(tierDef.cost)) { this._toast('Not enough gold!'); return; }
     tower.totalCost += tierDef.cost;
-    tower.upgrade(nextLevel);
+    tower.upgrade(nextLevel, branch);
+    if (tower.type === 'barracks') {
+      tower._rebuildSoldiers(this, this.pathMgr.getPathPoints());
+    }
     this.game.events.emit('tower:panel-open', {
       tower, def, x: this._panelX, y: this._panelY, mapId: this.mapId,
     });
