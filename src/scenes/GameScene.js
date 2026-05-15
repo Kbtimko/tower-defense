@@ -43,6 +43,9 @@ export default class GameScene extends Phaser.Scene {
     this.selectedType   = null;
     this.selectedTower  = null;
 
+    this.repositionMode        = false;
+    this.repositioningBarracks = null;
+
     this.cameras.main.setBackgroundColor(map.background);
 
     // Graphics layers — path drawn once, zones reactive, particles every frame
@@ -74,6 +77,13 @@ export default class GameScene extends Phaser.Scene {
     this.game.events.on('ui:tower-type-select', ({ type }) => this._onTowerTypeSelect(type),       this);
     this.game.events.on('ui:tower-upgrade', ({ branch } = {}) => this._upgradeSelectedTower(branch ?? null), this);
     this.game.events.on('ui:tower-sell',        () => this._sellSelectedTower(),                   this);
+    this.game.events.on('ui:barracks-reposition', () => {
+      if (!this.selectedTower || this.selectedTower.type !== 'barracks') return;
+      this.repositionMode        = true;
+      this.repositioningBarracks = this.selectedTower;
+      this._redrawZones();
+      this._toast('Click on the path within Barracks range to reposition soldiers');
+    }, this);
     this.game.events.on('ui:restart',           () => this.scene.restart({ mapId: this.mapId }),   this);
 
     // Launch UIScene — reads initial state from this scene in its own create()
@@ -87,6 +97,7 @@ export default class GameScene extends Phaser.Scene {
     this.game.events.off('ui:tower-type-select', null, this);
     this.game.events.off('ui:tower-upgrade',     null, this);
     this.game.events.off('ui:tower-sell',        null, this);
+    this.game.events.off('ui:barracks-reposition', null, this);
     this.game.events.off('ui:restart',           null, this);
     this.scene.stop('UIScene');
   }
@@ -280,6 +291,28 @@ export default class GameScene extends Phaser.Scene {
 
   _onPointerDown(pointer) {
     const mx = pointer.x, my = pointer.y;
+
+    if (this.repositionMode && this.repositioningBarracks) {
+      const barracks = this.repositioningBarracks;
+      this.repositionMode        = false;
+      this.repositioningBarracks = null;
+      if (this.pathMgr.isOnPath(mx, my, 30) &&
+          Math.hypot(mx - barracks.x, my - barracks.y) <= barracks.range) {
+        const progress = this.pathMgr.getNearestPathProgress(mx, my);
+        barracks.repositionSoldiers(progress, this.pathMgr.getPathPoints());
+      } else {
+        this._toast('Click on the path within Barracks range!');
+      }
+      this._redrawZones();
+      if (this.selectedTower) {
+        this.game.events.emit('tower:panel-open', {
+          tower: this.selectedTower, def: TOWER_DEFS[this.selectedTower.type],
+          x: this._panelX, y: this._panelY, mapId: this.mapId,
+        });
+      }
+      return;
+    }
+
     for (const tower of this.towers) {
       if (Math.hypot(tower.x - mx, tower.y - my) < 22) {
         this.selectedType = null;
@@ -416,6 +449,18 @@ export default class GameScene extends Phaser.Scene {
       this.zoneGfx.strokeCircle(zone.cx, zone.cy, zone.radius);
       if (this.selectedType && canAfford) {
         this.zoneGfx.fillStyle(0xffd700, 0.07); this.zoneGfx.fillCircle(zone.cx, zone.cy, zone.radius);
+      }
+    }
+
+    if (this.repositionMode && this.repositioningBarracks) {
+      const b = this.repositioningBarracks;
+      this.zoneGfx.lineStyle(2, 0x4fc3f7, 0.7);
+      this.zoneGfx.strokeCircle(b.x, b.y, b.range);
+      for (const pt of this.pathMgr.getPathPoints()) {
+        if (Math.hypot(pt.x - b.x, pt.y - b.y) <= b.range) {
+          this.zoneGfx.fillStyle(0x4fc3f7, 0.45);
+          this.zoneGfx.fillCircle(pt.x, pt.y, 6);
+        }
       }
     }
   }
