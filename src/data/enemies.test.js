@@ -10,4 +10,12 @@ describe('ENEMY_DEFS', () => {
       expect(def.type).toBe(key);
     });
   }
+
+  it('phantom.flying is true', () => {
+    expect(ENEMY_DEFS.phantom.flying).toBe(true);
+  });
+
+  it('titan.armor equals 20 (flat damage reduction)', () => {
+    expect(ENEMY_DEFS.titan.armor).toBe(20);
+  });
 });
