@@ -10,6 +10,10 @@ import { Tower } from '../entities/Tower.js';
 import { Barracks } from '../entities/Barracks.js';
 import { Enemy } from '../entities/Enemy.js';
 import { Projectile } from '../entities/Projectile.js';
+import { ProgressManager } from '../systems/ProgressManager.js';
+import { StoryManager }    from '../systems/StoryManager.js';
+import { STORY_PANELS }    from '../data/story.js';
+import { starsDisplay }    from '../utils/display.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const ENEMY_MELEE_DAMAGE = 20;
@@ -30,6 +34,8 @@ export default class GameScene extends Phaser.Scene {
     this.pathMgr  = new PathManager(map.waypoints, width, height);
     this.economy  = new EconomyManager(map.startGold, map.startLives, this.events);
     this.waveMgr  = new WaveManager(MAP_WAVES[this.mapId] ?? MAP_WAVES[0], this.events);
+    this.progressMgr = new ProgressManager();
+    this.storyMgr    = new StoryManager(STORY_PANELS);
     this.placementManager = new TowerPlacementManager(
       this.pathMgr.buildZones,
       this.economy,
@@ -91,12 +97,12 @@ export default class GameScene extends Phaser.Scene {
     document.getElementById('panel-upgrade-btn').addEventListener('click', () => this._upgradeSelectedTower());
     document.getElementById('panel-sell-btn').addEventListener('click',    () => this._sellSelectedTower());
     document.getElementById('panel-reposition-btn').addEventListener('click', () => this._startReposition());
-    document.getElementById('msg-btn').addEventListener('click',           () => this.scene.restart({ mapId: this.mapId }));
+    document.getElementById('msg-btn').addEventListener('click', () => this.scene.start('MapSelectScene'));
   }
 
   shutdown() {
     // Remove all DOM listeners without tracking refs: clone replaces the node
-    ['wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','panel-reposition-btn'].forEach(id => {
+    ['wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','panel-reposition-btn','story-dismiss'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.replaceWith(el.cloneNode(true));
     });
@@ -147,8 +153,17 @@ export default class GameScene extends Phaser.Scene {
     if (this.waveMgr.hasQueuedEnemies || this.enemies.length > 0) return;
     this.waveMgr.active = false;
     this.economy.earn(38);
-    this._updateWaveButton();
-    if (this.waveMgr.done) this._onVictory();
+    if (this.waveMgr.done) {
+      this._onVictory();
+    } else {
+      const map   = MAPS[this.mapId];
+      const panel = this.storyMgr.getPanelForWave(map.storyKey, this.waveMgr.currentWave);
+      if (panel) {
+        this.storyMgr.showBanner(panel, () => this._updateWaveButton());
+      } else {
+        this._updateWaveButton();
+      }
+    }
   }
 
   // ─── Enemies ───────────────────────────────────────────────────────────────
@@ -559,8 +574,23 @@ export default class GameScene extends Phaser.Scene {
 
   _onVictory() {
     this.won = true;
+    const map   = MAPS[this.mapId];
+    const pct   = this.economy.lives / map.startLives;
+    const stars = pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : 1;
+    this.progressMgr.setStars(this.mapId, stars);
+    this.progressMgr.unlockNext(this.mapId);
+    const panel = this.storyMgr.getUnlockPanel(map.storyKey);
+    if (panel) {
+      this.storyMgr.showBanner(panel, () => this._showVictoryOverlay(stars));
+    } else {
+      this._showVictoryOverlay(stars);
+    }
+  }
+
+  _showVictoryOverlay(stars) {
     document.getElementById('msg-title').textContent = '🏆 Victory!';
-    document.getElementById('msg-body').textContent  = `Survived all ${MAPS[this.mapId].waveCount} waves! Kills: ${this.kills}`;
+    document.getElementById('msg-body').textContent  =
+      starsDisplay(stars) + ' — ' + this.kills + ' kills';
     document.getElementById('game-msg').style.display = 'block';
   }
 
