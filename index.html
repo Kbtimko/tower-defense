@@ -76,6 +76,29 @@
     #story-dismiss { background:transparent; border:1px solid #3a6a4a; color:#7aba8a;
                      padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px; flex-shrink:0; }
     #story-dismiss:hover { background:#1a2a1a; }
+    #map-select { display:none; position:absolute; inset:0; background:#08081e; z-index:5;
+                  padding:20px; flex-direction:column; font-family:'Georgia',serif; }
+    #map-select-title { font-size:34px; color:#ffd700; font-weight:bold; text-align:center;
+                        margin-bottom:18px; letter-spacing:4px; }
+    #map-select-layout { display:flex; gap:16px; flex:1; min-height:0; overflow:hidden; }
+    #map-sidebar { width:230px; overflow-y:auto; display:flex; flex-direction:column; gap:5px; }
+    #map-featured { flex:1; border:2px solid #8b6914; border-radius:10px; background:#0f0f2e;
+                    padding:22px; display:flex; flex-direction:column; }
+    #featured-name { font-size:22px; color:#ffd700; font-weight:bold; margin-bottom:6px; }
+    #featured-stars { font-size:22px; color:#ffd700; margin-bottom:14px; }
+    #featured-blurb { color:#aaa; font-size:14px; line-height:1.6; flex:1; margin-bottom:14px; }
+    #featured-tier { color:#7ab8ff; font-size:13px; margin-bottom:18px; }
+    #featured-play { background:#8b1a1a; border:none; color:#fff; padding:12px 28px;
+                     border-radius:6px; cursor:pointer; font-size:16px; font-weight:bold;
+                     align-self:flex-start; }
+    #featured-play:hover { background:#aa2222; }
+    .map-row { border-radius:5px; padding:8px 10px; }
+    .map-row.unlocked { background:#1a2e1a; border:1px solid #4a6a4a; color:#ccc; cursor:pointer; }
+    .map-row.unlocked:hover { border-color:#ffd700; background:#252515; }
+    .map-row.unlocked.active { border-color:#ffd700; background:#2a2a1a; }
+    .map-row.locked { background:#111; border:1px dashed #333; color:#555; }
+    .map-row-name { font-size:12px; font-weight:bold; }
+    .map-row-stars { font-size:11px; color:#ffd700; min-height:16px; }
   </style>
 </head>
 <body>
@@ -93,6 +116,19 @@
         <div id="story-body"></div>
       </div>
       <button id="story-dismiss">&#10005;</button>
+    </div>
+    <div id="map-select">
+      <div id="map-select-title">LAST LIGHT</div>
+      <div id="map-select-layout">
+        <div id="map-sidebar"></div>
+        <div id="map-featured">
+          <div id="featured-name"></div>
+          <div id="featured-stars"></div>
+          <div id="featured-blurb"></div>
+          <div id="featured-tier"></div>
+          <button id="featured-play">&#9654; PLAY</button>
+        </div>
+      </div>
     </div>
     <div id="tower-panel">
       <div class="panel-name" id="panel-name">Tower</div>
