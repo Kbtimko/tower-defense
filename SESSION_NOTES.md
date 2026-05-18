@@ -83,3 +83,67 @@ Phase 4 brainstorm — post-launch features TBD (ability mechanics, new enemy ty
 **Commits this session:**
 - 7cc5921 chore: restore Phase 2 implementation (UIScene, Entity Containers, event-based panel)
 - e16377e docs: add Phase 3 implementation plan — tower system, soldiers, branch picker
+
+## 2026-05-12 (auto-generated)
+**Commits this session:**
+- 44421c4 chore: finalize Phase 3 session — all features deployed to production
+
+## 2026-05-12 (auto-generated)
+**Commits this session:**
+- 218ff39 docs: add Phase 4 implementation plan — enemy shapes, wave balance, death particles
+- e427cad docs: add Phase 4 design spec — alien enemy system, Map 1 scope
+- 44421c4 chore: finalize Phase 3 session — all features deployed to production
+
+## 2026-05-13 (auto-generated)
+**Commits this session:**
+- 3503c8e docs: add Barracks/Soldier system rebuild design spec
+
+## 2026-05-14 (auto-generated)
+**Commits this session:**
+- 702817b refactor: fix UIScene event handler consistency and unlock map heuristic
+- 2829d69 fix: disable upgrade button in maxed and tier-locked states
+- 24cf28c feat: add branch picker UI and Barracks soldier stats panel with reposition button
+- 09533b1 feat: implement Barracks reposition mode with path overlay
+- d16f3b5 feat: implement soldier blocking — enemies halt and fight soldiers in melee
+- 51a7a90 feat: wire Barracks placement dispatch, targeting skip, and upgrade branch support
+- df0aab1 feat: add Barracks entity extending Tower with soldier management
+- 48bd674 feat: add Soldier entity with HP bar and respawn timer
+- 687ad1a fix: resolve tier4A/tier4B keys correctly in Tower.upgrade
+- 29fc85f feat: add PathManager.getPathPoints and getNearestPathProgress
+- b0eec4e feat: restore soldierStats on barracks def, zero out flat combat fields
+- 3a1f3a3 docs: add Barracks/Soldier rebuild implementation plan
+
+## 2026-05-14 (auto-generated)
+**Commits this session:**
+- 702817b refactor: fix UIScene event handler consistency and unlock map heuristic
+- 2829d69 fix: disable upgrade button in maxed and tier-locked states
+- 24cf28c feat: add branch picker UI and Barracks soldier stats panel with reposition button
+- 09533b1 feat: implement Barracks reposition mode with path overlay
+- d16f3b5 feat: implement soldier blocking — enemies halt and fight soldiers in melee
+- 51a7a90 feat: wire Barracks placement dispatch, targeting skip, and upgrade branch support
+- df0aab1 feat: add Barracks entity extending Tower with soldier management
+- 48bd674 feat: add Soldier entity with HP bar and respawn timer
+- 687ad1a fix: resolve tier4A/tier4B keys correctly in Tower.upgrade
+- 29fc85f feat: add PathManager.getPathPoints and getNearestPathProgress
+- b0eec4e feat: restore soldierStats on barracks def, zero out flat combat fields
+- 3a1f3a3 docs: add Barracks/Soldier rebuild implementation plan
+
+## 2026-05-14 (auto-generated)
+**Commits this session:**
+- 289d9b9 merge: resolve conflicts with feature/phase-3-tower-system
+- 702817b refactor: fix UIScene event handler consistency and unlock map heuristic
+- 2829d69 fix: disable upgrade button in maxed and tier-locked states
+- 24cf28c feat: add branch picker UI and Barracks soldier stats panel with reposition button
+- 09533b1 feat: implement Barracks reposition mode with path overlay
+- d16f3b5 feat: implement soldier blocking — enemies halt and fight soldiers in melee
+- 51a7a90 feat: wire Barracks placement dispatch, targeting skip, and upgrade branch support
+- df0aab1 feat: add Barracks entity extending Tower with soldier management
+- 48bd674 feat: add Soldier entity with HP bar and respawn timer
+- 687ad1a fix: resolve tier4A/tier4B keys correctly in Tower.upgrade
+- 29fc85f feat: add PathManager.getPathPoints and getNearestPathProgress
+- b0eec4e feat: restore soldierStats on barracks def, zero out flat combat fields
+- 3a1f3a3 docs: add Barracks/Soldier rebuild implementation plan
+
+## 2026-05-17 (auto-generated)
+**Commits this session:**
+- 0909c72 docs: add Phase 5 maps & storyline design spec
