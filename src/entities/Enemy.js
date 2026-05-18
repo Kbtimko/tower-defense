@@ -90,8 +90,25 @@ export class Enemy extends Phaser.GameObjects.Container {
       // Lighter center plate
       this._body.fillStyle(this.def.color, 1);
       this._body.fillPoints(this._hexPoints(r * 0.65), true);
+    } else if (t === 'phantom') {
+      // Outer translucent ring — ghostly form
+      this._body.fillStyle(this.def.color, 0.15);
+      this._body.fillCircle(0, 0, r * 1.8);
+      this._body.lineStyle(2, this.def.color, 0.7);
+      this._body.strokeCircle(0, 0, r * 1.4);
+      // Solid inner core
+      this._body.fillStyle(this.def.color, 0.9);
+      this._body.fillCircle(0, 0, r * 0.6);
+    } else if (t === 'titan') {
+      // Triple-layer hexagon: dark armor shell, mid layer, bright core
+      this._body.fillStyle(0x1a0000, 1);
+      this._body.fillPoints(this._hexPoints(r), true);
+      this._body.fillStyle(0x660000, 1);
+      this._body.fillPoints(this._hexPoints(r * 0.72), true);
+      this._body.fillStyle(this.def.color, 1);
+      this._body.fillPoints(this._hexPoints(r * 0.44), true);
     } else {
-      // Fallback for unknown types (colossus, future enemies)
+      // Fallback for unknown types (colossus)
       this._body.fillStyle(this.def.color, 1);
       this._body.fillCircle(0, 0, r);
     }
