@@ -4,3 +4,4 @@ dist/
 .superpowers/
 .playwright-mcp/
 screenshot-*.png
+.vercel
