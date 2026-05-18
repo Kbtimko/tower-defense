@@ -12,6 +12,19 @@ export const MAP_WAVES = {
     [{ type: 'drone',   count: 20, interval: 700  }],
   ],
 
+  1: [
+    [{ type: 'drone',   count: 8,  interval: 1150 }],
+    [{ type: 'skitter', count: 5,  interval: 950  }],
+    [{ type: 'drone',   count: 10, interval: 1050 }, { type: 'skitter', count: 4, interval: 900 }],
+    [{ type: 'brute',   count: 4,  interval: 1350 }],
+    [{ type: 'drone',   count: 10, interval: 1000 }, { type: 'brute',   count: 3, interval: 1350 }],
+    [{ type: 'skitter', count: 7,  interval: 830  }, { type: 'brute',   count: 3, interval: 1250 }],
+    [{ type: 'drone',   count: 10, interval: 950  }, { type: 'skitter', count: 5, interval: 800  }],
+    [{ type: 'brute',   count: 6,  interval: 1150 }],
+    [{ type: 'drone',   count: 12, interval: 880  }, { type: 'brute',   count: 5, interval: 1150 }],
+    [{ type: 'drone',   count: 18, interval: 720  }],
+  ],
+
   2: [
     [{ type: 'drone',   count: 8,  interval: 1100 }],
     [{ type: 'skitter', count: 6,  interval: 900  }],

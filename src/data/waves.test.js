@@ -38,7 +38,7 @@ describe('MAP_WAVES[0] (Outpost Sigma)', () => {
 });
 
 const VALID_TYPES = new Set(['drone', 'skitter', 'brute', 'phantom', 'titan']);
-const WAVE_COUNTS = { 2: 12, 3: 12, 4: 14, 5: 14, 6: 15, 7: 15, 8: 16, 9: 18 };
+const WAVE_COUNTS = { 1: 10, 2: 12, 3: 12, 4: 14, 5: 14, 6: 15, 7: 15, 8: 16, 9: 18 };
 
 for (const [mapId, count] of Object.entries(WAVE_COUNTS)) {
   describe(`MAP_WAVES[${mapId}]`, () => {
