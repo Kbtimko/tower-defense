@@ -67,7 +67,7 @@ export class Hero extends Phaser.GameObjects.Container {
     this.moving  = true;
   }
 
-  takeDamage(amount) {
+  takeDamage(amount, _pierce = false) {
     if (this.dead) return;
     this.hp = Math.max(0, this.hp - amount);
     this._redrawHpBar();
@@ -88,6 +88,7 @@ export class Hero extends Phaser.GameObjects.Container {
     this.targetX      = this._spawnX;
     this.targetY      = this._spawnY;
     this.moving       = false;
+    this._attackTimer = 1 / ATTACK_RATE;
     this._body.setVisible(true);
     this._redrawHpBar();
   }

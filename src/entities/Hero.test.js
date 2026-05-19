@@ -120,4 +120,15 @@ describe('Hero — takeDamage and respawn', () => {
     expect(hero.x).toBe(50);
     expect(hero.y).toBe(50);
   });
+
+  it('does not attack on first frame after respawn', () => {
+    const hero  = new Hero(makeScene(), { x: 0, y: 0 });
+    const enemy = makeEnemy(30, 0);
+    hero.update(1, [enemy]);           // triggers attack, timer resets
+    hero.takeDamage(200);              // hero dies
+    hero.update(20, []);               // respawns
+    const hpAfterRespawn = enemy.hp;
+    hero.update(0.01, [enemy]);        // first frame alive — should NOT attack
+    expect(enemy.hp).toBe(hpAfterRespawn);
+  });
 });
