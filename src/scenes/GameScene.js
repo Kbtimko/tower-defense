@@ -10,6 +10,7 @@ import { Tower } from '../entities/Tower.js';
 import { Barracks } from '../entities/Barracks.js';
 import { Enemy } from '../entities/Enemy.js';
 import { Projectile } from '../entities/Projectile.js';
+import { Hero } from '../entities/Hero.js';
 import { ProgressManager } from '../systems/ProgressManager.js';
 import { StoryManager }    from '../systems/StoryManager.js';
 import { STORY_PANELS }    from '../data/story.js';
@@ -45,6 +46,12 @@ export default class GameScene extends Phaser.Scene {
         ? new Barracks(scene, opts)
         : new Tower(scene, opts)
     );
+
+    // Hero
+    this.hero                     = new Hero(this, this.pathMgr.path[0]);
+    this.aimMode                  = false;
+    this._heroOverchargeWasActive = false;
+    this._heroCooldownAccum       = 0;
 
     // Entity arrays
     this.enemies     = [];
@@ -89,6 +96,19 @@ export default class GameScene extends Phaser.Scene {
     this._updateHUD();
     this._updateWaveButton();
 
+    // Relay hero scene events to game bus for UIScene
+    this.events.on('hero:level-up', ({ level }) => {
+      this.game.events.emit('hero:level-up', { level });
+    }, this);
+
+    // Unlock Q immediately (hero starts at L1)
+    this.time.delayedCall(150, () => {
+      this.game.events.emit('hero:level-up', { level: 1 });
+    });
+
+    // Wire ability dispatch
+    this.game.events.on('ui:ability', this._onAbility, this);
+
     if (import.meta.env.DEV) window.__game = this;
   }
 
@@ -106,6 +126,7 @@ export default class GameScene extends Phaser.Scene {
 
   shutdown() {
     if (import.meta.env.DEV) window.__game = null;
+    this.game.events.off('ui:ability', this._onAbility, this);
     // Remove all DOM listeners without tracking refs: clone replaces the node
     ['wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','panel-reposition-btn','story-dismiss'].forEach(id => {
       const el = document.getElementById(id);
@@ -128,6 +149,7 @@ export default class GameScene extends Phaser.Scene {
     this._updateTowers(dt);
     this._updateProjectiles(dt);
     this._updateSoldiers(dt);
+    this._updateHero(dt);
     this._updateParticles(dt);
     this._checkWaveComplete();
 
@@ -177,6 +199,7 @@ export default class GameScene extends Phaser.Scene {
     const path = this.pathMgr.path;
     for (const enemy of this.enemies) {
       enemy.update(dt);
+      if (enemy.statusEffects.stun.active) continue;
       const blocker = this._checkSoldierBlock(enemy);
       if (blocker) {
         blocker.takeDamage(ENEMY_MELEE_DAMAGE * dt);
@@ -225,6 +248,45 @@ export default class GameScene extends Phaser.Scene {
     for (const tower of this.placementManager.getTowers()) {
       if (tower.type !== 'barracks') continue;
       for (const soldier of tower.soldiers) soldier.update(dt);
+    }
+  }
+
+  _updateHero(dt) {
+    this.hero.update(dt, this.enemies);
+
+    // Detect overcharge flip
+    if (this.hero.overchargeActive !== this._heroOverchargeWasActive) {
+      this._heroOverchargeWasActive = this.hero.overchargeActive;
+      this._applyOvercharge(this.hero.overchargeActive);
+    }
+
+    // Emit HP/level for UIScene
+    this.game.events.emit('hero:update', {
+      hp: this.hero.hp, maxHp: this.hero.maxHp, level: this.hero.level,
+    });
+
+    // Cooldown tick (once per second)
+    this._heroCooldownAccum += dt;
+    if (this._heroCooldownAccum >= 1) {
+      this._heroCooldownAccum = 0;
+      this.game.events.emit('hero:cooldown-tick', {
+        q: Math.ceil(this.hero.overchargeTimer),
+        w: Math.ceil(this.hero.airstrikeTimer),
+        e: Math.ceil(this.hero.empTimer),
+      });
+    }
+  }
+
+  _applyOvercharge(active) {
+    for (const tower of this.placementManager.getTowers()) {
+      if (!tower.fireRate) continue;
+      if (active) {
+        tower._baseFireRate = tower.fireRate;
+        tower.fireRate = tower.fireRate * 1.5;
+      } else if (tower._baseFireRate !== undefined) {
+        tower.fireRate = tower._baseFireRate;
+        delete tower._baseFireRate;
+      }
     }
   }
 
