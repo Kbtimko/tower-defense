@@ -88,6 +88,8 @@ export default class GameScene extends Phaser.Scene {
     this._bindDOMEvents();
     this._updateHUD();
     this._updateWaveButton();
+
+    if (import.meta.env.DEV) window.__game = this;
   }
 
   _bindDOMEvents() {
@@ -103,6 +105,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown() {
+    if (import.meta.env.DEV) window.__game = null;
     // Remove all DOM listeners without tracking refs: clone replaces the node
     ['wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','panel-reposition-btn','story-dismiss'].forEach(id => {
       const el = document.getElementById(id);
