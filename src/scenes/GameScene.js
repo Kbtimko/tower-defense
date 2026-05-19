@@ -277,8 +277,44 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  _onAbility(_data) {
-    // implemented in Task 6
+  _onAbility({ slot }) {
+    switch (slot) {
+      case 'q':
+        this.hero.overcharge();
+        break;
+      case 'w':
+        if (this.hero.airstrikeTimer > 0 || this.hero.dead) return;
+        this.aimMode = true;
+        this.game.events.emit('hero:aim-mode');
+        break;
+      case 'e':
+        if (!this.hero.empPulse()) return;
+        for (const e of this.enemies) e.applyStatus({ type: 'stun', duration: 3 });
+        break;
+    }
+  }
+
+  _triggerAirstrike(x, y) {
+    const result = this.hero.airstrike(x, y);
+    if (!result) return;
+    for (const e of this.enemies) {
+      if (Math.hypot(e.x - x, e.y - y) <= result.radius) {
+        this._dealDamage(e, result.damage, true);
+      }
+    }
+    // Particle burst at impact point
+    this._addParticle(x, y, 0xff6400, 18);
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 * i) / 8;
+      this._addParticle(
+        x + Math.cos(angle) * 28,
+        y + Math.sin(angle) * 28,
+        0xff8800,
+        8
+      );
+    }
+    this.aimMode = false;
+    this.game.events.emit('hero:aim-cancel');
   }
 
   _applyOvercharge(active) {
@@ -396,6 +432,13 @@ export default class GameScene extends Phaser.Scene {
   _onPointerDown(pointer) {
     const mx = pointer.x, my = pointer.y;
 
+    // 1. Airstrike aim mode takes priority
+    if (this.aimMode) {
+      this._triggerAirstrike(mx, my);
+      return;
+    }
+
+    // 2. Barracks reposition mode
     if (this.repositionMode && this.repositioningBarracks) {
       const barracks = this.repositioningBarracks;
       this.repositionMode        = false;
@@ -411,6 +454,7 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
+    // 3. Tower click
     for (const tower of this.placementManager.getTowers()) {
       if (Math.hypot(tower.x - mx, tower.y - my) < 22) {
         this.selectedType = null;
@@ -420,20 +464,27 @@ export default class GameScene extends Phaser.Scene {
       }
     }
     this._closeTowerPanel();
-    if (!this.selectedType) return;
-    const zones = this.placementManager.getZones();
-    for (let i = 0; i < zones.length; i++) {
-      const zone = zones[i];
-      if (!zone.occupied && Math.hypot(zone.cx - mx, zone.cy - my) < zone.radius + 8) {
-        const tower = this.placementManager.placeTower(i, this.selectedType, this);
-        if (!tower) { this._toast('Not enough gold!'); return; }
-        if (this.selectedType === 'barracks') {
-          tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(zone.cx, zone.cy);
-          tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
+
+    // 4. Tower placement
+    if (this.selectedType) {
+      const zones = this.placementManager.getZones();
+      for (let i = 0; i < zones.length; i++) {
+        const zone = zones[i];
+        if (!zone.occupied && Math.hypot(zone.cx - mx, zone.cy - my) < zone.radius + 8) {
+          const tower = this.placementManager.placeTower(i, this.selectedType, this);
+          if (!tower) { this._toast('Not enough gold!'); return; }
+          if (this.selectedType === 'barracks') {
+            tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(zone.cx, zone.cy);
+            tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
+          }
+          return;
         }
-        return;
       }
+      return;
     }
+
+    // 5. Move hero
+    this.hero.moveTo(mx, my);
   }
 
   _selectTowerType(type, btn) {
