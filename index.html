@@ -99,6 +99,24 @@
     .map-row.locked { background:#111; border:1px dashed #333; color:#555; }
     .map-row-name { font-size:12px; font-weight:bold; }
     .map-row-stars { font-size:11px; color:#ffd700; min-height:16px; }
+    #hero-section { display:flex; align-items:center; gap:6px; }
+    #hero-portrait { width:30px; height:30px; border-radius:50%; background:#1a2a4a;
+                     border:2px solid #4fc3f7; display:flex; align-items:center;
+                     justify-content:center; font-size:13px; color:#4fc3f7; font-weight:bold; }
+    #hero-info { display:flex; flex-direction:column; gap:3px; }
+    #hero-level { font-size:10px; color:#4fc3f7; }
+    #hero-hp-bg { width:52px; height:5px; background:#333; border-radius:2px; overflow:hidden; }
+    #hero-hp-fill { height:100%; background:#4fc3f7; border-radius:2px; transition:width 0.15s; }
+    .ability-btn { background:#1a2a3a; border:2px solid #4fc3f7; border-radius:5px;
+                   padding:4px 7px; cursor:pointer; display:flex; flex-direction:column;
+                   align-items:center; gap:1px; color:#4fc3f7; font-family:'Georgia',serif; }
+    .ability-btn.locked { background:#111; border-color:#333; color:#444; cursor:default; }
+    .ability-btn:disabled { opacity:0.45; cursor:not-allowed; }
+    .ability-btn:not(:disabled):not(.locked):hover { background:#253a4a; }
+    .ability-key  { font-size:11px; font-weight:bold; letter-spacing:1px; }
+    .ability-name { font-size:12px; }
+    .ability-cd   { font-size:9px; color:#aaa; min-height:11px; }
+    .bar-divider  { width:1px; height:36px; background:#333; flex-shrink:0; }
   </style>
 </head>
 <body>
@@ -157,6 +175,23 @@
     </div>
   </div>
   <div id="bottom-bar">
+    <div id="hero-section">
+      <div id="hero-portrait">R</div>
+      <div id="hero-info">
+        <div id="hero-level">Rael L1</div>
+        <div id="hero-hp-bg"><div id="hero-hp-fill"></div></div>
+      </div>
+      <button class="ability-btn" id="ability-q" disabled title="Overcharge — +50% tower fire rate 6s">
+        <span class="ability-key">Q</span><span class="ability-name">⚡</span><span class="ability-cd"></span>
+      </button>
+      <button class="ability-btn locked" id="ability-w" disabled title="Airstrike — AoE damage on target area">
+        <span class="ability-key">W</span><span class="ability-name">🎯</span><span class="ability-cd"></span>
+      </button>
+      <button class="ability-btn locked" id="ability-e" disabled title="EMP Pulse — stuns all aliens 3s">
+        <span class="ability-key">E</span><span class="ability-name">💥</span><span class="ability-cd"></span>
+      </button>
+    </div>
+    <div class="bar-divider"></div>
     <button class="tower-btn" data-type="archer">
       <span class="t-icon">🏹</span><span class="t-cost">60g</span><span class="t-name">Archer</span>
     </button>
