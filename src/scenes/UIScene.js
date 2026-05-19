@@ -6,6 +6,8 @@ export default class UIScene extends Phaser.Scene {
   constructor() { super('UIScene'); }
 
   create() {
+    this.events.on('shutdown', this.shutdown, this);
+
     this._selectedType = null;
     this._speedFast    = false;
     this._openTower    = null;

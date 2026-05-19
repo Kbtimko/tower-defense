@@ -27,6 +27,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
+    this.events.on('shutdown', this.shutdown, this);
+
     const map = MAPS[this.mapId];
     const { width, height } = this.scale;
 
@@ -86,6 +88,8 @@ export default class GameScene extends Phaser.Scene {
     this._bindDOMEvents();
     this._updateHUD();
     this._updateWaveButton();
+
+    if (import.meta.env.DEV) window.__game = this;
   }
 
   _bindDOMEvents() {
@@ -101,6 +105,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown() {
+    if (import.meta.env.DEV) window.__game = null;
     // Remove all DOM listeners without tracking refs: clone replaces the node
     ['wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','panel-reposition-btn','story-dismiss'].forEach(id => {
       const el = document.getElementById(id);
@@ -145,7 +150,7 @@ export default class GameScene extends Phaser.Scene {
 
   _spawnEnemy({ def, scaleFactor }) {
     const start = this.pathMgr.path[0];
-    this.enemies.push(new Enemy({ def, scaleFactor, startX: start.x, startY: start.y }));
+    this.enemies.push(new Enemy(this, { def, scaleFactor, startX: start.x, startY: start.y }));
   }
 
   _checkWaveComplete() {
@@ -238,7 +243,7 @@ export default class GameScene extends Phaser.Scene {
         }
       }
       if (best) {
-        this.projectiles.push(new Projectile({
+        this.projectiles.push(new Projectile(this, {
           x: tower.x, y: tower.y, target: best,
           damage: tower.damage, splashRadius: tower.splashRadius,
           pierce: tower.pierce, slowFactor: tower.slow,
