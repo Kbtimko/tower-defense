@@ -18,7 +18,7 @@ const makeGraphics = () => ({
   fillEllipse() {}, fillPoints() {}, strokePoints() {},
   fillTriangle() {}, strokeTriangle() {}, strokeCircle() {},
   strokeRect() {}, setVisible(v) { this.visible = v; return this; },
-  lineBetween() {},
+  lineBetween() {}, // required by skitter branch in _redrawBody()
 });
 
 const makeScene = () => ({
