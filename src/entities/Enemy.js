@@ -11,7 +11,10 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.armor         = def.armor;
     this.reward        = def.reward;
     this.dead          = false;
-    this.statusEffects = { slow: { active: false, timer: 0, factor: 1 } };
+    this.statusEffects = {
+      slow: { active: false, timer: 0, factor: 1 },
+      stun: { active: false, timer: 0 },
+    };
 
     this._body  = scene.add.graphics();
     this._hpBar = scene.add.graphics();
@@ -36,6 +39,13 @@ export class Enemy extends Phaser.GameObjects.Container {
         this._redrawBody();
       }
     }
+    if (this.statusEffects.stun.active) {
+      this.statusEffects.stun.timer -= dt;
+      if (this.statusEffects.stun.timer <= 0) {
+        this.statusEffects.stun = { active: false, timer: 0 };
+        this._redrawBody();
+      }
+    }
   }
 
   takeDamage(amount, pierce = false) {
@@ -48,6 +58,10 @@ export class Enemy extends Phaser.GameObjects.Container {
   applyStatus({ type, duration, factor }) {
     if (type === 'slow') {
       this.statusEffects.slow = { active: true, timer: duration, factor };
+      this._redrawBody();
+    }
+    if (type === 'stun') {
+      this.statusEffects.stun = { active: true, timer: duration };
       this._redrawBody();
     }
   }
@@ -122,6 +136,12 @@ export class Enemy extends Phaser.GameObjects.Container {
       } else {
         this._body.strokeCircle(0, 0, r + 2);
       }
+    }
+
+    // White stun ring
+    if (this.statusEffects.stun.active) {
+      this._body.lineStyle(2, 0xffffff, 0.85);
+      this._body.strokeCircle(0, 0, this.def.radius + 3);
     }
   }
 

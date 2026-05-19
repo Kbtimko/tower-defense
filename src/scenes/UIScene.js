@@ -11,6 +11,7 @@ export default class UIScene extends Phaser.Scene {
     this._selectedType = null;
     this._speedFast    = false;
     this._openTower    = null;
+    this._onKeyDown    = null;
 
     document.getElementById('hud').style.display        = 'flex';
     document.getElementById('bottom-bar').style.display = 'flex';
@@ -46,8 +47,14 @@ export default class UIScene extends Phaser.Scene {
     this.game.events.off('game:victory',      this._onVictory,    this);
     this.game.events.off('game:defeat',       this._onDefeat,     this);
     this.game.events.off('ui:barracks-reposition', this._onBarracksReposition, this);
+    this.game.events.off('hero:update',        this._onHeroUpdate,        this);
+    this.game.events.off('hero:level-up',      this._onHeroLevelUp,       this);
+    this.game.events.off('hero:aim-mode',      this._onHeroAimMode,       this);
+    this.game.events.off('hero:aim-cancel',    this._onHeroAimCancel,     this);
+    this.game.events.off('hero:cooldown-tick', this._onHeroCooldownTick,  this);
+    if (this._onKeyDown) document.removeEventListener('keydown', this._onKeyDown);
 
-    ['wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','panel-reposition-btn'].forEach(id => {
+    ['wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','panel-reposition-btn','ability-q','ability-w','ability-e'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.replaceWith(el.cloneNode(true));
     });
@@ -83,6 +90,22 @@ export default class UIScene extends Phaser.Scene {
       () => this.game.events.emit('ui:restart'));
     document.getElementById('panel-reposition-btn').addEventListener('click',
       () => this.game.events.emit('ui:barracks-reposition'));
+
+    // Ability button clicks
+    ['q', 'w', 'e'].forEach(slot => {
+      const btn = document.getElementById('ability-' + slot);
+      if (btn) btn.addEventListener('click', () => this.game.events.emit('ui:ability', { slot }));
+    });
+
+    // Keyboard shortcuts
+    this._onKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      const key = e.key.toLowerCase();
+      if (['q', 'w', 'e'].includes(key)) {
+        this.game.events.emit('ui:ability', { slot: key });
+      }
+    };
+    document.addEventListener('keydown', this._onKeyDown);
   }
 
   _onSpeedToggle() {
@@ -103,6 +126,11 @@ export default class UIScene extends Phaser.Scene {
     this.game.events.on('game:victory',      this._onVictory,    this);
     this.game.events.on('game:defeat',       this._onDefeat,     this);
     this.game.events.on('ui:barracks-reposition', this._onBarracksReposition, this);
+    this.game.events.on('hero:update',        this._onHeroUpdate,        this);
+    this.game.events.on('hero:level-up',      this._onHeroLevelUp,       this);
+    this.game.events.on('hero:aim-mode',      this._onHeroAimMode,       this);
+    this.game.events.on('hero:aim-cancel',    this._onHeroAimCancel,     this);
+    this.game.events.on('hero:cooldown-tick', this._onHeroCooldownTick,  this);
   }
 
   _onHudUpdate({ gold, lives, wave, waveCount, kills }) {
@@ -255,5 +283,57 @@ export default class UIScene extends Phaser.Scene {
     document.getElementById('msg-title').textContent  = '💀 Defeat';
     document.getElementById('msg-body').textContent   = `The line did not hold. Wave ${wave}.`;
     document.getElementById('game-msg').style.display = 'block';
+  }
+
+  _onHeroUpdate({ hp, maxHp }) {
+    const fill = document.getElementById('hero-hp-fill');
+    if (fill) fill.style.width = ((hp / maxHp) * 100).toFixed(1) + '%';
+  }
+
+  _onHeroLevelUp({ level }) {
+    document.getElementById('hero-level').textContent = 'Rael L' + level;
+    if (level >= 1) {
+      const q = document.getElementById('ability-q');
+      if (q) { q.classList.remove('locked'); q.disabled = false; }
+    }
+    if (level >= 2) {
+      const w = document.getElementById('ability-w');
+      if (w) { w.classList.remove('locked'); w.disabled = false; }
+    }
+    if (level >= 3) {
+      const e = document.getElementById('ability-e');
+      if (e) { e.classList.remove('locked'); e.disabled = false; }
+    }
+  }
+
+  _onHeroAimMode() {
+    document.body.style.cursor = 'crosshair';
+    const w = document.getElementById('ability-w');
+    if (w) w.style.outline = '2px solid #ff6400';
+  }
+
+  _onHeroAimCancel() {
+    document.body.style.cursor = '';
+    const w = document.getElementById('ability-w');
+    if (w) w.style.outline = '';
+  }
+
+  _onHeroCooldownTick({ q, w, e }) {
+    this._setAbilityCd('ability-q', q);
+    this._setAbilityCd('ability-w', w);
+    this._setAbilityCd('ability-e', e);
+  }
+
+  _setAbilityCd(id, secs) {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    const cdEl = btn.querySelector('.ability-cd');
+    if (secs > 0) {
+      btn.disabled = true;
+      if (cdEl) cdEl.textContent = secs + 's';
+    } else {
+      if (!btn.classList.contains('locked')) btn.disabled = false;
+      if (cdEl) cdEl.textContent = '';
+    }
   }
 }

@@ -10,6 +10,7 @@ import { Tower } from '../entities/Tower.js';
 import { Barracks } from '../entities/Barracks.js';
 import { Enemy } from '../entities/Enemy.js';
 import { Projectile } from '../entities/Projectile.js';
+import { Hero } from '../entities/Hero.js';
 import { ProgressManager } from '../systems/ProgressManager.js';
 import { StoryManager }    from '../systems/StoryManager.js';
 import { STORY_PANELS }    from '../data/story.js';
@@ -45,6 +46,12 @@ export default class GameScene extends Phaser.Scene {
         ? new Barracks(scene, opts)
         : new Tower(scene, opts)
     );
+
+    // Hero
+    this.hero                     = new Hero(this, this.pathMgr.path[0]);
+    this.aimMode                  = false;
+    this._heroOverchargeWasActive = false;
+    this._heroCooldownAccum       = 0;
 
     // Entity arrays
     this.enemies     = [];
@@ -89,6 +96,19 @@ export default class GameScene extends Phaser.Scene {
     this._updateHUD();
     this._updateWaveButton();
 
+    // Relay hero scene events to game bus for UIScene
+    this.events.on('hero:level-up', ({ level }) => {
+      this.game.events.emit('hero:level-up', { level });
+    }, this);
+
+    // Unlock Q immediately (hero starts at L1)
+    this.time.delayedCall(150, () => {
+      this.game.events.emit('hero:level-up', { level: 1 });
+    });
+
+    // Wire ability dispatch
+    this.game.events.on('ui:ability', this._onAbility, this);
+
     if (import.meta.env.DEV) window.__game = this;
   }
 
@@ -106,6 +126,7 @@ export default class GameScene extends Phaser.Scene {
 
   shutdown() {
     if (import.meta.env.DEV) window.__game = null;
+    this.game.events.off('ui:ability', this._onAbility, this);
     // Remove all DOM listeners without tracking refs: clone replaces the node
     ['wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','panel-reposition-btn','story-dismiss'].forEach(id => {
       const el = document.getElementById(id);
@@ -128,6 +149,7 @@ export default class GameScene extends Phaser.Scene {
     this._updateTowers(dt);
     this._updateProjectiles(dt);
     this._updateSoldiers(dt);
+    this._updateHero(dt);
     this._updateParticles(dt);
     this._checkWaveComplete();
 
@@ -177,6 +199,7 @@ export default class GameScene extends Phaser.Scene {
     const path = this.pathMgr.path;
     for (const enemy of this.enemies) {
       enemy.update(dt);
+      if (enemy.statusEffects.stun.active) continue; // stun is full freeze: skip movement and melee
       const blocker = this._checkSoldierBlock(enemy);
       if (blocker) {
         blocker.takeDamage(ENEMY_MELEE_DAMAGE * dt);
@@ -225,6 +248,93 @@ export default class GameScene extends Phaser.Scene {
     for (const tower of this.placementManager.getTowers()) {
       if (tower.type !== 'barracks') continue;
       for (const soldier of tower.soldiers) soldier.update(dt);
+    }
+  }
+
+  _updateHero(dt) {
+    const aliveBeforeHero = this.enemies.filter(e => !e.dead);
+    this.hero.update(dt, this.enemies);
+    for (const e of aliveBeforeHero) {
+      if (e.dead) {
+        this.economy.earn(e.reward);
+        this.kills++;
+        this._updateHUD();
+      }
+    }
+
+    // Detect overcharge flip
+    if (this.hero.overchargeActive !== this._heroOverchargeWasActive) {
+      this._heroOverchargeWasActive = this.hero.overchargeActive;
+      this._applyOvercharge(this.hero.overchargeActive);
+    }
+
+    // Emit HP/level for UIScene
+    this.game.events.emit('hero:update', {
+      hp: this.hero.hp, maxHp: this.hero.maxHp, level: this.hero.level,
+    });
+
+    // Cooldown tick (once per second)
+    this._heroCooldownAccum += dt;
+    if (this._heroCooldownAccum >= 1) {
+      this._heroCooldownAccum -= 1;
+      this.game.events.emit('hero:cooldown-tick', {
+        q: Math.ceil(this.hero.overchargeTimer),
+        w: Math.ceil(this.hero.airstrikeTimer),
+        e: Math.ceil(this.hero.empTimer),
+      });
+    }
+  }
+
+  _onAbility({ slot }) {
+    switch (slot) {
+      case 'q':
+        this.hero.overcharge();
+        break;
+      case 'w':
+        if (this.hero.level < 2 || this.hero.airstrikeTimer > 0 || this.hero.dead) break;
+        this.aimMode = true;
+        this.game.events.emit('hero:aim-mode');
+        break;
+      case 'e':
+        if (this.hero.level < 3 || !this.hero.empPulse()) break;
+        for (const e of this.enemies) e.applyStatus({ type: 'stun', duration: 3 });
+        break;
+    }
+  }
+
+  _triggerAirstrike(x, y) {
+    const result = this.hero.airstrike(x, y);
+    if (!result) { this.aimMode = false; this.game.events.emit('hero:aim-cancel'); return; }
+    for (const e of this.enemies) {
+      if (Math.hypot(e.x - x, e.y - y) <= result.radius) {
+        this._dealDamage(e, result.damage, true);
+      }
+    }
+    // Particle burst at impact point
+    this._addParticle(x, y, 0xff6400, 18);
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 * i) / 8;
+      this._addParticle(
+        x + Math.cos(angle) * 28,
+        y + Math.sin(angle) * 28,
+        0xff8800,
+        8
+      );
+    }
+    this.aimMode = false;
+    this.game.events.emit('hero:aim-cancel');
+  }
+
+  _applyOvercharge(active) {
+    for (const tower of this.placementManager.getTowers()) {
+      if (!tower.fireRate) continue;
+      if (active) {
+        tower._baseFireRate = tower.fireRate;
+        tower.fireRate = tower.fireRate * 1.5;
+      } else if (tower._baseFireRate !== undefined) {
+        tower.fireRate = tower._baseFireRate;
+        delete tower._baseFireRate;
+      }
     }
   }
 
@@ -330,6 +440,13 @@ export default class GameScene extends Phaser.Scene {
   _onPointerDown(pointer) {
     const mx = pointer.x, my = pointer.y;
 
+    // 1. Airstrike aim mode takes priority
+    if (this.aimMode) {
+      this._triggerAirstrike(mx, my);
+      return;
+    }
+
+    // 2. Barracks reposition mode
     if (this.repositionMode && this.repositioningBarracks) {
       const barracks = this.repositioningBarracks;
       this.repositionMode        = false;
@@ -345,6 +462,7 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
+    // 3. Tower click
     for (const tower of this.placementManager.getTowers()) {
       if (Math.hypot(tower.x - mx, tower.y - my) < 22) {
         this.selectedType = null;
@@ -353,21 +471,29 @@ export default class GameScene extends Phaser.Scene {
         return;
       }
     }
+    // No tower hit — dismiss any open panel before continuing
     this._closeTowerPanel();
-    if (!this.selectedType) return;
-    const zones = this.placementManager.getZones();
-    for (let i = 0; i < zones.length; i++) {
-      const zone = zones[i];
-      if (!zone.occupied && Math.hypot(zone.cx - mx, zone.cy - my) < zone.radius + 8) {
-        const tower = this.placementManager.placeTower(i, this.selectedType, this);
-        if (!tower) { this._toast('Not enough gold!'); return; }
-        if (this.selectedType === 'barracks') {
-          tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(zone.cx, zone.cy);
-          tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
+
+    // 4. Tower placement
+    if (this.selectedType) {
+      const zones = this.placementManager.getZones();
+      for (let i = 0; i < zones.length; i++) {
+        const zone = zones[i];
+        if (!zone.occupied && Math.hypot(zone.cx - mx, zone.cy - my) < zone.radius + 8) {
+          const tower = this.placementManager.placeTower(i, this.selectedType, this);
+          if (!tower) { this._toast('Not enough gold!'); return; }
+          if (this.selectedType === 'barracks') {
+            tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(zone.cx, zone.cy);
+            tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
+          }
+          return;
         }
-        return;
       }
+      return;
     }
+
+    // 5. Move hero
+    if (!this.hero.dead) this.hero.moveTo(mx, my);
   }
 
   _selectTowerType(type, btn) {

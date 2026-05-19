@@ -1,0 +1,220 @@
+vi.mock('phaser', () => ({
+  default: {
+    GameObjects: {
+      Container: class {
+        constructor(scene, x, y) {
+          this.scene = scene; this.x = x; this.y = y;
+          this.visible = true;
+        }
+        add() {}
+        setDepth() { return this; }
+        setVisible(v) { this.visible = v; return this; }
+      }
+    }
+  }
+}));
+
+import { Hero } from './Hero.js';
+
+const makeGraphics = () => ({
+  clear() {}, fillStyle() {}, fillCircle() {}, fillRect() {},
+  lineStyle() {}, strokeCircle() {}, strokeRect() {},
+  setVisible(v) { this.visible = v; return this; },
+});
+
+const makeScene = () => {
+  const emitted = [];
+  return {
+    add: { graphics: makeGraphics, existing() {} },
+    events: {
+      emitted,
+      emit(event, data) { this.emitted.push({ event, data }); },
+    },
+  };
+};
+
+const makeEnemy = (x, y, hp = 50) => ({
+  x, y, hp, dead: false,
+  takeDamage(amount) {
+    this.hp = Math.max(0, this.hp - amount);
+    if (this.hp <= 0) { this.hp = 0; this.dead = true; }
+  },
+});
+
+describe('Hero — movement', () => {
+  it('initializes at given position', () => {
+    const hero = new Hero(makeScene(), { x: 100, y: 50 });
+    expect(hero.x).toBe(100);
+    expect(hero.y).toBe(50);
+  });
+
+  it('moveTo sets target and moving flag', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.moveTo(200, 150);
+    expect(hero.targetX).toBe(200);
+    expect(hero.targetY).toBe(150);
+    expect(hero.moving).toBe(true);
+  });
+
+  it('moves toward target each update', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.moveTo(130, 0);
+    hero.update(1, []);
+    expect(hero.x).toBeGreaterThan(0);
+    expect(hero.x).toBeLessThanOrEqual(130);
+  });
+
+  it('stops when within 8px of target', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.moveTo(5, 0);
+    hero.update(1, []);
+    expect(hero.moving).toBe(false);
+  });
+});
+
+describe('Hero — combat', () => {
+  it('does not attack enemy out of range', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    const enemy = makeEnemy(200, 200);
+    hero.update(1, [enemy]);
+    expect(enemy.hp).toBe(50);
+  });
+
+  it('attacks nearest enemy in range', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    const enemy = makeEnemy(30, 0);
+    // Advance enough time for first attack (attackTimer starts at 0)
+    hero.update(0.01, [enemy]);
+    expect(enemy.hp).toBeLessThan(50);
+  });
+});
+
+describe('Hero — takeDamage and respawn', () => {
+  it('takeDamage reduces hp', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.takeDamage(30);
+    expect(hero.hp).toBe(120);
+  });
+
+  it('death sets dead flag and starts respawn timer', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.takeDamage(200);
+    expect(hero.dead).toBe(true);
+    expect(hero.respawnTimer).toBe(20);
+  });
+
+  it('respawn timer ticks in update; hero respawns when timer reaches 0', () => {
+    const hero = new Hero(makeScene(), { x: 50, y: 50 });
+    hero.takeDamage(200);
+    hero.update(20, []);
+    expect(hero.dead).toBe(false);
+    expect(hero.hp).toBe(150);
+  });
+
+  it('respawn repositions hero to spawn point', () => {
+    const hero = new Hero(makeScene(), { x: 50, y: 50 });
+    hero.moveTo(300, 300);
+    hero.update(0.5, []);
+    hero.takeDamage(200);
+    hero.update(20, []);
+    expect(hero.x).toBe(50);
+    expect(hero.y).toBe(50);
+  });
+
+  it('does not attack on first frame after respawn', () => {
+    const hero  = new Hero(makeScene(), { x: 0, y: 0 });
+    const enemy = makeEnemy(30, 0);
+    hero.update(1, [enemy]);           // triggers attack, timer resets
+    hero.takeDamage(200);              // hero dies
+    hero.update(20, []);               // respawns
+    const hpAfterRespawn = enemy.hp;
+    hero.update(0.01, [enemy]);        // first frame alive — should NOT attack
+    expect(enemy.hp).toBe(hpAfterRespawn);
+  });
+});
+
+describe('Hero — leveling', () => {
+  it('levels up to L2 at 25 kills', () => {
+    const scene = makeScene();
+    const hero  = new Hero(scene, { x: 0, y: 0 });
+    for (let i = 0; i < 24; i++) hero._registerKill();
+    expect(hero.level).toBe(1);
+    hero._registerKill();
+    expect(hero.level).toBe(2);
+  });
+
+  it('levels up to L3 at 75 kills', () => {
+    const scene = makeScene();
+    const hero  = new Hero(scene, { x: 0, y: 0 });
+    for (let i = 0; i < 75; i++) hero._registerKill();
+    expect(hero.level).toBe(3);
+  });
+
+  it('emits hero:level-up on scene events when leveling', () => {
+    const scene = makeScene();
+    const hero  = new Hero(scene, { x: 0, y: 0 });
+    for (let i = 0; i < 25; i++) hero._registerKill();
+    expect(scene.events.emitted.some(e => e.event === 'hero:level-up' && e.data.level === 2)).toBe(true);
+  });
+
+  it('does not emit level-up when already at max level', () => {
+    const scene = makeScene();
+    const hero  = new Hero(scene, { x: 0, y: 0 });
+    for (let i = 0; i < 100; i++) hero._registerKill();
+    const l3Events = scene.events.emitted.filter(e => e.event === 'hero:level-up' && e.data.level === 3);
+    expect(l3Events.length).toBe(1);
+  });
+});
+
+describe('Hero — abilities', () => {
+  it('overcharge returns true and sets active flag', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    expect(hero.overcharge()).toBe(true);
+    expect(hero.overchargeActive).toBe(true);
+  });
+
+  it('overcharge returns false while on cooldown', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.overcharge();
+    expect(hero.overcharge()).toBe(false);
+  });
+
+  it('overchargeActive clears after 6s', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.overcharge();
+    hero.update(6.1, []);
+    expect(hero.overchargeActive).toBe(false);
+  });
+
+  it('airstrike returns target data', () => {
+    const hero   = new Hero(makeScene(), { x: 0, y: 0 });
+    const result = hero.airstrike(100, 200);
+    expect(result).toEqual({ x: 100, y: 200, radius: 70, damage: 80 });
+  });
+
+  it('airstrike returns null while on cooldown', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.airstrike(100, 200);
+    expect(hero.airstrike(100, 200)).toBeNull();
+  });
+
+  it('empPulse returns true and sets cooldown', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    expect(hero.empPulse()).toBe(true);
+    expect(hero.empTimer).toBe(45);
+  });
+
+  it('empPulse returns false while on cooldown', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.empPulse();
+    expect(hero.empPulse()).toBe(false);
+  });
+
+  it('abilities return false when hero is dead', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.takeDamage(200);
+    expect(hero.overcharge()).toBe(false);
+    expect(hero.airstrike(0, 0)).toBeNull();
+    expect(hero.empPulse()).toBe(false);
+  });
+});
