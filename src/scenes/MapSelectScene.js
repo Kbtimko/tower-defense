@@ -7,6 +7,8 @@ export default class MapSelectScene extends Phaser.Scene {
   constructor() { super('MapSelectScene'); }
 
   create() {
+    this.events.on('shutdown', this.shutdown, this);
+
     const container = document.getElementById('map-select');
     container.style.display = 'flex';
 
