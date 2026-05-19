@@ -252,7 +252,15 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _updateHero(dt) {
+    const aliveBeforeHero = this.enemies.filter(e => !e.dead);
     this.hero.update(dt, this.enemies);
+    for (const e of aliveBeforeHero) {
+      if (e.dead) {
+        this.economy.earn(e.reward);
+        this.kills++;
+        this._updateHUD();
+      }
+    }
 
     // Detect overcharge flip
     if (this.hero.overchargeActive !== this._heroOverchargeWasActive) {
@@ -283,12 +291,12 @@ export default class GameScene extends Phaser.Scene {
         this.hero.overcharge();
         break;
       case 'w':
-        if (this.hero.airstrikeTimer > 0 || this.hero.dead) break;
+        if (this.hero.level < 2 || this.hero.airstrikeTimer > 0 || this.hero.dead) break;
         this.aimMode = true;
         this.game.events.emit('hero:aim-mode');
         break;
       case 'e':
-        if (!this.hero.empPulse()) break;
+        if (this.hero.level < 3 || !this.hero.empPulse()) break;
         for (const e of this.enemies) e.applyStatus({ type: 'stun', duration: 3 });
         break;
     }
