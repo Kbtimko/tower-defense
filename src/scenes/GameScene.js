@@ -283,12 +283,12 @@ export default class GameScene extends Phaser.Scene {
         this.hero.overcharge();
         break;
       case 'w':
-        if (this.hero.airstrikeTimer > 0 || this.hero.dead) return;
+        if (this.hero.airstrikeTimer > 0 || this.hero.dead) break;
         this.aimMode = true;
         this.game.events.emit('hero:aim-mode');
         break;
       case 'e':
-        if (!this.hero.empPulse()) return;
+        if (!this.hero.empPulse()) break;
         for (const e of this.enemies) e.applyStatus({ type: 'stun', duration: 3 });
         break;
     }
@@ -296,7 +296,7 @@ export default class GameScene extends Phaser.Scene {
 
   _triggerAirstrike(x, y) {
     const result = this.hero.airstrike(x, y);
-    if (!result) return;
+    if (!result) { this.aimMode = false; this.game.events.emit('hero:aim-cancel'); return; }
     for (const e of this.enemies) {
       if (Math.hypot(e.x - x, e.y - y) <= result.radius) {
         this._dealDamage(e, result.damage, true);
@@ -463,6 +463,7 @@ export default class GameScene extends Phaser.Scene {
         return;
       }
     }
+    // No tower hit — dismiss any open panel before continuing
     this._closeTowerPanel();
 
     // 4. Tower placement
@@ -484,7 +485,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // 5. Move hero
-    this.hero.moveTo(mx, my);
+    if (!this.hero.dead) this.hero.moveTo(mx, my);
   }
 
   _selectTowerType(type, btn) {
