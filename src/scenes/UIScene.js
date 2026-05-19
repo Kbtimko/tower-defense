@@ -11,6 +11,7 @@ export default class UIScene extends Phaser.Scene {
     this._selectedType = null;
     this._speedFast    = false;
     this._openTower    = null;
+    this._onKeyDown    = null;
 
     document.getElementById('hud').style.display        = 'flex';
     document.getElementById('bottom-bar').style.display = 'flex';
@@ -51,7 +52,7 @@ export default class UIScene extends Phaser.Scene {
     this.game.events.off('hero:aim-mode',      this._onHeroAimMode,       this);
     this.game.events.off('hero:aim-cancel',    this._onHeroAimCancel,     this);
     this.game.events.off('hero:cooldown-tick', this._onHeroCooldownTick,  this);
-    document.removeEventListener('keydown', this._onKeyDown);
+    if (this._onKeyDown) document.removeEventListener('keydown', this._onKeyDown);
 
     ['wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','panel-reposition-btn','ability-q','ability-w','ability-e'].forEach(id => {
       const el = document.getElementById(id);
@@ -98,6 +99,7 @@ export default class UIScene extends Phaser.Scene {
 
     // Keyboard shortcuts
     this._onKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       const key = e.key.toLowerCase();
       if (['q', 'w', 'e'].includes(key)) {
         this.game.events.emit('ui:ability', { slot: key });
@@ -292,7 +294,7 @@ export default class UIScene extends Phaser.Scene {
     document.getElementById('hero-level').textContent = 'Rael L' + level;
     if (level >= 1) {
       const q = document.getElementById('ability-q');
-      if (q) { q.disabled = false; }
+      if (q) { q.classList.remove('locked'); q.disabled = false; }
     }
     if (level >= 2) {
       const w = document.getElementById('ability-w');
