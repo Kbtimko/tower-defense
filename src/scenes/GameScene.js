@@ -199,7 +199,7 @@ export default class GameScene extends Phaser.Scene {
     const path = this.pathMgr.path;
     for (const enemy of this.enemies) {
       enemy.update(dt);
-      if (enemy.statusEffects.stun.active) continue;
+      if (enemy.statusEffects.stun.active) continue; // stun is full freeze: skip movement and melee
       const blocker = this._checkSoldierBlock(enemy);
       if (blocker) {
         blocker.takeDamage(ENEMY_MELEE_DAMAGE * dt);
@@ -268,13 +268,17 @@ export default class GameScene extends Phaser.Scene {
     // Cooldown tick (once per second)
     this._heroCooldownAccum += dt;
     if (this._heroCooldownAccum >= 1) {
-      this._heroCooldownAccum = 0;
+      this._heroCooldownAccum -= 1;
       this.game.events.emit('hero:cooldown-tick', {
         q: Math.ceil(this.hero.overchargeTimer),
         w: Math.ceil(this.hero.airstrikeTimer),
         e: Math.ceil(this.hero.empTimer),
       });
     }
+  }
+
+  _onAbility(_data) {
+    // implemented in Task 6
   }
 
   _applyOvercharge(active) {
