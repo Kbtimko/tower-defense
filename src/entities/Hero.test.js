@@ -132,3 +132,89 @@ describe('Hero — takeDamage and respawn', () => {
     expect(enemy.hp).toBe(hpAfterRespawn);
   });
 });
+
+describe('Hero — leveling', () => {
+  it('levels up to L2 at 25 kills', () => {
+    const scene = makeScene();
+    const hero  = new Hero(scene, { x: 0, y: 0 });
+    for (let i = 0; i < 24; i++) hero._registerKill();
+    expect(hero.level).toBe(1);
+    hero._registerKill();
+    expect(hero.level).toBe(2);
+  });
+
+  it('levels up to L3 at 75 kills', () => {
+    const scene = makeScene();
+    const hero  = new Hero(scene, { x: 0, y: 0 });
+    for (let i = 0; i < 75; i++) hero._registerKill();
+    expect(hero.level).toBe(3);
+  });
+
+  it('emits hero:level-up on scene events when leveling', () => {
+    const scene = makeScene();
+    const hero  = new Hero(scene, { x: 0, y: 0 });
+    for (let i = 0; i < 25; i++) hero._registerKill();
+    expect(scene.events.emitted.some(e => e.event === 'hero:level-up' && e.data.level === 2)).toBe(true);
+  });
+
+  it('does not emit level-up when already at max level', () => {
+    const scene = makeScene();
+    const hero  = new Hero(scene, { x: 0, y: 0 });
+    for (let i = 0; i < 100; i++) hero._registerKill();
+    const l3Events = scene.events.emitted.filter(e => e.event === 'hero:level-up' && e.data.level === 3);
+    expect(l3Events.length).toBe(1);
+  });
+});
+
+describe('Hero — abilities', () => {
+  it('overcharge returns true and sets active flag', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    expect(hero.overcharge()).toBe(true);
+    expect(hero.overchargeActive).toBe(true);
+  });
+
+  it('overcharge returns false while on cooldown', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.overcharge();
+    expect(hero.overcharge()).toBe(false);
+  });
+
+  it('overchargeActive clears after 6s', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.overcharge();
+    hero.update(6.1, []);
+    expect(hero.overchargeActive).toBe(false);
+  });
+
+  it('airstrike returns target data', () => {
+    const hero   = new Hero(makeScene(), { x: 0, y: 0 });
+    const result = hero.airstrike(100, 200);
+    expect(result).toEqual({ x: 100, y: 200, radius: 70, damage: 80 });
+  });
+
+  it('airstrike returns null while on cooldown', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.airstrike(100, 200);
+    expect(hero.airstrike(100, 200)).toBeNull();
+  });
+
+  it('empPulse returns true and sets cooldown', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    expect(hero.empPulse()).toBe(true);
+    expect(hero.empTimer).toBe(45);
+  });
+
+  it('empPulse returns false while on cooldown', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.empPulse();
+    expect(hero.empPulse()).toBe(false);
+  });
+
+  it('abilities return false when hero is dead', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.takeDamage(200);
+    expect(hero.overcharge()).toBe(false);
+    expect(hero.airstrike(0, 0)).toBeNull();
+    expect(hero.empPulse()).toBe(false);
+  });
+});
