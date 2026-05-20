@@ -714,6 +714,7 @@ export default class GameScene extends Phaser.Scene {
   // ─── Game end ──────────────────────────────────────────────────────────────
 
   _onVictory() {
+    if (this.won) return;
     this.won = true;
     this._commitStats(true);
     const map   = MAPS[this.mapId];
@@ -736,6 +737,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _onDefeat() {
+    if (this.over) return;
     this.over = true;
     this._commitStats(false);
     document.getElementById('msg-title').textContent = '💀 Defeat';
