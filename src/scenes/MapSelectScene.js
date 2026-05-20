@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { MAPS } from '../data/maps.js';
 import { SaveManager } from '../systems/SaveManager.js';
 import { starsDisplay } from '../utils/display.js';
+import { UpgradeManager }     from '../systems/UpgradeManager.js';
+import { UpgradeTreeOverlay } from '../ui/UpgradeTreeOverlay.js';
 
 export default class MapSelectScene extends Phaser.Scene {
   constructor() { super('MapSelectScene'); }
@@ -13,6 +15,8 @@ export default class MapSelectScene extends Phaser.Scene {
     container.style.display = 'flex';
 
     this._saveMgr = new SaveManager();
+    this._upgradeMgr = new UpgradeManager(this._saveMgr);
+    this._overlay    = new UpgradeTreeOverlay(this._upgradeMgr);
 
     // Default to highest unlocked map
     let defaultId = 0;
@@ -24,6 +28,9 @@ export default class MapSelectScene extends Phaser.Scene {
     this._populateSidebar();
     this._renderFeatured(this._selectedId);
     this._bindPlay();
+    this._renderMetaBar();
+    this._renderStats();
+    this._bindUpgrades();
   }
 
   _populateSidebar() {
@@ -84,7 +91,47 @@ export default class MapSelectScene extends Phaser.Scene {
     });
   }
 
+  _renderMetaBar() {
+    document.getElementById('total-stars').textContent =
+      `★ ${this._saveMgr.getTotalStars()} / 30`;
+  }
+
+  _renderStats() {
+    const s   = this._saveMgr.getStats();
+    const el  = document.getElementById('lifetime-stats');
+    el.replaceChildren();
+    const chips = [
+      ['Kills',       s.kills],
+      ['Games',       s.gamesPlayed],
+      ['Victories',   s.victories],
+      ['Defeats',     s.defeats],
+      ['Best Wave',   s.bestWave],
+      ['Total Stars', this._saveMgr.getTotalStars()],
+    ];
+    for (const [label, value] of chips) {
+      const chip = document.createElement('div');
+      chip.className = 'stat-chip';
+      const valEl = document.createElement('span');
+      valEl.className   = 'stat-chip-val';
+      valEl.textContent = value;
+      const lblEl = document.createElement('span');
+      lblEl.className   = 'stat-chip-lbl';
+      lblEl.textContent = label;
+      chip.append(valEl, lblEl);
+      el.appendChild(chip);
+    }
+  }
+
+  _bindUpgrades() {
+    // Clone removes any prior listener before re-adding (matches _bindPlay).
+    const old = document.getElementById('open-upgrades');
+    const btn = old.cloneNode(true);
+    old.replaceWith(btn);
+    btn.addEventListener('click', () => this._overlay.open());
+  }
+
   shutdown() {
-    document.getElementById('map-select').style.display = 'none';
+    document.getElementById('map-select').style.display     = 'none';
+    document.getElementById('upgrade-overlay').style.display = 'none';
   }
 }
