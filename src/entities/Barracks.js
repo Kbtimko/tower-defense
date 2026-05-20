@@ -3,8 +3,9 @@ import { Soldier } from './Soldier.js';
 import { TOWER_DEFS } from '../data/towers.js';
 
 export class Barracks extends Tower {
-  constructor(scene, { type, x, y, def, zoneIndex }) {
-    super(scene, { type, x, y, def, zoneIndex });
+  constructor(scene, { type, x, y, def, zoneIndex, modifiers = {} }) {
+    super(scene, { type, x, y, def, zoneIndex, modifiers });
+    this._modifiers          = modifiers;
     this.soldiers            = [];
     this.soldierPathProgress = 0.5;
     this.soldierStats        = def.soldierStats.tier1;
@@ -17,6 +18,7 @@ export class Barracks extends Tower {
         pathProgress: this.soldierPathProgress,
         pathPoints,
         soldierStats: this.soldierStats,
+        modifiers:    this._modifiers,
       }));
     }
   }

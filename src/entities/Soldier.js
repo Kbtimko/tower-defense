@@ -1,15 +1,16 @@
 import Phaser from 'phaser';
 
 export class Soldier extends Phaser.GameObjects.Container {
-  constructor(scene, { barracks, pathProgress, pathPoints, soldierStats }) {
+  constructor(scene, { barracks, pathProgress, pathPoints, soldierStats, modifiers = {} }) {
     super(scene, 0, 0);
 
+    const maxHp = soldierStats.hp + (modifiers.soldierMaxHpBonus ?? 0);
     this.barracks        = barracks;
     this.pathProgress    = pathProgress;
-    this.hp              = soldierStats.hp;
-    this.maxHp           = soldierStats.hp;
+    this.hp              = maxHp;
+    this.maxHp           = maxHp;
     this.damage          = soldierStats.damage;
-    this.respawnDuration = soldierStats.respawnDuration;
+    this.respawnDuration = soldierStats.respawnDuration * (modifiers.soldierRespawnMult ?? 1);
     this.canBlockFlyers  = soldierStats.canBlockFlyers;
     this.attackRate      = 1;
     this.attackTimer     = 0;
