@@ -11,7 +11,7 @@ import { Barracks } from '../entities/Barracks.js';
 import { Enemy } from '../entities/Enemy.js';
 import { Projectile } from '../entities/Projectile.js';
 import { Hero } from '../entities/Hero.js';
-import { ProgressManager } from '../systems/ProgressManager.js';
+import { SaveManager } from '../systems/SaveManager.js';
 import { StoryManager }    from '../systems/StoryManager.js';
 import { STORY_PANELS }    from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
@@ -37,7 +37,7 @@ export default class GameScene extends Phaser.Scene {
     this.pathMgr  = new PathManager(map.waypoints, width, height);
     this.economy  = new EconomyManager(map.startGold, map.startLives, this.events);
     this.waveMgr  = new WaveManager(MAP_WAVES[this.mapId] ?? MAP_WAVES[0], this.events);
-    this.progressMgr = new ProgressManager();
+    this.saveMgr = new SaveManager();
     this.storyMgr    = new StoryManager(STORY_PANELS);
     this.placementManager = new TowerPlacementManager(
       this.pathMgr.buildZones,
@@ -708,8 +708,7 @@ export default class GameScene extends Phaser.Scene {
     const map   = MAPS[this.mapId];
     const pct   = this.economy.lives / map.startLives;
     const stars = pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : 1;
-    this.progressMgr.setStars(this.mapId, stars);
-    this.progressMgr.unlockNext(this.mapId);
+    this.saveMgr.setStars(this.mapId, stars);
     const panel = this.storyMgr.getUnlockPanel(map.storyKey);
     if (panel) {
       this.storyMgr.showBanner(panel, () => this._showVictoryOverlay(stars));

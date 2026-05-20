@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { MAPS } from '../data/maps.js';
-import { ProgressManager } from '../systems/ProgressManager.js';
+import { SaveManager } from '../systems/SaveManager.js';
 import { starsDisplay } from '../utils/display.js';
 
 export default class MapSelectScene extends Phaser.Scene {
@@ -12,12 +12,12 @@ export default class MapSelectScene extends Phaser.Scene {
     const container = document.getElementById('map-select');
     container.style.display = 'flex';
 
-    this._progressMgr = new ProgressManager();
+    this._saveMgr = new SaveManager();
 
     // Default to highest unlocked map
     let defaultId = 0;
     for (let i = MAPS.length - 1; i >= 0; i--) {
-      if (this._progressMgr.isUnlocked(i)) { defaultId = i; break; }
+      if (this._saveMgr.isUnlocked(i)) { defaultId = i; break; }
     }
     this._selectedId = defaultId;
 
@@ -31,7 +31,7 @@ export default class MapSelectScene extends Phaser.Scene {
     sidebar.replaceChildren();
 
     for (const map of MAPS) {
-      const unlocked = this._progressMgr.isUnlocked(map.id);
+      const unlocked = this._saveMgr.isUnlocked(map.id);
 
       const row = document.createElement('div');
       row.className = 'map-row ' + (unlocked ? 'unlocked' : 'locked');
@@ -46,7 +46,7 @@ export default class MapSelectScene extends Phaser.Scene {
       const starsEl = document.createElement('div');
       starsEl.className = 'map-row-stars';
       if (unlocked) {
-        const stars = this._progressMgr.getStars(map.id);
+        const stars = this._saveMgr.getStars(map.id);
         starsEl.textContent = stars > 0 ? starsDisplay(stars) : '—';
       }
 
@@ -65,7 +65,7 @@ export default class MapSelectScene extends Phaser.Scene {
 
   _renderFeatured(mapId) {
     const map   = MAPS[mapId];
-    const stars = this._progressMgr.getStars(mapId);
+    const stars = this._saveMgr.getStars(mapId);
 
     document.getElementById('featured-name').textContent  = map.name;
     document.getElementById('featured-stars').textContent = stars > 0 ? starsDisplay(stars) : '☆☆☆';
