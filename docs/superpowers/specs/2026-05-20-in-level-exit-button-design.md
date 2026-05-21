@@ -120,11 +120,15 @@ scene.start('MapSelectScene') → GameScene.shutdown()
 
 - **Stray click:** the Exit button never leaves the run directly; it only
   opens the confirm dialog. Leaving requires a second deliberate click.
-- **Exit during a dialog already shown:** Victory/Defeat already sets
-  `this.over`/`this.won` and shows `#game-msg` with its own button; the exit
-  flow is a player action on the bottom bar, which is still interactive. If
-  `#game-msg` is already up for a win/loss, the bottom bar is effectively the
-  endgame state — no special handling needed beyond the state-leak guard above.
+- **Game runs under the dialog:** `_showConfirmExit()` calls `this.scene.pause()`
+  so enemies, waves, and timers freeze while the player decides — this also
+  prevents a victory/defeat from firing and overwriting the confirm dialog.
+  The Cancel handler calls `this.scene.resume()`; the Abandon path navigates
+  away via `scene.start()`, which supersedes the paused state.
+- **Exit after the game is already over:** `_showConfirmExit()` early-returns
+  when `this.over || this.won` is set. Once `#game-msg` shows the Victory/Defeat
+  result, the Exit button is inert — it cannot revert the endgame dialog back
+  to the abandon-confirm prompt.
 - **Cancelled exit then win/loss:** handled by the state-leak guard resetting
   `#msg-btn` text and hiding `#msg-cancel-btn`.
 
