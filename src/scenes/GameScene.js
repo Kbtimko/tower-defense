@@ -132,19 +132,36 @@ export default class GameScene extends Phaser.Scene {
     document.getElementById('panel-sell-btn').addEventListener('click',    () => this._sellSelectedTower());
     document.getElementById('panel-reposition-btn').addEventListener('click', () => this._startReposition());
     document.getElementById('msg-btn').addEventListener('click', () => this.scene.start('MapSelectScene'));
+    document.getElementById('exit-btn').addEventListener('click', () => this._showConfirmExit());
+    document.getElementById('msg-cancel-btn').addEventListener('click', () => {
+      document.getElementById('game-msg').style.display = 'none';
+      this.scene.resume();
+    });
+  }
+
+  _showConfirmExit() {
+    if (this.over || this.won) return;
+    this.scene.pause();
+    document.getElementById('msg-title').textContent        = 'Abandon level?';
+    document.getElementById('msg-body').textContent         = 'Progress on this level will be lost.';
+    document.getElementById('msg-btn').textContent          = 'Abandon Level';
+    document.getElementById('msg-cancel-btn').style.display = 'inline-block';
+    document.getElementById('game-msg').style.display       = 'block';
   }
 
   shutdown() {
     if (import.meta.env.DEV) window.__game = null;
     this.game.events.off('ui:ability', this._onAbility, this);
     // Remove all DOM listeners without tracking refs: clone replaces the node
-    ['wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','panel-reposition-btn','story-dismiss'].forEach(id => {
+    ['wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','msg-cancel-btn','exit-btn','panel-reposition-btn','story-dismiss'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.replaceWith(el.cloneNode(true));
     });
     document.querySelectorAll('.tower-btn').forEach(btn => btn.replaceWith(btn.cloneNode(true)));
-    document.getElementById('hud').style.display        = 'none';
-    document.getElementById('bottom-bar').style.display = 'none';
+    document.getElementById('hud').style.display         = 'none';
+    document.getElementById('bottom-bar').style.display  = 'none';
+    document.getElementById('tower-panel').style.display = 'none';
+    document.getElementById('game-msg').style.display    = 'none';
   }
 
   // ─── Update loop ───────────────────────────────────────────────────────────
@@ -733,6 +750,8 @@ export default class GameScene extends Phaser.Scene {
     document.getElementById('msg-title').textContent = '🏆 Victory!';
     document.getElementById('msg-body').textContent  =
       starsDisplay(stars) + ' — ' + this.kills + ' kills';
+    document.getElementById('msg-btn').textContent          = '↩ Map Select';
+    document.getElementById('msg-cancel-btn').style.display = 'none';
     document.getElementById('game-msg').style.display = 'block';
   }
 
@@ -742,6 +761,8 @@ export default class GameScene extends Phaser.Scene {
     this._commitStats(false);
     document.getElementById('msg-title').textContent = '💀 Defeat';
     document.getElementById('msg-body').textContent  = `The line did not hold. Wave ${this.waveMgr.currentWave}.`;
+    document.getElementById('msg-btn').textContent          = '↩ Map Select';
+    document.getElementById('msg-cancel-btn').style.display = 'none';
     document.getElementById('game-msg').style.display = 'block';
   }
 
