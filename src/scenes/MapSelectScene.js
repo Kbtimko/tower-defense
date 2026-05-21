@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import { MAPS } from '../data/maps.js';
-import { ProgressManager } from '../systems/ProgressManager.js';
+import { SaveManager } from '../systems/SaveManager.js';
 import { starsDisplay } from '../utils/display.js';
+import { UpgradeManager }     from '../systems/UpgradeManager.js';
+import { UpgradeTreeOverlay } from '../ui/UpgradeTreeOverlay.js';
 
 export default class MapSelectScene extends Phaser.Scene {
   constructor() { super('MapSelectScene'); }
@@ -12,18 +14,23 @@ export default class MapSelectScene extends Phaser.Scene {
     const container = document.getElementById('map-select');
     container.style.display = 'flex';
 
-    this._progressMgr = new ProgressManager();
+    this._saveMgr = new SaveManager();
+    this._upgradeMgr = new UpgradeManager(this._saveMgr);
+    this._overlay    = new UpgradeTreeOverlay(this._upgradeMgr);
 
     // Default to highest unlocked map
     let defaultId = 0;
     for (let i = MAPS.length - 1; i >= 0; i--) {
-      if (this._progressMgr.isUnlocked(i)) { defaultId = i; break; }
+      if (this._saveMgr.isUnlocked(i)) { defaultId = i; break; }
     }
     this._selectedId = defaultId;
 
     this._populateSidebar();
     this._renderFeatured(this._selectedId);
     this._bindPlay();
+    this._renderMetaBar();
+    this._renderStats();
+    this._bindUpgrades();
   }
 
   _populateSidebar() {
@@ -31,7 +38,7 @@ export default class MapSelectScene extends Phaser.Scene {
     sidebar.replaceChildren();
 
     for (const map of MAPS) {
-      const unlocked = this._progressMgr.isUnlocked(map.id);
+      const unlocked = this._saveMgr.isUnlocked(map.id);
 
       const row = document.createElement('div');
       row.className = 'map-row ' + (unlocked ? 'unlocked' : 'locked');
@@ -46,7 +53,7 @@ export default class MapSelectScene extends Phaser.Scene {
       const starsEl = document.createElement('div');
       starsEl.className = 'map-row-stars';
       if (unlocked) {
-        const stars = this._progressMgr.getStars(map.id);
+        const stars = this._saveMgr.getStars(map.id);
         starsEl.textContent = stars > 0 ? starsDisplay(stars) : '—';
       }
 
@@ -65,7 +72,7 @@ export default class MapSelectScene extends Phaser.Scene {
 
   _renderFeatured(mapId) {
     const map   = MAPS[mapId];
-    const stars = this._progressMgr.getStars(mapId);
+    const stars = this._saveMgr.getStars(mapId);
 
     document.getElementById('featured-name').textContent  = map.name;
     document.getElementById('featured-stars').textContent = stars > 0 ? starsDisplay(stars) : '☆☆☆';
@@ -84,7 +91,47 @@ export default class MapSelectScene extends Phaser.Scene {
     });
   }
 
+  _renderMetaBar() {
+    document.getElementById('total-stars').textContent =
+      `★ ${this._saveMgr.getTotalStars()} / 30`;
+  }
+
+  _renderStats() {
+    const s   = this._saveMgr.getStats();
+    const el  = document.getElementById('lifetime-stats');
+    el.replaceChildren();
+    const chips = [
+      ['Kills',       s.kills],
+      ['Games',       s.gamesPlayed],
+      ['Victories',   s.victories],
+      ['Defeats',     s.defeats],
+      ['Best Wave',   s.bestWave],
+      ['Total Stars', this._saveMgr.getTotalStars()],
+    ];
+    for (const [label, value] of chips) {
+      const chip = document.createElement('div');
+      chip.className = 'stat-chip';
+      const valEl = document.createElement('span');
+      valEl.className   = 'stat-chip-val';
+      valEl.textContent = value;
+      const lblEl = document.createElement('span');
+      lblEl.className   = 'stat-chip-lbl';
+      lblEl.textContent = label;
+      chip.append(valEl, lblEl);
+      el.appendChild(chip);
+    }
+  }
+
+  _bindUpgrades() {
+    // Clone removes any prior listener before re-adding (matches _bindPlay).
+    const old = document.getElementById('open-upgrades');
+    const btn = old.cloneNode(true);
+    old.replaceWith(btn);
+    btn.addEventListener('click', () => this._overlay.open());
+  }
+
   shutdown() {
-    document.getElementById('map-select').style.display = 'none';
+    document.getElementById('map-select').style.display     = 'none';
+    document.getElementById('upgrade-overlay').style.display = 'none';
   }
 }

@@ -9,12 +9,14 @@ const MAX_HP         = 150;
 const RESPAWN_TIME   = 20;
 
 export class Hero extends Phaser.GameObjects.Container {
-  constructor(scene, { x, y }) {
+  constructor(scene, { x, y }, modifiers = {}) {
     super(scene, x, y);
 
-    this.hp           = MAX_HP;
-    this.maxHp        = MAX_HP;
-    this.level        = 1;
+    const maxHp = MAX_HP + (modifiers.heroMaxHpBonus ?? 0);
+    this.hp           = maxHp;
+    this.maxHp        = maxHp;
+    this.level        = modifiers.heroStartLevel ?? 1;
+    this._respawnTime = RESPAWN_TIME + (modifiers.heroRespawnDelta ?? 0);
     this.killCount    = 0;
     this.dead         = false;
     this.respawnTimer = 0;
@@ -73,7 +75,7 @@ export class Hero extends Phaser.GameObjects.Container {
     this._redrawHpBar();
     if (this.hp <= 0) {
       this.dead         = true;
-      this.respawnTimer = RESPAWN_TIME;
+      this.respawnTimer = this._respawnTime;
       this._body.setVisible(false);
       this._hpBar.clear();
     }

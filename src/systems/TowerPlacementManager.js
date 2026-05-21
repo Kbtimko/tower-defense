@@ -1,12 +1,13 @@
 import { TOWER_DEFS } from '../data/towers.js';
 
 export class TowerPlacementManager {
-  constructor(zones, economy, entityFactory) {
-    this.zones    = zones;
-    this.economy  = economy;
-    this._factory = entityFactory;
-    this.towers   = [];
-    this._nextId  = 0;
+  constructor(zones, economy, entityFactory, modifiers = {}) {
+    this.zones      = zones;
+    this.economy    = economy;
+    this._factory   = entityFactory;
+    this._modifiers = modifiers;
+    this.towers     = [];
+    this._nextId    = 0;
   }
 
   getZones()  { return this.zones; }
@@ -20,10 +21,12 @@ export class TowerPlacementManager {
     const zone = this.zones[zoneIndex];
     if (!zone || zone.occupied) return null;
     const def = TOWER_DEFS[type];
-    if (!def || !this.economy.spend(def.cost)) return null;
-    const tower = this._factory(type, scene, { type, x: zone.cx, y: zone.cy, def, zoneIndex });
+    if (!def) return null;
+    const cost = Math.round(def.cost * (this._modifiers.towerCostMult ?? 1));
+    if (!this.economy.spend(cost)) return null;
+    const tower = this._factory(type, scene, { type, x: zone.cx, y: zone.cy, def, zoneIndex, modifiers: this._modifiers });
     tower.id       = this._nextId++;
-    tower.totalCost = def.cost;
+    tower.totalCost = cost;
     zone.occupied  = true;
     this.towers.push(tower);
     return tower;

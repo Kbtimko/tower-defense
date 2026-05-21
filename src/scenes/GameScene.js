@@ -11,7 +11,8 @@ import { Barracks } from '../entities/Barracks.js';
 import { Enemy } from '../entities/Enemy.js';
 import { Projectile } from '../entities/Projectile.js';
 import { Hero } from '../entities/Hero.js';
-import { ProgressManager } from '../systems/ProgressManager.js';
+import { SaveManager } from '../systems/SaveManager.js';
+import { UpgradeManager } from '../systems/UpgradeManager.js';
 import { StoryManager }    from '../systems/StoryManager.js';
 import { STORY_PANELS }    from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
@@ -34,21 +35,30 @@ export default class GameScene extends Phaser.Scene {
     const { width, height } = this.scale;
 
     // Systems
+    this.saveMgr     = new SaveManager();
+    this.upgradeMgr  = new UpgradeManager(this.saveMgr);
+    const mods       = this.upgradeMgr.getModifiers();
+    this.killGoldMult = mods.killGoldMult;
+
     this.pathMgr  = new PathManager(map.waypoints, width, height);
-    this.economy  = new EconomyManager(map.startGold, map.startLives, this.events);
+    this.economy  = new EconomyManager(
+      map.startGold  + mods.startGoldBonus,
+      map.startLives + mods.startLivesBonus,
+      this.events,
+    );
     this.waveMgr  = new WaveManager(MAP_WAVES[this.mapId] ?? MAP_WAVES[0], this.events);
-    this.progressMgr = new ProgressManager();
-    this.storyMgr    = new StoryManager(STORY_PANELS);
+    this.storyMgr = new StoryManager(STORY_PANELS);
     this.placementManager = new TowerPlacementManager(
       this.pathMgr.buildZones,
       this.economy,
       (type, scene, opts) => type === 'barracks'
         ? new Barracks(scene, opts)
-        : new Tower(scene, opts)
+        : new Tower(scene, opts),
+      mods,
     );
 
     // Hero
-    this.hero                     = new Hero(this, this.pathMgr.path[0]);
+    this.hero                     = new Hero(this, this.pathMgr.path[0], mods);
     this.aimMode                  = false;
     this._heroOverchargeWasActive = false;
     this._heroCooldownAccum       = 0;
@@ -101,9 +111,9 @@ export default class GameScene extends Phaser.Scene {
       this.game.events.emit('hero:level-up', { level });
     }, this);
 
-    // Unlock Q immediately (hero starts at L1)
+    // Unlock abilities for the hero's starting level
     this.time.delayedCall(150, () => {
-      this.game.events.emit('hero:level-up', { level: 1 });
+      this.game.events.emit('hero:level-up', { level: this.hero.level });
     });
 
     // Wire ability dispatch
@@ -256,7 +266,7 @@ export default class GameScene extends Phaser.Scene {
     this.hero.update(dt, this.enemies);
     for (const e of aliveBeforeHero) {
       if (e.dead) {
-        this.economy.earn(e.reward);
+        this.economy.earn(Math.round(e.reward * this.killGoldMult));
         this.kills++;
         this._updateHUD();
       }
@@ -404,7 +414,7 @@ export default class GameScene extends Phaser.Scene {
   _dealDamage(enemy, damage, pierce) {
     enemy.takeDamage(damage, pierce);
     if (enemy.dead) {
-      this.economy.earn(enemy.reward);
+      this.economy.earn(Math.round(enemy.reward * this.killGoldMult));
       this.kills++;
       this._updateHUD();
       // Central flash
@@ -704,12 +714,13 @@ export default class GameScene extends Phaser.Scene {
   // ─── Game end ──────────────────────────────────────────────────────────────
 
   _onVictory() {
+    if (this.won) return;
     this.won = true;
+    this._commitStats(true);
     const map   = MAPS[this.mapId];
     const pct   = this.economy.lives / map.startLives;
     const stars = pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : 1;
-    this.progressMgr.setStars(this.mapId, stars);
-    this.progressMgr.unlockNext(this.mapId);
+    this.saveMgr.setStars(this.mapId, stars);
     const panel = this.storyMgr.getUnlockPanel(map.storyKey);
     if (panel) {
       this.storyMgr.showBanner(panel, () => this._showVictoryOverlay(stars));
@@ -726,10 +737,23 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _onDefeat() {
+    if (this.over) return;
     this.over = true;
+    this._commitStats(false);
     document.getElementById('msg-title').textContent = '💀 Defeat';
     document.getElementById('msg-body').textContent  = `The line did not hold. Wave ${this.waveMgr.currentWave}.`;
     document.getElementById('game-msg').style.display = 'block';
+  }
+
+  _commitStats(isVictory) {
+    const s = this.saveMgr.getStats();
+    this.saveMgr.setStats({
+      kills:       s.kills + this.kills,
+      gamesPlayed: s.gamesPlayed + 1,
+      victories:   s.victories + (isVictory ? 1 : 0),
+      defeats:     s.defeats + (isVictory ? 0 : 1),
+      bestWave:    Math.max(s.bestWave, this.waveMgr.currentWave),
+    });
   }
 
   _toast(msg) {
