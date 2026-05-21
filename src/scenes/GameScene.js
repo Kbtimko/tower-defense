@@ -135,10 +135,13 @@ export default class GameScene extends Phaser.Scene {
     document.getElementById('exit-btn').addEventListener('click', () => this._showConfirmExit());
     document.getElementById('msg-cancel-btn').addEventListener('click', () => {
       document.getElementById('game-msg').style.display = 'none';
+      this.scene.resume();
     });
   }
 
   _showConfirmExit() {
+    if (this.over || this.won) return;
+    this.scene.pause();
     document.getElementById('msg-title').textContent        = 'Abandon level?';
     document.getElementById('msg-body').textContent         = 'Progress on this level will be lost.';
     document.getElementById('msg-btn').textContent          = 'Abandon Level';
