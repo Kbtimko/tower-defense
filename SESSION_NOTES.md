@@ -147,3 +147,90 @@ Phase 4 brainstorm — post-launch features TBD (ability mechanics, new enemy ty
 ## 2026-05-17 (auto-generated)
 **Commits this session:**
 - 0909c72 docs: add Phase 5 maps & storyline design spec
+
+## 2026-05-17 (auto-generated)
+**Commits this session:**
+- 3b7d6ba chore: update session notes and add Phase 5 implementation plan
+- acc16c8 fix: add MAP_WAVES[1] for Lunar Gate (was silently using map 0 fallback)
+- 9f50d62 feat: wire GameScene with ProgressManager, StoryManager, star rating, and unlock flow
+- efd99cd feat: register MapSelectScene and redirect MenuScene to it
+- 71b62c8 feat: add MapSelectScene with sidebar/featured panel layout
+- 1ccbe4e feat: add StoryManager and story-banner DOM
+- 7b9cad0 feat: add STORY_PANELS data for all 10 maps
+- 7aa135b feat: add starsDisplay utility
+- b139dae feat: add ProgressManager for localStorage star ratings and unlock state
+- c84a359 feat: add phantom and titan visual shapes to Enemy._redrawBody
+- 7ca3740 feat: add MAP_WAVES[2-9] with phantom and titan enemies
+- d467fb5 feat: expand maps to 10 with blurb field and new waypoints
+- 3dc0c35 feat: add phantom and titan enemy definitions
+- 0909c72 docs: add Phase 5 maps & storyline design spec
+
+## 2026-05-17 (auto-generated)
+**Commits this session:**
+- 3b7d6ba chore: update session notes and add Phase 5 implementation plan
+- acc16c8 fix: add MAP_WAVES[1] for Lunar Gate (was silently using map 0 fallback)
+- 9f50d62 feat: wire GameScene with ProgressManager, StoryManager, star rating, and unlock flow
+- efd99cd feat: register MapSelectScene and redirect MenuScene to it
+- 71b62c8 feat: add MapSelectScene with sidebar/featured panel layout
+- 1ccbe4e feat: add StoryManager and story-banner DOM
+- 7b9cad0 feat: add STORY_PANELS data for all 10 maps
+- 7aa135b feat: add starsDisplay utility
+- b139dae feat: add ProgressManager for localStorage star ratings and unlock state
+- c84a359 feat: add phantom and titan visual shapes to Enemy._redrawBody
+- 7ca3740 feat: add MAP_WAVES[2-9] with phantom and titan enemies
+- d467fb5 feat: expand maps to 10 with blurb field and new waypoints
+- 3dc0c35 feat: add phantom and titan enemy definitions
+- 0909c72 docs: add Phase 5 maps & storyline design spec
+
+## 2026-05-18 (auto-generated)
+**Commits this session:**
+- f6a3f6d fix: register shutdown lifecycle and fix Enemy/Projectile scene arg
+
+## 2026-05-18 (auto-generated)
+**Commits this session:**
+- 021838b feat: expose window.__game in DEV mode and add PR #4 validation script
+- f6a3f6d fix: register shutdown lifecycle and fix Enemy/Projectile scene arg
+
+## 2026-05-18 (auto-generated)
+**Commits this session:**
+- 84915b8 fix: level-guard W/E keyboard shortcuts, award gold for hero kills
+- 2f9b3d0 fix: guard keydown against text inputs, init _onKeyDown null, fix Q locked class
+- 2b1f66a feat: hero UI — ability buttons, keydown Q/W/E, HP bar, cooldown display
+- 4fce68b fix: guard hero moveTo while dead, reset aimMode on airstrike early-return
+- 9bddb08 feat: hero input (aim mode, moveTo fallback), abilities (overcharge/airstrike/EMP)
+- c9767d2 fix: add _onAbility stub, fix cooldown accumulator drift, document stun-freeze
+- 137ebda feat: wire Hero into GameScene — update loop, overcharge, stun skip
+- b802c15 feat: add hero section to bottom bar (portrait, HP bar, Q/W/E buttons)
+- ebcc715 test: add Hero leveling and ability tests
+- 851daba fix: reset _attackTimer on respawn, align takeDamage signature
+- 551a936 feat: add Hero entity — movement, auto-attack, respawn
+- f46d68a chore: clarify lineBetween mock in Enemy.test.js
+- fb1698e feat: add stun status effect to Enemy
+- 40cf817 docs: add Phase 6 hero unit implementation plan
+- deee012 docs: add Phase 6 hero unit design spec
+- 021838b feat: expose window.__game in DEV mode and add PR #4 validation script
+- f6a3f6d fix: register shutdown lifecycle and fix Enemy/Projectile scene arg
+
+## 2026-05-19 (auto-generated)
+**Commits this session:**
+- 5ef33d7 docs: Phase 7 Meta & Persistence design spec
+
+## 2026-05-19 (auto-generated)
+**Commits this session:**
+- abb19e7 docs: Phase 7 Meta & Persistence implementation plan
+- 5ef33d7 docs: Phase 7 Meta & Persistence design spec
+
+## 2026-05-19 (auto-generated)
+**Commits this session:**
+- abb19e7 docs: Phase 7 Meta & Persistence implementation plan
+- 5ef33d7 docs: Phase 7 Meta & Persistence design spec
+
+## 2026-05-19 (auto-generated)
+**Commits this session:**
+- abb19e7 docs: Phase 7 Meta & Persistence implementation plan
+- 5ef33d7 docs: Phase 7 Meta & Persistence design spec
+
+## 2026-05-19 (auto-generated)
+**Commits this session:**
+- abb19e7 docs: Phase 7 Meta & Persistence implementation plan
+- 5ef33d7 docs: Phase 7 Meta & Persistence design spec
