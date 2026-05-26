@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { AudioManager } from './AudioManager.js';
+import { AudioManager, getOrCreateAudioManager } from './AudioManager.js';
 import { SaveManager } from './SaveManager.js';
 
 function makeGame() {
@@ -183,5 +183,16 @@ describe('AudioManager music', () => {
     vi.advanceTimersByTime(500);
     const ambient = created.find(s => s.key === 'map-0-ambient');
     expect(ambient.isPlaying).toBe(false);
+  });
+});
+
+describe('getOrCreateAudioManager — singleton', () => {
+  it('returns the same instance across calls and stores it on game.registry', () => {
+    const game = makeGame();
+    const sm   = new SaveManager();
+    const a    = getOrCreateAudioManager(game, sm);
+    const b    = getOrCreateAudioManager(game, sm);
+    expect(a).toBe(b);
+    expect(game.registry.get('audio')).toBe(a);
   });
 });
