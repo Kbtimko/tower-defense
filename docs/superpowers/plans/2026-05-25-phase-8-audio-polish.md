@@ -1672,9 +1672,16 @@ Open `src/entities/Hero.js`. Find the per-ability blocks. Add to each:
     if (am) am.playSfx('hero-airstrike');
     if (this.scene.particles) this.scene.particles.spawnHeroAbilityVFX('airstrike', x, y, 60);
     this.scene.events.emit('airstrike-impact', { x, y });
-    // When dealing damage to each enemy in the radius, pass abilityLabel:
-    //   enemy.takeDamage(80, { isAoe: true, abilityLabel: 'AIRSTRIKE' });
 ```
+
+**Modify the existing damage call** inside the same Airstrike block so each affected enemy receives `{ isAoe: true, abilityLabel: 'AIRSTRIKE' }` as the second argument:
+
+```diff
+- enemy.takeDamage(80);
++ enemy.takeDamage(80, { isAoe: true, abilityLabel: 'AIRSTRIKE' });
+```
+
+(The actual damage amount may differ — preserve whatever is already in the code; just add the opts.)
 
 **EMP Pulse (E)** — in the block that stuns enemies:
 
