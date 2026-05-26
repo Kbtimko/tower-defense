@@ -105,3 +105,83 @@ describe('AudioManager SFX', () => {
     expect(setVolSpy).toHaveBeenLastCalledWith(expect.any(Number));
   });
 });
+
+describe('AudioManager music', () => {
+  function makeMusicGame() {
+    const created = [];
+    const sound = {
+      sounds: [],
+      add: vi.fn((key) => {
+        const s = {
+          key, isPlaying: false, __channel: 'music', __volume: 0,
+          play(opts = {}) { this.isPlaying = true; this.__volume = opts.volume ?? 0; },
+          stop() { this.isPlaying = false; },
+          setVolume(v) { this.__volume = v; },
+        };
+        created.push(s);
+        sound.sounds.push(s);
+        return s;
+      }),
+    };
+    return { game: { sound, registry: new Map() }, created };
+  }
+
+  it('playMusic(mapId) starts ambient at musicVol and combat at 0', () => {
+    const { game, created } = makeMusicGame();
+    const am = new AudioManager(game, new SaveManager());
+    am.playMusic(0);
+    const ambient = created.find(s => s.key === 'map-0-ambient');
+    const combat  = created.find(s => s.key === 'map-0-combat');
+    expect(ambient.isPlaying).toBe(true);
+    expect(ambient.__volume).toBeCloseTo(0.8 * 0.6); // master * music
+    expect(combat.isPlaying).toBe(true);
+    expect(combat.__volume).toBe(0);
+  });
+
+  it('setCombatActive(true) fades combat to musicVol over 1500ms', () => {
+    const { game, created } = makeMusicGame();
+    const am = new AudioManager(game, new SaveManager());
+    am.playMusic(0);
+    const combat = created.find(s => s.key === 'map-0-combat');
+    am.setCombatActive(true);
+    vi.advanceTimersByTime(1500);
+    expect(combat.__volume).toBeCloseTo(0.8 * 0.6, 2);
+  });
+
+  it('rapid setCombatActive toggles do not stack — last call wins', () => {
+    const { game, created } = makeMusicGame();
+    const am = new AudioManager(game, new SaveManager());
+    am.playMusic(0);
+    const combat = created.find(s => s.key === 'map-0-combat');
+    am.setCombatActive(true);
+    vi.advanceTimersByTime(500);
+    am.setCombatActive(false);
+    vi.advanceTimersByTime(1500);
+    expect(combat.__volume).toBeCloseTo(0, 2);
+  });
+
+  it('boss theme stops ambient and combat; setCombatActive becomes no-op', () => {
+    const { game, created } = makeMusicGame();
+    const am = new AudioManager(game, new SaveManager());
+    am.playMusic(0);
+    am.playMusic('boss-mid');
+    const ambient = created.find(s => s.key === 'map-0-ambient');
+    const combat  = created.find(s => s.key === 'map-0-combat');
+    const boss    = created.find(s => s.key === 'boss-mid');
+    expect(ambient.isPlaying).toBe(false);
+    expect(combat.isPlaying).toBe(false);
+    expect(boss.isPlaying).toBe(true);
+    am.setCombatActive(true);
+    expect(combat.isPlaying).toBe(false);
+  });
+
+  it('stopMusic fades both layers out over fadeMs', () => {
+    const { game, created } = makeMusicGame();
+    const am = new AudioManager(game, new SaveManager());
+    am.playMusic(0);
+    am.stopMusic(500);
+    vi.advanceTimersByTime(500);
+    const ambient = created.find(s => s.key === 'map-0-ambient');
+    expect(ambient.isPlaying).toBe(false);
+  });
+});
