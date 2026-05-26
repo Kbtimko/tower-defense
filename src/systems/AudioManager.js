@@ -1,7 +1,32 @@
 const DEBOUNCE_MS = 300;
 
+export const SFX_KEYS = [
+  'tower-fire-machinegun', 'tower-fire-cannon', 'tower-fire-sniper',
+  'tower-fire-laser', 'tower-fire-rocket', 'tower-fire-barracks',
+  'tower-place', 'tower-upgrade', 'tower-sell',
+  'enemy-hit', 'enemy-death-small', 'enemy-death-large',
+  'hero-attack', 'hero-death', 'hero-respawn',
+  'hero-overcharge', 'hero-airstrike', 'hero-emp',
+  'wave-start', 'life-lost', 'victory', 'defeat', 'ui-click',
+];
+
+export const MUSIC_KEYS = [
+  ...Array.from({ length: 10 }, (_, i) => `map-${i}-ambient`),
+  ...Array.from({ length: 10 }, (_, i) => `map-${i}-combat`),
+  'boss-mid', 'boss-final',
+];
+
 function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v));
+}
+
+export function getOrCreateAudioManager(game, saveManager) {
+  let am = game.registry.get('audio');
+  if (!am) {
+    am = new AudioManager(game, saveManager);
+    game.registry.set('audio', am);
+  }
+  return am;
 }
 
 export class AudioManager {
@@ -35,6 +60,15 @@ export class AudioManager {
 
   applySettings(settings) {
     this._settings = { ...this._settings, ...settings };
+  }
+
+  loadAssets(scene) {
+    for (const key of SFX_KEYS) {
+      scene.load.audio(key, `audio/sfx/${key}.mp3`);
+    }
+    for (const key of MUSIC_KEYS) {
+      scene.load.audio(key, `audio/music/${key}.mp3`);
+    }
   }
 
   playSfx(key, opts = {}) {
