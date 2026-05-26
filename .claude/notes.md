@@ -4,7 +4,7 @@
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
 ## Current Status
-Phase 7 (Meta & Persistence) merged (PR #7). In-level Exit button + DOM-leak fixes merged (PR #8). 172 tests passing, build clean, browser-verified end to end. Next: backlog item 1 (send next wave early for bonus gold).
+Phase 7 (Meta & Persistence) merged (PR #7). In-level Exit + DOM-leak fixes merged (PR #8). Phase 8 (Audio & Polish) brainstormed and spec written 2026-05-25 — implementation plan next. User chose to jump ahead to Phase 8 over backlog items 1–5.
 
 ## Blockers
 - None active
@@ -13,7 +13,7 @@ Phase 7 (Meta & Persistence) merged (PR #7). In-level Exit button + DOM-leak fix
 - None active (the `#tower-panel` and `#game-msg` leaks were fixed in PR #8 — `GameScene.shutdown()` now hides both)
 
 ## In Progress
-- None active
+- **Phase 8 (Audio & Polish):** spec at `docs/superpowers/specs/2026-05-25-phase-8-audio-polish-design.md` on branch `feature/phase-8-audio-polish`. Awaiting user spec review → writing-plans → execution.
 
 ## Prioritized Backlog
 1. Option to send the next wave early for bonus gold (reward scales with time saved)
@@ -21,7 +21,7 @@ Phase 7 (Meta & Persistence) merged (PR #7). In-level Exit button + DOM-leak fix
 3. Add a click overlay to view hero & enemy info (stats panel on click)
 4. Confirm enemies have different weaknesses for different towers (investigate current type/damage interactions; add if missing)
 5. Additional heroes with different skills (hero roster — selectable heroes, each with a distinct ability set)
-6. Phase 8: Audio & Polish (Howler.js SFX + music, particles, screen shake, floating damage numbers)
+6. **Phase 8b (deferred from Phase 8):** per-tower SFX for 5 tier-4 branches (currently reuse base fire sound); per-enemy-type hit sounds (currently generic + detuned)
 7. Phase 9 (future): iOS Prep — Capacitor, touch controls, App Store pipeline
 
 ## Completed
