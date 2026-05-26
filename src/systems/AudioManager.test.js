@@ -59,3 +59,49 @@ describe('AudioManager volume & mute', () => {
     expect(spy).toHaveBeenLastCalledWith({ masterVol: 0.3 });
   });
 });
+
+describe('AudioManager SFX', () => {
+  function makeGameWithSpy() {
+    const playSpy = vi.fn();
+    const setVolSpy = vi.fn();
+    const fakeSound = { play: playSpy, setVolume: setVolSpy, stop: vi.fn(), isPlaying: true };
+    const addSpy = vi.fn(() => fakeSound);
+    return {
+      game: { sound: { sounds: [fakeSound], add: addSpy }, registry: new Map() },
+      playSpy, setVolSpy, addSpy, fakeSound,
+    };
+  }
+
+  it('playSfx calls scene.sound.add(key) once per key and plays with effective volume', () => {
+    const { game, addSpy, playSpy } = makeGameWithSpy();
+    const am = new AudioManager(game, new SaveManager());
+    am.playSfx('tower-fire-cannon');
+    expect(addSpy).toHaveBeenCalledWith('tower-fire-cannon');
+    expect(playSpy).toHaveBeenCalledWith(expect.objectContaining({ volume: 0.8 }));
+  });
+
+  it('playSfx with muted: true plays at volume 0', () => {
+    const { game, playSpy } = makeGameWithSpy();
+    const am = new AudioManager(game, new SaveManager());
+    am.setMuted(true);
+    am.playSfx('tower-fire-cannon');
+    expect(playSpy).toHaveBeenCalledWith(expect.objectContaining({ volume: 0 }));
+  });
+
+  it('playSfx forwards detune and rate options', () => {
+    const { game, playSpy } = makeGameWithSpy();
+    const am = new AudioManager(game, new SaveManager());
+    am.playSfx('enemy-hit', { detune: 25, rate: 1.1 });
+    expect(playSpy).toHaveBeenCalledWith(expect.objectContaining({ detune: 25, rate: 1.1 }));
+  });
+
+  it('toggling mute updates volume on already-playing sounds', () => {
+    const { game, fakeSound, setVolSpy } = makeGameWithSpy();
+    const am = new AudioManager(game, new SaveManager());
+    fakeSound.isPlaying = true;
+    am.setMuted(true);
+    expect(setVolSpy).toHaveBeenCalledWith(0);
+    am.setMuted(false);
+    expect(setVolSpy).toHaveBeenLastCalledWith(expect.any(Number));
+  });
+});

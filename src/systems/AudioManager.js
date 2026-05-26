@@ -8,6 +8,7 @@ export class AudioManager {
   constructor(game, saveManager) {
     this._game        = game;
     this._save        = saveManager;
+    this._sfxCache    = new Map(); // key -> Phaser.Sound.BaseSound
     this._settings    = saveManager.getSettings();
     this._pendingSave = null;
     this._saveTimer   = null;
@@ -34,11 +35,32 @@ export class AudioManager {
     this._settings = { ...this._settings, ...settings };
   }
 
+  playSfx(key, opts = {}) {
+    let sound = this._sfxCache.get(key);
+    if (!sound) {
+      sound = this._game.sound.add(key);
+      this._sfxCache.set(key, sound);
+    }
+    const volume = this.getEffectiveVolume('sfx') * (opts.volume ?? 1);
+    sound.play({ ...opts, volume });
+  }
+
   // Internal
   _setField(name, value) {
     this._settings[name] = value;
+    this._reapplyActiveVolumes();
     this._pendingSave = { ...(this._pendingSave || {}), [name]: value };
     this._scheduleSave();
+  }
+
+  _reapplyActiveVolumes() {
+    const sfxVol   = this.getEffectiveVolume('sfx');
+    const musicVol = this.getEffectiveVolume('music');
+    for (const s of this._game.sound.sounds) {
+      if (!s.isPlaying) continue;
+      const v = s.__channel === 'music' ? musicVol : sfxVol;
+      s.setVolume(v);
+    }
   }
 
   _scheduleSave() {
