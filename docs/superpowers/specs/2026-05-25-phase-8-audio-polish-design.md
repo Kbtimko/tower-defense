@@ -37,13 +37,13 @@ All new modules live under `src/systems/` except the shared particle texture.
 | `DamageNumberOverlay` | `src/systems/DamageNumberOverlay.js` | Phaser game-object container parented to GameScene. Listens for `damage-dealt`, filters by threshold, spawns short-lived `Phaser.GameObjects.Text` with tween. Pools 24 Text objects to avoid GC churn. |
 | `ShakeController` | `src/systems/ShakeController.js` | Thin wrapper over `scene.cameras.main.shake()`. Subscribes to `boss-died`, `airstrike-impact`, `emp-pulse`. Centralizes intensity tuning. |
 | `ParticleSpawner` | `src/systems/ParticleSpawner.js` | Helpers for the three new effect types: `spawnMuzzleFlash(x, y, towerType)`, `spawnProjectileTrail(projectile, towerType)`, `spawnHeroAbilityVFX(ability, x, y, radius)`. Uses Phaser's built-in particle emitter. |
-| `SettingsOverlay` | `src/systems/SettingsOverlay.js` | DOM overlay mirroring `UpgradeTreeOverlay` pattern. Master/SFX/Music sliders, mute checkbox, close button. Wires directly to AudioManager setters. |
+| `SettingsOverlay` | `src/ui/SettingsOverlay.js` | DOM overlay mirroring the existing `UpgradeTreeOverlay` (`src/ui/UpgradeTreeOverlay.js`) — markup lives in `index.html`, the class reaches in via `getElementById`, attaches listeners on `open()`, removes them on `close()`. Master/SFX/Music sliders, mute checkbox, close button wired to AudioManager setters. |
 
 ### Existing Modules Touched
 
 | Module | Change |
 |---|---|
-| `SaveManager` | Bump envelope to v3; add `data.settings` block; add `getSettings()` + `setSettings(partial)`; write v2→v3 migration |
+| `SaveManager` | Bump envelope from v1 to v2; add top-level `settings` block; add `getSettings()` + `setSettings(partial)`; write v1→v2 migration. (Current code is v1 with flat keys — no `data` wrapper to add.) |
 | `BootScene` | Preload all audio assets via new `AudioManager.loadAssets(scene)` |
 | `GameScene` | Instantiate `DamageNumberOverlay`, `ShakeController`, `ParticleSpawner`; emit new events; call `AudioManager.playMusic(mapId)` on create, `stopMusic()` on shutdown; emit `enemy-on-path-changed` when count crosses 0↔1 |
 | `MapSelectScene` | Add gear button in header; mount `SettingsOverlay` on click |
@@ -316,66 +316,72 @@ class SettingsOverlay {
 
 ## 6. Save Format & Migration
 
-### Current — v2 envelope
+> **Correction:** Initial spec draft assumed the existing `SaveManager` was at v2 with a `data.{progress,upgrades,stats}` nested wrapper. The actual code (`src/systems/SaveManager.js`) is at **VERSION 1** with **top-level** `maps` / `upgrades` / `stats` keys and a legacy-bare-array migration. The plan reflects the real shape below.
+
+### Current — v1 envelope (in code today)
 
 ```js
 {
-  version: 2,
-  data: {
-    progress: { /* { mapId: { stars, completed } } */ },
-    upgrades: { totalStars, purchased: [...] },
-    stats:    { totalKills, totalGoldEarned, mapsCompleted }
+  version:  1,
+  maps:     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   // star count per map
+  upgrades: [],                                // array of purchased upgrade ids
+  stats:    { kills, gamesPlayed, victories, defeats, bestWave }
+}
+```
+
+Legacy bare array at `localStorage['lastlight_progress']` is already migrated into v1 on first load (existing behavior — keep it).
+
+### New — v2 envelope
+
+```js
+{
+  version:  2,
+  maps:     [/* unchanged */],
+  upgrades: [/* unchanged */],
+  stats:    { /* unchanged */ },
+  settings: {
+    masterVol: 0.8,
+    sfxVol:    1.0,
+    musicVol:  0.6,
+    muted:     false
   }
 }
 ```
 
-### New — v3 envelope
+`settings` is a sibling of `maps` / `upgrades` / `stats` — **no `data` wrapper**, matching the existing flat shape.
+
+### v1 → v2 Migration
 
 ```js
-{
-  version: 3,
-  data: {
-    progress: { /* unchanged */ },
-    upgrades: { /* unchanged */ },
-    stats:    { /* unchanged */ },
-    settings: {
-      masterVol: 0.8,
-      sfxVol:    1.0,
-      musicVol:  0.6,
-      muted:     false
-    }
-  }
-}
-```
-
-### v2 → v3 Migration
-
-```js
-function migrateV2toV3(v2) {
+function migrateV1toV2(v1) {
   return {
-    version: 3,
-    data: {
-      ...v2.data,
-      settings: {
-        masterVol: 0.8,
-        sfxVol:    1.0,
-        musicVol:  0.6,
-        muted:     false
-      }
-    }
+    ...v1,
+    version: 2,
+    settings: defaultSettings(),
   };
 }
+
+function defaultSettings() {
+  return { masterVol: 0.8, sfxVol: 1.0, musicVol: 0.6, muted: false };
+}
 ```
 
-Runs once on `SaveManager.load()` when `loaded.version === 2`. Result is immediately written back so subsequent loads are direct v3 reads. Matches the pattern used for v1→v2.
+Runs once inside `SaveManager._load()` when `parsed.version === 1`. Result is immediately written back to `localStorage[STORAGE_KEY]` so subsequent loads are direct v2 reads.
 
 ### Migration Chain
 
-- bare array → v2 (existing)
-- v2 → v3 (new)
-- A v1 save loaded today runs v1→v2→v3 in sequence.
+- bare array → v1 (existing, in code today)
+- v1 → v2 (new)
 
-If a future save has `version > 3`, log a warning and use it as-is (corrupted state is safer than overwriting with reset).
+A future-version save (`version > 2`) is loaded as-is with a `console.warn` — never overwritten with reset.
+
+### `freshEnvelope()` update
+
+The existing `freshEnvelope()` factory in `SaveManager.js` is bumped to return `version: 2` and include a `settings: defaultSettings()` field, so brand-new saves start at v2.
+
+### `_normalize()` update
+
+Existing `_normalize()` accepts a parsed v2 envelope; if `parsed.settings` is missing or malformed, fall back to `defaultSettings()` (defensive — handles partial corruption).
 
 ### SaveManager API Additions
 
@@ -415,19 +421,19 @@ setSettings(partial)           // shallow-merge into data.settings, triggers sav
 | Music state machine (inside `AudioManager`) | `setCombatActive(true)` triggers fade-in tween; rapid toggles don't stack; boss theme replaces ambient+combat pair |
 | `DamageNumberOverlay` | Spawns on `damage-dealt` with `isCrit: true` regardless of amount; spawns on `amount >= 30`; suppresses small non-crit hits; pool reuses Text objects |
 | `ShakeController` | `boss-died` triggers `camera.shake(600, 0.02)`; airstrike triggers `(250, 0.012)`; EMP triggers `(200, 0.008)` |
-| `SaveManager` | v2→v3 migration adds settings block with defaults; v3 round-trip preserves all fields; `getSettings` returns defaults when settings missing |
+| `SaveManager` | v1→v2 migration adds settings block with defaults; v2 round-trip preserves all fields; `getSettings` returns defaults when settings missing or malformed |
 | `ParticleSpawner` | `spawnMuzzleFlash` creates emitter with correct tint per tower type; `spawnProjectileTrail` parents to projectile; emitter cleaned up on projectile destroy |
 
 ### Manual Browser Verification
 
 1. Play Map 1 — confirm tower fire SFX, enemy hit/death SFX, wave-start SFX audible at default volumes
 2. Open settings — drag each slider, confirm immediate volume change; close + reopen, confirm persistence; toggle mute, confirm full silence then full restore
-3. Reload page — confirm settings persisted (localStorage v3 envelope present)
+3. Reload page — confirm settings persisted (localStorage v2 envelope present with settings block)
 4. Play Map 5 — boss intro replaces map music with `boss-mid`; on boss death, heavy screen shake + `enemy-death-large` SFX
 5. Play Map 10 — same for `boss-final`; victory SFX on win
 6. Hero abilities — Q (overcharge gold sparkle, no shake), W (airstrike orange burst + 250 ms shake + `AIRSTRIKE 80` damage number), E (EMP blue ripple + 200 ms shake)
 7. Floating damage numbers — only crits/AoE/hits ≥ 30 produce numbers; no spam during wave 10 of Map 10
-8. Migration — manually set localStorage to a v2 envelope, reload, confirm settings block auto-added
+8. Migration — manually set localStorage to a v1 envelope, reload, confirm settings block auto-added and version bumped to 2
 9. iOS Safari smoke test — open Vercel preview on iPhone, confirm audio unlocks on first tap, music plays on map start
 
 ---
