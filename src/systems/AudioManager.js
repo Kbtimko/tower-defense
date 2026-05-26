@@ -118,7 +118,14 @@ export class AudioManager {
   _stopLayers() {
     for (const k of ['ambient', 'combat', 'boss']) {
       const s = this._music[k];
-      if (s) s.stop();
+      if (s) {
+        if (s.__fadeTimer) {
+          clearInterval(s.__fadeTimer);
+          this._fadeTimers.delete(s.__fadeTimer);
+          s.__fadeTimer = null;
+        }
+        s.stop();
+      }
       this._music[k] = null;
     }
   }
