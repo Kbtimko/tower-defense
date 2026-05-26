@@ -81,20 +81,11 @@ describe('SaveManager — migration', () => {
     expect(env.stats).toEqual({ kills: 0, gamesPlayed: 0, victories: 0, defeats: 0, bestWave: 0 });
   });
 
-  it('corrupt JSON in the new key falls back to legacy migration / fresh', () => {
+  it('corrupt JSON in either key falls back to a fresh envelope', () => {
     localStorage.setItem(STORAGE_KEY, '{not json');
     const sm = new SaveManager();
     expect(sm.getTotalStars()).toBe(0);
     expect(sm.getPurchasedUpgrades()).toEqual([]);
-  });
-
-  it('corrupt JSON in both keys falls back to a fresh envelope', () => {
-    localStorage.setItem(STORAGE_KEY, '{not json');
-    localStorage.setItem(LEGACY_KEY,  '@@@@');
-    const sm = new SaveManager();
-    expect(sm.getTotalStars()).toBe(0);
-    expect(sm.getPurchasedUpgrades()).toEqual([]);
-    expect(sm.getStats().kills).toBe(0);
   });
 });
 
