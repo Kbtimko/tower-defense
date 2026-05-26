@@ -41,14 +41,14 @@ describe('SaveManager — map stars', () => {
 });
 
 describe('SaveManager — migration', () => {
-  it('migrates a legacy bare array into a v1 envelope and deletes the old key', () => {
+  it('migrates a legacy bare array into the current envelope and deletes the old key', () => {
     localStorage.setItem(LEGACY_KEY, JSON.stringify([3,2,0,0,0,0,0,0,0,0]));
     const sm = new SaveManager();
     expect(sm.getStars(0)).toBe(3);
     expect(sm.getStars(1)).toBe(2);
     expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
     const env = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    expect(env.version).toBe(1);
+    expect(env.version).toBe(2);
     expect(env.maps).toEqual([3,2,0,0,0,0,0,0,0,0]);
     expect(env.upgrades).toEqual([]);
     expect(env.stats).toEqual({ kills: 0, gamesPlayed: 0, victories: 0, defeats: 0, bestWave: 0 });
@@ -84,5 +84,65 @@ describe('SaveManager — upgrades & stats', () => {
     sm.setPurchasedUpgrades(['log_supply_cache']);
     sm.getPurchasedUpgrades().push('hacked');
     expect(sm.getPurchasedUpgrades()).toEqual(['log_supply_cache']);
+  });
+});
+
+describe('SaveManager — v2 settings', () => {
+  it('fresh load: settings have audio defaults', () => {
+    const sm = new SaveManager();
+    expect(sm.getSettings()).toEqual({
+      masterVol: 0.8,
+      sfxVol:    1.0,
+      musicVol:  0.6,
+      muted:     false,
+    });
+  });
+
+  it('setSettings merges partial and persists', () => {
+    const sm = new SaveManager();
+    sm.setSettings({ masterVol: 0.5, muted: true });
+    expect(sm.getSettings()).toEqual({
+      masterVol: 0.5,
+      sfxVol:    1.0,
+      musicVol:  0.6,
+      muted:     true,
+    });
+    const env = JSON.parse(localStorage.getItem('lastlight_save'));
+    expect(env.version).toBe(2);
+    expect(env.settings.masterVol).toBe(0.5);
+    expect(env.settings.muted).toBe(true);
+  });
+
+  it('migrates a v1 envelope by adding settings and bumping version', () => {
+    localStorage.setItem('lastlight_save', JSON.stringify({
+      version: 1,
+      maps: [3, 2, 0, 0, 0, 0, 0, 0, 0, 0],
+      upgrades: ['command-1'],
+      stats: { kills: 100, gamesPlayed: 1, victories: 1, defeats: 0, bestWave: 5 },
+    }));
+    const sm = new SaveManager();
+    expect(sm.getStars(0)).toBe(3);
+    expect(sm.getPurchasedUpgrades()).toEqual(['command-1']);
+    expect(sm.getSettings().musicVol).toBe(0.6);
+    const env = JSON.parse(localStorage.getItem('lastlight_save'));
+    expect(env.version).toBe(2);
+    expect(env.settings).toBeDefined();
+  });
+
+  it('getSettings returns defaults when settings block is missing or malformed', () => {
+    localStorage.setItem('lastlight_save', JSON.stringify({
+      version: 2,
+      maps: new Array(10).fill(0),
+      upgrades: [],
+      stats: { kills: 0, gamesPlayed: 0, victories: 0, defeats: 0, bestWave: 0 },
+      settings: 'corrupt',
+    }));
+    const sm = new SaveManager();
+    expect(sm.getSettings()).toEqual({
+      masterVol: 0.8,
+      sfxVol:    1.0,
+      musicVol:  0.6,
+      muted:     false,
+    });
   });
 });
