@@ -28,8 +28,8 @@
 | 8 | `DamageNumberOverlay` | TDD | — |
 | 9 | `ShakeController` | TDD | — |
 | 10 | `ParticleSpawner` | TDD | — |
-| 11 | Wire Tower/Projectile/Enemy/Hero to AudioManager + new systems | Integration | 5, 8, 9, 10 |
-| 12 | GameScene wiring — enemy-on-path tracker + boss-died emission + mount systems | Integration | 11 |
+| 11 | Wire SFX, particles, and events into the real call sites (Enemy/Hero/Projectile/GameScene) | Integration | 5, 8, 9, 10 |
+| 12 | GameScene wiring — mount systems, enemy-on-path tracker, wave/victory/defeat/life-lost SFX, boss-music trigger, stop music on shutdown | Integration | 11 |
 | 13 | Curate and commit CC0 audio assets; switch AudioManager to real files | Assets | 5 |
 | 14 | Remove unused `howler` dependency; update notes; final manual verification | Cleanup | 1–13 |
 
@@ -199,6 +199,71 @@ Expected: all SaveManager tests pass (previously-existing + 4 new).
 ```bash
 git add src/systems/SaveManager.js src/systems/SaveManager.test.js
 git commit -m "feat: SaveManager v2 — add settings block + v1 migration"
+```
+
+- [ ] **Step 6: Add future-version save protection**
+
+Spec §6 says a save with `version > VERSION` must be loaded as-is with a `console.warn`, **never** reset. The current `_load()` (after Step 3) only matches v1 and v2; anything higher falls through to legacy migration / fresh and silently loses the data. Add an explicit branch.
+
+In `src/systems/SaveManager.js`, replace the version-check block from Step 3 with:
+
+```js
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && (parsed.version === 1 || parsed.version === VERSION)
+            && Array.isArray(parsed.maps) && parsed.maps.length === MAP_COUNT) {
+          const normalized = this._normalize(parsed);
+          if (parsed.version === 1) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+          }
+          return normalized;
+        }
+        if (parsed && typeof parsed.version === 'number' && parsed.version > VERSION
+            && Array.isArray(parsed.maps) && parsed.maps.length === MAP_COUNT) {
+          console.warn(
+            `SaveManager: encountered future save version ${parsed.version}; loading as-is, fields may be ignored.`,
+          );
+          return this._normalize(parsed);
+        }
+      }
+    } catch (_) { /* fall through to migration / fresh */ }
+```
+
+Append this test at the end of `src/systems/SaveManager.test.js` (add `import { vi } from 'vitest';` at the top of the file if it isn't already imported):
+
+```js
+describe('SaveManager — future-version save', () => {
+  it('logs a warning and loads a v3+ envelope as-is without resetting', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    localStorage.setItem('lastlight_save', JSON.stringify({
+      version: 999,
+      maps: [3, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      upgrades: ['command-1'],
+      stats: { kills: 5, gamesPlayed: 1, victories: 1, defeats: 0, bestWave: 2 },
+      settings: { masterVol: 0.5, sfxVol: 1.0, musicVol: 0.6, muted: false },
+      futureField: 'kept',
+    }));
+    const sm = new SaveManager();
+    expect(sm.getStars(0)).toBe(3);
+    expect(sm.getPurchasedUpgrades()).toEqual(['command-1']);
+    expect(warn).toHaveBeenCalled();
+    const env = JSON.parse(localStorage.getItem('lastlight_save'));
+    expect(env.version).toBe(999); // not overwritten
+    warn.mockRestore();
+  });
+});
+```
+
+Run: `npm test -- SaveManager`
+Expected: new test passes; all previously-existing SaveManager tests still pass.
+
+Commit:
+
+```bash
+git add src/systems/SaveManager.js src/systems/SaveManager.test.js
+git commit -m "feat: SaveManager — load future-version saves as-is with warn"
 ```
 
 ---
@@ -998,6 +1063,31 @@ describe('SettingsOverlay', () => {
     document.getElementById('settings-close').click();
     expect(document.getElementById('settings-overlay').style.display).toBe('none');
   });
+
+  it('Esc key closes the overlay', () => {
+    const am = makeAm();
+    const ov = new SettingsOverlay(am);
+    ov.open();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(document.getElementById('settings-overlay').style.display).toBe('none');
+  });
+
+  it('clicking the backdrop (overlay element itself) closes the overlay', () => {
+    const am = makeAm();
+    const ov = new SettingsOverlay(am);
+    ov.open();
+    const overlay = document.getElementById('settings-overlay');
+    overlay.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(overlay.style.display).toBe('none');
+  });
+
+  it('clicking a slider inside the overlay does NOT close it', () => {
+    const am = makeAm();
+    const ov = new SettingsOverlay(am);
+    ov.open();
+    document.getElementById('vol-master').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(document.getElementById('settings-overlay').style.display).toBe('flex');
+  });
 });
 ```
 
@@ -1019,12 +1109,14 @@ const CHANNELS = [
 
 export class SettingsOverlay {
   constructor(audioManager) {
-    this._am       = audioManager;
-    this._overlay  = document.getElementById('settings-overlay');
-    this._closeBtn = document.getElementById('settings-close');
-    this._mute     = document.getElementById('mute-all');
+    this._am        = audioManager;
+    this._overlay   = document.getElementById('settings-overlay');
+    this._closeBtn  = document.getElementById('settings-close');
+    this._mute      = document.getElementById('mute-all');
     this._listeners = [];
-    this._onClose  = () => this.close();
+    this._onClose   = () => this.close();
+    this._onBackdrop = (e) => { if (e.target === this._overlay) this.close(); };
+    this._onEsc     = (e) => { if (e.key === 'Escape') this.close(); };
   }
 
   open() {
@@ -1048,6 +1140,8 @@ export class SettingsOverlay {
     this._mute.addEventListener('change', muteHandler);
     this._listeners.push({ el: this._mute, evt: 'change', fn: muteHandler });
     this._closeBtn.addEventListener('click', this._onClose);
+    this._overlay.addEventListener('click', this._onBackdrop);
+    document.addEventListener('keydown', this._onEsc);
     this._overlay.style.display = 'flex';
   }
 
@@ -1055,6 +1149,8 @@ export class SettingsOverlay {
     for (const l of this._listeners) l.el.removeEventListener(l.evt, l.fn);
     this._listeners = [];
     this._closeBtn.removeEventListener('click', this._onClose);
+    this._overlay.removeEventListener('click', this._onBackdrop);
+    document.removeEventListener('keydown', this._onEsc);
     this._overlay.style.display = 'none';
   }
 }
@@ -1417,17 +1513,27 @@ function makeScene() {
     startFollow: vi.fn(),
     destroy: vi.fn(),
   };
+  const graphic = {
+    lineStyle:    vi.fn(function () { return this; }),
+    strokeCircle: vi.fn(function () { return this; }),
+    setPosition:  vi.fn(function () { return this; }),
+    setDepth:     vi.fn(function () { return this; }),
+    destroy:      vi.fn(),
+  };
   return {
     _emitter: emitter,
     _created: created,
+    _graphic: graphic,
     add: {
       particles: vi.fn((x, y, key, config) => {
         emitter.config = config;
         created.push({ x, y, key, config });
         return emitter;
       }),
+      graphics: vi.fn(() => graphic),
     },
-    time: { delayedCall: vi.fn((ms, cb) => cb()) },
+    tweens: { add: vi.fn() },
+    time:   { delayedCall: vi.fn((ms, cb) => cb()) },
   };
 }
 
@@ -1465,6 +1571,35 @@ describe('ParticleSpawner', () => {
     sp.spawnHeroAbilityVFX('emp',       50, 50, 80);
     sp.spawnHeroAbilityVFX('overcharge', 50, 50, 0);
     expect(scene.add.particles).toHaveBeenCalledTimes(3);
+  });
+
+  it('airstrike VFX also spawns an expanding 60px orange ring', () => {
+    const scene = makeScene();
+    const sp = new ParticleSpawner(scene);
+    sp.spawnHeroAbilityVFX('airstrike', 50, 50, 60);
+    expect(scene.add.graphics).toHaveBeenCalledTimes(1);
+    expect(scene._graphic.lineStyle).toHaveBeenCalledWith(3, 0xff6633, 1);
+    const tween = scene.tweens.add.mock.calls[0][0];
+    expect(tween.scale).toEqual({ from: 0, to: 60 });
+    expect(tween.duration).toBe(400);
+  });
+
+  it('emp VFX also spawns an expanding blue ring sized to the passed radius', () => {
+    const scene = makeScene();
+    const sp = new ParticleSpawner(scene);
+    sp.spawnHeroAbilityVFX('emp', 30, 30, 100);
+    expect(scene.add.graphics).toHaveBeenCalledTimes(1);
+    expect(scene._graphic.lineStyle).toHaveBeenCalledWith(3, 0x66ccff, 1);
+    const tween = scene.tweens.add.mock.calls[0][0];
+    expect(tween.scale).toEqual({ from: 0, to: 100 });
+    expect(tween.duration).toBe(600);
+  });
+
+  it('overcharge VFX does NOT spawn a ring graphic', () => {
+    const scene = makeScene();
+    const sp = new ParticleSpawner(scene);
+    sp.spawnHeroAbilityVFX('overcharge', 50, 50, 0);
+    expect(scene.add.graphics).not.toHaveBeenCalled();
   });
 });
 ```
@@ -1535,6 +1670,7 @@ export class ParticleSpawner {
       });
       if (e.explode) e.explode(30, x, y);
       this._scene.time.delayedCall(500, () => e.destroy && e.destroy());
+      this.spawnAirstrikeRing(x, y);
       return e;
     }
     if (ability === 'emp') {
@@ -1545,6 +1681,7 @@ export class ParticleSpawner {
       });
       if (e.explode) e.explode(20, x, y);
       this._scene.time.delayedCall(700, () => e.destroy && e.destroy());
+      this.spawnEMPRing(x, y, radius);
       return e;
     }
     if (ability === 'overcharge') {
@@ -1556,6 +1693,42 @@ export class ParticleSpawner {
       this._scene.time.delayedCall(6000, () => e.destroy && e.destroy());
       return e;
     }
+  }
+
+  // Expanding 60-px orange ring graphic — pairs with airstrike particle burst.
+  spawnAirstrikeRing(x, y) {
+    const ring = this._scene.add.graphics();
+    ring.lineStyle(3, 0xff6633, 1);
+    ring.strokeCircle(0, 0, 1);
+    ring.setPosition(x, y);
+    ring.setDepth(15);
+    this._scene.tweens.add({
+      targets: ring,
+      scale: { from: 0, to: 60 },
+      alpha: { from: 1, to: 0 },
+      duration: 400,
+      ease: 'Cubic.easeOut',
+      onComplete: () => ring.destroy && ring.destroy(),
+    });
+    return ring;
+  }
+
+  // Expanding blue ring graphic sized to the EMP radius — pairs with EMP particle ring.
+  spawnEMPRing(x, y, radius) {
+    const ring = this._scene.add.graphics();
+    ring.lineStyle(3, 0x66ccff, 1);
+    ring.strokeCircle(0, 0, 1);
+    ring.setPosition(x, y);
+    ring.setDepth(15);
+    this._scene.tweens.add({
+      targets: ring,
+      scale: { from: 0, to: radius },
+      alpha: { from: 1, to: 0 },
+      duration: 600,
+      ease: 'Cubic.easeOut',
+      onComplete: () => ring.destroy && ring.destroy(),
+    });
+    return ring;
   }
 }
 ```
@@ -1574,148 +1747,399 @@ git commit -m "feat: ParticleSpawner — muzzle flash, trails, hero ability VFX"
 
 ---
 
-## Task 11: Wire entities to AudioManager + new systems
+## Task 11: Wire SFX, particles, and events into the real call sites
 
 **Files:**
-- Modify: `src/entities/Tower.js`
-- Modify: `src/entities/Projectile.js`
 - Modify: `src/entities/Enemy.js`
 - Modify: `src/entities/Hero.js`
+- Modify: `src/entities/Projectile.js`
+- Modify: `src/scenes/GameScene.js`
 
-**Context:** Each entity already has structural hooks (`fire()`, `takeDamage()`, `useAbility()`). This task adds calls to AudioManager + ParticleSpawner + event emits. Lookups go through `scene.game.registry.get('audio')` and `scene.particles` (a ParticleSpawner instance assigned in Task 12).
+**Context — important deviation from the spec:** the original spec assumed methods that **do not exist** in this codebase — `Tower.fire()`, `Enemy.die()`, `Hero.die()`, and `Hero.useAbility()`. The actual code surface is:
 
-- [ ] **Step 1: Tower.fire emits muzzle flash + SFX**
+- Tower firing lives in `GameScene._updateTowers` ([src/scenes/GameScene.js:343–365](src/scenes/GameScene.js#L343-L365)) — projectile is created there, not in any `Tower.fire()`.
+- Enemy death is inline in `Enemy.takeDamage` ([src/entities/Enemy.js:51–56](src/entities/Enemy.js#L51-L56)) — `if (this.hp <= 0) { this.hp = 0; this.dead = true; }`. No `die()` method.
+- Hero death is inline in `Hero.takeDamage` ([src/entities/Hero.js:70–80](src/entities/Hero.js#L70-L80)).
+- Hero abilities are dispatched from `GameScene._onAbility` ([line 288](src/scenes/GameScene.js#L288)), `GameScene._triggerAirstrike` ([line 305](src/scenes/GameScene.js#L305)), and the overcharge-flip detector in `GameScene._updateHero` ([lines 266–269](src/scenes/GameScene.js#L266-L269)) / `GameScene._applyOvercharge` ([line 328](src/scenes/GameScene.js#L328)). The Hero class itself exposes `overcharge()`, `airstrike(x,y)`, and `empPulse()` — none of them are the actual call point for VFX/SFX.
 
-Open `src/entities/Tower.js`. Find the `fire()` method. Read the surrounding code to confirm whether tower type is on `this.type`, `this.def.type`, or `this.def.key`. Add at the **start** of the method body (before the projectile is created):
+So all SFX/VFX wiring is centred on `GameScene`, with minimal small additions to entities for things that genuinely live there (Enemy hit/death, Hero death/respawn/auto-attack, Projectile trail).
+
+Lookups: `scene.game.registry.get('audio')` (Task 5 registered) and `scene.particles` (Task 12 assigns a `ParticleSpawner` instance to the scene). All access is guarded with `if (am)` / `if (scene.particles)` so unit tests that don't stub them stay green.
+
+### Enemy.takeDamage — accept opts, emit `damage-dealt`, play hit SFX, fire death events
+
+- [ ] **Step 1: Replace `Enemy.takeDamage`**
+
+In `src/entities/Enemy.js`, replace the current `takeDamage` (lines 51–56):
 
 ```js
-    const type = this.def?.type ?? this.def?.key ?? 'cannon';
-    const am = this.scene.game.registry.get('audio');
-    if (am) am.playSfx(`tower-fire-${type}`);
-    if (this.scene.particles) {
-      this.scene.particles.spawnMuzzleFlash(this.x, this.y, type);
-    }
+  takeDamage(amount, pierce = false) {
+    const armor = pierce ? 0 : this.armor;
+    this.hp -= Math.max(1, amount - armor);
+    if (this.hp <= 0) { this.hp = 0; this.dead = true; }
+    this._redrawHpBar();
+  }
 ```
 
-- [ ] **Step 2: Projectile gets trail on construction**
-
-Open `src/entities/Projectile.js`. In the constructor, after position is set, add:
+with a version that accepts an `opts` bag (back-compat: `pierce` as second arg still works because it is `Boolean()`-coerced):
 
 ```js
-    if (scene.particles) {
-      const type = this.def?.type ?? 'default';
-      this._trail = scene.particles.spawnProjectileTrail(this, type);
-    }
-```
+  takeDamage(amount, opts = false) {
+    // Back-compat: callers used to pass `pierce` as a bare boolean.
+    const optsObj = (opts && typeof opts === 'object') ? opts : { pierce: Boolean(opts) };
+    const armor = optsObj.pierce ? 0 : this.armor;
+    const dmg   = Math.max(1, amount - armor);
+    this.hp -= dmg;
+    const justDied = this.hp <= 0 && !this.dead;
+    if (this.hp <= 0) { this.hp = 0; this.dead = true; }
+    this._redrawHpBar();
 
-(If Projectile's constructor signature does not pass `def`, derive type from the owning tower or default to `'default'`.)
-
-- [ ] **Step 3: Projectile cleans up trail on destruction**
-
-In `Projectile.destroy()` (or wherever the projectile is removed — search for `setActive(false)` or `setVisible(false)`), add:
-
-```js
-    if (this._trail && this._trail.destroy) {
-      this._trail.destroy();
-      this._trail = null;
-    }
-```
-
-- [ ] **Step 4: Enemy.takeDamage emits damage-dealt + SFX**
-
-Open `src/entities/Enemy.js`. Find `takeDamage(amount, opts)`. Add at the bottom of the method, after armor-reduction is applied and post-armor damage is known. (Look for the local variable name that holds the final damage. The example below assumes `dmg` — adapt if the variable is named differently.)
-
-```js
-    const am = this.scene.game.registry.get('audio');
+    const am = this.scene.game?.registry?.get('audio');
     if (am) am.playSfx('enemy-hit', { detune: (Math.random() - 0.5) * 100 });
     this.scene.events.emit('damage-dealt', {
       target: this,
       amount: dmg,
-      isCrit: opts?.isCrit ?? false,
-      isAoe:  opts?.isAoe  ?? false,
-      abilityLabel: opts?.abilityLabel ?? null,
+      isCrit: optsObj.isCrit ?? false,
+      isAoe:  optsObj.isAoe  ?? false,
+      abilityLabel: optsObj.abilityLabel ?? null,
     });
+
+    if (justDied) {
+      const t = this.def?.type;
+      const isLarge = t === 'brute' || t === 'titan';
+      if (am) am.playSfx(isLarge ? 'enemy-death-large' : 'enemy-death-small');
+      if (t === 'titan') this.scene.events.emit('boss-died', { bossType: t });
+    }
+  }
 ```
 
-In `Enemy.die()` (or where the enemy is killed), add at the top:
+(Verified `titan` is the boss enemy type in `src/data/enemies.js`. `def.boss` is not used in the codebase.)
+
+### Hero — death SFX, respawn SFX, auto-attack SFX
+
+- [ ] **Step 2: `Hero.takeDamage` plays `hero-death` when hp hits 0**
+
+In `src/entities/Hero.js`, in `takeDamage` (lines 70–80), replace:
 
 ```js
-    const am = this.scene.game.registry.get('audio');
-    const t  = this.def?.type;
-    const isLarge = t === 'brute' || t === 'titan' || this.def?.boss;
-    if (am) am.playSfx(isLarge ? 'enemy-death-large' : 'enemy-death-small');
-    if (this.def?.boss) this.scene.events.emit('boss-died', { bossType: t });
-```
-
-(Verify against `src/data/enemies.js` for actual type strings.)
-
-- [ ] **Step 5: Hero abilities emit shake/VFX + SFX**
-
-Open `src/entities/Hero.js`. Find the per-ability blocks. Add to each:
-
-**Overcharge (Q)** — in the block that buffs towers:
-
-```js
-    const am = this.scene.game.registry.get('audio');
-    if (am) am.playSfx('hero-overcharge');
-    if (this.scene.particles) {
-      for (const t of affectedTowers) {
-        this.scene.particles.spawnHeroAbilityVFX('overcharge', t.x, t.y, 0);
-      }
+    if (this.hp <= 0) {
+      this.dead         = true;
+      this.respawnTimer = this._respawnTime;
+      this._body.setVisible(false);
+      this._hpBar.clear();
     }
 ```
 
-**Airstrike (W) at impact** — in the block that damages enemies in radius:
+with:
 
 ```js
-    const am = this.scene.game.registry.get('audio');
-    if (am) am.playSfx('hero-airstrike');
-    if (this.scene.particles) this.scene.particles.spawnHeroAbilityVFX('airstrike', x, y, 60);
-    this.scene.events.emit('airstrike-impact', { x, y });
+    if (this.hp <= 0) {
+      this.dead         = true;
+      this.respawnTimer = this._respawnTime;
+      this._body.setVisible(false);
+      this._hpBar.clear();
+      const am = this.scene.game?.registry?.get('audio');
+      if (am) am.playSfx('hero-death');
+    }
 ```
 
-**Modify the existing damage call** inside the same Airstrike block so each affected enemy receives `{ isAoe: true, abilityLabel: 'AIRSTRIKE' }` as the second argument:
+(Assumes `_respawnTime` was added in plan Task 5's Hero modifier work from Phase 7. Verify the field name in current Hero.js; replace with `RESPAWN_TIME` if `_respawnTime` is not present.)
 
-```diff
-- enemy.takeDamage(80);
-+ enemy.takeDamage(80, { isAoe: true, abilityLabel: 'AIRSTRIKE' });
-```
+- [ ] **Step 3: `Hero.respawn` plays `hero-respawn`**
 
-(The actual damage amount may differ — preserve whatever is already in the code; just add the opts.)
-
-**EMP Pulse (E)** — in the block that stuns enemies:
+In `src/entities/Hero.js`, in `respawn()` (line 82), add at the end of the method (after `this._redrawHpBar();`):
 
 ```js
-    const am = this.scene.game.registry.get('audio');
-    if (am) am.playSfx('hero-emp');
-    if (this.scene.particles) this.scene.particles.spawnHeroAbilityVFX('emp', this.x, this.y, radius);
-    this.scene.events.emit('emp-pulse', { x: this.x, y: this.y, radius });
-```
-
-**Hero death** — in `Hero.die()`:
-
-```js
-    const am = this.scene.game.registry.get('audio');
-    if (am) am.playSfx('hero-death');
-```
-
-**Hero respawn** — in `Hero.respawn()`:
-
-```js
-    const am = this.scene.game.registry.get('audio');
+    const am = this.scene.game?.registry?.get('audio');
     if (am) am.playSfx('hero-respawn');
 ```
 
-- [ ] **Step 6: Run all tests**
+- [ ] **Step 4: Hero auto-attack plays `hero-attack` on each swing**
+
+In `src/entities/Hero.js`, in `update()` (around line 160), the auto-attack block reads:
+
+```js
+      if (nearest) {
+        nearest.takeDamage(ATTACK_DAMAGE, false);
+        if (nearest.dead) this._registerKill();
+        this._attackTimer = 1 / ATTACK_RATE;
+      }
+```
+
+Replace it with:
+
+```js
+      if (nearest) {
+        nearest.takeDamage(ATTACK_DAMAGE);
+        if (nearest.dead) this._registerKill();
+        const am = this.scene.game?.registry?.get('audio');
+        if (am) am.playSfx('hero-attack');
+        this._attackTimer = 1 / ATTACK_RATE;
+      }
+```
+
+(The `, false` second arg is removed — the new Enemy.takeDamage signature handles it via back-compat, but the cleaner call is no second arg.)
+
+### Projectile — accept `towerType`, spawn trail in constructor, expose `destroyEntity`
+
+`Projectile` extends `Phaser.GameObjects.Container`, which already has a `destroy()` method we should not shadow naively (Container destroy is invoked by Phaser internals). We add a custom cleanup method.
+
+- [ ] **Step 5: Projectile constructor accepts `towerType` and starts a trail**
+
+In `src/entities/Projectile.js`, replace the constructor signature:
+
+```js
+  constructor(scene, { x, y, target, damage, splashRadius = 0, pierce = false, slowFactor = 0, color = 0xffffff }) {
+```
+
+with:
+
+```js
+  constructor(scene, { x, y, target, damage, splashRadius = 0, pierce = false, slowFactor = 0, color = 0xffffff, towerType = 'default' }) {
+```
+
+At the **end** of the constructor, after `this.setDepth(4);`, add:
+
+```js
+    this.towerType = towerType;
+    this._trail = null;
+    if (scene.particles) {
+      this._trail = scene.particles.spawnProjectileTrail(this, towerType);
+    }
+```
+
+- [ ] **Step 6: Projectile.destroyTrail cleans up the emitter**
+
+In `src/entities/Projectile.js`, add a new method to the class:
+
+```js
+  destroyTrail() {
+    if (this._trail && this._trail.destroy) {
+      this._trail.destroy();
+      this._trail = null;
+    }
+  }
+```
+
+### GameScene — opts on `_dealDamage`, muzzle flash + SFX on tower fire, ability VFX/SFX, projectile trail cleanup
+
+- [ ] **Step 7: `_dealDamage` accepts and forwards opts**
+
+In `src/scenes/GameScene.js`, `_dealDamage` (line 404) currently is:
+
+```js
+  _dealDamage(enemy, damage, pierce) {
+    enemy.takeDamage(damage, pierce);
+```
+
+Change to:
+
+```js
+  _dealDamage(enemy, damage, pierce, opts = {}) {
+    enemy.takeDamage(damage, { pierce, ...opts });
+```
+
+(The rest of the method — reward + particles on death — stays unchanged.)
+
+- [ ] **Step 8: `_updateTowers` plays tower-fire SFX + muzzle flash, passes `towerType` to Projectile**
+
+In `src/scenes/GameScene.js`, `_updateTowers` (line 343) currently constructs the Projectile like this:
+
+```js
+      if (best) {
+        this.projectiles.push(new Projectile(this, {
+          x: tower.x, y: tower.y, target: best,
+          damage: tower.damage, splashRadius: tower.splashRadius,
+          pierce: tower.pierce, slowFactor: tower.slow,
+          color: PROJ_COLORS[tower.type] ?? 0xffffff,
+        }));
+        tower.cooldown = 1 / tower.fireRate;
+      }
+```
+
+Replace with:
+
+```js
+      if (best) {
+        const am = this.game.registry.get('audio');
+        if (am) am.playSfx(`tower-fire-${tower.type}`);
+        if (this.particles) this.particles.spawnMuzzleFlash(tower.x, tower.y, tower.type);
+        this.projectiles.push(new Projectile(this, {
+          x: tower.x, y: tower.y, target: best,
+          damage: tower.damage, splashRadius: tower.splashRadius,
+          pierce: tower.pierce, slowFactor: tower.slow,
+          color: PROJ_COLORS[tower.type] ?? 0xffffff,
+          towerType: tower.type,
+        }));
+        tower.cooldown = 1 / tower.fireRate;
+      }
+```
+
+- [ ] **Step 9: `_updateProjectiles` destroys trails on dead projectiles**
+
+In `src/scenes/GameScene.js`, `_updateProjectiles` (line 369) ends with:
+
+```js
+    this.projectiles = this.projectiles.filter(p => !p.dead);
+```
+
+Replace that single line with:
+
+```js
+    for (const p of this.projectiles) {
+      if (p.dead && p.destroyTrail) p.destroyTrail();
+    }
+    this.projectiles = this.projectiles.filter(p => !p.dead);
+```
+
+- [ ] **Step 10: `_applyOvercharge(true)` plays SFX + spawns per-tower VFX**
+
+In `src/scenes/GameScene.js`, `_applyOvercharge` (line 328) currently is:
+
+```js
+  _applyOvercharge(active) {
+    for (const tower of this.placementManager.getTowers()) {
+      if (!tower.fireRate) continue;
+      if (active) {
+        tower._baseFireRate = tower.fireRate;
+        tower.fireRate = tower.fireRate * 1.5;
+      } else if (tower._baseFireRate !== undefined) {
+        tower.fireRate = tower._baseFireRate;
+        delete tower._baseFireRate;
+      }
+    }
+  }
+```
+
+Replace with:
+
+```js
+  _applyOvercharge(active) {
+    if (active) {
+      const am = this.game.registry.get('audio');
+      if (am) am.playSfx('hero-overcharge');
+    }
+    for (const tower of this.placementManager.getTowers()) {
+      if (!tower.fireRate) continue;
+      if (active) {
+        tower._baseFireRate = tower.fireRate;
+        tower.fireRate = tower.fireRate * 1.5;
+        if (this.particles) this.particles.spawnHeroAbilityVFX('overcharge', tower.x, tower.y, 0);
+      } else if (tower._baseFireRate !== undefined) {
+        tower.fireRate = tower._baseFireRate;
+        delete tower._baseFireRate;
+      }
+    }
+  }
+```
+
+- [ ] **Step 11: `_triggerAirstrike` plays SFX, spawns VFX, emits shake event, threads `{isAoe, abilityLabel}`**
+
+In `src/scenes/GameScene.js`, `_triggerAirstrike` (line 305) currently is:
+
+```js
+  _triggerAirstrike(x, y) {
+    const result = this.hero.airstrike(x, y);
+    if (!result) { this.aimMode = false; this.game.events.emit('hero:aim-cancel'); return; }
+    for (const e of this.enemies) {
+      if (Math.hypot(e.x - x, e.y - y) <= result.radius) {
+        this._dealDamage(e, result.damage, true);
+      }
+    }
+    // Particle burst at impact point
+    this._addParticle(x, y, 0xff6400, 18);
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 * i) / 8;
+      this._addParticle(
+        x + Math.cos(angle) * 28,
+        y + Math.sin(angle) * 28,
+        0xff8800,
+        8
+      );
+    }
+    this.aimMode = false;
+    this.game.events.emit('hero:aim-cancel');
+  }
+```
+
+Replace with:
+
+```js
+  _triggerAirstrike(x, y) {
+    const result = this.hero.airstrike(x, y);
+    if (!result) { this.aimMode = false; this.game.events.emit('hero:aim-cancel'); return; }
+
+    const am = this.game.registry.get('audio');
+    if (am) am.playSfx('hero-airstrike');
+    if (this.particles) this.particles.spawnHeroAbilityVFX('airstrike', x, y, result.radius);
+    this.events.emit('airstrike-impact', { x, y });
+
+    for (const e of this.enemies) {
+      if (Math.hypot(e.x - x, e.y - y) <= result.radius) {
+        this._dealDamage(e, result.damage, true, { isAoe: true, abilityLabel: 'AIRSTRIKE' });
+      }
+    }
+    // Particle burst at impact point (existing placeholder — kept as in-game additional flair)
+    this._addParticle(x, y, 0xff6400, 18);
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 * i) / 8;
+      this._addParticle(
+        x + Math.cos(angle) * 28,
+        y + Math.sin(angle) * 28,
+        0xff8800,
+        8
+      );
+    }
+    this.aimMode = false;
+    this.game.events.emit('hero:aim-cancel');
+  }
+```
+
+- [ ] **Step 12: `_onAbility` case 'e' plays EMP SFX, spawns VFX, emits shake event**
+
+In `src/scenes/GameScene.js`, `_onAbility` (line 288), case `'e'` currently is:
+
+```js
+      case 'e':
+        if (this.hero.level < 3 || !this.hero.empPulse()) break;
+        for (const e of this.enemies) e.applyStatus({ type: 'stun', duration: 3 });
+        break;
+```
+
+Replace with:
+
+```js
+      case 'e': {
+        if (this.hero.level < 3 || !this.hero.empPulse()) break;
+        for (const e of this.enemies) e.applyStatus({ type: 'stun', duration: 3 });
+        const EMP_RADIUS = 120;
+        const am = this.game.registry.get('audio');
+        if (am) am.playSfx('hero-emp');
+        if (this.particles) this.particles.spawnHeroAbilityVFX('emp', this.hero.x, this.hero.y, EMP_RADIUS);
+        this.events.emit('emp-pulse', { x: this.hero.x, y: this.hero.y, radius: EMP_RADIUS });
+        break;
+      }
+```
+
+(EMP is currently a global stun in this game — there is no spatial radius. `EMP_RADIUS = 120` is chosen solely for the visual ring + shake event payload.)
+
+- [ ] **Step 13: Run the full test suite**
 
 Run: `npm test`
-Expected: existing entity tests still pass (the `if (am)` and `if (scene.particles)` guards make these no-ops in unit tests). If a test fails because a test's `makeScene()` helper does not provide `game.registry`, add a stub: `game: { registry: { get: () => null } }`.
+Expected: all existing tests still pass. Most existing test scenes don't stub `game.registry` or `scene.particles`; the `if (am)` / `if (scene.particles)` guards and the optional-chained registry lookup (`scene.game?.registry?.get('audio')`) keep them no-op. The `damage-dealt` event is emitted on every `Enemy.takeDamage` — existing tests that don't subscribe will ignore it.
 
-- [ ] **Step 7: Commit**
+If any existing test fails because it does not provide `scene.events`, add a minimal stub:
+
+```js
+events: { emit: () => {}, on: () => {}, off: () => {} },
+game:   { registry: { get: () => null } },
+```
+
+- [ ] **Step 14: Commit**
 
 ```bash
-git add src/entities/
-git commit -m "feat: wire Tower/Projectile/Enemy/Hero to AudioManager + ParticleSpawner"
+git add src/entities/Enemy.js src/entities/Hero.js src/entities/Projectile.js src/scenes/GameScene.js
+git commit -m "feat: wire SFX/VFX/events into the real Enemy/Hero/Projectile/GameScene call sites"
 ```
 
 ---
@@ -1775,17 +2199,76 @@ Find where enemies are removed (death or leak — search for `enemy.die`, `_remo
 
 - [ ] **Step 3: Wire wave/victory/defeat/life-lost SFX**
 
-Locate the wave-start, victory, defeat, and life-lost handlers in GameScene (search for `_startWave`, `_onVictory`, `_onDefeat`, `lives--` or similar). In each handler, add:
+Add each line at the exact site below:
+
+- In `_startWave` ([src/scenes/GameScene.js:167](src/scenes/GameScene.js#L167)) — at the start of the method, before the `if (this.waveMgr.active) return;` guard, add:
 
 ```js
     const am = this.game.registry.get('audio');
-    if (am) am.playSfx('wave-start');      // in _startWave
-    if (am) am.playSfx('victory');         // in _onVictory
-    if (am) am.playSfx('defeat');          // in _onDefeat
-    if (am) am.playSfx('life-lost');       // where lives decrement
+    if (am) am.playSfx('wave-start');
 ```
 
-- [ ] **Step 4: Stop music in shutdown()**
+- In `_onVictory` ([line 706](src/scenes/GameScene.js#L706)) — as the first statement of the method body, before `this.won = true;`, add:
+
+```js
+    const am = this.game.registry.get('audio');
+    if (am) am.playSfx('victory');
+```
+
+- In `_onDefeat` ([line 728](src/scenes/GameScene.js#L728)) — as the first statement, before `this.over = true;`, add:
+
+```js
+    const am = this.game.registry.get('audio');
+    if (am) am.playSfx('defeat');
+```
+
+- Life-lost: `EconomyManager.loseLife()` is what decrements lives ([src/systems/EconomyManager.js:20](src/systems/EconomyManager.js#L20)). In `GameScene._updateEnemies` at line 229 (`this.economy.loseLife();` when an enemy reaches the end of the path), wrap it:
+
+```js
+        const am = this.game.registry.get('audio');
+        if (am) am.playSfx('life-lost');
+        this.economy.loseLife();
+```
+
+- [ ] **Step 4: Boss-music trigger on Map 5 / Map 10**
+
+Spec §3 calls for boss music on Maps 5 and 10. The spec wanted a `CutsceneScene` to do this, but no such scene exists. Trigger it inline on first boss enemy spawn instead.
+
+In `create()`, after `this._enemiesOnPath = 0;` (added in Step 1), add:
+
+```js
+    this._bossMusicTriggered = false;
+```
+
+In `_spawnEnemy` ([src/scenes/GameScene.js:173](src/scenes/GameScene.js#L173)), the current method is:
+
+```js
+  _spawnEnemy({ def, scaleFactor }) {
+    const start = this.pathMgr.path[0];
+    this.enemies.push(new Enemy(this, { def, scaleFactor, startX: start.x, startY: start.y }));
+  }
+```
+
+Replace with:
+
+```js
+  _spawnEnemy({ def, scaleFactor }) {
+    const start = this.pathMgr.path[0];
+    this.enemies.push(new Enemy(this, { def, scaleFactor, startX: start.x, startY: start.y }));
+
+    if (!this._bossMusicTriggered && def.type === 'titan'
+        && (this.mapId === 4 || this.mapId === 9)) {
+      const am = this.game.registry.get('audio');
+      const theme = this.mapId === 4 ? 'boss-mid' : 'boss-final';
+      if (am) am.playMusic(theme);
+      this._bossMusicTriggered = true;
+    }
+  }
+```
+
+(`mapId === 4` is zero-indexed Map 5; `mapId === 9` is Map 10. `titan` is the boss enemy type in `src/data/enemies.js`, first appearing on Map 5 per `MAP_WAVES`.)
+
+- [ ] **Step 5: Stop music in shutdown()**
 
 Find the `shutdown()` handler (registered via `this.events.on('shutdown', ...)` — see [project_phaser_lifecycle memory](../../../.claude/projects/-Users-keithtimko-projects-tower-defense/memory/project_phaser_lifecycle.md)). Add:
 
@@ -1796,24 +2279,25 @@ Find the `shutdown()` handler (registered via `this.events.on('shutdown', ...)` 
     if (this.shakeCtl)      this.shakeCtl.destroy();
 ```
 
-- [ ] **Step 5: Run all tests**
+- [ ] **Step 6: Run all tests**
 
 Run: `npm test`
 Expected: all green.
 
-- [ ] **Step 6: Smoke-test in browser**
+- [ ] **Step 7: Smoke-test in browser**
 
 Run: `npm run dev`. Open Map 1. Without real audio files, you will see 404s in the console — expected. Confirm:
 - No JS errors
 - Crit-or-≥30 damage events spawn floating numbers (use airstrike to test)
 - Boss-died event fires shake (Map 5 boss)
-- Hero ability particles render
+- Hero ability particles render (orange airstrike ring, blue EMP ring)
+- On Map 5, when the first titan spawns, music swaps to `boss-mid` (you'll see the request for `audio/music/boss-mid.mp3`)
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add src/scenes/GameScene.js
-git commit -m "feat: GameScene mounts polish systems + music state transitions"
+git commit -m "feat: GameScene mounts polish systems + music state + boss-theme trigger"
 ```
 
 ---
@@ -2031,20 +2515,31 @@ EOF
 
 **Spec coverage check:** Each spec section maps to at least one task:
 - §2 Architecture → Tasks 2–11 cover all new modules; Task 12 covers existing-module changes
-- §3 Audio System → Tasks 2–5
-- §4 Visual Polish → Tasks 8–10
-- §5 Settings UI → Tasks 6–7
-- §6 Save Format & Migration → Task 1
+- §3 Audio System → Tasks 2–5; boss-music trigger lives in Task 12 Step 4 (spec said `CutsceneScene` would call `playMusic('boss-mid')`; that scene doesn't exist in this codebase, so the trigger fires inline from `_spawnEnemy` on first titan spawn on Maps 5/10)
+- §4 Visual Polish → Tasks 8–10; Task 10 includes the expanding ring graphics for airstrike (60 px) and EMP (radius) called for in spec §4
+- §5 Settings UI → Tasks 6–7; Task 7 includes Esc-key and backdrop-click close (spec §5)
+- §6 Save Format & Migration → Task 1; Task 1 Step 6 adds the future-version `console.warn` load-as-is branch (spec §6 final paragraph)
 - §7 Asset Budget → Task 13
 - §8 Testing Strategy → All TDD tasks + Task 14 manual verification
+
+**Spec deviations (documented in the affected tasks):**
+- `Tower.fire()`, `Enemy.die()`, `Hero.die()`, `Hero.useAbility()` referenced in spec §2 do not exist in this codebase. Task 11's context block documents the actual call-site locations and the wiring lives there.
+- Spec §2 listed an `enemy-on-path-changed` event. Plan bypasses the event and calls `am.setCombatActive(true/false)` directly from `GameScene._spawnEnemy` and the enemy-removal site in `_updateEnemies` (Task 12 Step 2). Functionally identical to the event-mediated form.
+- Spec §3 "Boss intro override via CutsceneScene" → trigger moved to `GameScene._spawnEnemy` on first titan spawn on Maps 5/10 (Task 12 Step 4).
+- Spec §5 mentioned `SettingsOverlay.show()` returning a Promise — plan implements `open()` / `close()` matching `UpgradeTreeOverlay` (which spec §2 explicitly says to mirror). No Promise return; close events are observable via the AudioManager debounced save instead.
 
 **Placeholder scan:** All code blocks contain real, runnable code. Asset-curation tables in Task 13 reference specific Kenney packs and ffmpeg commands. No "TBD" or "similar to Task N" placeholders.
 
 **Type/name consistency:**
 - `AudioManager.playSfx(key, opts)` signature used consistently in Tasks 3, 11, 12
 - `AudioManager.setCombatActive(bool)` consistent in Tasks 4, 12
+- `AudioManager.playMusic(id)` accepts `mapId` or `'boss-mid'`/`'boss-final'`; Task 12 Step 4 calls with `'boss-mid'` / `'boss-final'` matching Task 4's signature
 - `damage-dealt` event payload `{ target, amount, isCrit, isAoe, abilityLabel }` consistent in Tasks 8, 11
-- `ParticleSpawner.spawnMuzzleFlash / spawnProjectileTrail / spawnHeroAbilityVFX` consistent in Tasks 10, 11
+- `boss-died` payload `{ bossType }` consistent in Tasks 9, 11
+- `airstrike-impact` payload `{ x, y }` and `emp-pulse` payload `{ x, y, radius }` consistent in Tasks 9, 11
+- `ParticleSpawner.spawnMuzzleFlash / spawnProjectileTrail / spawnHeroAbilityVFX / spawnAirstrikeRing / spawnEMPRing` consistent in Tasks 10, 11
+- `Enemy.takeDamage(amount, opts)` new signature in Task 11 Step 1 — back-compat preserved (bare `pierce: boolean` second arg still works) so existing callers in Hero/Soldier/GameScene `_dealDamage` continue to compile; explicit-opts callers in Task 11 use the object form
+- `Projectile` constructor opt `towerType` added in Task 11 Step 5 and passed by Task 11 Step 8
 - `getOrCreateAudioManager(game, sm)` factory introduced in Task 5; entity code in Task 11 uses `game.registry.get('audio')` (matches Task 5's registration key)
 - `SaveManager.getSettings()` / `setSettings(partial)` signatures consistent in Tasks 1, 2
 
