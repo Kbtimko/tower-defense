@@ -36,6 +36,13 @@ export class SaveManager {
           }
           return normalized;
         }
+        if (parsed && typeof parsed.version === 'number' && parsed.version > VERSION
+            && Array.isArray(parsed.maps) && parsed.maps.length === MAP_COUNT) {
+          console.warn(
+            `SaveManager: encountered future save version ${parsed.version}; loading as-is, fields may be ignored.`,
+          );
+          return this._normalize(parsed);
+        }
       }
     } catch (_) { /* fall through to migration / fresh */ }
 

@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { SaveManager } from './SaveManager.js';
 
 const STORAGE_KEY = 'lastlight_save';
@@ -144,5 +145,26 @@ describe('SaveManager — v2 settings', () => {
       musicVol:  0.6,
       muted:     false,
     });
+  });
+});
+
+describe('SaveManager — future-version save', () => {
+  it('logs a warning and loads a v3+ envelope as-is without resetting', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    localStorage.setItem('lastlight_save', JSON.stringify({
+      version: 999,
+      maps: [3, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      upgrades: ['command-1'],
+      stats: { kills: 5, gamesPlayed: 1, victories: 1, defeats: 0, bestWave: 2 },
+      settings: { masterVol: 0.5, sfxVol: 1.0, musicVol: 0.6, muted: false },
+      futureField: 'kept',
+    }));
+    const sm = new SaveManager();
+    expect(sm.getStars(0)).toBe(3);
+    expect(sm.getPurchasedUpgrades()).toEqual(['command-1']);
+    expect(warn).toHaveBeenCalled();
+    const env = JSON.parse(localStorage.getItem('lastlight_save'));
+    expect(env.version).toBe(999); // not overwritten
+    warn.mockRestore();
   });
 });
