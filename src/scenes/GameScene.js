@@ -305,22 +305,34 @@ export default class GameScene extends Phaser.Scene {
         this.aimMode = true;
         this.game.events.emit('hero:aim-mode');
         break;
-      case 'e':
+      case 'e': {
         if (this.hero.level < 3 || !this.hero.empPulse()) break;
         for (const e of this.enemies) e.applyStatus({ type: 'stun', duration: 3 });
+        const EMP_RADIUS = 120;
+        const am = this.game.registry.get('audio');
+        if (am) am.playSfx('hero-emp');
+        if (this.particles) this.particles.spawnHeroAbilityVFX('emp', this.hero.x, this.hero.y, EMP_RADIUS);
+        this.events.emit('emp-pulse', { x: this.hero.x, y: this.hero.y, radius: EMP_RADIUS });
         break;
+      }
     }
   }
 
   _triggerAirstrike(x, y) {
     const result = this.hero.airstrike(x, y);
     if (!result) { this.aimMode = false; this.game.events.emit('hero:aim-cancel'); return; }
+
+    const am = this.game.registry.get('audio');
+    if (am) am.playSfx('hero-airstrike');
+    if (this.particles) this.particles.spawnHeroAbilityVFX('airstrike', x, y, result.radius);
+    this.events.emit('airstrike-impact', { x, y });
+
     for (const e of this.enemies) {
       if (Math.hypot(e.x - x, e.y - y) <= result.radius) {
-        this._dealDamage(e, result.damage, true);
+        this._dealDamage(e, result.damage, true, { isAoe: true, abilityLabel: 'AIRSTRIKE' });
       }
     }
-    // Particle burst at impact point
+    // Particle burst at impact point (kept as in-game additional flair)
     this._addParticle(x, y, 0xff6400, 18);
     for (let i = 0; i < 8; i++) {
       const angle = (Math.PI * 2 * i) / 8;
@@ -336,11 +348,16 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _applyOvercharge(active) {
+    if (active) {
+      const am = this.game.registry.get('audio');
+      if (am) am.playSfx('hero-overcharge');
+    }
     for (const tower of this.placementManager.getTowers()) {
       if (!tower.fireRate) continue;
       if (active) {
         tower._baseFireRate = tower.fireRate;
         tower.fireRate = tower.fireRate * 1.5;
+        if (this.particles) this.particles.spawnHeroAbilityVFX('overcharge', tower.x, tower.y, 0);
       } else if (tower._baseFireRate !== undefined) {
         tower.fireRate = tower._baseFireRate;
         delete tower._baseFireRate;
@@ -363,11 +380,15 @@ export default class GameScene extends Phaser.Scene {
         }
       }
       if (best) {
+        const am = this.game.registry.get('audio');
+        if (am) am.playSfx(`tower-fire-${tower.type}`);
+        if (this.particles) this.particles.spawnMuzzleFlash(tower.x, tower.y, tower.type);
         this.projectiles.push(new Projectile(this, {
           x: tower.x, y: tower.y, target: best,
           damage: tower.damage, splashRadius: tower.splashRadius,
           pierce: tower.pierce, slowFactor: tower.slow,
           color: PROJ_COLORS[tower.type] ?? 0xffffff,
+          towerType: tower.type,
         }));
         tower.cooldown = 1 / tower.fireRate;
       }
@@ -393,6 +414,9 @@ export default class GameScene extends Phaser.Scene {
         proj.y += (dy / dist) * step;
       }
     }
+    for (const p of this.projectiles) {
+      if (p.dead && p.destroyTrail) p.destroyTrail();
+    }
     this.projectiles = this.projectiles.filter(p => !p.dead);
   }
 
@@ -411,8 +435,8 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  _dealDamage(enemy, damage, pierce) {
-    enemy.takeDamage(damage, pierce);
+  _dealDamage(enemy, damage, pierce, opts = {}) {
+    enemy.takeDamage(damage, { pierce, ...opts });
     if (enemy.dead) {
       this.economy.earn(Math.round(enemy.reward * this.killGoldMult));
       this.kills++;

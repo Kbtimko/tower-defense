@@ -48,11 +48,32 @@ export class Enemy extends Phaser.GameObjects.Container {
     }
   }
 
-  takeDamage(amount, pierce = false) {
-    const armor = pierce ? 0 : this.armor;
-    this.hp -= Math.max(1, amount - armor);
+  takeDamage(amount, opts = false) {
+    // Back-compat: callers used to pass `pierce` as a bare boolean.
+    const optsObj = (opts && typeof opts === 'object') ? opts : { pierce: Boolean(opts) };
+    const armor = optsObj.pierce ? 0 : this.armor;
+    const dmg   = Math.max(1, amount - armor);
+    this.hp -= dmg;
+    const justDied = this.hp <= 0 && !this.dead;
     if (this.hp <= 0) { this.hp = 0; this.dead = true; }
     this._redrawHpBar();
+
+    const am = this.scene.game?.registry?.get('audio');
+    if (am) am.playSfx('enemy-hit', { detune: (Math.random() - 0.5) * 100 });
+    this.scene.events.emit('damage-dealt', {
+      target: this,
+      amount: dmg,
+      isCrit: optsObj.isCrit ?? false,
+      isAoe:  optsObj.isAoe  ?? false,
+      abilityLabel: optsObj.abilityLabel ?? null,
+    });
+
+    if (justDied) {
+      const t = this.def?.type;
+      const isLarge = t === 'brute' || t === 'titan';
+      if (am) am.playSfx(isLarge ? 'enemy-death-large' : 'enemy-death-small');
+      if (t === 'titan') this.scene.events.emit('boss-died', { bossType: t });
+    }
   }
 
   applyStatus({ type, duration, factor }) {

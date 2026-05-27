@@ -78,6 +78,8 @@ export class Hero extends Phaser.GameObjects.Container {
       this.respawnTimer = this._respawnTime;
       this._body.setVisible(false);
       this._hpBar.clear();
+      const am = this.scene.game?.registry?.get('audio');
+      if (am) am.playSfx('hero-death');
     }
   }
 
@@ -93,6 +95,8 @@ export class Hero extends Phaser.GameObjects.Container {
     this._attackTimer = 1 / ATTACK_RATE;
     this._body.setVisible(true);
     this._redrawHpBar();
+    const am = this.scene.game?.registry?.get('audio');
+    if (am) am.playSfx('hero-respawn');
   }
 
   _registerKill() {
@@ -160,8 +164,10 @@ export class Hero extends Phaser.GameObjects.Container {
         if (d <= ATTACK_RANGE && d < nearestDist) { nearest = e; nearestDist = d; }
       }
       if (nearest) {
-        nearest.takeDamage(ATTACK_DAMAGE, false);
+        nearest.takeDamage(ATTACK_DAMAGE);
         if (nearest.dead) this._registerKill();
+        const am = this.scene.game?.registry?.get('audio');
+        if (am) am.playSfx('hero-attack');
         this._attackTimer = 1 / ATTACK_RATE;
       }
     }
