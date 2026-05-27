@@ -17,6 +17,7 @@ export class SettingsOverlay {
   }
 
   open() {
+    if (this._overlay.style.display === 'flex') return;
     const s = this._am.getSettings();
     for (const ch of CHANNELS) {
       const input = document.getElementById(ch.input);

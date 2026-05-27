@@ -89,6 +89,26 @@ describe('SettingsOverlay', () => {
     document.getElementById('vol-master').value = '50';
     document.getElementById('vol-master').dispatchEvent(new Event('input', { bubbles: true }));
     expect(am.setMasterVolume).not.toHaveBeenCalled();
+    // Reopen and verify ONE active set, not multiple stacked from open():
+    // (this implicitly verifies close removed prior dynamic listeners too)
+    am.setMasterVolume.mockClear();
+    ov.open();
+    const reopenInput = document.getElementById('vol-master');
+    reopenInput.value = '55';
+    reopenInput.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(am.setMasterVolume).toHaveBeenCalledTimes(1);
+  });
+
+  it('calling open() while already open is a no-op (no listener accumulation)', () => {
+    const am = makeAm();
+    const ov = new SettingsOverlay(am);
+    ov.open();
+    ov.open(); // double-open should not add a second set of listeners
+    am.setMasterVolume.mockClear();
+    const input = document.getElementById('vol-master');
+    input.value = '37';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(am.setMasterVolume).toHaveBeenCalledTimes(1);
   });
 
   it('close-button click closes the overlay', () => {
