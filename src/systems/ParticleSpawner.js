@@ -1,13 +1,13 @@
 import Phaser from 'phaser';
 
 export const MUZZLE_TINTS = {
-  default:    0xffffff,
-  machinegun: 0xffffff,
-  sniper:     0xffffff,
-  cannon:     0xffdd66,
-  laser:      0x66ccff,
-  rocket:     0xff8844,
-  barracks:   0xffffff,
+  default:  0xffffff,
+  archer:   0xffffff,
+  cannon:   0xffdd66,
+  mage:     0x66ccff,
+  ice:      0xaaddff,
+  sniper:   0xffffff,
+  barracks: 0xffffff,
 };
 
 const TRAIL_CONFIG = {

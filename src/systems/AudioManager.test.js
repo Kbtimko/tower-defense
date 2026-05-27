@@ -113,10 +113,10 @@ describe('AudioManager music', () => {
       sounds: [],
       add: vi.fn((key) => {
         const s = {
-          key, isPlaying: false, __channel: 'music', __volume: 0,
-          play(opts = {}) { this.isPlaying = true; this.__volume = opts.volume ?? 0; },
+          key, isPlaying: false, __channel: 'music', volume: 0,
+          play(opts = {}) { this.isPlaying = true; this.volume = opts.volume ?? 0; },
           stop() { this.isPlaying = false; },
-          setVolume(v) { this.__volume = v; },
+          setVolume(v) { this.volume = v; },
         };
         created.push(s);
         sound.sounds.push(s);
@@ -133,9 +133,9 @@ describe('AudioManager music', () => {
     const ambient = created.find(s => s.key === 'map-0-ambient');
     const combat  = created.find(s => s.key === 'map-0-combat');
     expect(ambient.isPlaying).toBe(true);
-    expect(ambient.__volume).toBeCloseTo(0.8 * 0.6); // master * music
+    expect(ambient.volume).toBeCloseTo(0.8 * 0.6); // master * music
     expect(combat.isPlaying).toBe(true);
-    expect(combat.__volume).toBe(0);
+    expect(combat.volume).toBe(0);
   });
 
   it('setCombatActive(true) fades combat to musicVol over 1500ms', () => {
@@ -145,7 +145,7 @@ describe('AudioManager music', () => {
     const combat = created.find(s => s.key === 'map-0-combat');
     am.setCombatActive(true);
     vi.advanceTimersByTime(1500);
-    expect(combat.__volume).toBeCloseTo(0.8 * 0.6, 2);
+    expect(combat.volume).toBeCloseTo(0.8 * 0.6, 2);
   });
 
   it('rapid setCombatActive toggles do not stack — last call wins', () => {
@@ -157,7 +157,7 @@ describe('AudioManager music', () => {
     vi.advanceTimersByTime(500);
     am.setCombatActive(false);
     vi.advanceTimersByTime(1500);
-    expect(combat.__volume).toBeCloseTo(0, 2);
+    expect(combat.volume).toBeCloseTo(0, 2);
   });
 
   it('boss theme stops ambient and combat; setCombatActive becomes no-op', () => {

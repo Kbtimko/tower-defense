@@ -1,8 +1,8 @@
 const DEBOUNCE_MS = 300;
 
 export const SFX_KEYS = [
-  'tower-fire-machinegun', 'tower-fire-cannon', 'tower-fire-sniper',
-  'tower-fire-laser', 'tower-fire-rocket', 'tower-fire-barracks',
+  'tower-fire-archer', 'tower-fire-cannon', 'tower-fire-mage',
+  'tower-fire-ice', 'tower-fire-sniper', 'tower-fire-barracks',
   'tower-place', 'tower-upgrade', 'tower-sell',
   'enemy-hit', 'enemy-death-small', 'enemy-death-large',
   'hero-attack', 'hero-death', 'hero-respawn',
@@ -57,10 +57,6 @@ export class AudioManager {
   setSfxVolume(v)    { this._setField('sfxVol',    clamp(v, 0, 1)); }
   setMusicVolume(v)  { this._setField('musicVol',  clamp(v, 0, 1)); }
   setMuted(v)        { this._setField('muted',     Boolean(v)); }
-
-  applySettings(settings) {
-    this._settings = { ...this._settings, ...settings };
-  }
 
   loadAssets(scene) {
     for (const key of SFX_KEYS) {
@@ -176,7 +172,7 @@ export class AudioManager {
       sound.__fadeTimer = null;
     }
     const steps   = Math.max(1, Math.round(durationMs / 50));
-    const start   = sound.__volume ?? 0;
+    const start   = sound.volume ?? 0;
     const delta   = (targetVol - start) / steps;
     let   i       = 0;
     const timer = setInterval(() => {
