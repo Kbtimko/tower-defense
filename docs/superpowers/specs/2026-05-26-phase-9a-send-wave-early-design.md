@@ -116,11 +116,11 @@ _updateEnemies (per-tick)                  GameScene._startWave()
                                                   │     && enemies.length > 0
                                                   │     && bonus > 0:
                                                   │     - economy.earn(bonus)
-                                                  │     - audio.playSfx('ui-click')
                                                   │     - _toast(`+${bonus}g`)
                                                   │
-                                                  └─ waveMgr.startWave()
-                                                     (existing path — no change)
+                                                  ├─ else if waveMgr.active: return
+                                                  │
+                                                  └─ playSfx('wave-start') + waveMgr.startWave()
 ```
 
 ---
