@@ -20,7 +20,10 @@ function makeText() {
 
 function makeScene() {
   const events = { handlers: {}, on(e, fn) { this.handlers[e] = fn; }, off() {}, emit(e, p) { if (this.handlers[e]) this.handlers[e](p); } };
-  const tweens = { add: vi.fn(({ onComplete }) => { if (onComplete) onComplete(); return {}; }) };
+  const tweens = {
+    add: vi.fn(({ onComplete }) => { if (onComplete) onComplete(); return {}; }),
+    killTweensOf: vi.fn(),
+  };
   const add = { text: vi.fn(() => makeText()) };
   return { events, tweens, add };
 }
@@ -72,5 +75,12 @@ describe('DamageNumberOverlay', () => {
       scene.events.emit('damage-dealt', { target: { x: 0, y: 0 }, amount: 50 });
     }
     expect(scene.add.text).toHaveBeenCalledTimes(24);
+  });
+
+  it('kills lingering tweens on a text object when returning it to the pool', () => {
+    const scene = makeScene();
+    new DamageNumberOverlay(scene);
+    scene.events.emit('damage-dealt', { target: { x: 0, y: 0 }, amount: 50 });
+    expect(scene.tweens.killTweensOf).toHaveBeenCalledTimes(1);
   });
 });

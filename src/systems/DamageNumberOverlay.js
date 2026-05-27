@@ -55,6 +55,7 @@ export class DamageNumberOverlay {
       duration: 1200,
       ease: 'Cubic.easeOut',
       onComplete: () => {
+        this._scene.tweens.killTweensOf(txt);
         txt.setVisible(false);
         this._inUse.delete(txt);
         this._pool.push(txt);
