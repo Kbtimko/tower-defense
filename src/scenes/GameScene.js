@@ -14,6 +14,9 @@ import { Hero } from '../entities/Hero.js';
 import { SaveManager } from '../systems/SaveManager.js';
 import { UpgradeManager } from '../systems/UpgradeManager.js';
 import { StoryManager }    from '../systems/StoryManager.js';
+import { DamageNumberOverlay } from '../systems/DamageNumberOverlay.js';
+import { ShakeController }    from '../systems/ShakeController.js';
+import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
 import { STORY_PANELS }    from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
 
@@ -30,6 +33,16 @@ export default class GameScene extends Phaser.Scene {
 
   create() {
     this.events.on('shutdown', this.shutdown, this);
+
+    // Phase 8 — Audio & Polish systems
+    const am = this.game.registry.get('audio');
+    if (am) am.playMusic(this.mapId ?? 0);
+
+    this.damageNumbers    = new DamageNumberOverlay(this);
+    this.shakeCtl         = new ShakeController(this);
+    this.particleSpawner  = new ParticleSpawner(this);
+    this._enemiesOnPath   = 0;
+    this._bossMusicTriggered = false;
 
     const map = MAPS[this.mapId];
     const { width, height } = this.scale;
@@ -145,6 +158,10 @@ export default class GameScene extends Phaser.Scene {
     document.querySelectorAll('.tower-btn').forEach(btn => btn.replaceWith(btn.cloneNode(true)));
     document.getElementById('hud').style.display        = 'none';
     document.getElementById('bottom-bar').style.display = 'none';
+    const am = this.game.registry.get('audio');
+    if (am) am.stopMusic(500);
+    if (this.damageNumbers) this.damageNumbers.destroy();
+    if (this.shakeCtl)      this.shakeCtl.destroy();
   }
 
   // ─── Update loop ───────────────────────────────────────────────────────────
@@ -175,6 +192,8 @@ export default class GameScene extends Phaser.Scene {
   // ─── Wave ──────────────────────────────────────────────────────────────────
 
   _startWave() {
+    const am = this.game.registry.get('audio');
+    if (am) am.playSfx('wave-start');
     if (this.waveMgr.active) return;
     this.waveMgr.startWave();
     this._updateWaveButton();
@@ -183,6 +202,20 @@ export default class GameScene extends Phaser.Scene {
   _spawnEnemy({ def, scaleFactor }) {
     const start = this.pathMgr.path[0];
     this.enemies.push(new Enemy(this, { def, scaleFactor, startX: start.x, startY: start.y }));
+
+    this._enemiesOnPath++;
+    if (this._enemiesOnPath === 1) {
+      const am = this.game.registry.get('audio');
+      if (am) am.setCombatActive(true);
+    }
+
+    if (!this._bossMusicTriggered && def.type === 'titan'
+        && (this.mapId === 4 || this.mapId === 9)) {
+      const am = this.game.registry.get('audio');
+      const theme = this.mapId === 4 ? 'boss-mid' : 'boss-final';
+      if (am) am.playMusic(theme);
+      this._bossMusicTriggered = true;
+    }
   }
 
   _checkWaveComplete() {
@@ -236,10 +269,21 @@ export default class GameScene extends Phaser.Scene {
       }
       if (enemy.waypointIndex >= path.length - 1) {
         enemy.dead = true;
+        const am = this.game.registry.get('audio');
+        if (am) am.playSfx('life-lost');
         this.economy.loseLife();
       }
     }
+    const beforeCount = this.enemies.length;
     this.enemies = this.enemies.filter(e => !e.dead);
+    const removed = beforeCount - this.enemies.length;
+    if (removed > 0) {
+      this._enemiesOnPath = Math.max(0, this._enemiesOnPath - removed);
+      if (this._enemiesOnPath === 0) {
+        const am = this.game.registry.get('audio');
+        if (am) am.setCombatActive(false);
+      }
+    }
   }
 
   _checkSoldierBlock(enemy) {
@@ -739,6 +783,8 @@ export default class GameScene extends Phaser.Scene {
 
   _onVictory() {
     if (this.won) return;
+    const am = this.game.registry.get('audio');
+    if (am) am.playSfx('victory');
     this.won = true;
     this._commitStats(true);
     const map   = MAPS[this.mapId];
@@ -762,6 +808,8 @@ export default class GameScene extends Phaser.Scene {
 
   _onDefeat() {
     if (this.over) return;
+    const am = this.game.registry.get('audio');
+    if (am) am.playSfx('defeat');
     this.over = true;
     this._commitStats(false);
     document.getElementById('msg-title').textContent = '💀 Defeat';
