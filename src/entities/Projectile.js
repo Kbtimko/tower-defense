@@ -29,8 +29,8 @@ export class Projectile extends Phaser.GameObjects.Container {
 
     this.towerType = towerType;
     this._trail = null;
-    if (scene.particles) {
-      this._trail = scene.particles.spawnProjectileTrail(this, towerType);
+    if (scene.particleSpawner) {
+      this._trail = scene.particleSpawner.spawnProjectileTrail(this, towerType);
     }
   }
 

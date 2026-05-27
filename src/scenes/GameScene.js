@@ -311,7 +311,7 @@ export default class GameScene extends Phaser.Scene {
         const EMP_RADIUS = 120;
         const am = this.game.registry.get('audio');
         if (am) am.playSfx('hero-emp');
-        if (this.particles) this.particles.spawnHeroAbilityVFX('emp', this.hero.x, this.hero.y, EMP_RADIUS);
+        if (this.particleSpawner) this.particleSpawner.spawnHeroAbilityVFX('emp', this.hero.x, this.hero.y, EMP_RADIUS);
         this.events.emit('emp-pulse', { x: this.hero.x, y: this.hero.y, radius: EMP_RADIUS });
         break;
       }
@@ -324,7 +324,7 @@ export default class GameScene extends Phaser.Scene {
 
     const am = this.game.registry.get('audio');
     if (am) am.playSfx('hero-airstrike');
-    if (this.particles) this.particles.spawnHeroAbilityVFX('airstrike', x, y, result.radius);
+    if (this.particleSpawner) this.particleSpawner.spawnHeroAbilityVFX('airstrike', x, y, result.radius);
     this.events.emit('airstrike-impact', { x, y });
 
     for (const e of this.enemies) {
@@ -357,7 +357,7 @@ export default class GameScene extends Phaser.Scene {
       if (active) {
         tower._baseFireRate = tower.fireRate;
         tower.fireRate = tower.fireRate * 1.5;
-        if (this.particles) this.particles.spawnHeroAbilityVFX('overcharge', tower.x, tower.y, 0);
+        if (this.particleSpawner) this.particleSpawner.spawnHeroAbilityVFX('overcharge', tower.x, tower.y, 0);
       } else if (tower._baseFireRate !== undefined) {
         tower.fireRate = tower._baseFireRate;
         delete tower._baseFireRate;
@@ -382,7 +382,7 @@ export default class GameScene extends Phaser.Scene {
       if (best) {
         const am = this.game.registry.get('audio');
         if (am) am.playSfx(`tower-fire-${tower.type}`);
-        if (this.particles) this.particles.spawnMuzzleFlash(tower.x, tower.y, tower.type);
+        if (this.particleSpawner) this.particleSpawner.spawnMuzzleFlash(tower.x, tower.y, tower.type);
         this.projectiles.push(new Projectile(this, {
           x: tower.x, y: tower.y, target: best,
           damage: tower.damage, splashRadius: tower.splashRadius,
