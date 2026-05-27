@@ -8,64 +8,59 @@ required attribution text below.
 
 ## SFX (`public/audio/sfx/`)
 
-23 mono MP3s at 96 kbps. Target size: ≤10 KB each.
+23 mono MP3s at 96 kbps. Total size: 248 KB.
 
-| File | Suggested source | Source URL | License |
+| File | Source pack | Source filename | License |
 |---|---|---|---|
-| `tower-fire-archer.mp3`     | Kenney Sci-Fi Sounds — laserSmall | | CC0 |
-| `tower-fire-cannon.mp3`     | Kenney Impact Sounds — heavy thud | | CC0 |
-| `tower-fire-mage.mp3`       | Kenney Sci-Fi — laser whoosh | | CC0 |
-| `tower-fire-ice.mp3`        | Kenney Sci-Fi — laserShock or icy zap | | CC0 |
-| `tower-fire-sniper.mp3`     | Kenney Sci-Fi — laser long | | CC0 |
-| `tower-fire-barracks.mp3`   | Kenney Impact Sounds — light thud | | CC0 |
-| `tower-place.mp3`           | Kenney UI Audio — confirmation chime | | CC0 |
-| `tower-upgrade.mp3`         | Kenney UI Audio — upgrade ding | | CC0 |
-| `tower-sell.mp3`            | Kenney UI Audio — coin / cancel | | CC0 |
-| `enemy-hit.mp3`             | Kenney Impact Sounds — short impact | | CC0 |
-| `enemy-death-small.mp3`     | Kenney Sci-Fi — explosion-small | | CC0 |
-| `enemy-death-large.mp3`     | Kenney Sci-Fi — explosion-large | | CC0 |
-| `hero-attack.mp3`           | Reuse `enemy-hit.mp3` or distinct melee | | CC0 |
-| `hero-death.mp3`            | Reuse `enemy-death-large.mp3` or distinct | | CC0 |
-| `hero-respawn.mp3`          | Kenney UI Audio — power-up / chime | | CC0 |
-| `hero-overcharge.mp3`       | Kenney Sci-Fi — powerUp | | CC0 |
-| `hero-airstrike.mp3`        | Kenney Sci-Fi — explosion-huge | | CC0 |
-| `hero-emp.mp3`              | Kenney Sci-Fi — laserShock | | CC0 |
-| `wave-start.mp3`            | Kenney UI Audio — alert | | CC0 |
-| `life-lost.mp3`             | Low alarm or reuse `enemy-death-small` | | CC0 |
-| `victory.mp3`               | Kenney UI Audio — jingle | | CC0 |
-| `defeat.mp3`                | Kenney UI Audio — error | | CC0 |
-| `ui-click.mp3`              | Kenney UI Audio — short click | | CC0 |
+| `tower-fire-archer.mp3`     | Kenney Sci-Fi Sounds | `laserSmall_000.ogg`             | CC0 |
+| `tower-fire-cannon.mp3`     | Kenney Sci-Fi Sounds | `impactMetal_002.ogg`            | CC0 |
+| `tower-fire-mage.mp3`       | Kenney Sci-Fi Sounds | `laserRetro_002.ogg`             | CC0 |
+| `tower-fire-ice.mp3`        | Kenney Sci-Fi Sounds | `forceField_000.ogg`             | CC0 |
+| `tower-fire-sniper.mp3`     | Kenney Sci-Fi Sounds | `laserLarge_000.ogg`             | CC0 |
+| `tower-fire-barracks.mp3`   | Kenney Sci-Fi Sounds | `impactMetal_004.ogg`            | CC0 |
+| `tower-place.mp3`           | Kenney UI Audio      | `mouseclick1.ogg`                | CC0 |
+| `tower-upgrade.mp3`         | Kenney UI Audio      | `switch33.ogg`                   | CC0 |
+| `tower-sell.mp3`            | Kenney UI Audio      | `mouserelease1.ogg`              | CC0 |
+| `enemy-hit.mp3`             | Kenney Sci-Fi Sounds | `impactMetal_001.ogg`            | CC0 |
+| `enemy-death-small.mp3`     | Kenney Sci-Fi Sounds | `explosionCrunch_000.ogg`        | CC0 |
+| `enemy-death-large.mp3`     | Kenney Sci-Fi Sounds | `explosionCrunch_004.ogg`        | CC0 |
+| `hero-attack.mp3`           | Kenney Sci-Fi Sounds | `impactMetal_003.ogg`            | CC0 |
+| `hero-death.mp3`            | Kenney Sci-Fi Sounds | `lowFrequency_explosion_000.ogg` | CC0 |
+| `hero-respawn.mp3`          | Kenney Sci-Fi Sounds | `forceField_002.ogg`             | CC0 |
+| `hero-overcharge.mp3`       | Kenney Sci-Fi Sounds | `forceField_004.ogg`             | CC0 |
+| `hero-airstrike.mp3`        | Kenney Sci-Fi Sounds | `lowFrequency_explosion_001.ogg` | CC0 |
+| `hero-emp.mp3`              | Kenney Sci-Fi Sounds | `laserRetro_004.ogg`             | CC0 |
+| `wave-start.mp3`            | Kenney UI Audio      | `switch20.ogg`                   | CC0 |
+| `life-lost.mp3`             | Kenney Sci-Fi Sounds | `explosionCrunch_003.ogg`        | CC0 |
+| `victory.mp3`               | Kenney UI Audio      | `switch38.ogg`                   | CC0 |
+| `defeat.mp3`                | Kenney UI Audio      | `switch1.ogg`                    | CC0 |
+| `ui-click.mp3`              | Kenney UI Audio      | `click3.ogg`                     | CC0 |
+
+**Source URLs:**
+- Kenney Sci-Fi Sounds: https://kenney.nl/assets/sci-fi-sounds
+- Kenney UI Audio:     https://kenney.nl/assets/ui-audio
+
+**Known placeholders:** `victory.mp3` and `defeat.mp3` are short UI switch sounds —
+neither pack ships a true fanfare/error tone. Replace with dedicated CC0 jingles
+when curated.
 
 ## Music (`public/audio/music/`)
 
-22 mono MP3s at 96 kbps (boss themes may be up to 128 kbps). Target size: ≤200 KB
-each, ≤250 KB for boss themes. Each pair (ambient/combat) for a given map should
-share key + tempo so the cross-fade is seamless.
+**Status: not yet curated.** 22 mono MP3s expected (10 maps × 2 + 2 boss themes).
+Each ambient/combat pair within a map should share key and tempo so the in-game
+cross-fade is seamless. Target ≤200 KB each (≤250 KB for boss themes), total
+audio budget ≤5 MB.
 
-| File | Suggested source | Source URL | License |
-|---|---|---|---|
-| `map-0-ambient.mp3`    | freesound.org — CC0 ambient electronic loop | | CC0 |
-| `map-0-combat.mp3`     | freesound.org — same key, higher energy | | CC0 |
-| `map-1-ambient.mp3`    | | | CC0 |
-| `map-1-combat.mp3`     | | | CC0 |
-| `map-2-ambient.mp3`    | | | CC0 |
-| `map-2-combat.mp3`     | | | CC0 |
-| `map-3-ambient.mp3`    | | | CC0 |
-| `map-3-combat.mp3`     | | | CC0 |
-| `map-4-ambient.mp3`    | | | CC0 |
-| `map-4-combat.mp3`     | | | CC0 |
-| `map-5-ambient.mp3`    | | | CC0 |
-| `map-5-combat.mp3`     | | | CC0 |
-| `map-6-ambient.mp3`    | | | CC0 |
-| `map-6-combat.mp3`     | | | CC0 |
-| `map-7-ambient.mp3`    | | | CC0 |
-| `map-7-combat.mp3`     | | | CC0 |
-| `map-8-ambient.mp3`    | | | CC0 |
-| `map-8-combat.mp3`     | | | CC0 |
-| `map-9-ambient.mp3`    | | | CC0 |
-| `map-9-combat.mp3`     | | | CC0 |
-| `boss-mid.mp3`         | freesound.org — heavy CC0 electronic | | CC0 |
-| `boss-final.mp3`       | freesound.org — climactic CC0 electronic | | CC0 |
+Suggested source: freesound.org filtered to License = CC0. Filename schema must
+match `MUSIC_KEYS` in `src/systems/AudioManager.js`:
+
+```
+map-0-ambient.mp3   map-0-combat.mp3
+map-1-ambient.mp3   map-1-combat.mp3
+... (through map-9)
+boss-mid.mp3
+boss-final.mp3
+```
 
 ## Notes for future contributors
 
@@ -74,4 +69,6 @@ share key + tempo so the cross-fade is seamless.
 - **Naming:** filenames must match `SFX_KEYS` and `MUSIC_KEYS` in
   `src/systems/AudioManager.js`. The loader uses the bare key.
 - **Conversion:** use `scripts/convert-audio.sh` to batch-convert from a working
-  directory of `.wav` / `.flac` / `.ogg` source files.
+  directory of `.wav` / `.flac` / `.ogg` source files. The script auto-routes
+  `map-*` and `boss-*` to `public/audio/music/` and everything else to
+  `public/audio/sfx/`.
