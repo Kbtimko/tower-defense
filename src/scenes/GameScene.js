@@ -293,6 +293,7 @@ export default class GameScene extends Phaser.Scene {
         const am = this.game.registry.get('audio');
         if (am) am.setCombatActive(false);
       }
+      this._updateWaveButton();
     }
   }
 
