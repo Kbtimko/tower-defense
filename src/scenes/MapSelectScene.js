@@ -4,6 +4,7 @@ import { SaveManager } from '../systems/SaveManager.js';
 import { starsDisplay } from '../utils/display.js';
 import { UpgradeManager }     from '../systems/UpgradeManager.js';
 import { UpgradeTreeOverlay } from '../ui/UpgradeTreeOverlay.js';
+import { SettingsOverlay }     from '../ui/SettingsOverlay.js';
 
 export default class MapSelectScene extends Phaser.Scene {
   constructor() { super('MapSelectScene'); }
@@ -31,6 +32,7 @@ export default class MapSelectScene extends Phaser.Scene {
     this._renderMetaBar();
     this._renderStats();
     this._bindUpgrades();
+    this._bindSettings();
   }
 
   _populateSidebar() {
@@ -130,8 +132,22 @@ export default class MapSelectScene extends Phaser.Scene {
     btn.addEventListener('click', () => this._overlay.open());
   }
 
+  _bindSettings() {
+    // Clone removes any prior listener before re-adding (matches _bindUpgrades).
+    const old = document.getElementById('open-settings');
+    const btn = old.cloneNode(true);
+    old.replaceWith(btn);
+    btn.addEventListener('click', () => {
+      const am = this.game.registry.get('audio');
+      if (!am) return;
+      if (!this._settingsOverlay) this._settingsOverlay = new SettingsOverlay(am);
+      this._settingsOverlay.open();
+    });
+  }
+
   shutdown() {
-    document.getElementById('map-select').style.display     = 'none';
-    document.getElementById('upgrade-overlay').style.display = 'none';
+    document.getElementById('map-select').style.display       = 'none';
+    document.getElementById('upgrade-overlay').style.display  = 'none';
+    document.getElementById('settings-overlay').style.display = 'none';
   }
 }
