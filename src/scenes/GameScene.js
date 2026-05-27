@@ -194,7 +194,17 @@ export default class GameScene extends Phaser.Scene {
   _startWave() {
     const am = this.game.registry.get('audio');
     if (am) am.playSfx('wave-start');
-    if (this.waveMgr.active) return;
+
+    if (this.waveMgr.isEarlyEligible) {
+      const bonus = this._computeEarlyBonus();
+      if (bonus > 0) {
+        this.economy.earn(bonus);
+        this._toast(`+${bonus}g`);
+      }
+    } else if (this.waveMgr.active) {
+      return;
+    }
+
     this.waveMgr.startWave();
     this._updateWaveButton();
   }
