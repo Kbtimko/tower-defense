@@ -772,11 +772,30 @@ export default class GameScene extends Phaser.Scene {
     if (!btn) return;
     if (this.waveMgr.done) {
       btn.disabled = true; btn.textContent = 'All Waves Done';
-    } else if (this.waveMgr.active) {
-      btn.disabled = true; btn.textContent = `Wave ${this.waveMgr.currentWave} in progress...`;
-    } else {
-      btn.disabled = false; btn.textContent = `▶ Send Wave ${this.waveMgr.currentWave + 1}`;
+      return;
     }
+    if (this.waveMgr.active && this.waveMgr.isEarlyEligible) {
+      const bonus = this._computeEarlyBonus();
+      btn.disabled = false;
+      btn.textContent = bonus > 0
+        ? `▶ Send Wave ${this.waveMgr.currentWave + 1} (+${bonus}g)`
+        : `▶ Send Wave ${this.waveMgr.currentWave + 1}`;
+      return;
+    }
+    if (this.waveMgr.active) {
+      btn.disabled = true; btn.textContent = `Wave ${this.waveMgr.currentWave} in progress...`;
+      return;
+    }
+    btn.disabled = false; btn.textContent = `▶ Send Wave ${this.waveMgr.currentWave + 1}`;
+  }
+
+  _computeEarlyBonus() {
+    let sum = 0;
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      sum += (e.def && typeof e.def.reward === 'number') ? e.def.reward : 0;
+    }
+    return Math.floor(0.5 * sum);
   }
 
   // ─── Game end ──────────────────────────────────────────────────────────────
