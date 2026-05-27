@@ -124,6 +124,10 @@
                      padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
                      font-family:'Georgia',serif; }
     #open-upgrades:hover { background:#223344; }
+    #open-settings { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
+                     padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
+                     font-family:'Georgia',serif; }
+    #open-settings:hover { background:#223344; }
     #lifetime-stats { display:flex; justify-content:center; gap:10px; margin-top:14px;
                       flex-wrap:wrap; }
     .stat-chip { background:#0f0f2e; border:1px solid #2a3442; border-radius:6px;
@@ -166,6 +170,19 @@
     .upgrade-node.unaffordable { opacity:0.55; }
     .upgrade-node.locked-prereq { opacity:0.35; }
     .upgrade-node.locked-threshold { opacity:0.7; }
+    #settings-overlay { display:none; position:absolute; inset:0; z-index:16;
+      background:rgba(0,0,0,0.7); align-items:center; justify-content:center; padding:24px; }
+    #settings-overlay-inner { width:100%; max-width:420px; background:#0a1018;
+      border:2px solid #4a8aff; border-radius:8px; padding:18px 22px; font-family:'Courier New',monospace; color:#cfd8e8; }
+    #settings-overlay-header { display:flex; align-items:center; gap:14px; margin-bottom:14px; }
+    #settings-overlay-title { font-size:18px; color:#6bf; font-weight:bold; flex:1; }
+    #settings-close { background:#3a1a1a; border:1px solid #8a3a3a; color:#f07a7a;
+      padding:4px 10px; cursor:pointer; font-family:inherit; border-radius:4px; }
+    .settings-row { display:flex; align-items:center; gap:10px; margin:8px 0; font-size:12px; }
+    .settings-row label { width:90px; color:#8ab; }
+    .settings-row input[type=range] { flex:1; }
+    .settings-row .settings-val { width:34px; text-align:right; color:#8ab; }
+    .settings-mute { margin-top:12px; font-size:12px; color:#cfd8e8; }
   </style>
 </head>
 <body>
@@ -189,6 +206,7 @@
       <div id="map-meta-bar">
         <div id="total-stars">★ 0 / 30</div>
         <button id="open-upgrades">⚙ Upgrades</button>
+        <button id="open-settings" title="Audio settings">♪ Audio</button>
       </div>
       <div id="map-select-layout">
         <div id="map-sidebar"></div>
@@ -235,6 +253,32 @@
           <button id="upgrade-close">✕ Close</button>
         </div>
         <div id="upgrade-tree"></div>
+      </div>
+    </div>
+    <div id="settings-overlay">
+      <div id="settings-overlay-inner">
+        <div id="settings-overlay-header">
+          <span id="settings-overlay-title">Audio Settings</span>
+          <button id="settings-close">CLOSE</button>
+        </div>
+        <div class="settings-row">
+          <label for="vol-master">Master</label>
+          <input id="vol-master" type="range" min="0" max="100" step="1" />
+          <span class="settings-val" id="vol-master-val">80</span>
+        </div>
+        <div class="settings-row">
+          <label for="vol-sfx">Sound Effects</label>
+          <input id="vol-sfx" type="range" min="0" max="100" step="1" />
+          <span class="settings-val" id="vol-sfx-val">100</span>
+        </div>
+        <div class="settings-row">
+          <label for="vol-music">Music</label>
+          <input id="vol-music" type="range" min="0" max="100" step="1" />
+          <span class="settings-val" id="vol-music-val">60</span>
+        </div>
+        <div class="settings-mute">
+          <label><input id="mute-all" type="checkbox" /> Mute all audio</label>
+        </div>
       </div>
     </div>
   </div>

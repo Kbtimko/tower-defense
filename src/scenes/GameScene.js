@@ -14,6 +14,9 @@ import { Hero } from '../entities/Hero.js';
 import { SaveManager } from '../systems/SaveManager.js';
 import { UpgradeManager } from '../systems/UpgradeManager.js';
 import { StoryManager }    from '../systems/StoryManager.js';
+import { DamageNumberOverlay } from '../systems/DamageNumberOverlay.js';
+import { ShakeController }    from '../systems/ShakeController.js';
+import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
 import { STORY_PANELS }    from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
 
@@ -30,6 +33,16 @@ export default class GameScene extends Phaser.Scene {
 
   create() {
     this.events.on('shutdown', this.shutdown, this);
+
+    // Phase 8 — Audio & Polish systems
+    const am = this.game.registry.get('audio');
+    if (am) am.playMusic(this.mapId ?? 0);
+
+    this.damageNumbers    = new DamageNumberOverlay(this);
+    this.shakeCtl         = new ShakeController(this);
+    this.particleSpawner  = new ParticleSpawner(this);
+    this._enemiesOnPath   = 0;
+    this._bossMusicTriggered = false;
 
     const map = MAPS[this.mapId];
     const { width, height } = this.scale;
@@ -145,6 +158,10 @@ export default class GameScene extends Phaser.Scene {
     document.querySelectorAll('.tower-btn').forEach(btn => btn.replaceWith(btn.cloneNode(true)));
     document.getElementById('hud').style.display        = 'none';
     document.getElementById('bottom-bar').style.display = 'none';
+    const am = this.game.registry.get('audio');
+    if (am) am.stopMusic(500);
+    if (this.damageNumbers) this.damageNumbers.destroy();
+    if (this.shakeCtl)      this.shakeCtl.destroy();
   }
 
   // ─── Update loop ───────────────────────────────────────────────────────────
@@ -175,6 +192,8 @@ export default class GameScene extends Phaser.Scene {
   // ─── Wave ──────────────────────────────────────────────────────────────────
 
   _startWave() {
+    const am = this.game.registry.get('audio');
+    if (am) am.playSfx('wave-start');
     if (this.waveMgr.active) return;
     this.waveMgr.startWave();
     this._updateWaveButton();
@@ -183,6 +202,20 @@ export default class GameScene extends Phaser.Scene {
   _spawnEnemy({ def, scaleFactor }) {
     const start = this.pathMgr.path[0];
     this.enemies.push(new Enemy(this, { def, scaleFactor, startX: start.x, startY: start.y }));
+
+    this._enemiesOnPath++;
+    if (this._enemiesOnPath === 1) {
+      const am = this.game.registry.get('audio');
+      if (am) am.setCombatActive(true);
+    }
+
+    if (!this._bossMusicTriggered && def.type === 'titan'
+        && (this.mapId === 4 || this.mapId === 9)) {
+      const am = this.game.registry.get('audio');
+      const theme = this.mapId === 4 ? 'boss-mid' : 'boss-final';
+      if (am) am.playMusic(theme);
+      this._bossMusicTriggered = true;
+    }
   }
 
   _checkWaveComplete() {
@@ -236,10 +269,21 @@ export default class GameScene extends Phaser.Scene {
       }
       if (enemy.waypointIndex >= path.length - 1) {
         enemy.dead = true;
+        const am = this.game.registry.get('audio');
+        if (am) am.playSfx('life-lost');
         this.economy.loseLife();
       }
     }
+    const beforeCount = this.enemies.length;
     this.enemies = this.enemies.filter(e => !e.dead);
+    const removed = beforeCount - this.enemies.length;
+    if (removed > 0) {
+      this._enemiesOnPath = Math.max(0, this._enemiesOnPath - removed);
+      if (this._enemiesOnPath === 0) {
+        const am = this.game.registry.get('audio');
+        if (am) am.setCombatActive(false);
+      }
+    }
   }
 
   _checkSoldierBlock(enemy) {
@@ -305,22 +349,34 @@ export default class GameScene extends Phaser.Scene {
         this.aimMode = true;
         this.game.events.emit('hero:aim-mode');
         break;
-      case 'e':
+      case 'e': {
         if (this.hero.level < 3 || !this.hero.empPulse()) break;
         for (const e of this.enemies) e.applyStatus({ type: 'stun', duration: 3 });
+        const EMP_RADIUS = 120;
+        const am = this.game.registry.get('audio');
+        if (am) am.playSfx('hero-emp');
+        if (this.particleSpawner) this.particleSpawner.spawnHeroAbilityVFX('emp', this.hero.x, this.hero.y, EMP_RADIUS);
+        this.events.emit('emp-pulse', { x: this.hero.x, y: this.hero.y, radius: EMP_RADIUS });
         break;
+      }
     }
   }
 
   _triggerAirstrike(x, y) {
     const result = this.hero.airstrike(x, y);
     if (!result) { this.aimMode = false; this.game.events.emit('hero:aim-cancel'); return; }
+
+    const am = this.game.registry.get('audio');
+    if (am) am.playSfx('hero-airstrike');
+    if (this.particleSpawner) this.particleSpawner.spawnHeroAbilityVFX('airstrike', x, y, result.radius);
+    this.events.emit('airstrike-impact', { x, y });
+
     for (const e of this.enemies) {
       if (Math.hypot(e.x - x, e.y - y) <= result.radius) {
-        this._dealDamage(e, result.damage, true);
+        this._dealDamage(e, result.damage, true, { isAoe: true, abilityLabel: 'AIRSTRIKE' });
       }
     }
-    // Particle burst at impact point
+    // Particle burst at impact point (kept as in-game additional flair)
     this._addParticle(x, y, 0xff6400, 18);
     for (let i = 0; i < 8; i++) {
       const angle = (Math.PI * 2 * i) / 8;
@@ -336,11 +392,16 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _applyOvercharge(active) {
+    if (active) {
+      const am = this.game.registry.get('audio');
+      if (am) am.playSfx('hero-overcharge');
+    }
     for (const tower of this.placementManager.getTowers()) {
       if (!tower.fireRate) continue;
       if (active) {
         tower._baseFireRate = tower.fireRate;
         tower.fireRate = tower.fireRate * 1.5;
+        if (this.particleSpawner) this.particleSpawner.spawnHeroAbilityVFX('overcharge', tower.x, tower.y, 0);
       } else if (tower._baseFireRate !== undefined) {
         tower.fireRate = tower._baseFireRate;
         delete tower._baseFireRate;
@@ -363,11 +424,15 @@ export default class GameScene extends Phaser.Scene {
         }
       }
       if (best) {
+        const am = this.game.registry.get('audio');
+        if (am) am.playSfx(`tower-fire-${tower.type}`);
+        if (this.particleSpawner) this.particleSpawner.spawnMuzzleFlash(tower.x, tower.y, tower.type);
         this.projectiles.push(new Projectile(this, {
           x: tower.x, y: tower.y, target: best,
           damage: tower.damage, splashRadius: tower.splashRadius,
           pierce: tower.pierce, slowFactor: tower.slow,
           color: PROJ_COLORS[tower.type] ?? 0xffffff,
+          towerType: tower.type,
         }));
         tower.cooldown = 1 / tower.fireRate;
       }
@@ -393,6 +458,9 @@ export default class GameScene extends Phaser.Scene {
         proj.y += (dy / dist) * step;
       }
     }
+    for (const p of this.projectiles) {
+      if (p.dead && p.destroyTrail) p.destroyTrail();
+    }
     this.projectiles = this.projectiles.filter(p => !p.dead);
   }
 
@@ -411,8 +479,8 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  _dealDamage(enemy, damage, pierce) {
-    enemy.takeDamage(damage, pierce);
+  _dealDamage(enemy, damage, pierce, opts = {}) {
+    enemy.takeDamage(damage, { pierce, ...opts });
     if (enemy.dead) {
       this.economy.earn(Math.round(enemy.reward * this.killGoldMult));
       this.kills++;
@@ -715,6 +783,8 @@ export default class GameScene extends Phaser.Scene {
 
   _onVictory() {
     if (this.won) return;
+    const am = this.game.registry.get('audio');
+    if (am) am.playSfx('victory');
     this.won = true;
     this._commitStats(true);
     const map   = MAPS[this.mapId];
@@ -738,6 +808,8 @@ export default class GameScene extends Phaser.Scene {
 
   _onDefeat() {
     if (this.over) return;
+    const am = this.game.registry.get('audio');
+    if (am) am.playSfx('defeat');
     this.over = true;
     this._commitStats(false);
     document.getElementById('msg-title').textContent = '💀 Defeat';

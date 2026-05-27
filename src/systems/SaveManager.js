@@ -1,7 +1,11 @@
 const STORAGE_KEY = 'lastlight_save';
 const LEGACY_KEY  = 'lastlight_progress';
 const MAP_COUNT   = 10;
-const VERSION     = 1;
+const VERSION     = 2;
+
+function defaultSettings() {
+  return { masterVol: 0.8, sfxVol: 1.0, musicVol: 0.6, muted: false };
+}
 
 function freshEnvelope() {
   return {
@@ -9,6 +13,7 @@ function freshEnvelope() {
     maps:     new Array(MAP_COUNT).fill(0),
     upgrades: [],
     stats:    { kills: 0, gamesPlayed: 0, victories: 0, defeats: 0, bestWave: 0 },
+    settings: defaultSettings(),
   };
 }
 
@@ -23,8 +28,19 @@ export class SaveManager {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed && parsed.version === VERSION
+        if (parsed && (parsed.version === 1 || parsed.version === VERSION)
             && Array.isArray(parsed.maps) && parsed.maps.length === MAP_COUNT) {
+          const normalized = this._normalize(parsed);
+          if (parsed.version === 1) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+          }
+          return normalized;
+        }
+        if (parsed && typeof parsed.version === 'number' && parsed.version > VERSION
+            && Array.isArray(parsed.maps) && parsed.maps.length === MAP_COUNT) {
+          console.warn(
+            `SaveManager: encountered future save version ${parsed.version}; loading as-is, fields may be ignored.`,
+          );
           return this._normalize(parsed);
         }
       }
@@ -55,6 +71,9 @@ export class SaveManager {
     env.upgrades = Array.isArray(parsed.upgrades) ? parsed.upgrades.slice() : [];
     if (parsed.stats && typeof parsed.stats === 'object') {
       env.stats = { ...env.stats, ...parsed.stats };
+    }
+    if (parsed.settings && typeof parsed.settings === 'object' && !Array.isArray(parsed.settings)) {
+      env.settings = { ...env.settings, ...parsed.settings };
     }
     return env;
   }
@@ -101,6 +120,16 @@ export class SaveManager {
 
   setStats(stats) {
     this._data.stats = { ...this._data.stats, ...stats };
+    this._save();
+  }
+
+  // Settings
+  getSettings() {
+    return { ...this._data.settings };
+  }
+
+  setSettings(partial) {
+    this._data.settings = { ...this._data.settings, ...partial };
     this._save();
   }
 }
