@@ -1,4 +1,4 @@
-import { getWeaknessMultiplier, WEAKNESS_MATRIX, TIER4_OVERRIDES, HERO_MULTIPLIERS } from './weaknessMatrix.js';
+import { getWeaknessMultiplier, WEAKNESS_MATRIX, TIER4_OVERRIDES, HERO_MULTIPLIERS, describeMatchups } from './weaknessMatrix.js';
 
 describe('getWeaknessMultiplier — defaults', () => {
   it('returns 1.0 for null source', () => {
@@ -106,5 +106,49 @@ describe('matrix shape sanity', () => {
     for (const enemy of Object.keys(HERO_MULTIPLIERS)) {
       expect(known).toContain(enemy);
     }
+  });
+});
+
+describe('describeMatchups', () => {
+  it('returns empty effective/weak for unknown source', () => {
+    expect(describeMatchups(null)).toEqual({ effective: [], weak: [] });
+  });
+
+  it('archer base row → effective skitter/phantom, weak brute/colossus/titan', () => {
+    const result = describeMatchups({ kind: 'tower', type: 'archer', tier: 1, branch: null });
+    expect(result.effective.sort()).toEqual(['phantom', 'skitter']);
+    expect(result.weak.sort()).toEqual(['brute', 'colossus', 'titan']);
+  });
+
+  it('cannon base row → effective brute/colossus/titan, weak drone/skitter/phantom', () => {
+    const result = describeMatchups({ kind: 'tower', type: 'cannon', tier: 1, branch: null });
+    expect(result.effective.sort()).toEqual(['brute', 'colossus', 'titan']);
+    expect(result.weak.sort()).toEqual(['drone', 'phantom', 'skitter']);
+  });
+
+  it('ice base row → effective empty, weak titan only', () => {
+    const result = describeMatchups({ kind: 'tower', type: 'ice', tier: 1, branch: null });
+    expect(result.effective).toEqual([]);
+    expect(result.weak).toEqual(['titan']);
+  });
+
+  it('Tier-4A sniper folds override → titan moves into effective', () => {
+    const result = describeMatchups({ kind: 'tower', type: 'sniper', tier: 4, branch: 'A' });
+    expect(result.effective).toContain('titan');
+    expect(result.effective).toContain('colossus');
+    expect(result.effective).toContain('brute'); // base 1.25 stays effective
+  });
+
+  it('Tier-4B sniper (no overrides) matches base row', () => {
+    const base   = describeMatchups({ kind: 'tower', type: 'sniper', tier: 1, branch: null });
+    const tier4B = describeMatchups({ kind: 'tower', type: 'sniper', tier: 4, branch: 'B' });
+    expect(tier4B.effective.sort()).toEqual(base.effective.sort());
+    expect(tier4B.weak.sort()).toEqual(base.weak.sort());
+  });
+
+  it('hero source → effective phantom, weak empty', () => {
+    const result = describeMatchups({ kind: 'hero' });
+    expect(result.effective).toEqual(['phantom']);
+    expect(result.weak).toEqual([]);
   });
 });

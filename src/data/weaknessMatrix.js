@@ -34,3 +34,19 @@ export function getWeaknessMultiplier(source, enemyType) {
   }
   return 1.0;
 }
+
+const ENEMY_TYPES = ['drone', 'skitter', 'brute', 'colossus', 'phantom', 'titan'];
+const EFFECTIVE_THRESHOLD = 1.25;
+const WEAK_THRESHOLD      = 0.75;
+
+export function describeMatchups(source) {
+  const effective = [];
+  const weak = [];
+  if (!source) return { effective, weak };
+  for (const enemy of ENEMY_TYPES) {
+    const m = getWeaknessMultiplier(source, enemy);
+    if (m >= EFFECTIVE_THRESHOLD) effective.push(enemy);
+    else if (m <= WEAK_THRESHOLD) weak.push(enemy);
+  }
+  return { effective, weak };
+}
