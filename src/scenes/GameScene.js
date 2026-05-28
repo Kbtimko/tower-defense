@@ -192,9 +192,18 @@ export default class GameScene extends Phaser.Scene {
   // ─── Wave ──────────────────────────────────────────────────────────────────
 
   _startWave() {
+    if (this.waveMgr.isEarlyEligible) {
+      const bonus = this._computeEarlyBonus();
+      if (bonus > 0) {
+        this.economy.earn(bonus);
+        this._toast(`+${bonus}g`);
+      }
+    } else if (this.waveMgr.active) {
+      return;
+    }
+
     const am = this.game.registry.get('audio');
     if (am) am.playSfx('wave-start');
-    if (this.waveMgr.active) return;
     this.waveMgr.startWave();
     this._updateWaveButton();
   }
@@ -283,6 +292,7 @@ export default class GameScene extends Phaser.Scene {
         const am = this.game.registry.get('audio');
         if (am) am.setCombatActive(false);
       }
+      this._updateWaveButton();
     }
   }
 
@@ -772,11 +782,30 @@ export default class GameScene extends Phaser.Scene {
     if (!btn) return;
     if (this.waveMgr.done) {
       btn.disabled = true; btn.textContent = 'All Waves Done';
-    } else if (this.waveMgr.active) {
-      btn.disabled = true; btn.textContent = `Wave ${this.waveMgr.currentWave} in progress...`;
-    } else {
-      btn.disabled = false; btn.textContent = `▶ Send Wave ${this.waveMgr.currentWave + 1}`;
+      return;
     }
+    if (this.waveMgr.active && this.waveMgr.isEarlyEligible) {
+      const bonus = this._computeEarlyBonus();
+      btn.disabled = false;
+      btn.textContent = bonus > 0
+        ? `▶ Send Wave ${this.waveMgr.currentWave + 1} (+${bonus}g)`
+        : `▶ Send Wave ${this.waveMgr.currentWave + 1}`;
+      return;
+    }
+    if (this.waveMgr.active) {
+      btn.disabled = true; btn.textContent = `Wave ${this.waveMgr.currentWave} in progress...`;
+      return;
+    }
+    btn.disabled = false; btn.textContent = `▶ Send Wave ${this.waveMgr.currentWave + 1}`;
+  }
+
+  _computeEarlyBonus() {
+    let sum = 0;
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      sum += (e.def && typeof e.def.reward === 'number') ? e.def.reward : 0;
+    }
+    return Math.floor(0.5 * sum);
   }
 
   // ─── Game end ──────────────────────────────────────────────────────────────
