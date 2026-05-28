@@ -27,6 +27,17 @@
     .tower-btn .t-icon { font-size: 20px; }
     .tower-btn .t-cost { font-size: 11px; color: #ffd700; }
     .tower-btn .t-name { font-size: 10px; color: #aaa; }
+    #tower-tooltip { position: absolute; display: none; z-index: 50;
+                     background: #0f0f1e; border: 1px solid #8b6914; border-radius: 5px;
+                     padding: 6px 8px; font-size: 11px; color: #ddd;
+                     pointer-events: none; white-space: nowrap; max-width: 220px; }
+    #tower-tooltip strong { display: block; margin-bottom: 3px; color: #ffd700; }
+    #tower-tooltip .tt-line-good { display: block; color: #6f6; }
+    #tower-tooltip .tt-line-bad  { display: block; color: #f88; }
+    #tower-panel .panel-matchups { font-size: 10px; margin: 4px 0; line-height: 1.4; }
+    #tower-panel .panel-matchups .mu-good { display: block; color: #6f6; }
+    #tower-panel .panel-matchups .mu-bad  { display: block; color: #f88; }
+    .branch-card .branch-matchup { color: #ffcc66; font-size: 10px; margin-bottom: 3px; }
     #wave-btn { margin-left: auto; background: #8b1a1a; border: 2px solid #cc3333;
                 color: #fff; padding: 8px 16px; border-radius: 6px; cursor: pointer;
                 font-size: 13px; font-weight: bold; }
@@ -235,6 +246,7 @@
         <div class="panel-stat" id="panel-soldier-blocks">Blocks: -</div>
       </div>
       <div class="panel-stat" id="panel-lvl">Level: -</div>
+      <div class="panel-matchups" id="panel-matchups"></div>
       <div id="panel-branch-picker" style="display:none"></div>
       <button class="upgrade-btn" id="panel-upgrade-btn">Upgrade</button>
       <button class="reposition-btn" id="panel-reposition-btn" style="display:none">&#8635; Reposition Soldiers</button>
@@ -320,6 +332,7 @@
     </button>
     <button id="wave-btn">▶ Send Wave 1</button>
   </div>
+  <div id="tower-tooltip"></div>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
