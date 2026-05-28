@@ -152,7 +152,8 @@ Total tunable surface: **35 numbers**.
 | `src/entities/Projectile.js` | constructor accepts and stores `sourceTier`, `sourceBranch` (alongside existing `towerType`) |
 | `src/entities/Hero.js` | auto-attack passes `{source:{kind:'hero'}}` to `enemy.takeDamage` |
 | `src/scenes/GameScene.js` | `_dealDamage` builds `source` from tower projectile / soldier / airstrike; passes it through. Also: `_openTowerPanel` appends a matchup line; `_renderBranchPicker` (line ~700) appends a Tier-4 override line per card |
-| `src/scenes/GameScene.test.js` (or equivalent) | extend — integration smoke for tower, soldier, airstrike paths |
+| `src/data/sourceBuilders.js` | **new** — pure source-object helpers (`towerSource`, `soldierSource`, `heroSource`, `heroAirstrikeSource`) so the GameScene call-site edits are one-liners |
+| `src/data/sourceBuilders.test.js` | **new** — unit tests for the four helpers |
 | `src/scenes/UIScene.js` | adds `mouseenter`/`mouseleave` tooltip handlers to `.tower-btn` (in the same `forEach` that already wires clicks at line ~65). Also: `_renderBranchPicker` (line ~234) appends the same Tier-4 override line per card |
 | `index.html` | adds one floating `<div id="tower-tooltip">` element (positioned absolutely, hidden by default) used by the BottomBar tooltip handler. Existing `#panel-branch-picker` and TowerPanel DOM are reused; no new layout containers. |
 
@@ -294,15 +295,20 @@ Ignores armor, stuns boss 1s
 - **Hero vs phantom:** `enemy.takeDamage(25, {source:{kind:'hero'}})` with phantom → hp drops by 37.
 - **Damage event payload:** the `damage-dealt` event emitted from `takeDamage` reports the post-multiplier damage (used by DamageNumberOverlay).
 
-### 8.3 GameScene integration smoke (extend existing patterns)
+### 8.3 Source-construction unit tests
 
-Using the stubbed-scene pattern already established in the project's GameScene tests:
+The project has no GameScene/UIScene test scaffolding (tests stop at entities, systems, and data modules). Rather than build that scaffolding for a single phase, the source-construction logic is verified by:
 
-- **Tower projectile:** placed cannon, brute in range, fire → `_dealDamage` is called with `source:{kind:'tower', type:'cannon', tier:1, branch:null}`. Enemy hp drops by 55.
-- **Tier-4 branch source:** upgrade tower to `tier:4, branch:'A'`. Source object reflects `tier:4, branch:'A'`. Override applies (verify for sniper-A vs titan = 750).
-- **Soldier melee:** barracks blocking a phantom → `_dealDamage` source is `{kind:'tower', type:'barracks', tier:<tower.level>, branch:<tower.branch>}`. Multiplier `0.5×` applies.
-- **Hero airstrike:** trigger airstrike at a phantom cluster → each affected enemy's `_dealDamage` carries `{kind:'hero', ability:'airstrike'}`. Phantom takes `floor(80 × 1.5) = 120`.
-- **Hero auto-attack:** hero in attack range of phantom → `Enemy.takeDamage` is called with `{source:{kind:'hero'}}`. Damage = `floor(ATTACK_DAMAGE × 1.5)`.
+1. **Extracting source-builder helpers** into pure functions that can be unit-tested in isolation. The plan task list adds one helper file `src/data/sourceBuilders.js` exporting `towerSource(tower)`, `soldierSource(soldier)`, `heroSource()`, `heroAirstrikeSource()`. Each is a 1-2 line pure function.
+2. **Unit-testing those helpers** in `src/data/sourceBuilders.test.js`:
+   - `towerSource({type:'cannon', level:1, branch:null})` → `{kind:'tower', type:'cannon', tier:1, branch:null}`
+   - `towerSource({type:'sniper', level:4, branch:'A'})` → `{kind:'tower', type:'sniper', tier:4, branch:'A'}`
+   - `soldierSource({barracks: {level:4, branch:'A'}})` → `{kind:'tower', type:'barracks', tier:4, branch:'A'}`
+   - `heroSource()` → `{kind:'hero'}`
+   - `heroAirstrikeSource()` → `{kind:'hero', ability:'airstrike'}`
+3. **Wiring those helpers into the call sites** — `_dealDamage` becomes a one-line edit at each site (e.g. `_dealDamage(enemy, proj.damage, proj.pierce, {source: towerSource(tower)})`), so the production path is trivially correct once the helpers are tested.
+
+End-to-end integration (the full damage formula on a real enemy) is covered by Enemy.test.js (§8.2) using the same source objects the helpers produce. The composition is verified by the manual walkthrough (§8.5).
 
 ### 8.4 UI tests
 
