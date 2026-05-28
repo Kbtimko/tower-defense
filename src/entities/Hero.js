@@ -9,6 +9,14 @@ const ATTACK_DAMAGE  = 18;
 const MAX_HP         = 150;
 const RESPAWN_TIME   = 20;
 
+export const HERO_STATS = {
+  attackDamage: ATTACK_DAMAGE,
+  attackRange:  ATTACK_RANGE,
+  attackRate:   ATTACK_RATE,
+  maxLevel:     3,
+  abilityUnlockLevels: { q: 1, w: 2, e: 3 },
+};
+
 export class Hero extends Phaser.GameObjects.Container {
   constructor(scene, { x, y }, modifiers = {}) {
     super(scene, x, y);
