@@ -1,4 +1,4 @@
-import { getWeaknessMultiplier, WEAKNESS_MATRIX, TIER4_OVERRIDES, HERO_MULTIPLIERS, describeMatchups } from './weaknessMatrix.js';
+import { getWeaknessMultiplier, WEAKNESS_MATRIX, TIER4_OVERRIDES, HERO_MULTIPLIERS, describeMatchups, describeEnemyMatchups } from './weaknessMatrix.js';
 
 describe('getWeaknessMultiplier — defaults', () => {
   it('returns 1.0 for null source', () => {
@@ -150,5 +150,55 @@ describe('describeMatchups', () => {
     const result = describeMatchups({ kind: 'hero' });
     expect(result.effective).toEqual(['phantom']);
     expect(result.weak).toEqual([]);
+  });
+});
+
+describe('describeEnemyMatchups', () => {
+  it('drone → vulnerableTo [mage], resists [cannon]', () => {
+    expect(describeEnemyMatchups('drone')).toEqual({ vulnerableTo: ['mage'], resists: ['cannon'] });
+  });
+
+  it('skitter → vulnerableTo [archer, barracks], resists [cannon, sniper]', () => {
+    const r = describeEnemyMatchups('skitter');
+    expect(r.vulnerableTo.sort()).toEqual(['archer', 'barracks']);
+    expect(r.resists.sort()).toEqual(['cannon', 'sniper']);
+  });
+
+  it('brute → vulnerableTo [barracks, cannon, sniper], resists [archer]', () => {
+    const r = describeEnemyMatchups('brute');
+    expect(r.vulnerableTo.sort()).toEqual(['barracks', 'cannon', 'sniper']);
+    expect(r.resists.sort()).toEqual(['archer']);
+  });
+
+  it('colossus → vulnerableTo [cannon, mage, sniper], resists [archer]', () => {
+    const r = describeEnemyMatchups('colossus');
+    expect(r.vulnerableTo.sort()).toEqual(['cannon', 'mage', 'sniper']);
+    expect(r.resists.sort()).toEqual(['archer']);
+  });
+
+  it('phantom → vulnerableTo [archer, hero, mage], resists [barracks, cannon, sniper]', () => {
+    const r = describeEnemyMatchups('phantom');
+    expect(r.vulnerableTo.sort()).toEqual(['archer', 'hero', 'mage']);
+    expect(r.resists.sort()).toEqual(['barracks', 'cannon', 'sniper']);
+  });
+
+  it('titan → vulnerableTo [cannon, mage, sniper], resists [archer, barracks, ice]', () => {
+    const r = describeEnemyMatchups('titan');
+    expect(r.vulnerableTo.sort()).toEqual(['cannon', 'mage', 'sniper']);
+    expect(r.resists.sort()).toEqual(['archer', 'barracks', 'ice']);
+  });
+
+  it('unknown enemy → empty arrays', () => {
+    expect(describeEnemyMatchups('unknown')).toEqual({ vulnerableTo: [], resists: [] });
+  });
+
+  it('hero appears in phantom vulnerableTo (HERO_MULTIPLIERS phantom: 1.5)', () => {
+    expect(describeEnemyMatchups('phantom').vulnerableTo).toContain('hero');
+  });
+
+  it('hero is NOT in any other enemy\'s vulnerableTo today', () => {
+    for (const e of ['drone', 'skitter', 'brute', 'colossus', 'titan']) {
+      expect(describeEnemyMatchups(e).vulnerableTo).not.toContain('hero');
+    }
   });
 });
