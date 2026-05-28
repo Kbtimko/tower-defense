@@ -433,6 +433,7 @@ export default class GameScene extends Phaser.Scene {
           pierce: tower.pierce, slowFactor: tower.slow,
           color: PROJ_COLORS[tower.type] ?? 0xffffff,
           towerType: tower.type,
+          tier: tower.level, branch: tower.branch,
         }));
         tower.cooldown = 1 / tower.fireRate;
       }
@@ -465,15 +466,16 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _onProjectileHit(proj) {
+    const source = { kind: 'tower', type: proj.towerType, tier: proj.tier, branch: proj.branch };
     if (proj.splashRadius > 0) {
       for (const enemy of this.enemies) {
         if (Math.hypot(enemy.x - proj.targetX, enemy.y - proj.targetY) <= proj.splashRadius) {
-          this._dealDamage(enemy, proj.damage, proj.pierce);
+          this._dealDamage(enemy, proj.damage, proj.pierce, { source, isAoe: true });
         }
       }
       this._addParticle(proj.targetX, proj.targetY, 0xff8800, 14);
     } else if (proj.target && !proj.target.dead) {
-      this._dealDamage(proj.target, proj.damage, proj.pierce);
+      this._dealDamage(proj.target, proj.damage, proj.pierce, { source });
       if (proj.slowFactor > 0) proj.target.applyStatus({ type: 'slow', duration: 2, factor: proj.slowFactor });
       this._addParticle(proj.targetX, proj.targetY, proj.color, 7);
     }
