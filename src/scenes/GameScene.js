@@ -20,7 +20,7 @@ import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
 import { STORY_PANELS }    from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
 import { soldierSource, heroAirstrikeSource } from '../data/sourceBuilders.js';
-import { describeMatchups } from '../data/weaknessMatrix.js';
+import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
@@ -701,6 +701,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _renderBranchPicker(container, def, map) {
+    const towerType = Object.keys(TOWER_DEFS).find(k => TOWER_DEFS[k] === def);
     const tierLocked = map.maxTierAllowed < 4;
 
     const header = document.createElement('div');
@@ -723,6 +724,16 @@ export default class GameScene extends Phaser.Scene {
       effect.className   = 'branch-effect';
       effect.textContent = tierDef.passiveEffect;
 
+      card.append(label, effect);
+
+      const headline = headlineOverride(towerType, branch);
+      if (headline) {
+        const matchup = document.createElement('div');
+        matchup.className = 'branch-matchup';
+        matchup.textContent = `⚡ ${headline.value}× vs ${headline.name}`;
+        card.appendChild(matchup);
+      }
+
       const cost = document.createElement('div');
       cost.className   = 'branch-cost';
       cost.textContent = tierDef.cost + 'g';
@@ -737,7 +748,7 @@ export default class GameScene extends Phaser.Scene {
       btn.addEventListener('click', () =>
         this._upgradeSelectedTower(branch));
 
-      card.append(label, effect, cost, btn);
+      card.append(cost, btn);
       cards.appendChild(card);
     }
     container.appendChild(cards);
@@ -947,4 +958,17 @@ export default class GameScene extends Phaser.Scene {
   _redrawZones() {
     // Placeholder — redrawn every frame in update()
   }
+}
+
+function headlineOverride(towerType, branch) {
+  const cells = TIER4_OVERRIDES[towerType]?.[branch];
+  if (!cells || Object.keys(cells).length === 0) return null;
+  let bestEnemy = null;
+  let bestVal = -Infinity;
+  for (const enemy of Object.keys(cells).sort()) { // alphabetical tiebreak
+    const v = cells[enemy];
+    if (v > bestVal) { bestVal = v; bestEnemy = enemy; }
+  }
+  const niceName = (ENEMY_DEFS[bestEnemy]?.name ?? bestEnemy).replace(/^Veth\s+/, '');
+  return { enemy: bestEnemy, value: bestVal, name: niceName };
 }

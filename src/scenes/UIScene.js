@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { TOWER_DEFS } from '../data/towers.js';
 import { MAPS } from '../data/maps.js';
-import { describeMatchups } from '../data/weaknessMatrix.js';
+import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
 
 export default class UIScene extends Phaser.Scene {
@@ -271,6 +271,7 @@ export default class UIScene extends Phaser.Scene {
   }
 
   _renderBranchPicker(container, def, map) {
+    const towerType = Object.keys(TOWER_DEFS).find(k => TOWER_DEFS[k] === def);
     const tierLocked = map.maxTierAllowed < 4;
     for (const [branch, tierDef] of [['A', def.tier4A], ['B', def.tier4B]]) {
       const card = document.createElement('div');
@@ -283,6 +284,16 @@ export default class UIScene extends Phaser.Scene {
       const effect = document.createElement('div');
       effect.className   = 'branch-effect';
       effect.textContent = tierDef.passiveEffect;
+
+      card.append(label, effect);
+
+      const headline = headlineOverride(towerType, branch);
+      if (headline) {
+        const matchup = document.createElement('div');
+        matchup.className = 'branch-matchup';
+        matchup.textContent = `⚡ ${headline.value}× vs ${headline.name}`;
+        card.appendChild(matchup);
+      }
 
       const cost = document.createElement('div');
       cost.className   = 'branch-cost';
@@ -298,7 +309,7 @@ export default class UIScene extends Phaser.Scene {
       btn.addEventListener('click', () =>
         this.game.events.emit('ui:tower-upgrade', { branch }));
 
-      card.append(label, effect, cost, btn);
+      card.append(cost, btn);
       container.appendChild(card);
     }
   }
@@ -377,4 +388,17 @@ export default class UIScene extends Phaser.Scene {
       if (cdEl) cdEl.textContent = '';
     }
   }
+}
+
+function headlineOverride(towerType, branch) {
+  const cells = TIER4_OVERRIDES[towerType]?.[branch];
+  if (!cells || Object.keys(cells).length === 0) return null;
+  let bestEnemy = null;
+  let bestVal = -Infinity;
+  for (const enemy of Object.keys(cells).sort()) { // alphabetical tiebreak
+    const v = cells[enemy];
+    if (v > bestVal) { bestVal = v; bestEnemy = enemy; }
+  }
+  const niceName = (ENEMY_DEFS[bestEnemy]?.name ?? bestEnemy).replace(/^Veth\s+/, '');
+  return { enemy: bestEnemy, value: bestVal, name: niceName };
 }
