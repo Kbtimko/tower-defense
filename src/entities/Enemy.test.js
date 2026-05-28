@@ -52,3 +52,79 @@ describe('Enemy stun', () => {
     expect(e.statusEffects.stun.active).toBe(false);
   });
 });
+
+describe('Enemy.takeDamage — weakness matrix integration', () => {
+  const makeDefWith = (overrides) => ({
+    hp: 100, speed: 80, armor: 0, reward: 10,
+    radius: 10, color: 0x00ff00, type: 'drone', flying: false,
+    ...overrides,
+  });
+
+  // Richer scene that satisfies takeDamage's audio/event hooks.
+  const makeRichScene = () => {
+    const emitted = [];
+    return {
+      add: { graphics: makeGraphics, existing() {} },
+      events: { emit(event, data) { emitted.push({ event, data }); }, _emitted: emitted },
+      game: { registry: { get: () => null } }, // no audio manager
+    };
+  };
+
+  it('no source → backcompat (armor only)', () => {
+    const scene = makeRichScene();
+    const e = new Enemy(scene, { def: makeDefWith({ type: 'brute', hp: 200, armor: 8 }), startX: 0, startY: 0 });
+    e.takeDamage(45);
+    expect(e.hp).toBe(200 - 37); // max(1, 45-8) = 37
+  });
+
+  it('source applied post-armor (cannon vs brute, 1.5x)', () => {
+    const scene = makeRichScene();
+    const e = new Enemy(scene, { def: makeDefWith({ type: 'brute', hp: 200, armor: 8 }), startX: 0, startY: 0 });
+    e.takeDamage(45, { source: { kind: 'tower', type: 'cannon', tier: 1, branch: null } });
+    expect(e.hp).toBe(200 - 55); // floor((45-8) * 1.5) = 55
+  });
+
+  it('pierce + multiplier (sniper-Assassin vs titan, 2.5x)', () => {
+    const scene = makeRichScene();
+    const e = new Enemy(scene, { def: makeDefWith({ type: 'titan', hp: 5000, armor: 20 }), startX: 0, startY: 0 });
+    e.takeDamage(300, { pierce: true, source: { kind: 'tower', type: 'sniper', tier: 4, branch: 'A' } });
+    expect(e.hp).toBe(5000 - 750); // floor((300-0) * 2.5) = 750
+  });
+
+  it('floor at 1 (ice vs titan, 0.75x, armor 20)', () => {
+    const scene = makeRichScene();
+    const e = new Enemy(scene, { def: makeDefWith({ type: 'titan', hp: 100, armor: 20 }), startX: 0, startY: 0 });
+    e.takeDamage(8, { source: { kind: 'tower', type: 'ice', tier: 1, branch: null } });
+    expect(e.hp).toBe(99); // max(1, 8-20)=1, floor(1*0.75)=0, max(1,0)=1
+  });
+
+  it('cannon vs phantom (0.5x, no armor)', () => {
+    const scene = makeRichScene();
+    const e = new Enemy(scene, { def: makeDefWith({ type: 'phantom', hp: 60, armor: 0, flying: true }), startX: 0, startY: 0 });
+    e.takeDamage(45, { source: { kind: 'tower', type: 'cannon', tier: 1, branch: null } });
+    expect(e.hp).toBe(60 - 22); // floor((45-0) * 0.5) = 22
+  });
+
+  it('hero vs phantom (1.5x)', () => {
+    const scene = makeRichScene();
+    const e = new Enemy(scene, { def: makeDefWith({ type: 'phantom', hp: 60, armor: 0, flying: true }), startX: 0, startY: 0 });
+    e.takeDamage(25, { source: { kind: 'hero' } });
+    expect(e.hp).toBe(60 - 37); // floor((25-0) * 1.5) = 37
+  });
+
+  it('damage-dealt event reports post-multiplier amount', () => {
+    const scene = makeRichScene();
+    const e = new Enemy(scene, { def: makeDefWith({ type: 'brute', hp: 200, armor: 8 }), startX: 0, startY: 0 });
+    e.takeDamage(45, { source: { kind: 'tower', type: 'cannon', tier: 1, branch: null } });
+    const evt = scene.events._emitted.find(x => x.event === 'damage-dealt');
+    expect(evt).toBeDefined();
+    expect(evt.data.amount).toBe(55);
+  });
+
+  it('bare-boolean pierce still works (backcompat path)', () => {
+    const scene = makeRichScene();
+    const e = new Enemy(scene, { def: makeDefWith({ type: 'brute', hp: 200, armor: 8 }), startX: 0, startY: 0 });
+    e.takeDamage(45, true); // bare boolean
+    expect(e.hp).toBe(200 - 45); // pierce → armor 0 → max(1, 45-0)=45, no source → mult 1.0
+  });
+});
