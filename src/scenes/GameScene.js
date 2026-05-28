@@ -19,7 +19,7 @@ import { ShakeController }    from '../systems/ShakeController.js';
 import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
 import { STORY_PANELS }    from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
-import { soldierSource }   from '../data/sourceBuilders.js';
+import { soldierSource, heroAirstrikeSource } from '../data/sourceBuilders.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const ENEMY_MELEE_DAMAGE = 20;
@@ -374,7 +374,7 @@ export default class GameScene extends Phaser.Scene {
 
     for (const e of this.enemies) {
       if (Math.hypot(e.x - x, e.y - y) <= result.radius) {
-        this._dealDamage(e, result.damage, true, { isAoe: true, abilityLabel: 'AIRSTRIKE' });
+        this._dealDamage(e, result.damage, true, { isAoe: true, abilityLabel: 'AIRSTRIKE', source: heroAirstrikeSource() });
       }
     }
     // Particle burst at impact point (kept as in-game additional flair)
