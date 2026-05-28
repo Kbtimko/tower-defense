@@ -19,6 +19,7 @@ import { ShakeController }    from '../systems/ShakeController.js';
 import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
 import { STORY_PANELS }    from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
+import { soldierSource }   from '../data/sourceBuilders.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const ENEMY_MELEE_DAMAGE = 20;
@@ -247,7 +248,7 @@ export default class GameScene extends Phaser.Scene {
       if (blocker) {
         blocker.takeDamage(ENEMY_MELEE_DAMAGE * dt);
         if (blocker.attackTimer <= 0) {
-          this._dealDamage(enemy, blocker.damage, false);
+          this._dealDamage(enemy, blocker.damage, false, { source: soldierSource(blocker) });
           blocker.attackTimer = 1 / blocker.attackRate;
         }
         if (enemy.dead) continue;
