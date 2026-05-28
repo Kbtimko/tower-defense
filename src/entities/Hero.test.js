@@ -33,13 +33,18 @@ const makeScene = () => {
   };
 };
 
-const makeEnemy = (x, y, hp = 50) => ({
-  x, y, hp, dead: false,
-  takeDamage(amount) {
-    this.hp = Math.max(0, this.hp - amount);
-    if (this.hp <= 0) { this.hp = 0; this.dead = true; }
-  },
-});
+const makeEnemy = (x, y, hp = 50) => {
+  const calls = [];
+  return {
+    x, y, hp, dead: false,
+    _calls: calls,
+    takeDamage(amount, opts) {
+      calls.push({ amount, opts });
+      this.hp = Math.max(0, this.hp - amount);
+      if (this.hp <= 0) { this.hp = 0; this.dead = true; }
+    },
+  };
+};
 
 describe('Hero — movement', () => {
   it('initializes at given position', () => {
@@ -216,5 +221,24 @@ describe('Hero — abilities', () => {
     expect(hero.overcharge()).toBe(false);
     expect(hero.airstrike(0, 0)).toBeNull();
     expect(hero.empPulse()).toBe(false);
+  });
+});
+
+describe('Hero — auto-attack source', () => {
+  it('passes {source: {kind: "hero"}} to enemy.takeDamage', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    const enemy = makeEnemy(10, 10); // well within ATTACK_RANGE
+    hero._attackTimer = 0; // force the attack to fire this tick
+    hero.update(0.016, [enemy]);
+    expect(enemy._calls.length).toBe(1);
+    expect(enemy._calls[0].opts).toEqual({ source: { kind: 'hero' } });
+  });
+
+  it('does not call takeDamage when no enemies are in range', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    const enemy = makeEnemy(10000, 10000); // far away
+    hero._attackTimer = 0;
+    hero.update(0.016, [enemy]);
+    expect(enemy._calls.length).toBe(0);
   });
 });

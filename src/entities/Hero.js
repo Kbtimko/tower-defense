@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { heroSource } from '../data/sourceBuilders.js';
 
 const MOVE_SPEED     = 130;
 const MOVE_STOP_DIST = 8;
@@ -164,7 +165,7 @@ export class Hero extends Phaser.GameObjects.Container {
         if (d <= ATTACK_RANGE && d < nearestDist) { nearest = e; nearestDist = d; }
       }
       if (nearest) {
-        nearest.takeDamage(ATTACK_DAMAGE);
+        nearest.takeDamage(ATTACK_DAMAGE, { source: heroSource() });
         if (nearest.dead) this._registerKill();
         const am = this.scene.game?.registry?.get('audio');
         if (am) am.playSfx('hero-attack');
