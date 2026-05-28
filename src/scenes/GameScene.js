@@ -20,6 +20,8 @@ import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
 import { STORY_PANELS }    from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
 import { soldierSource, heroAirstrikeSource } from '../data/sourceBuilders.js';
+import { describeMatchups } from '../data/weaknessMatrix.js';
+import { ENEMY_DEFS } from '../data/enemies.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const ENEMY_MELEE_DAMAGE = 20;
@@ -617,6 +619,25 @@ export default class GameScene extends Phaser.Scene {
       document.getElementById('panel-dmg').textContent = 'Damage: '    + tower.damage;
       document.getElementById('panel-rng').textContent = 'Range: '     + tower.range;
       document.getElementById('panel-spd').textContent = 'Fire rate: ' + (tower.fireRate * 100).toFixed(0) + '%';
+    }
+
+    // Phase 9b: Matchup line — uses safe DOM construction (no innerHTML)
+    const matchupsEl = document.getElementById('panel-matchups');
+    matchupsEl.replaceChildren();
+    const m = describeMatchups({ kind: 'tower', type: tower.type, tier: tower.level, branch: tower.branch });
+    const renderEnemyNames = (types) =>
+      types.map(t => (ENEMY_DEFS[t]?.name ?? t).replace(/^Veth\s+/, '')).join(', ');
+    if (m.effective.length) {
+      const line = document.createElement('span');
+      line.className = 'mu-good';
+      line.textContent = `Effective vs: ${renderEnemyNames(m.effective)}`;
+      matchupsEl.appendChild(line);
+    }
+    if (m.weak.length) {
+      const line = document.createElement('span');
+      line.className = 'mu-bad';
+      line.textContent = `Weak vs: ${renderEnemyNames(m.weak)}`;
+      matchupsEl.appendChild(line);
     }
 
     const upgradeBtn = document.getElementById('panel-upgrade-btn');
