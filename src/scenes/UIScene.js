@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { TOWER_DEFS } from '../data/towers.js';
 import { MAPS } from '../data/maps.js';
+import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
+import { ENEMY_DEFS } from '../data/enemies.js';
 
 export default class UIScene extends Phaser.Scene {
   constructor() { super('UIScene'); }
@@ -75,6 +77,45 @@ export default class UIScene extends Phaser.Scene {
           btn.classList.add('selected');
           this.game.events.emit('ui:tower-type-select', { type });
         }
+      });
+
+      btn.addEventListener('mouseenter', () => {
+        const type = btn.dataset.type;
+        const def  = TOWER_DEFS[type];
+        if (!def) return;
+        const m = describeMatchups({ kind: 'tower', type, tier: 1, branch: null });
+        const renderEnemyNames = (types) =>
+          types.map(t => (ENEMY_DEFS[t]?.name ?? t).replace(/^Veth\s+/, '')).join(', ');
+        const tt = document.getElementById('tower-tooltip');
+        tt.replaceChildren();
+        const header = document.createElement('strong');
+        header.textContent = `${def.icon} ${def.name} — ${def.cost}g`;
+        tt.appendChild(header);
+        if (m.effective.length) {
+          const line = document.createElement('span');
+          line.className = 'tt-line-good';
+          line.textContent = `Effective vs: ${renderEnemyNames(m.effective)}`;
+          tt.appendChild(line);
+        }
+        if (m.weak.length) {
+          const line = document.createElement('span');
+          line.className = 'tt-line-bad';
+          line.textContent = `Weak vs: ${renderEnemyNames(m.weak)}`;
+          tt.appendChild(line);
+        }
+        const rect = btn.getBoundingClientRect();
+        tt.style.left = `${rect.left}px`;
+        tt.style.top  = `${rect.top - tt.offsetHeight - 6}px`;
+        tt.style.display = 'block';
+        // After display:block, offsetHeight is now real; reposition once.
+        requestAnimationFrame(() => {
+          tt.style.top = `${rect.top - tt.offsetHeight - 6}px`;
+        });
+      });
+
+      btn.addEventListener('mouseleave', () => {
+        const tt = document.getElementById('tower-tooltip');
+        tt.style.display = 'none';
       });
     });
 
@@ -230,6 +271,7 @@ export default class UIScene extends Phaser.Scene {
   }
 
   _renderBranchPicker(container, def, map) {
+    const towerType = Object.keys(TOWER_DEFS).find(k => TOWER_DEFS[k] === def);
     const tierLocked = map.maxTierAllowed < 4;
     for (const [branch, tierDef] of [['A', def.tier4A], ['B', def.tier4B]]) {
       const card = document.createElement('div');
@@ -242,6 +284,16 @@ export default class UIScene extends Phaser.Scene {
       const effect = document.createElement('div');
       effect.className   = 'branch-effect';
       effect.textContent = tierDef.passiveEffect;
+
+      card.append(label, effect);
+
+      const headline = headlineOverride(towerType, branch);
+      if (headline) {
+        const matchup = document.createElement('div');
+        matchup.className = 'branch-matchup';
+        matchup.textContent = `⚡ ${headline.value}× vs ${headline.name}`;
+        card.appendChild(matchup);
+      }
 
       const cost = document.createElement('div');
       cost.className   = 'branch-cost';
@@ -257,7 +309,7 @@ export default class UIScene extends Phaser.Scene {
       btn.addEventListener('click', () =>
         this.game.events.emit('ui:tower-upgrade', { branch }));
 
-      card.append(label, effect, cost, btn);
+      card.append(cost, btn);
       container.appendChild(card);
     }
   }
@@ -336,4 +388,17 @@ export default class UIScene extends Phaser.Scene {
       if (cdEl) cdEl.textContent = '';
     }
   }
+}
+
+function headlineOverride(towerType, branch) {
+  const cells = TIER4_OVERRIDES[towerType]?.[branch];
+  if (!cells || Object.keys(cells).length === 0) return null;
+  let bestEnemy = null;
+  let bestVal = -Infinity;
+  for (const enemy of Object.keys(cells).sort()) { // alphabetical tiebreak
+    const v = cells[enemy];
+    if (v > bestVal) { bestVal = v; bestEnemy = enemy; }
+  }
+  const niceName = (ENEMY_DEFS[bestEnemy]?.name ?? bestEnemy).replace(/^Veth\s+/, '');
+  return { enemy: bestEnemy, value: bestVal, name: niceName };
 }

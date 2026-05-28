@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { getWeaknessMultiplier } from '../data/weaknessMatrix.js';
 
 export class Enemy extends Phaser.GameObjects.Container {
   constructor(scene, { def, scaleFactor = 1, startX, startY }) {
@@ -52,7 +53,9 @@ export class Enemy extends Phaser.GameObjects.Container {
     // Back-compat: callers used to pass `pierce` as a bare boolean.
     const optsObj = (opts && typeof opts === 'object') ? opts : { pierce: Boolean(opts) };
     const armor = optsObj.pierce ? 0 : this.armor;
-    const dmg   = Math.max(1, amount - armor);
+    const afterArmor = Math.max(1, amount - armor);
+    const mult = getWeaknessMultiplier(optsObj.source, this.def.type);
+    const dmg = Math.max(1, Math.floor(afterArmor * mult));
     this.hp -= dmg;
     const justDied = this.hp <= 0 && !this.dead;
     if (this.hp <= 0) { this.hp = 0; this.dead = true; }

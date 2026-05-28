@@ -19,6 +19,9 @@ import { ShakeController }    from '../systems/ShakeController.js';
 import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
 import { STORY_PANELS }    from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
+import { soldierSource, heroAirstrikeSource } from '../data/sourceBuilders.js';
+import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
+import { ENEMY_DEFS } from '../data/enemies.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const ENEMY_MELEE_DAMAGE = 20;
@@ -256,7 +259,7 @@ export default class GameScene extends Phaser.Scene {
       if (blocker) {
         blocker.takeDamage(ENEMY_MELEE_DAMAGE * dt);
         if (blocker.attackTimer <= 0) {
-          this._dealDamage(enemy, blocker.damage, false);
+          this._dealDamage(enemy, blocker.damage, false, { source: soldierSource(blocker) });
           blocker.attackTimer = 1 / blocker.attackRate;
         }
         if (enemy.dead) continue;
@@ -383,7 +386,7 @@ export default class GameScene extends Phaser.Scene {
 
     for (const e of this.enemies) {
       if (Math.hypot(e.x - x, e.y - y) <= result.radius) {
-        this._dealDamage(e, result.damage, true, { isAoe: true, abilityLabel: 'AIRSTRIKE' });
+        this._dealDamage(e, result.damage, true, { isAoe: true, abilityLabel: 'AIRSTRIKE', source: heroAirstrikeSource() });
       }
     }
     // Particle burst at impact point (kept as in-game additional flair)
@@ -443,6 +446,7 @@ export default class GameScene extends Phaser.Scene {
           pierce: tower.pierce, slowFactor: tower.slow,
           color: PROJ_COLORS[tower.type] ?? 0xffffff,
           towerType: tower.type,
+          tier: tower.level, branch: tower.branch,
         }));
         tower.cooldown = 1 / tower.fireRate;
       }
@@ -475,15 +479,16 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _onProjectileHit(proj) {
+    const source = { kind: 'tower', type: proj.towerType, tier: proj.tier, branch: proj.branch };
     if (proj.splashRadius > 0) {
       for (const enemy of this.enemies) {
         if (Math.hypot(enemy.x - proj.targetX, enemy.y - proj.targetY) <= proj.splashRadius) {
-          this._dealDamage(enemy, proj.damage, proj.pierce);
+          this._dealDamage(enemy, proj.damage, proj.pierce, { source, isAoe: true });
         }
       }
       this._addParticle(proj.targetX, proj.targetY, 0xff8800, 14);
     } else if (proj.target && !proj.target.dead) {
-      this._dealDamage(proj.target, proj.damage, proj.pierce);
+      this._dealDamage(proj.target, proj.damage, proj.pierce, { source });
       if (proj.slowFactor > 0) proj.target.applyStatus({ type: 'slow', duration: 2, factor: proj.slowFactor });
       this._addParticle(proj.targetX, proj.targetY, proj.color, 7);
     }
@@ -626,6 +631,25 @@ export default class GameScene extends Phaser.Scene {
       document.getElementById('panel-spd').textContent = 'Fire rate: ' + (tower.fireRate * 100).toFixed(0) + '%';
     }
 
+    // Phase 9b: Matchup line — uses safe DOM construction (no innerHTML)
+    const matchupsEl = document.getElementById('panel-matchups');
+    matchupsEl.replaceChildren();
+    const m = describeMatchups({ kind: 'tower', type: tower.type, tier: tower.level, branch: tower.branch });
+    const renderEnemyNames = (types) =>
+      types.map(t => (ENEMY_DEFS[t]?.name ?? t).replace(/^Veth\s+/, '')).join(', ');
+    if (m.effective.length) {
+      const line = document.createElement('span');
+      line.className = 'mu-good';
+      line.textContent = `Effective vs: ${renderEnemyNames(m.effective)}`;
+      matchupsEl.appendChild(line);
+    }
+    if (m.weak.length) {
+      const line = document.createElement('span');
+      line.className = 'mu-bad';
+      line.textContent = `Weak vs: ${renderEnemyNames(m.weak)}`;
+      matchupsEl.appendChild(line);
+    }
+
     const upgradeBtn = document.getElementById('panel-upgrade-btn');
     const picker     = document.getElementById('panel-branch-picker');
     picker.style.display = 'none';
@@ -687,6 +711,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _renderBranchPicker(container, def, map) {
+    const towerType = Object.keys(TOWER_DEFS).find(k => TOWER_DEFS[k] === def);
     const tierLocked = map.maxTierAllowed < 4;
 
     const header = document.createElement('div');
@@ -709,6 +734,16 @@ export default class GameScene extends Phaser.Scene {
       effect.className   = 'branch-effect';
       effect.textContent = tierDef.passiveEffect;
 
+      card.append(label, effect);
+
+      const headline = headlineOverride(towerType, branch);
+      if (headline) {
+        const matchup = document.createElement('div');
+        matchup.className = 'branch-matchup';
+        matchup.textContent = `⚡ ${headline.value}× vs ${headline.name}`;
+        card.appendChild(matchup);
+      }
+
       const cost = document.createElement('div');
       cost.className   = 'branch-cost';
       cost.textContent = tierDef.cost + 'g';
@@ -723,7 +758,7 @@ export default class GameScene extends Phaser.Scene {
       btn.addEventListener('click', () =>
         this._upgradeSelectedTower(branch));
 
-      card.append(label, effect, cost, btn);
+      card.append(cost, btn);
       cards.appendChild(card);
     }
     container.appendChild(cards);
@@ -952,4 +987,17 @@ export default class GameScene extends Phaser.Scene {
   _redrawZones() {
     // Placeholder — redrawn every frame in update()
   }
+}
+
+function headlineOverride(towerType, branch) {
+  const cells = TIER4_OVERRIDES[towerType]?.[branch];
+  if (!cells || Object.keys(cells).length === 0) return null;
+  let bestEnemy = null;
+  let bestVal = -Infinity;
+  for (const enemy of Object.keys(cells).sort()) { // alphabetical tiebreak
+    const v = cells[enemy];
+    if (v > bestVal) { bestVal = v; bestEnemy = enemy; }
+  }
+  const niceName = (ENEMY_DEFS[bestEnemy]?.name ?? bestEnemy).replace(/^Veth\s+/, '');
+  return { enemy: bestEnemy, value: bestVal, name: niceName };
 }
