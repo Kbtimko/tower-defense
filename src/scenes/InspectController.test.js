@@ -1,4 +1,15 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+vi.mock('../entities/Hero.js', () => ({
+  HERO_STATS: {
+    attackDamage: 18,
+    attackRange:  40,
+    attackRate:   1.5,
+    maxLevel:     3,
+    abilityUnlockLevels: { q: 1, w: 2, e: 3 },
+  },
+}));
+
 import { InspectController } from './InspectController.js';
 
 // Build the inspector DOM scaffolding (createElement/appendChild — no innerHTML).
@@ -236,5 +247,221 @@ describe('InspectController — tryClickInspect', () => {
     const ctrl = new InspectController(makeScene([enemy], hero));
     ctrl.tryClickInspect(50, 50);
     expect(ctrl.pinned.kind).toBe('enemy');
+  });
+});
+
+describe('InspectController — enemy panel rendering', () => {
+  beforeEach(setupDom);
+
+  it('pin renders icon + name in header', () => {
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'enemy', target: makeEnemy() });
+    expect(document.getElementById('ei-name').textContent).toContain('🦏');
+    expect(document.getElementById('ei-name').textContent).toContain('Veth Brute');
+  });
+
+  it('pin renders HP bar label', () => {
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'enemy', target: makeEnemy() });
+    expect(document.getElementById('ei-hp-label').textContent).toBe('80 / 120');
+  });
+
+  it('pin renders speed and armor', () => {
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'enemy', target: makeEnemy() });
+    expect(document.getElementById('ei-stats').textContent).toContain('Speed: 38');
+    expect(document.getElementById('ei-stats').textContent).toContain('Armor: 8');
+  });
+
+  it('pin renders reward + Ground/Flying meta', () => {
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'enemy', target: makeEnemy() });
+    expect(document.getElementById('ei-meta').textContent).toContain('22g');
+    expect(document.getElementById('ei-meta').textContent).toContain('Ground');
+  });
+
+  it('flying enemy meta shows Flying', () => {
+    const phantom = makeEnemy({ def: { type: 'phantom', name: 'Veth Phantom', icon: '👻',
+                                       hp: 60, speed: 140, armor: 0, reward: 12,
+                                       flying: true, radius: 9 } });
+    phantom.maxHp = 60; phantom.hp = 60;
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'enemy', target: phantom });
+    expect(document.getElementById('ei-meta').textContent).toContain('Flying');
+  });
+
+  it('status with no active effects renders em-dash', () => {
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'enemy', target: makeEnemy() });
+    expect(document.getElementById('ei-status').textContent).toContain('—');
+  });
+
+  it('status with active slow renders slow + remaining seconds', () => {
+    const enemy = makeEnemy();
+    enemy.statusEffects.slow = { active: true, timer: 1.4, factor: 0.5 };
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'enemy', target: enemy });
+    expect(document.getElementById('ei-status').textContent.toLowerCase()).toContain('slow');
+  });
+
+  it('status with active stun renders stun', () => {
+    const enemy = makeEnemy();
+    enemy.statusEffects.stun = { active: true, timer: 2 };
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'enemy', target: enemy });
+    expect(document.getElementById('ei-status').textContent.toLowerCase()).toContain('stun');
+  });
+
+  it('matchups: brute → Vulnerable to includes Cannon and Sniper', () => {
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'enemy', target: makeEnemy() });
+    const text = document.getElementById('ei-matchups').textContent;
+    expect(text).toContain('Vulnerable to');
+    expect(text).toContain('Cannon');
+    expect(text).toContain('Sniper');
+    expect(text).toContain('Resists');
+    expect(text).toContain('Archer');
+  });
+
+  it('matchups render for drone (Mage vulnerable, Cannon resists)', () => {
+    const drone = makeEnemy({ def: { type: 'drone', name: 'Veth Drone', icon: '🤖',
+                                     hp: 70, speed: 50, armor: 0, reward: 14,
+                                     flying: false, radius: 9 } });
+    drone.maxHp = 70; drone.hp = 70;
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'enemy', target: drone });
+    const text = document.getElementById('ei-matchups').textContent;
+    expect(text).toContain('Vulnerable to');
+    expect(text).toContain('Mage');
+    expect(text).toContain('Resists');
+    expect(text).toContain('Cannon');
+  });
+});
+
+describe('InspectController — hero panel rendering', () => {
+  beforeEach(setupDom);
+
+  it('pin renders HP label', () => {
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'hero', target: makeHero() });
+    expect(document.getElementById('hi-hp-label').textContent).toBe('150 / 200');
+  });
+
+  it('pin renders level and kills', () => {
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'hero', target: makeHero() });
+    expect(document.getElementById('hi-level').textContent).toContain('Level: 2');
+    expect(document.getElementById('hi-level').textContent).toContain('Kills: 47');
+  });
+
+  it('pin renders attack stats from HERO_STATS', () => {
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'hero', target: makeHero() });
+    const text = document.getElementById('hi-attack').textContent;
+    expect(text).toContain('18');
+    expect(text).toContain('40');
+  });
+
+  it('Q ability (overcharge) shows "ready" when timer is 0', () => {
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'hero', target: makeHero() });
+    const text = document.getElementById('hi-abilities').textContent;
+    expect(text).toContain('Overcharge');
+    expect(text.toLowerCase()).toContain('ready');
+  });
+
+  it('W ability (airstrike) shows cooldown when timer > 0', () => {
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'hero', target: makeHero() });
+    expect(document.getElementById('hi-abilities').textContent).toContain('12');
+  });
+
+  it('E ability locked at hero level 2', () => {
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'hero', target: makeHero() });
+    const text = document.getElementById('hi-abilities').textContent;
+    expect(text).toContain('🔒');
+  });
+
+  it('W ability locked at hero level 1', () => {
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'hero', target: makeHero({ level: 1 }) });
+    const lockedCount = (document.getElementById('hi-abilities').textContent.match(/🔒/g) || []).length;
+    expect(lockedCount).toBe(2);
+  });
+
+  it('matchups shows Phantom 1.5×', () => {
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'hero', target: makeHero() });
+    const text = document.getElementById('hi-matchups').textContent;
+    expect(text).toContain('Phantom');
+    expect(text).toContain('1.5');
+  });
+
+  it('dead hero shows respawn timer in place of abilities', () => {
+    const hero = makeHero({ dead: true, respawnTimer: 4.2 });
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'hero', target: hero });
+    expect(document.getElementById('hi-abilities').textContent.toLowerCase()).toContain('respawn');
+    expect(document.getElementById('hi-abilities').textContent).toContain('5');
+  });
+});
+
+describe('InspectController — refresh', () => {
+  beforeEach(setupDom);
+
+  it('refresh no-ops when nothing is pinned', () => {
+    const ctrl = new InspectController(makeScene());
+    expect(() => ctrl.refresh()).not.toThrow();
+  });
+
+  it('refresh updates HP label as enemy takes damage', () => {
+    const enemy = makeEnemy();
+    const scene = makeScene([enemy]);
+    const ctrl = new InspectController(scene);
+    ctrl.pin({ kind: 'enemy', target: enemy });
+    enemy.hp = 50;
+    ctrl.refresh();
+    expect(document.getElementById('ei-hp-label').textContent).toBe('50 / 120');
+  });
+
+  it('refresh dismisses when inspected enemy is marked dead', () => {
+    const enemy = makeEnemy();
+    const scene = makeScene([enemy]);
+    const ctrl = new InspectController(scene);
+    ctrl.pin({ kind: 'enemy', target: enemy });
+    enemy.dead = true;
+    ctrl.refresh();
+    expect(ctrl.pinned).toBeNull();
+    expect(document.getElementById('enemy-inspector').style.display).toBe('none');
+  });
+
+  it('refresh dismisses when inspected enemy is removed from scene.enemies', () => {
+    const enemy = makeEnemy();
+    const scene = makeScene([enemy]);
+    const ctrl = new InspectController(scene);
+    ctrl.pin({ kind: 'enemy', target: enemy });
+    scene.enemies = [];
+    ctrl.refresh();
+    expect(ctrl.pinned).toBeNull();
+  });
+
+  it('refresh updates hero ability cooldown as it ticks down', () => {
+    const hero = makeHero({ airstrikeTimer: 12 });
+    const scene = makeScene([], hero);
+    const ctrl = new InspectController(scene);
+    ctrl.pin({ kind: 'hero', target: hero });
+    hero.airstrikeTimer = 5;
+    ctrl.refresh();
+    expect(document.getElementById('hi-abilities').textContent).toContain('5');
+  });
+
+  it('refresh does NOT dismiss hero when hero is dead (hero panel persists during respawn)', () => {
+    const hero = makeHero({ dead: true, respawnTimer: 3 });
+    const scene = makeScene([], hero);
+    const ctrl = new InspectController(scene);
+    ctrl.pin({ kind: 'hero', target: hero });
+    ctrl.refresh();
+    expect(ctrl.pinned).not.toBeNull();
   });
 });
