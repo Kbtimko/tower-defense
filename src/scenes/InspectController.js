@@ -27,9 +27,11 @@ export class InspectController {
     return false;
   }
 
-  // Hover handler — STUB; populated in Task 7.
-  onPointerMove(_mx, _my) {
-    // Task 7 will implement peek display.
+  onPointerMove(mx, my) {
+    const enemy = this._hitTestEnemy(mx, my);
+    if (enemy) { this._showPeek('enemy', enemy, mx, my); return; }
+    if (this._hitTestHero(mx, my)) { this._showPeek('hero', this.scene.hero, mx, my); return; }
+    this._hidePeek();
   }
 
   refresh() {
@@ -52,9 +54,11 @@ export class InspectController {
       return;
     }
     this.pinned = spec;
+    this._hidePeek();
     this._showPanel(spec.kind);
     if (spec.kind === 'enemy') this._renderEnemyPanel(spec.target);
     else                       this._renderHeroPanel(spec.target);
+    this._positionPanelForTarget(spec);
   }
 
   dismiss() {
@@ -200,5 +204,69 @@ export class InspectController {
       line.textContent = `${mult}× vs ${enemyName}`;
       el.appendChild(line);
     }
+  }
+
+  _showPeek(kind, target, mx, my) {
+    this.peekTarget = target;
+    const peek = document.getElementById('inspect-peek');
+    peek.replaceChildren();
+    const header = document.createElement('strong');
+    if (kind === 'enemy') {
+      header.textContent = target.def.name;
+      peek.appendChild(header);
+
+      const stat = document.createElement('div');
+      stat.textContent = `HP ${Math.ceil(target.hp)} / ${target.maxHp} · Armor ${target.def.armor}`;
+      peek.appendChild(stat);
+
+      const { vulnerableTo, resists } = describeEnemyMatchups(target.def.type);
+      const displayName = (t) => t === 'hero' ? 'Hero' : (TOWER_DEFS[t]?.name ?? t);
+      if (vulnerableTo.length) {
+        const v = document.createElement('div');
+        v.textContent = `Weak: ${displayName(vulnerableTo[0])}`;
+        peek.appendChild(v);
+      }
+      if (resists.length) {
+        const r = document.createElement('div');
+        r.textContent = `Resist: ${displayName(resists[0])}`;
+        peek.appendChild(r);
+      }
+    } else {
+      header.textContent = '🛡️ Commander Rael';
+      peek.appendChild(header);
+      const stat = document.createElement('div');
+      stat.textContent = `HP ${Math.ceil(target.hp)} / ${target.maxHp} · Level ${target.level}`;
+      peek.appendChild(stat);
+    }
+    this._positionPanel(peek, mx, my);
+    peek.style.display = 'block';
+  }
+
+  _hidePeek() {
+    this.peekTarget = null;
+    document.getElementById('inspect-peek').style.display = 'none';
+  }
+
+  _positionPanel(el, targetX, targetY) {
+    let left = targetX + 24;
+    let top  = Math.max(0, targetY - 60);
+
+    const vw = (typeof window !== 'undefined' && window.innerWidth)  ? window.innerWidth  : 1024;
+    const vh = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 768;
+    const w = el.offsetWidth  || 220;
+    const h = el.offsetHeight || 100;
+
+    if (left + w > vw) left = Math.max(0, targetX - w - 24);
+    if (top + h > vh)  top  = Math.max(0, vh - h - 8);
+
+    el.style.left = `${left}px`;
+    el.style.top  = `${top}px`;
+  }
+
+  _positionPanelForTarget(spec) {
+    const el = spec.kind === 'enemy'
+      ? document.getElementById('enemy-inspector')
+      : document.getElementById('hero-inspector');
+    this._positionPanel(el, spec.target.x, spec.target.y);
   }
 }

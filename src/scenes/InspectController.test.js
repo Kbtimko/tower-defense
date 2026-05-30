@@ -407,6 +407,85 @@ describe('InspectController — hero panel rendering', () => {
   });
 });
 
+describe('InspectController — peek tooltip', () => {
+  beforeEach(setupDom);
+
+  it('onPointerMove over empty space hides peek', () => {
+    const ctrl = new InspectController(makeScene());
+    ctrl.onPointerMove(500, 500);
+    expect(document.getElementById('inspect-peek').style.display).toBe('none');
+  });
+
+  it('onPointerMove over enemy shows peek with name + HP', () => {
+    const enemy = makeEnemy();
+    const ctrl = new InspectController(makeScene([enemy]));
+    ctrl.onPointerMove(100, 100);
+    const peek = document.getElementById('inspect-peek');
+    expect(peek.style.display).toBe('block');
+    expect(peek.textContent).toContain('Veth Brute');
+    expect(peek.textContent).toContain('80');
+    expect(peek.textContent).toContain('120');
+  });
+
+  it('peek hides when mouse moves off enemy', () => {
+    const enemy = makeEnemy();
+    const ctrl = new InspectController(makeScene([enemy]));
+    ctrl.onPointerMove(100, 100);
+    ctrl.onPointerMove(500, 500);
+    expect(document.getElementById('inspect-peek').style.display).toBe('none');
+  });
+
+  it('peek over hero shows hero info', () => {
+    const hero = makeHero();
+    const ctrl = new InspectController(makeScene([], hero));
+    ctrl.onPointerMove(50, 50);
+    const peek = document.getElementById('inspect-peek');
+    expect(peek.style.display).toBe('block');
+    expect(peek.textContent).toContain('Commander Rael');
+  });
+
+  it('peek shows shortened matchup hint for brute (Cannon weakness, Archer resist)', () => {
+    const enemy = makeEnemy();
+    const ctrl = new InspectController(makeScene([enemy]));
+    ctrl.onPointerMove(100, 100);
+    const text = document.getElementById('inspect-peek').textContent;
+    // brute vulnerableTo iteration order: cannon first; resists: [archer]
+    expect(text).toContain('Cannon');  // first vulnerableTo in TOWER_TYPES order
+    expect(text).toContain('Archer');  // only entry in resists
+  });
+
+  it('pin hides any open peek', () => {
+    const enemy = makeEnemy();
+    const ctrl = new InspectController(makeScene([enemy]));
+    ctrl.onPointerMove(100, 100);
+    expect(document.getElementById('inspect-peek').style.display).toBe('block');
+    ctrl.pin({ kind: 'enemy', target: enemy });
+    expect(document.getElementById('inspect-peek').style.display).toBe('none');
+  });
+});
+
+describe('InspectController — panel positioning', () => {
+  beforeEach(setupDom);
+
+  it('_positionPanel sets left and top pixels relative to target', () => {
+    const ctrl = new InspectController(makeScene());
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    ctrl._positionPanel(el, 200, 300);
+    // Default anchor: target.x + 24, target.y - 60 (clipped to 0+)
+    expect(el.style.left).toBe('224px');
+    expect(parseInt(el.style.top, 10)).toBe(240);
+  });
+
+  it('pin positions enemy inspector near the target', () => {
+    const enemy = makeEnemy({ x: 200, y: 300 });
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'enemy', target: enemy });
+    const panel = document.getElementById('enemy-inspector');
+    expect(panel.style.left).toBe('224px');
+  });
+});
+
 describe('InspectController — refresh', () => {
   beforeEach(setupDom);
 
