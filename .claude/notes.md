@@ -23,6 +23,8 @@ Phase 7 (Meta & Persistence) merged (PR #7). In-level Exit + DOM-leak fixes merg
 5. Additional heroes with different skills (hero roster — selectable heroes, each with a distinct ability set)
 6. **Phase 8b (deferred from Phase 8):** per-tower SFX for 5 tier-4 branches (currently reuse base fire sound); per-enemy-type hit sounds (currently generic + detuned)
 7. Phase 9 (future): iOS Prep — Capacitor, touch controls, App Store pipeline
+8. Hero can only be placed on paths (restrict hero movement/placement to path waypoints)
+9. **Bug:** shooting effects being duplicated in locations without towers (investigate ghost projectiles or stale firing positions)
 
 ## Completed
 - ~~Phase 1: Core game loop (Phaser setup, path, basic enemies, HUD)~~ (2026-05-07)
