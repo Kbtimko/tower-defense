@@ -50,3 +50,19 @@ export function describeMatchups(source) {
   }
   return { effective, weak };
 }
+
+const TOWER_TYPES = ['archer', 'mage', 'cannon', 'ice', 'sniper', 'barracks'];
+
+export function describeEnemyMatchups(enemyType) {
+  const vulnerableTo = [];
+  const resists = [];
+  for (const towerType of TOWER_TYPES) {
+    const m = getWeaknessMultiplier({ kind: 'tower', type: towerType, tier: 1, branch: null }, enemyType);
+    if (m >= EFFECTIVE_THRESHOLD) vulnerableTo.push(towerType);
+    else if (m <= WEAK_THRESHOLD)  resists.push(towerType);
+  }
+  const heroMult = getWeaknessMultiplier({ kind: 'hero' }, enemyType);
+  if (heroMult >= EFFECTIVE_THRESHOLD) vulnerableTo.push('hero');
+  else if (heroMult <= WEAK_THRESHOLD)  resists.push('hero');
+  return { vulnerableTo, resists };
+}

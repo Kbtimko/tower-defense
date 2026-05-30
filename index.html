@@ -194,6 +194,32 @@
     .settings-row input[type=range] { flex:1; }
     .settings-row .settings-val { width:34px; text-align:right; color:#8ab; }
     .settings-mute { margin-top:12px; font-size:12px; color:#cfd8e8; }
+    .inspector-panel { position: absolute; background: #0f0f1e; border: 2px solid #8b6914;
+                       border-radius: 6px; padding: 8px 10px; font-size: 11px; color: #ddd;
+                       min-width: 200px; max-width: 260px; z-index: 40; }
+    .inspector-header { display: flex; justify-content: space-between; align-items: center;
+                        margin-bottom: 6px; }
+    .inspector-name { font-weight: bold; color: #ffd700; }
+    .inspector-close { background: none; border: none; color: #aaa; cursor: pointer;
+                       font-size: 14px; padding: 0 4px; }
+    .inspector-close:hover { color: #fff; }
+    .inspector-hpbar { background: #222; height: 8px; border-radius: 2px; overflow: hidden;
+                       margin-bottom: 2px; }
+    .inspector-hpfill { background: #6f6; height: 100%; transition: width 0.1s linear; }
+    .inspector-hp-label { font-size: 10px; color: #888; margin-bottom: 5px; }
+    .inspector-stat { font-size: 11px; color: #aaa; margin: 2px 0; }
+    .inspector-stat .ei-status-active { color: #6cf; }
+    .inspector-matchups { margin-top: 5px; font-size: 10px; line-height: 1.4; }
+    .inspector-matchups .mu-good { display: block; color: #6f6; }
+    .inspector-matchups .mu-bad  { display: block; color: #f88; }
+    .inspector-abilities .ab-line { display: flex; justify-content: space-between;
+                                    margin: 1px 0; }
+    .inspector-abilities .ab-line.locked { color: #555; }
+    #inspect-peek { position: absolute; display: none; z-index: 45; pointer-events: none;
+                    background: #0f0f1e; border: 1px solid #8b6914; border-radius: 4px;
+                    padding: 5px 7px; font-size: 10px; color: #ddd; white-space: nowrap;
+                    max-width: 220px; }
+    #inspect-peek strong { display: block; color: #ffd700; margin-bottom: 2px; }
   </style>
 </head>
 <body>
@@ -333,6 +359,33 @@
     <button id="wave-btn">▶ Send Wave 1</button>
   </div>
   <div id="tower-tooltip"></div>
+  <div id="enemy-inspector" class="inspector-panel" style="display:none">
+    <div class="inspector-header">
+      <span class="inspector-name" id="ei-name">Enemy</span>
+      <button class="inspector-close" id="ei-close">✕</button>
+    </div>
+    <div class="inspector-hpbar"><div class="inspector-hpfill" id="ei-hpfill"></div></div>
+    <div class="inspector-hp-label" id="ei-hp-label">- / -</div>
+    <div class="inspector-stat" id="ei-stats">Speed: - · Armor: -</div>
+    <div class="inspector-stat" id="ei-meta">Reward: - · Ground</div>
+    <div class="inspector-stat" id="ei-status">Status: —</div>
+    <div class="inspector-matchups" id="ei-matchups"></div>
+  </div>
+
+  <div id="hero-inspector" class="inspector-panel" style="display:none">
+    <div class="inspector-header">
+      <span class="inspector-name">🛡️ Commander Rael</span>
+      <button class="inspector-close" id="hi-close">✕</button>
+    </div>
+    <div class="inspector-hpbar"><div class="inspector-hpfill" id="hi-hpfill"></div></div>
+    <div class="inspector-hp-label" id="hi-hp-label">- / -</div>
+    <div class="inspector-stat" id="hi-level">Level: -</div>
+    <div class="inspector-stat" id="hi-attack">Attack: - dmg @ - range</div>
+    <div class="inspector-abilities" id="hi-abilities"></div>
+    <div class="inspector-matchups" id="hi-matchups"></div>
+  </div>
+
+  <div id="inspect-peek" style="display:none"></div>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

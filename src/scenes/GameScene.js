@@ -22,6 +22,7 @@ import { starsDisplay }    from '../utils/display.js';
 import { soldierSource, heroAirstrikeSource } from '../data/sourceBuilders.js';
 import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
+import { InspectController } from './InspectController.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const ENEMY_MELEE_DAMAGE = 20;
@@ -104,6 +105,9 @@ export default class GameScene extends Phaser.Scene {
     this.add.text(p[0].x, p[0].y, 'IN',  { fontSize: '10px', color: '#fff', fontFamily: 'Georgia', fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
     this.add.text(p[p.length-1].x, p[p.length-1].y, 'OUT', { fontSize: '10px', color: '#fff', fontFamily: 'Georgia', fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
 
+    this.inspector = new InspectController(this);
+    this.input.on('pointermove', (p) => this.inspector.onPointerMove(p.worldX, p.worldY));
+
     // Phaser input
     this.input.on('pointerdown', this._onPointerDown, this);
 
@@ -151,6 +155,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown() {
+    this.inspector?.destroy();
     if (import.meta.env.DEV) window.__game = null;
     this.game.events.off('ui:ability', this._onAbility, this);
     // Remove all DOM listeners without tracking refs: clone replaces the node
@@ -182,6 +187,7 @@ export default class GameScene extends Phaser.Scene {
     this._updateHero(dt);
     this._updateParticles(dt);
     this._checkWaveComplete();
+    this.inspector?.refresh();
 
     this.gfx.clear();
     this._drawPath();
@@ -567,7 +573,10 @@ export default class GameScene extends Phaser.Scene {
     // No tower hit — dismiss any open panel before continuing
     this._closeTowerPanel();
 
-    // 4. Tower placement
+    // 4. Inspect click (enemy or hero)
+    if (this.inspector?.tryClickInspect(mx, my)) return;
+
+    // 5. Tower placement
     if (this.selectedType) {
       const zones = this.placementManager.getZones();
       for (let i = 0; i < zones.length; i++) {
@@ -585,7 +594,7 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
-    // 5. Move hero
+    // 6. Move hero
     if (!this.hero.dead) this.hero.moveTo(mx, my);
   }
 

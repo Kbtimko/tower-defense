@@ -19,3 +19,12 @@ describe('ENEMY_DEFS', () => {
     expect(ENEMY_DEFS.titan.armor).toBe(20);
   });
 });
+
+describe('ENEMY_DEFS icon field', () => {
+  it('every enemy def has a non-empty icon string', () => {
+    for (const [type, def] of Object.entries(ENEMY_DEFS)) {
+      expect(typeof def.icon).toBe('string');
+      expect(def.icon.length).toBeGreaterThan(0);
+    }
+  });
+});
