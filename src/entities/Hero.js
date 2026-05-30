@@ -18,7 +18,7 @@ export const HERO_STATS = {
 };
 
 export class Hero extends Phaser.GameObjects.Container {
-  constructor(scene, { x, y }, modifiers = {}) {
+  constructor(scene, { x, y, pathPoints }, modifiers = {}) {
     super(scene, x, y);
 
     const maxHp = MAX_HP + (modifiers.heroMaxHpBonus ?? 0);
@@ -36,6 +36,17 @@ export class Hero extends Phaser.GameObjects.Container {
     this.targetY = y;
     this.moving  = false;
 
+    this._pathPoints      = pathPoints || [];
+    this._totalPathLength = 0;
+    for (let i = 0; i < this._pathPoints.length - 1; i++) {
+      this._totalPathLength += Math.hypot(
+        this._pathPoints[i + 1].x - this._pathPoints[i].x,
+        this._pathPoints[i + 1].y - this._pathPoints[i].y
+      );
+    }
+    this.pathProgress   = 0;
+    this.targetProgress = 0;
+
     this.overchargeTimer     = 0;
     this.airstrikeTimer      = 0;
     this.empTimer            = 0;
@@ -50,6 +61,8 @@ export class Hero extends Phaser.GameObjects.Container {
     scene.add.existing(this);
     this.setDepth(4);
     this._drawBody();
+
+    if (this._totalPathLength > 0) this.setPathPosition(0);
   }
 
   _drawBody() {
@@ -70,6 +83,25 @@ export class Hero extends Phaser.GameObjects.Container {
     this._hpBar.fillRect(ox, oy, w, h);
     this._hpBar.fillStyle(0x4fc3f7, 1);
     this._hpBar.fillRect(ox, oy, Math.max(0, w * (this.hp / this.maxHp)), h);
+  }
+
+  setPathPosition(progress) {
+    this.pathProgress = progress;
+    if (this._totalPathLength <= 0) return;
+    let target = progress * this._totalPathLength;
+    const pts = this._pathPoints;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const dx  = pts[i + 1].x - pts[i].x;
+      const dy  = pts[i + 1].y - pts[i].y;
+      const len = Math.hypot(dx, dy);
+      if (target <= len || i === pts.length - 2) {
+        const t = len > 0 ? Math.min(1, target / len) : 0;
+        this.x = pts[i].x + t * dx;
+        this.y = pts[i].y + t * dy;
+        return;
+      }
+      target -= len;
+    }
   }
 
   moveTo(x, y) {

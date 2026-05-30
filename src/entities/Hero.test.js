@@ -75,6 +75,23 @@ describe('Hero — movement', () => {
     hero.update(1, []);
     expect(hero.moving).toBe(false);
   });
+
+  it('initializes pathProgress=0 and projects to path[0] when pathPoints provided', () => {
+    const pathPoints = [{ x: 100, y: 100 }, { x: 500, y: 100 }];
+    const hero = new Hero(makeScene(), { x: 0, y: 0, pathPoints });
+    expect(hero.pathProgress).toBe(0);
+    expect(hero.x).toBe(100);
+    expect(hero.y).toBe(100);
+  });
+
+  it('setPathPosition(0.5) places hero at midpoint of a straight horizontal path', () => {
+    const pathPoints = [{ x: 0, y: 100 }, { x: 200, y: 100 }];
+    const hero = new Hero(makeScene(), { x: 0, y: 0, pathPoints });
+    hero.setPathPosition(0.5);
+    expect(hero.pathProgress).toBe(0.5);
+    expect(hero.x).toBe(100);
+    expect(hero.y).toBe(100);
+  });
 });
 
 describe('Hero — combat', () => {

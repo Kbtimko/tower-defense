@@ -75,7 +75,12 @@ export default class GameScene extends Phaser.Scene {
     );
 
     // Hero
-    this.hero                     = new Hero(this, this.pathMgr.path[0], mods);
+    const heroSpawn               = this.pathMgr.path[0];
+    this.hero                     = new Hero(
+      this,
+      { x: heroSpawn.x, y: heroSpawn.y, pathPoints: this.pathMgr.getPathPoints() },
+      mods
+    );
     this.aimMode                  = false;
     this._heroOverchargeWasActive = false;
     this._heroCooldownAccum       = 0;
