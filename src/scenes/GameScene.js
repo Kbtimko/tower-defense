@@ -75,7 +75,12 @@ export default class GameScene extends Phaser.Scene {
     );
 
     // Hero
-    this.hero                     = new Hero(this, this.pathMgr.path[0], mods);
+    const heroSpawn               = this.pathMgr.path[0];
+    this.hero                     = new Hero(
+      this,
+      { x: heroSpawn.x, y: heroSpawn.y, pathPoints: this.pathMgr.getPathPoints() },
+      mods
+    );
     this.aimMode                  = false;
     this._heroOverchargeWasActive = false;
     this._heroCooldownAccum       = 0;
@@ -609,8 +614,15 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
-    // 6. Move hero
-    if (!this.hero.dead) this.hero.moveTo(mx, my);
+    // 6. Move hero (path-constrained)
+    if (!this.hero.dead) {
+      if (this.pathMgr.isOnPath(mx, my, 40)) {
+        const progress = this.pathMgr.getNearestPathProgress(mx, my);
+        this.hero.moveToProgress(progress);
+      } else {
+        this._toast('Hero can only move along the path');
+      }
+    }
   }
 
   _selectTowerType(type, btn) {
