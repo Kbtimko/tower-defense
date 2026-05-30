@@ -11,8 +11,9 @@ vi.mock('phaser', () => ({
   },
 }));
 
-// Other GameScene imports pull in data + system modules; they are pure JS and
-// safe to load. We never instantiate GameScene — we only call prototype methods.
+// Transitive Phaser imports in entity/system modules are safe because Phaser
+// itself is mocked above — all `import Phaser from 'phaser'` calls receive
+// the stub. We never instantiate GameScene; we only call prototype methods.
 import GameScene from './GameScene.js';
 
 describe('GameScene._fadeOutDeadEnemy', () => {
