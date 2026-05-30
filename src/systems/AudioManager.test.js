@@ -123,7 +123,14 @@ describe('AudioManager music', () => {
         return s;
       }),
     };
-    return { game: { sound, registry: new Map() }, created };
+    return {
+      game: {
+        sound,
+        registry: new Map(),
+        cache: { audio: { has: () => true } },
+      },
+      created,
+    };
   }
 
   it('playMusic(mapId) starts ambient at musicVol and combat at 0', () => {
@@ -194,5 +201,73 @@ describe('getOrCreateAudioManager — singleton', () => {
     const b    = getOrCreateAudioManager(game, sm);
     expect(a).toBe(b);
     expect(game.registry.get('audio')).toBe(a);
+  });
+});
+
+describe('AudioManager music — missing keys', () => {
+  function makeGameWithMissingKeys(missingKeys) {
+    const missing = new Set(missingKeys);
+    const created = [];
+    const sound = {
+      sounds: [],
+      add: vi.fn((key) => {
+        const s = {
+          key, isPlaying: false, __channel: 'music', volume: 0,
+          play(opts = {}) { this.isPlaying = true; this.volume = opts.volume ?? 0; },
+          stop() { this.isPlaying = false; },
+          setVolume(v) { this.volume = v; },
+        };
+        created.push(s);
+        sound.sounds.push(s);
+        return s;
+      }),
+    };
+    return {
+      game: {
+        sound,
+        registry: new Map(),
+        cache: { audio: { has: (key) => !missing.has(key) } },
+      },
+      created,
+    };
+  }
+
+  it('_addMusic returns null and warns once per missing key', () => {
+    const { game } = makeGameWithMissingKeys(['map-0-ambient']);
+    const am = new AudioManager(game, new SaveManager());
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const first  = am._addMusic('map-0-ambient');
+    const second = am._addMusic('map-0-ambient');
+
+    expect(first).toBeNull();
+    expect(second).toBeNull();
+    expect(warnSpy).toHaveBeenCalledOnce();
+    expect(warnSpy.mock.calls[0][0]).toContain('map-0-ambient');
+
+    warnSpy.mockRestore();
+  });
+
+  it('playMusic(id) does not throw when ambient and combat keys are missing', () => {
+    const { game } = makeGameWithMissingKeys(['map-0-ambient', 'map-0-combat']);
+    const am = new AudioManager(game, new SaveManager());
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    expect(() => am.playMusic(0)).not.toThrow();
+    expect(am._music.ambient).toBeNull();
+    expect(am._music.combat).toBeNull();
+
+    warnSpy.mockRestore();
+  });
+
+  it('playMusic("boss-mid") does not throw when boss key is missing', () => {
+    const { game } = makeGameWithMissingKeys(['boss-mid']);
+    const am = new AudioManager(game, new SaveManager());
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    expect(() => am.playMusic('boss-mid')).not.toThrow();
+    expect(am._music.boss).toBeNull();
+
+    warnSpy.mockRestore();
   });
 });
