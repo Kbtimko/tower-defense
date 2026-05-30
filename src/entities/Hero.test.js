@@ -93,6 +93,20 @@ describe('Hero — movement', () => {
     expect(hero.moving).toBe(false);
   });
 
+  it('update moves backward when targetProgress is less than pathProgress', () => {
+    const pathPoints = [{ x: 0, y: 100 }, { x: 200, y: 100 }];
+    const hero = new Hero(makeScene(), { x: 0, y: 0, pathPoints });
+    hero.moveToProgress(1);
+    hero.update(2, []);            // walk to the end (pathProgress === 1)
+    expect(hero.pathProgress).toBe(1);
+    hero.moveToProgress(0);        // click back at start
+    hero.update(0.1, []);
+    // backward step: 0.1s × MOVE_SPEED(130) / totalLength(200) = 0.065
+    expect(hero.pathProgress).toBeCloseTo(1 - 0.065, 5);
+    expect(hero.x).toBeCloseTo((1 - 0.065) * 200, 1);
+    expect(hero.y).toBe(100);
+  });
+
   it('initializes pathProgress=0 and projects to path[0] when pathPoints provided', () => {
     const pathPoints = [{ x: 100, y: 100 }, { x: 500, y: 100 }];
     const hero = new Hero(makeScene(), { x: 0, y: 0, pathPoints });
