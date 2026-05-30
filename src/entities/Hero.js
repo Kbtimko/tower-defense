@@ -96,6 +96,11 @@ export class Hero extends Phaser.GameObjects.Container {
       }
       target -= len;
     }
+    // Backstop: the `i === pts.length - 2` guard above is meant to always catch
+    // the last segment, but match Soldier.setPathProgress in case the loop ever
+    // exits without returning (defensive parity).
+    this.x = pts[pts.length - 1].x;
+    this.y = pts[pts.length - 1].y;
   }
 
   moveToProgress(progress) {
