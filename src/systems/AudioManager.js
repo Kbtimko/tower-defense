@@ -118,15 +118,15 @@ export class AudioManager {
     if (id === 'boss-mid' || id === 'boss-final') {
       this._stopLayers();
       this._music.boss = this._addMusic(id);
-      this._music.boss.play({ volume: this.getEffectiveVolume('music'), loop: true });
+      if (this._music.boss) this._music.boss.play({ volume: this.getEffectiveVolume('music'), loop: true });
       return;
     }
     this._stopLayers();
     this._music.combatActive = false;
     this._music.ambient = this._addMusic(`map-${id}-ambient`);
-    this._music.ambient.play({ volume: this.getEffectiveVolume('music'), loop: true });
+    if (this._music.ambient) this._music.ambient.play({ volume: this.getEffectiveVolume('music'), loop: true });
     this._music.combat = this._addMusic(`map-${id}-combat`);
-    this._music.combat.play({ volume: 0, loop: true });
+    if (this._music.combat) this._music.combat.play({ volume: 0, loop: true });
   }
 
   setCombatActive(active) {
@@ -161,6 +161,14 @@ export class AudioManager {
   }
 
   _addMusic(key) {
+    if (!this._game.cache.audio.has(key)) {
+      if (!this._missingMusicWarned) this._missingMusicWarned = new Set();
+      if (!this._missingMusicWarned.has(key)) {
+        console.warn(`[AudioManager] music key "${key}" not found in cache — skipping`);
+        this._missingMusicWarned.add(key);
+      }
+      return null;
+    }
     const sound = this._game.sound.add(key);
     sound.__channel = 'music';
     return sound;
