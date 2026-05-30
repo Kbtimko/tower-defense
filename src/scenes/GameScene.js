@@ -315,6 +315,11 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
+  _destroyDeadProjectile(p) {
+    if (p.destroyTrail) p.destroyTrail();
+    p.destroy();
+  }
+
   _checkSoldierBlock(enemy) {
     for (const tower of this.placementManager.getTowers()) {
       if (tower.type !== 'barracks') continue;
@@ -489,7 +494,7 @@ export default class GameScene extends Phaser.Scene {
       }
     }
     for (const p of this.projectiles) {
-      if (p.dead && p.destroyTrail) p.destroyTrail();
+      if (p.dead) this._destroyDeadProjectile(p);
     }
     this.projectiles = this.projectiles.filter(p => !p.dead);
   }

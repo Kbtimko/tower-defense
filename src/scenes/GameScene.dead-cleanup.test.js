@@ -44,3 +44,22 @@ describe('GameScene._fadeOutDeadEnemy', () => {
     expect(enemy.destroy).toHaveBeenCalledOnce();
   });
 });
+
+describe('GameScene._destroyDeadProjectile', () => {
+  it('destroys the trail and the projectile container', () => {
+    const projectile = { destroyTrail: vi.fn(), destroy: vi.fn() };
+
+    GameScene.prototype._destroyDeadProjectile(projectile);
+
+    expect(projectile.destroyTrail).toHaveBeenCalledOnce();
+    expect(projectile.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('still destroys the projectile if destroyTrail is absent', () => {
+    const projectile = { destroy: vi.fn() };
+
+    GameScene.prototype._destroyDeadProjectile(projectile);
+
+    expect(projectile.destroy).toHaveBeenCalledOnce();
+  });
+});
