@@ -92,6 +92,14 @@ describe('Hero — movement', () => {
     expect(hero.x).toBe(100);
     expect(hero.y).toBe(100);
   });
+
+  it('setPathPosition(1.0) places hero exactly at the last point on a multi-segment path', () => {
+    const pathPoints = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 200 }];
+    const hero = new Hero(makeScene(), { x: 0, y: 0, pathPoints });
+    hero.setPathPosition(1.0);
+    expect(hero.x).toBe(100);
+    expect(hero.y).toBe(200);
+  });
 });
 
 describe('Hero — combat', () => {
