@@ -292,9 +292,10 @@ export default class GameScene extends Phaser.Scene {
         this.economy.loseLife();
       }
     }
-    const beforeCount = this.enemies.length;
+    const dying = this.enemies.filter(e => e.dead);
     this.enemies = this.enemies.filter(e => !e.dead);
-    const removed = beforeCount - this.enemies.length;
+    const removed = dying.length;
+    for (const enemy of dying) this._fadeOutDeadEnemy(enemy);
     if (removed > 0) {
       this._enemiesOnPath = Math.max(0, this._enemiesOnPath - removed);
       if (this._enemiesOnPath === 0) {
@@ -303,6 +304,20 @@ export default class GameScene extends Phaser.Scene {
       }
       this._updateWaveButton();
     }
+  }
+
+  _fadeOutDeadEnemy(enemy) {
+    this.tweens.add({
+      targets: enemy,
+      alpha: 0,
+      duration: 300,
+      onComplete: () => enemy.destroy(),
+    });
+  }
+
+  _destroyDeadProjectile(p) {
+    if (p.destroyTrail) p.destroyTrail();
+    p.destroy();
   }
 
   _checkSoldierBlock(enemy) {
@@ -479,7 +494,7 @@ export default class GameScene extends Phaser.Scene {
       }
     }
     for (const p of this.projectiles) {
-      if (p.dead && p.destroyTrail) p.destroyTrail();
+      if (p.dead) this._destroyDeadProjectile(p);
     }
     this.projectiles = this.projectiles.filter(p => !p.dead);
   }
