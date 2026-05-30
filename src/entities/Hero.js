@@ -2,7 +2,6 @@ import Phaser from 'phaser';
 import { heroSource } from '../data/sourceBuilders.js';
 
 const MOVE_SPEED     = 130;
-const MOVE_STOP_DIST = 8;
 const ATTACK_RANGE   = 40;
 const ATTACK_RATE    = 1.5;
 const ATTACK_DAMAGE  = 18;
@@ -29,12 +28,7 @@ export class Hero extends Phaser.GameObjects.Container {
     this.killCount    = 0;
     this.dead         = false;
     this.respawnTimer = 0;
-    this._spawnX      = x;
-    this._spawnY      = y;
-
-    this.targetX = x;
-    this.targetY = y;
-    this.moving  = false;
+    this.moving = false;
 
     this._pathPoints      = pathPoints || [];
     this._totalPathLength = 0;
@@ -104,10 +98,10 @@ export class Hero extends Phaser.GameObjects.Container {
     }
   }
 
-  moveTo(x, y) {
-    this.targetX = x;
-    this.targetY = y;
-    this.moving  = true;
+  moveToProgress(progress) {
+    if (this.dead) return;
+    this.targetProgress = progress;
+    this.moving = (progress !== this.pathProgress);
   }
 
   takeDamage(amount, _pierce = false) {
@@ -125,14 +119,13 @@ export class Hero extends Phaser.GameObjects.Container {
   }
 
   respawn() {
-    this.dead         = false;
-    this.hp           = this.maxHp;
-    this.respawnTimer = 0;
-    this.x            = this._spawnX;
-    this.y            = this._spawnY;
-    this.targetX      = this._spawnX;
-    this.targetY      = this._spawnY;
-    this.moving       = false;
+    this.dead           = false;
+    this.hp             = this.maxHp;
+    this.respawnTimer   = 0;
+    this.pathProgress   = 0;
+    this.targetProgress = 0;
+    this.moving         = false;
+    this.setPathPosition(0);
     this._attackTimer = 1 / ATTACK_RATE;
     this._body.setVisible(true);
     this._redrawHpBar();
@@ -183,17 +176,16 @@ export class Hero extends Phaser.GameObjects.Container {
       return;
     }
 
-    if (this.moving) {
-      const dx   = this.targetX - this.x;
-      const dy   = this.targetY - this.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist <= MOVE_STOP_DIST) {
-        this.moving = false;
+    if (this.moving && this._totalPathLength > 0) {
+      const deltaProgress = (MOVE_SPEED * dt) / this._totalPathLength;
+      const remaining     = this.targetProgress - this.pathProgress;
+      if (Math.abs(remaining) <= deltaProgress) {
+        this.pathProgress = this.targetProgress;
+        this.moving       = false;
       } else {
-        const step = Math.min(MOVE_SPEED * dt, dist);
-        this.x += (dx / dist) * step;
-        this.y += (dy / dist) * step;
+        this.pathProgress += Math.sign(remaining) * deltaProgress;
       }
+      this.setPathPosition(this.pathProgress);
     }
 
     this._attackTimer -= dt;

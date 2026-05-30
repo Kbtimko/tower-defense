@@ -614,8 +614,15 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
-    // 6. Move hero
-    if (!this.hero.dead) this.hero.moveTo(mx, my);
+    // 6. Move hero (path-constrained)
+    if (!this.hero.dead) {
+      if (this.pathMgr.isOnPath(mx, my, 40)) {
+        const progress = this.pathMgr.getNearestPathProgress(mx, my);
+        this.hero.moveToProgress(progress);
+      } else {
+        this._toast('Hero can only move along the path');
+      }
+    }
   }
 
   _selectTowerType(type, btn) {
