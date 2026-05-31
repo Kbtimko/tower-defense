@@ -205,8 +205,13 @@ describe('describeEnemyMatchups', () => {
 });
 
 describe('hero matchups read from HEROES registry', () => {
-  it('rael matchup phantom = 1.5', () => {
-    expect(getWeaknessMultiplier({ kind:'hero', heroId:'rael' }, 'phantom')).toBe(1.5);
+  it('rael phantom matchup is the value from the HEROES registry', () => {
+    // Coupling assertion — proves the matrix actually reads the registry,
+    // not a duplicated literal. If HEROES.rael.matchups.phantom is retuned,
+    // getWeaknessMultiplier must track it.
+    expect(getWeaknessMultiplier({ kind:'hero', heroId:'rael' }, 'phantom'))
+      .toBe(HEROES.rael.matchups.phantom);
+    expect(HEROES.rael.matchups.phantom).toBe(1.5);
   });
 
   it('unknown heroId returns 1.0', () => {
