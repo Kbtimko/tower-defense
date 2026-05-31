@@ -137,6 +137,10 @@ export default class GameScene extends Phaser.Scene {
       this.game.events.emit('hero:level-up', { level });
     }, this);
 
+    // Launch UIScene now that GameScene state is ready. UIScene.create reads
+    // the active GameScene's hero.def + economy on first paint.
+    if (!this.scene.isActive('UIScene')) this.scene.launch('UIScene');
+
     // Initialise HUD portrait/colors/ability icons for the active hero
     this.game.events.emit('hero:hud-init', { heroId: this.heroId, def: this.hero.def });
 

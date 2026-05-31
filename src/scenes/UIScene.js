@@ -36,6 +36,9 @@ export default class UIScene extends Phaser.Scene {
         currentWave: gs.waveMgr.currentWave,
       });
     }
+    if (gs && gs.hero?.def) {
+      this._onHeroHudInit({ heroId: gs.heroId, def: gs.hero.def });
+    }
   }
 
   shutdown() {
