@@ -235,7 +235,13 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Append rows for maps 5-9 to the "Maps 5-9" table**
 
-Same loop as Task 3 (WebSearch → WebFetch license check → pick best match → append row).
+For each filename below, run this loop:
+
+1. `WebSearch` for the vibe terms (e.g. `site:freesound.org cc0 icy ambient pad`)
+2. `WebFetch` on each candidate freesound.org URL to confirm the page shows **License: Creative Commons 0** (NOT CC-BY, NOT CC-BY-SA)
+3. Read the page for: author handle, duration (in seconds), tag list, BPM/key if shown, comment quality
+4. Pick the best match by tags + duration + license
+5. Append a row to the "Maps 5-9" table in `docs/superpowers/plans/2026-05-31-phase-8b-candidates.md` with columns: `Filename | freesound URL | Author | Duration | License | Vibe match`. The "Vibe match" cell explains in 1-2 sentences why this track fits (tag matches, mood, why it pairs with its partner).
 
 Required slots:
 
@@ -272,6 +278,14 @@ Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Append rows for boss themes + SFX replacements**
 
+For each filename below, run this loop:
+
+1. `WebSearch` for the vibe terms (e.g. `site:freesound.org cc0 cinematic boss battle loop`)
+2. `WebFetch` on each candidate URL (freesound.org or Kenney music pack page) to confirm the page shows **License: Creative Commons 0** (NOT CC-BY, NOT CC-BY-SA)
+3. Read the page for: author handle, duration (in seconds), tag list, BPM/key if shown, comment quality
+4. Pick the best match by tags + duration + license
+5. Append a row to the "Boss themes + SFX replacements" table in `docs/superpowers/plans/2026-05-31-phase-8b-candidates.md` with columns: `Filename | freesound URL | Author | Duration | License | Vibe match`. The "Vibe match" cell explains in 1-2 sentences why this track fits.
+
 Required slots:
 
 | Filename | Vibe target |
@@ -281,9 +295,9 @@ Required slots:
 | `victory.mp3` | Triumphant short fanfare/jingle, sci-fi flavored, ~2-4s |
 | `defeat.mp3` | Somber/loss-themed short cue, descending tone, ~2-4s |
 
-Search terms: `boss battle electronic loop`, `cinematic boss loop`, `victory jingle sci-fi`, `game over sad cue`.
+Search terms by slot: `boss battle electronic loop` / `cinematic boss loop` (boss themes); `victory jingle sci-fi` / `success fanfare short` (victory); `game over sad cue` / `loss cue descending` (defeat).
 
-Same hard CC0-only license requirement. Victory/defeat SFX may also come from Kenney's music packs or other CC0 sources if freesound doesn't yield good matches — record source in the table either way.
+**Hard requirement:** if a source page shows anything other than `Creative Commons 0`, reject and pick another. CC-BY is NOT acceptable. Victory/defeat SFX may also come from Kenney's music packs or other CC0 sources if freesound doesn't yield good matches — record source in the table either way (the table's "freesound URL" column can hold any source URL).
 
 - [ ] **Step 2: Commit completed candidate list**
 
