@@ -32,7 +32,8 @@ export default class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
 
   init(data) {
-    this.mapId = data?.mapId ?? 0;
+    this.mapId  = data?.mapId  ?? 0;
+    this.heroId = data?.heroId ?? 'rael';
   }
 
   create() {
@@ -75,7 +76,8 @@ export default class GameScene extends Phaser.Scene {
     );
 
     // Hero
-    this.hero                     = new Hero(this, this.pathMgr.path[0], mods);
+    const spawn = this.pathMgr.path[0];
+    this.hero                     = new Hero(this, { x: spawn.x, y: spawn.y, heroId: this.heroId }, mods);
     this.aimMode                  = false;
     this._heroOverchargeWasActive = false;
     this._heroCooldownAccum       = 0;
@@ -374,56 +376,97 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _onAbility({ slot }) {
-    switch (slot) {
-      case 'q':
-        this.hero.overcharge();
+    const a = this.hero.def.abilities[slot];
+    if (!a) return;
+
+    if (a.aim) {
+      if (this.hero.dead) return;
+      if (this.hero._timers[slot] > 0) return;
+      if (this.hero.level < this.hero.def.stats.abilityUnlockLevels[slot]) return;
+      this.aimMode  = true;
+      this._aimSlot = slot;
+      this.game.events.emit('hero:aim-mode');
+      return;
+    }
+
+    const result = this.hero.fireAbility(slot);
+    if (!result) return;
+    this._applyAbilityResult(slot, result);
+  }
+
+  _applyAbilityResult(slot, result) {
+    switch (result.kind) {
+      case 'overcharge':
+        // SFX + tower buff handled reactively in _updateHero → _applyOvercharge
         break;
-      case 'w':
-        if (this.hero.level < 2 || this.hero.airstrikeTimer > 0 || this.hero.dead) break;
-        this.aimMode = true;
-        this.game.events.emit('hero:aim-mode');
-        break;
-      case 'e': {
-        if (this.hero.level < 3 || !this.hero.empPulse()) break;
+      case 'emp': {
+        const am = this.game?.registry?.get('audio');
+        if (am) am.playSfx('hero-emp');
         for (const e of this.enemies) e.applyStatus({ type: 'stun', duration: 3 });
         const EMP_RADIUS = 120;
-        const am = this.game.registry.get('audio');
-        if (am) am.playSfx('hero-emp');
         if (this.particleSpawner) this.particleSpawner.spawnHeroAbilityVFX('emp', this.hero.x, this.hero.y, EMP_RADIUS);
         this.events.emit('emp-pulse', { x: this.hero.x, y: this.hero.y, radius: EMP_RADIUS });
         break;
       }
+      case 'airstrike':       this._handleAirstrike(result);    break;
+      case 'deploy_turret':   this._handleDeployTurret(result); break;   // wired in T13
+      case 'flame_wave':      this._handleFlameWave(result);    break;   // wired in T15
+      case 'immolate':        this._handleImmolate(result);     break;   // wired in T15
+      case 'firefield':       this._handleFirefield(result);    break;   // wired in T15
+      case 'mark':            this._handleMark(result);         break;   // wired in T14
+      case 'volley':          this._handleVolley(result);       break;   // wired in T14
+      case 'phase_sprint':    this._handlePhaseSprint(result);  break;   // wired in T14
+      case 'repair':          this._handleRepair(result);       break;   // wired in T13
+      case 'power_surge':     this._handlePowerSurge(result);   break;   // wired in T13
+      // unknown kind — no-op
     }
   }
 
-  _triggerAirstrike(x, y) {
-    const result = this.hero.airstrike(x, y);
-    if (!result) { this.aimMode = false; this.game.events.emit('hero:aim-cancel'); return; }
+  _triggerAimAbility(x, y) {
+    if (!this._aimSlot) { this.aimMode = false; return; }
+    const slot   = this._aimSlot;
+    const result = this.hero.fireAbility(slot, { x, y });
+    this._aimSlot = null;
+    this.aimMode  = false;
+    this.game.events.emit('hero:aim-cancel');
+    if (!result) return;
+    this._applyAbilityResult(slot, result);
+  }
 
-    const am = this.game.registry.get('audio');
+  _handleAirstrike(result) {
+    const am = this.game?.registry?.get('audio');
     if (am) am.playSfx('hero-airstrike');
-    if (this.particleSpawner) this.particleSpawner.spawnHeroAbilityVFX('airstrike', x, y, result.radius);
-    this.events.emit('airstrike-impact', { x, y });
-
+    if (this.particleSpawner) this.particleSpawner.spawnHeroAbilityVFX('airstrike', result.x, result.y, result.radius);
+    this.events.emit('airstrike-impact', { x: result.x, y: result.y });
     for (const e of this.enemies) {
-      if (Math.hypot(e.x - x, e.y - y) <= result.radius) {
+      if (Math.hypot(e.x - result.x, e.y - result.y) <= result.radius) {
         this._dealDamage(e, result.damage, true, { isAoe: true, abilityLabel: 'AIRSTRIKE', source: heroAirstrikeSource() });
       }
     }
     // Particle burst at impact point (kept as in-game additional flair)
-    this._addParticle(x, y, 0xff6400, 18);
+    this._addParticle(result.x, result.y, 0xff6400, 18);
     for (let i = 0; i < 8; i++) {
       const angle = (Math.PI * 2 * i) / 8;
       this._addParticle(
-        x + Math.cos(angle) * 28,
-        y + Math.sin(angle) * 28,
+        result.x + Math.cos(angle) * 28,
+        result.y + Math.sin(angle) * 28,
         0xff8800,
         8
       );
     }
-    this.aimMode = false;
-    this.game.events.emit('hero:aim-cancel');
   }
+
+  _handleDeployTurret(_result) { /* wired in T13 */ }
+  _handleRepair(_result)        { /* wired in T13 */ }
+  _handlePowerSurge(_result)    { /* wired in T13 */ }
+  _handleMark(_result)          { /* wired in T14 */ }
+  _handleVolley(_result)        { /* wired in T14 */ }
+  _handlePhaseSprint(_result)   { /* wired in T14 */ }
+  _handleFlameWave(_result)     { /* wired in T15 */ }
+  _handleImmolate(_result)      { /* wired in T15 */ }
+  _handleFirefield(_result)     { /* wired in T15 */ }
+
+  _triggerAirstrike(x, y) { this._triggerAimAbility(x, y); }
 
   _applyOvercharge(active) {
     if (active) {
@@ -554,9 +597,9 @@ export default class GameScene extends Phaser.Scene {
   _onPointerDown(pointer) {
     const mx = pointer.x, my = pointer.y;
 
-    // 1. Airstrike aim mode takes priority
+    // 1. Aim mode takes priority
     if (this.aimMode) {
-      this._triggerAirstrike(mx, my);
+      this._triggerAimAbility(mx, my);
       return;
     }
 
