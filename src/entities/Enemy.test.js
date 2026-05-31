@@ -118,7 +118,7 @@ describe('Enemy.takeDamage — weakness matrix integration', () => {
   it('hero vs phantom (1.5x)', () => {
     const scene = makeRichScene();
     const e = new Enemy(scene, { def: makeDefWith({ type: 'phantom', hp: 60, armor: 0, flying: true }), startX: 0, startY: 0 });
-    e.takeDamage(25, { source: { kind: 'hero' } });
+    e.takeDamage(25, { source: { kind: 'hero', heroId: 'rael' } });
     expect(e.hp).toBe(60 - 37); // floor((25-0) * 1.5) = 37
   });
 

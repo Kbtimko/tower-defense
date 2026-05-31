@@ -1,4 +1,5 @@
 import { getWeaknessMultiplier, WEAKNESS_MATRIX, TIER4_OVERRIDES, HERO_MULTIPLIERS, describeMatchups, describeEnemyMatchups } from './weaknessMatrix.js';
+import { HEROES } from './heroes.js';
 
 describe('getWeaknessMultiplier — defaults', () => {
   it('returns 1.0 for null source', () => {
@@ -74,17 +75,17 @@ describe('getWeaknessMultiplier — Tier 2/3 inherit base row', () => {
 });
 
 describe('getWeaknessMultiplier — hero source', () => {
-  it('hero vs phantom = 1.5', () => {
-    expect(getWeaknessMultiplier({ kind: 'hero' }, 'phantom')).toBe(1.5);
+  it('rael vs phantom = 1.5', () => {
+    expect(getWeaknessMultiplier({ kind: 'hero', heroId: 'rael' }, 'phantom')).toBe(1.5);
   });
-  it('hero vs brute = 1.0 (no entry)', () => {
-    expect(getWeaknessMultiplier({ kind: 'hero' }, 'brute')).toBe(1.0);
+  it('rael vs brute = 1.0 (no entry)', () => {
+    expect(getWeaknessMultiplier({ kind: 'hero', heroId: 'rael' }, 'brute')).toBe(1.0);
   });
   it('hero with ability field still uses hero table', () => {
-    expect(getWeaknessMultiplier({ kind: 'hero', ability: 'airstrike' }, 'phantom')).toBe(1.5);
+    expect(getWeaknessMultiplier({ kind: 'hero', heroId: 'rael', ability: 'airstrike' }, 'phantom')).toBe(1.5);
   });
-  it('hero vs titan = 1.0 (HERO_MULTIPLIERS has no titan entry; tower matrix is not consulted)', () => {
-    expect(getWeaknessMultiplier({ kind: 'hero' }, 'titan')).toBe(1.0);
+  it('rael vs titan = 1.0 (no titan entry; tower matrix is not consulted)', () => {
+    expect(getWeaknessMultiplier({ kind: 'hero', heroId: 'rael' }, 'titan')).toBe(1.0);
   });
 });
 
@@ -147,7 +148,7 @@ describe('describeMatchups', () => {
   });
 
   it('hero source → effective phantom, weak empty', () => {
-    const result = describeMatchups({ kind: 'hero' });
+    const result = describeMatchups({ kind: 'hero', heroId: 'rael' });
     expect(result.effective).toEqual(['phantom']);
     expect(result.weak).toEqual([]);
   });
@@ -176,9 +177,9 @@ describe('describeEnemyMatchups', () => {
     expect(r.resists.sort()).toEqual(['archer']);
   });
 
-  it('phantom → vulnerableTo [archer, hero, mage], resists [barracks, cannon, sniper]', () => {
+  it('phantom → vulnerableTo [archer, hero:rael, mage], resists [barracks, cannon, sniper]', () => {
     const r = describeEnemyMatchups('phantom');
-    expect(r.vulnerableTo.sort()).toEqual(['archer', 'hero', 'mage']);
+    expect(r.vulnerableTo.sort()).toEqual(['archer', 'hero:rael', 'mage']);
     expect(r.resists.sort()).toEqual(['barracks', 'cannon', 'sniper']);
   });
 
@@ -192,13 +193,38 @@ describe('describeEnemyMatchups', () => {
     expect(describeEnemyMatchups('unknown')).toEqual({ vulnerableTo: [], resists: [] });
   });
 
-  it('hero appears in phantom vulnerableTo (HERO_MULTIPLIERS phantom: 1.5)', () => {
-    expect(describeEnemyMatchups('phantom').vulnerableTo).toContain('hero');
+  it('hero:rael appears in phantom vulnerableTo (matchups phantom: 1.5)', () => {
+    expect(describeEnemyMatchups('phantom').vulnerableTo).toContain('hero:rael');
   });
 
-  it('hero is NOT in any other enemy\'s vulnerableTo today', () => {
+  it('hero:rael is NOT in any other enemy\'s vulnerableTo today', () => {
     for (const e of ['drone', 'skitter', 'brute', 'colossus', 'titan']) {
-      expect(describeEnemyMatchups(e).vulnerableTo).not.toContain('hero');
+      expect(describeEnemyMatchups(e).vulnerableTo).not.toContain('hero:rael');
     }
+  });
+});
+
+describe('hero matchups read from HEROES registry', () => {
+  it('rael matchup phantom = 1.5', () => {
+    expect(getWeaknessMultiplier({ kind:'hero', heroId:'rael' }, 'phantom')).toBe(1.5);
+  });
+
+  it('unknown heroId returns 1.0', () => {
+    expect(getWeaknessMultiplier({ kind:'hero', heroId:'unknown' }, 'phantom')).toBe(1.0);
+  });
+
+  it('status source returns 1.0 (no double-dipping)', () => {
+    expect(getWeaknessMultiplier({ kind:'status', type:'burn' }, 'titan')).toBe(1.0);
+  });
+
+  it('legacy hero source with no heroId returns 1.0', () => {
+    expect(getWeaknessMultiplier({ kind:'hero' }, 'phantom')).toBe(1.0);
+  });
+});
+
+describe('describeEnemyMatchups walks all heroes in HERO_ORDER', () => {
+  it('phantom shows rael as vulnerable-to via hero:rael', () => {
+    const { vulnerableTo } = describeEnemyMatchups('phantom');
+    expect(vulnerableTo).toContain('hero:rael');
   });
 });
