@@ -224,6 +224,8 @@ describe('Hero — abilities', () => {
   });
 });
 
+const makeHero = () => new Hero(makeScene(), { x: 0, y: 0 });
+
 describe('Hero — auto-attack source', () => {
   it('passes {source: {kind: "hero"}} to enemy.takeDamage', () => {
     const hero = new Hero(makeScene(), { x: 0, y: 0 });
@@ -240,5 +242,77 @@ describe('Hero — auto-attack source', () => {
     hero._attackTimer = 0;
     hero.update(0.016, [enemy]);
     expect(enemy._calls.length).toBe(0);
+  });
+});
+
+describe('Hero data-driven refactor — new surface', () => {
+  it('throws on unknown heroId', () => {
+    const scene = makeScene();
+    expect(() => new Hero(scene, { x:0, y:0, heroId:'nope' })).toThrow();
+  });
+
+  it('fireAbility("q") returns null when hero is dead', () => {
+    const hero = makeHero();
+    hero.dead = true;
+    expect(hero.fireAbility('q')).toBeNull();
+  });
+
+  it('fireAbility("q") returns null when on cooldown', () => {
+    const hero = makeHero();
+    hero.fireAbility('q');
+    expect(hero.fireAbility('q')).toBeNull();
+  });
+
+  it('fireAbility("q") starts the slot cooldown to the ability cooldown value', () => {
+    const hero = makeHero();
+    hero.fireAbility('q');
+    expect(hero._timers.q).toBe(30);
+  });
+
+  it('fireAbility("w") respects the ability unlock level', () => {
+    const hero = makeHero();
+    hero.level = 1;
+    expect(hero.fireAbility('w', { x:0, y:0 })).toBeNull();
+    hero.level = 2;
+    expect(hero.fireAbility('w', { x:0, y:0 })).not.toBeNull();
+  });
+
+  it('moveTo sets _facingX based on direction', () => {
+    const hero = makeHero();
+    hero.x = 100;
+    hero.moveTo(200, 0);
+    expect(hero._facingX).toBe(1);
+    hero.moveTo(50, 0);
+    expect(hero._facingX).toBe(-1);
+  });
+
+  it('cloaked clears on _cloakTimer expiry, resets moveSpeedMult to 1.0', () => {
+    const hero = makeHero();
+    hero.cloaked = true;
+    hero._cloakTimer = 4;
+    hero._moveSpeedMult = 2.0;
+    hero.update(4.1, []);
+    expect(hero.cloaked).toBe(false);
+    expect(hero._moveSpeedMult).toBe(1.0);
+  });
+
+  it('attack damage is scaled by _attackDamageMult', () => {
+    const hero = makeHero();
+    hero._attackDamageMult = 1.5;
+    let received = 0;
+    const enemy = { x: hero.x, y: hero.y, dead: false, takeDamage(dmg) { received = dmg; } };
+    hero._attackTimer = 0;
+    hero.update(0.01, [enemy]);
+    expect(received).toBe(18 * 1.5);
+  });
+
+  it('onHit callback fires after a successful auto-attack landing', () => {
+    const hero = makeHero();
+    let onHitCalled = 0;
+    hero.def.onHit = () => { onHitCalled++; };
+    const enemy = { x: hero.x, y: hero.y, dead: false, takeDamage() {} };
+    hero._attackTimer = 0;
+    hero.update(0.01, [enemy]);
+    expect(onHitCalled).toBe(1);
   });
 });

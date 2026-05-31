@@ -1,44 +1,39 @@
 import Phaser from 'phaser';
 import { heroSource } from '../data/sourceBuilders.js';
+import { HEROES } from '../data/heroes.js';
 
-const MOVE_SPEED     = 130;
+// Kept exported for back-compat with InspectController until T12 migrates it.
+// T22 (cleanup) removes this once no consumers remain.
+export const HERO_STATS = HEROES.rael.stats;
+
 const MOVE_STOP_DIST = 8;
-const ATTACK_RANGE   = 40;
-const ATTACK_RATE    = 1.5;
-const ATTACK_DAMAGE  = 18;
-const MAX_HP         = 150;
-const RESPAWN_TIME   = 20;
-
-export const HERO_STATS = {
-  attackDamage: ATTACK_DAMAGE,
-  attackRange:  ATTACK_RANGE,
-  attackRate:   ATTACK_RATE,
-  maxLevel:     3,
-  abilityUnlockLevels: { q: 1, w: 2, e: 3 },
-};
 
 export class Hero extends Phaser.GameObjects.Container {
-  constructor(scene, { x, y }, modifiers = {}) {
+  constructor(scene, { x, y, heroId = 'rael' }, modifiers = {}) {
     super(scene, x, y);
+    this.heroId = heroId;
+    this.def    = HEROES[heroId];
+    if (!this.def) throw new Error(`Hero: unknown heroId "${heroId}"`);
+    const s = this.def.stats;
 
-    const maxHp = MAX_HP + (modifiers.heroMaxHpBonus ?? 0);
-    this.hp           = maxHp;
-    this.maxHp        = maxHp;
+    this.maxHp        = s.maxHp + (modifiers.heroMaxHpBonus ?? 0);
+    this.hp           = this.maxHp;
     this.level        = modifiers.heroStartLevel ?? 1;
-    this._respawnTime = RESPAWN_TIME + (modifiers.heroRespawnDelta ?? 0);
+    this._respawnTime = s.respawnTime + (modifiers.heroRespawnDelta ?? 0);
     this.killCount    = 0;
     this.dead         = false;
     this.respawnTimer = 0;
     this._spawnX      = x;
     this._spawnY      = y;
 
-    this.targetX = x;
-    this.targetY = y;
-    this.moving  = false;
+    this.targetX = x; this.targetY = y; this.moving = false;
+    this._facingX          = 1;
+    this._moveSpeedMult    = 1.0;
+    this._attackDamageMult = 1.0;
+    this.cloaked           = false;
+    this._cloakTimer       = 0;
 
-    this.overchargeTimer     = 0;
-    this.airstrikeTimer      = 0;
-    this.empTimer            = 0;
+    this._timers = { q: 0, w: 0, e: 0 };
     this.overchargeActive    = false;
     this.overchargeRemaining = 0;
 
@@ -49,18 +44,16 @@ export class Hero extends Phaser.GameObjects.Container {
     this.add([this._body, this._hpBar]);
     scene.add.existing(this);
     this.setDepth(4);
-    this._drawBody();
+    this.def.draw(this._body);
   }
 
-  _drawBody() {
-    this._body.clear();
-    this._body.fillStyle(0x1a2a4a, 1);
-    this._body.fillCircle(0, -10, 6);
-    this._body.fillRect(-4, -4, 8, 10);
-    this._body.lineStyle(2, 0x4fc3f7, 1);
-    this._body.strokeCircle(0, -10, 6);
-    this._body.strokeRect(-4, -4, 8, 10);
-  }
+  // Back-compat getters mirror legacy fields used by GameScene/InspectController.
+  get overchargeTimer() { return this._timers.q; }
+  set overchargeTimer(v) { this._timers.q = v; }
+  get airstrikeTimer()  { return this._timers.w; }
+  set airstrikeTimer(v)  { this._timers.w = v; }
+  get empTimer()        { return this._timers.e; }
+  set empTimer(v)        { this._timers.e = v; }
 
   _redrawHpBar() {
     this._hpBar.clear();
@@ -68,17 +61,19 @@ export class Hero extends Phaser.GameObjects.Container {
     const w = 16, h = 2, ox = -8, oy = -22;
     this._hpBar.fillStyle(0x333333, 1);
     this._hpBar.fillRect(ox, oy, w, h);
-    this._hpBar.fillStyle(0x4fc3f7, 1);
+    this._hpBar.fillStyle(this.def.strokeColor, 1);
     this._hpBar.fillRect(ox, oy, Math.max(0, w * (this.hp / this.maxHp)), h);
   }
 
   moveTo(x, y) {
+    if (this.dead) return;
     this.targetX = x;
     this.targetY = y;
     this.moving  = true;
+    this._facingX = x >= this.x ? 1 : -1;
   }
 
-  takeDamage(amount, _pierce = false) {
+  takeDamage(amount, _opts = {}) {
     if (this.dead) return;
     this.hp = Math.max(0, this.hp - amount);
     this._redrawHpBar();
@@ -101,7 +96,11 @@ export class Hero extends Phaser.GameObjects.Container {
     this.targetX      = this._spawnX;
     this.targetY      = this._spawnY;
     this.moving       = false;
-    this._attackTimer = 1 / ATTACK_RATE;
+    this.cloaked      = false;
+    this._cloakTimer  = 0;
+    this._moveSpeedMult    = 1.0;
+    this._attackDamageMult = 1.0;
+    this._attackTimer = 1 / this.def.stats.attackRate;
     this._body.setVisible(true);
     this._redrawHpBar();
     const am = this.scene.game?.registry?.get('audio');
@@ -116,33 +115,59 @@ export class Hero extends Phaser.GameObjects.Container {
     if (this.level !== prev) this.scene.events.emit('hero:level-up', { level: this.level });
   }
 
+  /**
+   * Dispatch an ability by slot ('q' | 'w' | 'e').
+   * - aimTarget is { x, y } for aim:true abilities (e.g., airstrike, firefield, mark target).
+   * - Returns the ability impl's result (or null on cooldown/dead/locked).
+   * - On non-null return, starts the slot's cooldown timer.
+   */
+  fireAbility(slot, aimTarget) {
+    const a = this.def.abilities[slot];
+    if (!a) return null;
+    if (this.dead) return null;
+    if (this._timers[slot] > 0) return null;
+    const unlockLvl = this.def.stats.abilityUnlockLevels[slot];
+    if (this.level < unlockLvl) return null;
+    const result = a.run(this, this.scene, aimTarget);
+    if (result) this._timers[slot] = a.cooldown;
+    return result;
+  }
+
+  // Back-compat wrappers — GameScene still calls these in some paths until T10 migrates.
+  // These bypass the level-unlock gate to preserve pre-refactor behavior (old code had no gate).
   overcharge() {
-    if (this.dead || this.overchargeTimer > 0) return false;
-    this.overchargeTimer     = 30;
-    this.overchargeActive    = true;
-    this.overchargeRemaining = 6;
-    return true;
+    if (this.dead || this._timers.q > 0) return false;
+    const r = this.def.abilities.q.run(this, this.scene);
+    if (r) this._timers.q = this.def.abilities.q.cooldown;
+    return r !== null;
   }
-
   airstrike(x, y) {
-    if (this.dead || this.airstrikeTimer > 0) return null;
-    this.airstrikeTimer = 25;
-    return { x, y, radius: 70, damage: 80 };
+    if (this.dead || this._timers.w > 0) return null;
+    const r = this.def.abilities.w.run(this, this.scene, { x, y });
+    if (r) this._timers.w = this.def.abilities.w.cooldown;
+    return r ? { x: r.x, y: r.y, radius: r.radius, damage: r.damage } : null;
   }
-
   empPulse() {
-    if (this.dead || this.empTimer > 0) return false;
-    this.empTimer = 45;
-    return true;
+    if (this.dead || this._timers.e > 0) return false;
+    const r = this.def.abilities.e.run(this, this.scene);
+    if (r) this._timers.e = this.def.abilities.e.cooldown;
+    return r !== null;
   }
 
   update(dt, enemies) {
-    if (this.overchargeTimer    > 0) this.overchargeTimer    = Math.max(0, this.overchargeTimer    - dt);
-    if (this.airstrikeTimer     > 0) this.airstrikeTimer     = Math.max(0, this.airstrikeTimer     - dt);
-    if (this.empTimer           > 0) this.empTimer           = Math.max(0, this.empTimer           - dt);
+    for (const slot of ['q','w','e']) {
+      if (this._timers[slot] > 0) this._timers[slot] = Math.max(0, this._timers[slot] - dt);
+    }
     if (this.overchargeRemaining > 0) {
       this.overchargeRemaining = Math.max(0, this.overchargeRemaining - dt);
       if (this.overchargeRemaining === 0) this.overchargeActive = false;
+    }
+    if (this._cloakTimer > 0) {
+      this._cloakTimer -= dt;
+      if (this._cloakTimer <= 0) {
+        this.cloaked        = false;
+        this._moveSpeedMult = 1.0;
+      }
     }
 
     if (this.dead) {
@@ -152,13 +177,12 @@ export class Hero extends Phaser.GameObjects.Container {
     }
 
     if (this.moving) {
-      const dx   = this.targetX - this.x;
-      const dy   = this.targetY - this.y;
+      const dx = this.targetX - this.x, dy = this.targetY - this.y;
       const dist = Math.hypot(dx, dy);
       if (dist <= MOVE_STOP_DIST) {
         this.moving = false;
       } else {
-        const step = Math.min(MOVE_SPEED * dt, dist);
+        const step = Math.min(this.def.stats.moveSpeed * this._moveSpeedMult * dt, dist);
         this.x += (dx / dist) * step;
         this.y += (dy / dist) * step;
       }
@@ -167,17 +191,20 @@ export class Hero extends Phaser.GameObjects.Container {
     this._attackTimer -= dt;
     if (this._attackTimer <= 0) {
       let nearest = null, nearestDist = Infinity;
+      const range = this.def.stats.attackRange;
       for (const e of enemies) {
         if (e.dead) continue;
         const d = Math.hypot(e.x - this.x, e.y - this.y);
-        if (d <= ATTACK_RANGE && d < nearestDist) { nearest = e; nearestDist = d; }
+        if (d <= range && d < nearestDist) { nearest = e; nearestDist = d; }
       }
       if (nearest) {
-        nearest.takeDamage(ATTACK_DAMAGE, { source: heroSource() });
+        const dmg = this.def.stats.attackDamage * this._attackDamageMult;
+        nearest.takeDamage(dmg, { source: heroSource(this.heroId) });
+        if (this.def.onHit) this.def.onHit(this, nearest);
         if (nearest.dead) this._registerKill();
         const am = this.scene.game?.registry?.get('audio');
         if (am) am.playSfx('hero-attack');
-        this._attackTimer = 1 / ATTACK_RATE;
+        this._attackTimer = 1 / this.def.stats.attackRate;
       }
     }
   }
