@@ -55,7 +55,7 @@ export default class GameScene extends Phaser.Scene {
     // Systems
     this.saveMgr     = new SaveManager();
     this.upgradeMgr  = new UpgradeManager(this.saveMgr);
-    const mods       = this.upgradeMgr.getModifiers();
+    const mods       = this.upgradeMgr.getModifiers(this.heroId);
     this.killGoldMult = mods.killGoldMult;
 
     this.pathMgr  = new PathManager(map.waypoints, width, height);
