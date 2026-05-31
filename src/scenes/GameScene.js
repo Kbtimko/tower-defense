@@ -137,8 +137,11 @@ export default class GameScene extends Phaser.Scene {
       this.game.events.emit('hero:level-up', { level });
     }, this);
 
-    // Unlock abilities for the hero's starting level
-    this.time.delayedCall(150, () => {
+    // Initialise HUD portrait/colors/ability icons for the active hero
+    this.game.events.emit('hero:hud-init', { heroId: this.heroId, def: this.hero.def });
+
+    // Unlock abilities for the hero's starting level (200ms gives HUD time to process hud-init)
+    this.time.delayedCall(200, () => {
       this.game.events.emit('hero:level-up', { level: this.hero.level });
     });
 
