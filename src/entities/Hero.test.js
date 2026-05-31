@@ -231,7 +231,7 @@ describe('Hero — auto-attack source', () => {
     hero._attackTimer = 0; // force the attack to fire this tick
     hero.update(0.016, [enemy]);
     expect(enemy._calls.length).toBe(1);
-    expect(enemy._calls[0].opts).toEqual({ source: { kind: 'hero' } });
+    expect(enemy._calls[0].opts).toEqual({ source: { kind: 'hero', heroId: 'rael' } });
   });
 
   it('does not call takeDamage when no enemies are in range', () => {
