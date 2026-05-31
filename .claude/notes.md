@@ -4,9 +4,8 @@
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
 ## Current Status
-Phases 1–8 + 9a (send-wave-early) + 9b (weakness matrix) + 9c (click-to-inspect) all merged to production. Dead-enemy cleanup also merged (PR #16). Two backlog items in flight on separate branches:
-- `feature/hero-path-restriction` — pathProgress + setPathPosition + 40px corridor snap-or-reject. 5 commits, no PR yet.
-- `feature/hero-roster` — backlog item #1 (additional heroes with different skills). 33 commits, **PR #18 open** to `feature/phase-3-tower-system`. All 22 plan tasks (T1–T22) shipped: 4-hero registry, per-hero upgrade tree, SaveManager v3 migration, MapSelect picker, dynamic HUD, restructured overlay, back-compat cleanup. Plus 2 follow-up fixes: UIScene launch bug (pre-existing since Phase 6) and Power Surge × Overcharge `_baseFireRate` collision (backlog #6). 463 tests passing.
+Phases 1–8 + 9a (send-wave-early) + 9b (weakness matrix) + 9c (click-to-inspect) + dead-enemy cleanup + hero path-restriction (PR #17) all merged to production. One backlog item in flight:
+- `feature/hero-roster` — backlog item #1 (additional heroes with different skills). 34 commits, **PR #18 open + MERGEABLE** to `feature/phase-3-tower-system`. All 22 plan tasks (T1–T22) shipped: 4-hero registry, per-hero upgrade tree, SaveManager v3 migration, MapSelect picker, dynamic HUD, restructured overlay, back-compat cleanup. Plus 3 follow-up fixes: UIScene launch bug (pre-existing since Phase 6), Power Surge × Overcharge collision (multiplier-stack fix), and merge resolution against PR #17 (free-form `moveTo` replaced by path-restricted `moveToProgress`). 468 tests passing.
 
 ## Blockers
 - None active
@@ -15,8 +14,7 @@ Phases 1–8 + 9a (send-wave-early) + 9b (weakness matrix) + 9c (click-to-inspec
 - Hero may not be blocking enemies on Level 2 (Lunar Gate) — reported 2026-05-30, unverified. Likely related to path-progress work currently on `feature/hero-path-restriction`.
 
 ## In Progress
-- **Hero roster** — PR #18 open at https://github.com/Kbtimko/tower-defense/pull/18. Awaiting review/merge into `feature/phase-3-tower-system`. Manual play-through (each hero's Q/W/E visuals, level-up unlocks, respawn) still pending — machine verification + Playwright spot-checks all green. Stashed: `stash@{0}` on `feature/hero-path-restriction` has prior in-flight edits to .claude/notes.md / sessions.md / SESSION_NOTES.md from before the branch switch.
-- **Hero path-restriction** on branch `feature/hero-path-restriction`: pathProgress + `setPathPosition` infrastructure, 40px corridor snap-or-reject, Soldier-parity post-loop fallthrough, tests for backward movement and multi-segment boundary. Needs PR.
+- **Hero roster** — PR #18 open + MERGEABLE at https://github.com/Kbtimko/tower-defense/pull/18. Awaiting review/merge into `feature/phase-3-tower-system`. Manual play-through (each hero's Q/W/E visuals, level-up unlocks, respawn) still pending — machine verification + Playwright spot-checks all green. Stashed: `stash@{0}` on `feature/hero-path-restriction` has prior in-flight edits from before the branch switch (now obsolete since path-restriction merged).
 
 ## Prioritized Backlog
 1. **Phase 8b (deferred from Phase 8):** music curation (22 freesound.org CC0 tracks — 10 ambient/combat pairs + 2 boss themes); per-tower SFX for 5 tier-4 branches (currently reuse base fire sound); per-enemy-type hit sounds (currently generic + detuned); replace placeholder victory.mp3/defeat.mp3
@@ -72,3 +70,5 @@ Phases 1–8 + 9a (send-wave-early) + 9b (weakness matrix) + 9c (click-to-inspec
 - ~~Hero roster follow-up: UIScene was never launched (pre-existing since Phase 6) — GameScene now scene.launch('UIScene') after hero/economy ready; UIScene.create bootstraps _onHeroHudInit on first paint so hero swap works end-to-end. Browser-verified Engineer/Scout HUD swap — commit 8cb1d20~~ (2026-05-31)
 - ~~Hero roster follow-up #6 fix: tower fire-rate mods now compose via multiplier stack (systems/fireRateMods.js). Each ability registers a named mod; _baseFireRate captured once and never overwritten; fireRate = base × product(mods). Resolves Surge × Overcharge collision that left towers permanently at 2× rate. 6 new tests + browser-verified the exact regression sequence — 463 tests, commit 9672cc7~~ (2026-05-31)
 - ~~PR #18 opened for hero-roster branch (33 commits, +6745/-345, base feature/phase-3-tower-system)~~ (2026-05-31)
+- ~~Merge PR #17 (hero path-restriction)~~ (2026-05-31)
+- ~~Hero roster merge resolution: reconciled PR #17 path-restriction × this branch's HEROES registry. Hero constructor takes both heroId + pathPoints; free-form moveTo dropped in favor of path-restricted moveToProgress; speed scales by def.stats.moveSpeed × _moveSpeedMult (Scout's Phase Sprint preserved); _facingX now derives from movement direction along the path. Dropped obsolete constants/exports already gone in T22. 468 tests passing — commit 70c12ca~~ (2026-05-31)
