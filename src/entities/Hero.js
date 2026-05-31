@@ -2,10 +2,8 @@ import Phaser from 'phaser';
 import { heroSource } from '../data/sourceBuilders.js';
 import { HEROES } from '../data/heroes.js';
 
-const MOVE_STOP_DIST = 8;
-
 export class Hero extends Phaser.GameObjects.Container {
-  constructor(scene, { x, y, heroId = 'rael' }, modifiers = {}) {
+  constructor(scene, { x, y, heroId = 'rael', pathPoints }, modifiers = {}) {
     super(scene, x, y);
     this.heroId = heroId;
     this.def    = HEROES[heroId];
@@ -19,10 +17,21 @@ export class Hero extends Phaser.GameObjects.Container {
     this.killCount    = 0;
     this.dead         = false;
     this.respawnTimer = 0;
-    this._spawnX      = x;
-    this._spawnY      = y;
+    this.moving       = false;
 
-    this.targetX = x; this.targetY = y; this.moving = false;
+    // Path-restricted movement state (replaces free-form targetX/Y).
+    this._pathPoints      = pathPoints || [];
+    this._totalPathLength = 0;
+    for (let i = 0; i < this._pathPoints.length - 1; i++) {
+      this._totalPathLength += Math.hypot(
+        this._pathPoints[i + 1].x - this._pathPoints[i].x,
+        this._pathPoints[i + 1].y - this._pathPoints[i].y
+      );
+    }
+    this.pathProgress   = 0;
+    this.targetProgress = 0;
+
+    // Hero-roster mutable state: facing, speed/damage mults, cloak.
     this._facingX          = 1;
     this._moveSpeedMult    = 1.0;
     this._attackDamageMult = 1.0;
@@ -41,6 +50,8 @@ export class Hero extends Phaser.GameObjects.Container {
     scene.add.existing(this);
     this.setDepth(4);
     this.def.draw(this._body);
+
+    if (this._totalPathLength > 0) this.setPathPosition(0);
   }
 
   _redrawHpBar() {
@@ -53,12 +64,35 @@ export class Hero extends Phaser.GameObjects.Container {
     this._hpBar.fillRect(ox, oy, Math.max(0, w * (this.hp / this.maxHp)), h);
   }
 
-  moveTo(x, y) {
+  setPathPosition(progress) {
+    this.pathProgress = progress;
+    if (this._totalPathLength <= 0) return;
+    let target = progress * this._totalPathLength;
+    const pts = this._pathPoints;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const dx  = pts[i + 1].x - pts[i].x;
+      const dy  = pts[i + 1].y - pts[i].y;
+      const len = Math.hypot(dx, dy);
+      if (target <= len || i === pts.length - 2) {
+        const t = len > 0 ? Math.min(1, target / len) : 0;
+        this.x = pts[i].x + t * dx;
+        this.y = pts[i].y + t * dy;
+        return;
+      }
+      target -= len;
+    }
+    // Backstop (matches Soldier.setPathProgress) — the guard above should always
+    // catch the last segment, but if the loop ever exits without returning,
+    // pin to the path end.
+    this.x = pts[pts.length - 1].x;
+    this.y = pts[pts.length - 1].y;
+  }
+
+  moveToProgress(progress) {
     if (this.dead) return;
-    this.targetX = x;
-    this.targetY = y;
-    this.moving  = true;
-    this._facingX = x >= this.x ? 1 : -1;
+    this.targetProgress = progress;
+    this.moving = (progress !== this.pathProgress);
+    if (this.moving) this._facingX = progress >= this.pathProgress ? 1 : -1;
   }
 
   takeDamage(amount, _opts = {}) {
@@ -76,19 +110,18 @@ export class Hero extends Phaser.GameObjects.Container {
   }
 
   respawn() {
-    this.dead         = false;
-    this.hp           = this.maxHp;
-    this.respawnTimer = 0;
-    this.x            = this._spawnX;
-    this.y            = this._spawnY;
-    this.targetX      = this._spawnX;
-    this.targetY      = this._spawnY;
-    this.moving       = false;
-    this.cloaked      = false;
-    this._cloakTimer  = 0;
+    this.dead              = false;
+    this.hp                = this.maxHp;
+    this.respawnTimer      = 0;
+    this.pathProgress      = 0;
+    this.targetProgress    = 0;
+    this.moving            = false;
+    this.cloaked           = false;
+    this._cloakTimer       = 0;
     this._moveSpeedMult    = 1.0;
     this._attackDamageMult = 1.0;
-    this._attackTimer = 1 / this.def.stats.attackRate;
+    this._attackTimer      = 1 / this.def.stats.attackRate;
+    this.setPathPosition(0);
     this._body.setVisible(true);
     this._redrawHpBar();
     const am = this.scene.game?.registry?.get('audio');
@@ -168,16 +201,17 @@ export class Hero extends Phaser.GameObjects.Container {
       return;
     }
 
-    if (this.moving) {
-      const dx = this.targetX - this.x, dy = this.targetY - this.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist <= MOVE_STOP_DIST) {
-        this.moving = false;
+    if (this.moving && this._totalPathLength > 0) {
+      const speed         = this.def.stats.moveSpeed * this._moveSpeedMult;
+      const deltaProgress = (speed * dt) / this._totalPathLength;
+      const remaining     = this.targetProgress - this.pathProgress;
+      if (Math.abs(remaining) <= deltaProgress) {
+        this.pathProgress = this.targetProgress;
+        this.moving       = false;
       } else {
-        const step = Math.min(this.def.stats.moveSpeed * this._moveSpeedMult * dt, dist);
-        this.x += (dx / dist) * step;
-        this.y += (dy / dist) * step;
+        this.pathProgress += Math.sign(remaining) * deltaProgress;
       }
+      this.setPathPosition(this.pathProgress);
     }
 
     this._attackTimer -= dt;

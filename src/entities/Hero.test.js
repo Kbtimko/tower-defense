@@ -53,27 +53,83 @@ describe('Hero — movement', () => {
     expect(hero.y).toBe(50);
   });
 
-  it('moveTo sets target and moving flag', () => {
-    const hero = new Hero(makeScene(), { x: 0, y: 0 });
-    hero.moveTo(200, 150);
-    expect(hero.targetX).toBe(200);
-    expect(hero.targetY).toBe(150);
+  it('moveToProgress sets targetProgress and moving flag', () => {
+    const pathPoints = [{ x: 0, y: 100 }, { x: 200, y: 100 }];
+    const hero = new Hero(makeScene(), { x: 0, y: 0, pathPoints });
+    hero.moveToProgress(0.5);
+    expect(hero.targetProgress).toBe(0.5);
     expect(hero.moving).toBe(true);
   });
 
-  it('moves toward target each update', () => {
-    const hero = new Hero(makeScene(), { x: 0, y: 0 });
-    hero.moveTo(130, 0);
-    hero.update(1, []);
-    expect(hero.x).toBeGreaterThan(0);
-    expect(hero.x).toBeLessThanOrEqual(130);
+  it('update advances pathProgress toward targetProgress at MOVE_SPEED / totalLength per second', () => {
+    // 200px horizontal path → totalPathLength = 200; MOVE_SPEED = 130
+    // → expected deltaProgress per second = 130 / 200 = 0.65
+    const pathPoints = [{ x: 0, y: 100 }, { x: 200, y: 100 }];
+    const hero = new Hero(makeScene(), { x: 0, y: 0, pathPoints });
+    hero.moveToProgress(1);
+    hero.update(0.1, []);
+    // 0.1 seconds → 0.065 progress
+    expect(hero.pathProgress).toBeCloseTo(0.065, 5);
+    expect(hero.x).toBeCloseTo(13, 1);
+    expect(hero.y).toBe(100);
   });
 
-  it('stops when within 8px of target', () => {
-    const hero = new Hero(makeScene(), { x: 0, y: 0 });
-    hero.moveTo(5, 0);
-    hero.update(1, []);
+  it('stops when pathProgress reaches targetProgress', () => {
+    const pathPoints = [{ x: 0, y: 100 }, { x: 200, y: 100 }];
+    const hero = new Hero(makeScene(), { x: 0, y: 0, pathPoints });
+    hero.moveToProgress(0.5);
+    // 200px path, 130 px/s → 0.5 progress = 100px → 100/130 ≈ 0.77s
+    hero.update(1.0, []);
+    expect(hero.pathProgress).toBe(0.5);
     expect(hero.moving).toBe(false);
+  });
+
+  it('dead hero ignores moveToProgress', () => {
+    const pathPoints = [{ x: 0, y: 100 }, { x: 200, y: 100 }];
+    const hero = new Hero(makeScene(), { x: 0, y: 0, pathPoints });
+    hero.takeDamage(200);                  // hero dies
+    hero.moveToProgress(0.7);
+    expect(hero.targetProgress).toBe(0);   // unchanged
+    expect(hero.moving).toBe(false);
+  });
+
+  it('update moves backward when targetProgress is less than pathProgress', () => {
+    const pathPoints = [{ x: 0, y: 100 }, { x: 200, y: 100 }];
+    const hero = new Hero(makeScene(), { x: 0, y: 0, pathPoints });
+    hero.moveToProgress(1);
+    hero.update(2, []);            // walk to the end (pathProgress === 1)
+    expect(hero.pathProgress).toBe(1);
+    hero.moveToProgress(0);        // click back at start
+    hero.update(0.1, []);
+    // backward step: 0.1s × MOVE_SPEED(130) / totalLength(200) = 0.065
+    expect(hero.pathProgress).toBeCloseTo(1 - 0.065, 5);
+    expect(hero.x).toBeCloseTo((1 - 0.065) * 200, 1);
+    expect(hero.y).toBe(100);
+  });
+
+  it('initializes pathProgress=0 and projects to path[0] when pathPoints provided', () => {
+    const pathPoints = [{ x: 100, y: 100 }, { x: 500, y: 100 }];
+    const hero = new Hero(makeScene(), { x: 0, y: 0, pathPoints });
+    expect(hero.pathProgress).toBe(0);
+    expect(hero.x).toBe(100);
+    expect(hero.y).toBe(100);
+  });
+
+  it('setPathPosition(0.5) places hero at midpoint of a straight horizontal path', () => {
+    const pathPoints = [{ x: 0, y: 100 }, { x: 200, y: 100 }];
+    const hero = new Hero(makeScene(), { x: 0, y: 0, pathPoints });
+    hero.setPathPosition(0.5);
+    expect(hero.pathProgress).toBe(0.5);
+    expect(hero.x).toBe(100);
+    expect(hero.y).toBe(100);
+  });
+
+  it('setPathPosition(1.0) places hero exactly at the last point on a multi-segment path', () => {
+    const pathPoints = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 200 }];
+    const hero = new Hero(makeScene(), { x: 0, y: 0, pathPoints });
+    hero.setPathPosition(1.0);
+    expect(hero.x).toBe(100);
+    expect(hero.y).toBe(200);
   });
 });
 
@@ -116,12 +172,15 @@ describe('Hero — takeDamage and respawn', () => {
     expect(hero.hp).toBe(150);
   });
 
-  it('respawn repositions hero to spawn point', () => {
-    const hero = new Hero(makeScene(), { x: 50, y: 50 });
-    hero.moveTo(300, 300);
-    hero.update(0.5, []);
-    hero.takeDamage(200);
-    hero.update(20, []);
+  it('respawn resets pathProgress to 0 and position to path[0]', () => {
+    const pathPoints = [{ x: 50, y: 50 }, { x: 250, y: 50 }];
+    const hero = new Hero(makeScene(), { x: 0, y: 0, pathPoints });
+    hero.moveToProgress(1);
+    hero.update(2, []);                    // walk the full path
+    expect(hero.pathProgress).toBe(1);
+    hero.takeDamage(200);                  // hero dies
+    hero.update(20, []);                   // respawns
+    expect(hero.pathProgress).toBe(0);
     expect(hero.x).toBe(50);
     expect(hero.y).toBe(50);
   });
@@ -277,12 +336,14 @@ describe('Hero data-driven refactor — new surface', () => {
     expect(hero.fireAbility('w', { x:0, y:0 })).not.toBeNull();
   });
 
-  it('moveTo sets _facingX based on direction', () => {
-    const hero = makeHero();
-    hero.x = 100;
-    hero.moveTo(200, 0);
+  it('moveToProgress sets _facingX based on direction along the path', () => {
+    const pathPoints = [{ x: 0, y: 0 }, { x: 200, y: 0 }];
+    const hero = new Hero(makeScene(), { x: 0, y: 0, pathPoints });
+    hero.moveToProgress(0.7);
     expect(hero._facingX).toBe(1);
-    hero.moveTo(50, 0);
+    // Walk to where we just aimed, then aim backward
+    hero.update(2, []);
+    hero.moveToProgress(0.2);
     expect(hero._facingX).toBe(-1);
   });
 
