@@ -77,4 +77,17 @@ describe('SentryTurret', () => {
     expect(scene.projectiles.length).toBe(1);
     expect(scene.projectiles[0].target).toBe(alive);
   });
+
+  it('does not burst-fire when an enemy appears after a long idle period', () => {
+    const scene = makeScene();
+    const s = new SentryTurret(scene, { x: 0, y: 0, ownerHeroId: 'engineer' });
+    // No enemies for 5 seconds — cooldown must NOT drift unboundedly negative.
+    s.update(5.0, []);
+    // Enemy appears — single shot fires, then normal cadence.
+    const e = makeEnemy(30, 0);
+    s.update(0.016, [e]);   // first shot
+    s.update(0.016, [e]);   // should NOT fire — 1/rate hasn't elapsed
+    s.update(0.016, [e]);   // ditto
+    expect(scene.projectiles.length).toBe(1);
+  });
 });

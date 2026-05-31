@@ -57,6 +57,10 @@ export class SentryTurret extends Phaser.GameObjects.Container {
           color: COLOR, towerType: 'archer', tier: 1, branch: null,
         }));
         this._cooldown += 1 / this.rate;
+      } else {
+        // No target this tick — clamp to 0 so a long idle period doesn't accrue
+        // negative cooldown debt and burst-fire when an enemy finally appears.
+        this._cooldown = 0;
       }
     }
     return true;
