@@ -4,9 +4,9 @@
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
 ## Current Status
-Phases 1–8 + 9a (send-wave-early) + 9b (weakness matrix) + 9c (click-to-inspect) all merged to production. Dead-enemy cleanup also merged (PR #16). Two backlog items currently in flight on separate branches:
+Phases 1–8 + 9a (send-wave-early) + 9b (weakness matrix) + 9c (click-to-inspect) all merged to production. Dead-enemy cleanup also merged (PR #16). Two backlog items in flight on separate branches:
 - `feature/hero-path-restriction` — pathProgress + setPathPosition + 40px corridor snap-or-reject. 5 commits, no PR yet.
-- `feature/hero-roster` — backlog item #1 (additional heroes with different skills). 19 commits, no PR yet. Phase 1 (foundations) + Phase 2 (HEROES registry + Hero data-driven refactor) complete; T13–T22 + final review pending. 408 tests passing.
+- `feature/hero-roster` — backlog item #1 (additional heroes with different skills). 33 commits, **PR #18 open** to `feature/phase-3-tower-system`. All 22 plan tasks (T1–T22) shipped: 4-hero registry, per-hero upgrade tree, SaveManager v3 migration, MapSelect picker, dynamic HUD, restructured overlay, back-compat cleanup. Plus 2 follow-up fixes: UIScene launch bug (pre-existing since Phase 6) and Power Surge × Overcharge `_baseFireRate` collision (backlog #6). 463 tests passing.
 
 ## Blockers
 - None active
@@ -15,15 +15,17 @@ Phases 1–8 + 9a (send-wave-early) + 9b (weakness matrix) + 9c (click-to-inspec
 - Hero may not be blocking enemies on Level 2 (Lunar Gate) — reported 2026-05-30, unverified. Likely related to path-progress work currently on `feature/hero-path-restriction`.
 
 ## In Progress
-- **Hero roster** on branch `feature/hero-roster` (Phase 1+2 of 6 complete). Foundations + HEROES registry shipped: Soldier.heal, source builders heroId-aware, Enemy burn/vulnerable statuses, AreaEffectsManager, SentryTurret, HEROES registry, Hero.js data-driven refactor, GameScene fireAbility dispatcher, weaknessMatrix reads HEROES, InspectController reads hero.def. Plan + spec committed. Stashed: `stash@{0}` on `feature/hero-path-restriction` has prior in-flight edits to .claude/notes.md / sessions.md / SESSION_NOTES.md from before the branch switch.
+- **Hero roster** — PR #18 open at https://github.com/Kbtimko/tower-defense/pull/18. Awaiting review/merge into `feature/phase-3-tower-system`. Manual play-through (each hero's Q/W/E visuals, level-up unlocks, respawn) still pending — machine verification + Playwright spot-checks all green. Stashed: `stash@{0}` on `feature/hero-path-restriction` has prior in-flight edits to .claude/notes.md / sessions.md / SESSION_NOTES.md from before the branch switch.
 - **Hero path-restriction** on branch `feature/hero-path-restriction`: pathProgress + `setPathPosition` infrastructure, 40px corridor snap-or-reject, Soldier-parity post-loop fallthrough, tests for backward movement and multi-segment boundary. Needs PR.
 
 ## Prioritized Backlog
-1. **Hero roster Phase 3–6 (T13–T22)** on `feature/hero-roster`: three new heroes (Engineer Dax / Scout Vex / Pyromancer Mira) + SaveManager v3 + per-hero upgrade tree + MapSelect hero picker + UIScene dynamic HUD + UpgradeTreeOverlay restructure + verification + cleanup. Plan: `docs/superpowers/plans/2026-05-30-hero-roster.md`.
-2. **Phase 8b (deferred from Phase 8):** music curation (22 freesound.org CC0 tracks — 10 ambient/combat pairs + 2 boss themes); per-tower SFX for 5 tier-4 branches (currently reuse base fire sound); per-enemy-type hit sounds (currently generic + detuned); replace placeholder victory.mp3/defeat.mp3
-3. Phase 10 (future): iOS Prep — Capacitor, touch controls, App Store pipeline
-4. Verify hero is working properly on Level 2 (Lunar Gate) — reports indicate hero isn't blocking any enemies; likely related to path-restriction work on `feature/hero-path-restriction` or map-specific path geometry _(added 2026-05-30)_
-5. Resize game canvas as the browser window resizes (responsive Phaser scaling) _(added 2026-05-30)_
+1. **Phase 8b (deferred from Phase 8):** music curation (22 freesound.org CC0 tracks — 10 ambient/combat pairs + 2 boss themes); per-tower SFX for 5 tier-4 branches (currently reuse base fire sound); per-enemy-type hit sounds (currently generic + detuned); replace placeholder victory.mp3/defeat.mp3
+2. Phase 10 (future): iOS Prep — Capacitor, touch controls, App Store pipeline
+3. Verify hero is working properly on Level 2 (Lunar Gate) — reports indicate hero isn't blocking any enemies; likely related to path-restriction work on `feature/hero-path-restriction` or map-specific path geometry _(added 2026-05-30)_
+4. Resize game canvas as the browser window resizes (responsive Phaser scaling) _(added 2026-05-30)_
+5. **AreaEffectsManager `followsTarget.dead` not handled** — Pyromancer's Immolate aura (8s, follows hero) keeps ticking 10 dps if hero dies mid-aura, and if hero respawns before the aura ends, the aura teleports to the respawn point. T5 design gap exposed by T15. Fix: in `AreaEffectsManager.update`, treat `eff.followsTarget?.dead` as duration-expired. _(added 2026-05-31)_
+6. **heroAbilities.test.js mid-file imports** — T15 appended `import { pyroFlameWave, ... }` and `import { vi } from 'vitest'` mid-file. Violates ~/projects/CLAUDE.md "imports at the top". Trivial fix: hoist + dedupe. _(added 2026-05-31)_
+7. **"Heroes" icon on MapSelect → hero management UI** — add an icon button next to the existing ⚙ Upgrades / ♪ Audio cluster that opens a unified Hero Management overlay. Inside: hero picker (current MapSelect cards, larger) + per-hero upgrade tree (current overlay's per-hero branches, scoped to the selected hero). Lets player switch hero + spend stars on one hero without leaving the modal. _(added 2026-05-31)_
 
 ## Completed
 - ~~Phase 1: Core game loop (Phaser setup, path, basic enemies, HUD)~~ (2026-05-07)
@@ -57,3 +59,16 @@ Phases 1–8 + 9a (send-wave-early) + 9b (weakness matrix) + 9c (click-to-inspec
 - ~~Hero roster brainstorm + design spec + implementation plan (22 tasks, ~1900 lines)~~ (2026-05-30 — on `feature/hero-roster`)
 - ~~Hero roster Phase 1 (T1–T6): Soldier.heal, source builders heroId-aware + burnSource, Enemy burn DoT + vulnerable status, AreaEffectsManager, SentryTurret + cooldown drift fix~~ (2026-05-30)
 - ~~Hero roster Phase 2 (T7–T12): HEROES registry with Rael + ability impl tests, Hero.js data-driven refactor + back-compat wrappers, GameScene fireAbility dispatcher + 9 stub handlers, weaknessMatrix reads HEROES.matchups, InspectController reads hero.def — 408 tests, no PR yet~~ (2026-05-30)
+- ~~Hero roster T13 (Engineer Dax): engRepair/engDeployTurret/engPowerSurge pure ability fns + 5 tests, HEROES.engineer registry entry (hex-hardhat draw, anti-armor matchups), GameScene wires _sentries list + _updateSentries + replaces 3 ability-handler stubs — 419 tests, commit 1abb651~~ (2026-05-31)
+- ~~Hero roster T14 (Scout Vex): scoutMark/scoutVolley/scoutPhase pure ability fns + 5 tests, HEROES.scout registry entry (hooded-scout draw, anti-air matchups), GameScene wires 3 handler stubs (Mark→vulnerable status, Volley→AoE damage with brief line VFX, Phase Sprint→cloak+speed boost via existing Hero.update countdown) — 430 tests, commit e458106~~ (2026-05-31)
+- ~~Hero roster T15 (Pyromancer Mira): 4 pure ability fns including pyroBurnOnHit + 4 tests, HEROES.pyro entry with onHit:pyroBurnOnHit (3dps/2s burn per melee hit) + anti-swarm matchups, GameScene wires AreaEffectsManager (Immolate aura + Firefield pool) + Flame Wave cone math + inline VFX — 440 tests, commit 24cb967~~ (2026-05-31)
+- ~~Hero roster T16 (SaveManager v3): selectedHeroId default 'rael', v1→v2→v3 migration with cmd_*→rael_* upgrade rename, isHeroUnlocked(heroId) based on map stars, 8 new tests — 448 tests, commit 40c03d0~~ (2026-05-31)
+- ~~Hero roster T17 (Upgrades restructure): 25-node tree (4 per hero × 4 + 4 logistics + 5 arsenal), heroUnlock gate on non-Rael nodes, UpgradeManager.getModifiers(heroId) scopes hero modifiers, canPurchase + getNodeState honor heroUnlock — 451 tests, commit e79e17f~~ (2026-05-31)
+- ~~Hero roster T18 (MapSelect hero picker): 4 cards with portrait/color/locked state + tooltips, click persists selectedHeroId, heroId passed to scene.start, 6 new tests — 457 tests, commit 17e8e08~~ (2026-05-31)
+- ~~Hero roster T19 (Dynamic HUD): hero:hud-init event rewrites portrait/level/HP-fill/ability icons + tooltips per hero, _onHeroLevelUp reads cached _heroDef.shortName — commit 93e447f~~ (2026-05-31)
+- ~~Hero roster T20 (Upgrade overlay restructure): 6 branches (4 hero + logistics + arsenal) with title/subtitle headings, locked-hero state for hero-gated nodes — commit 0711ab4~~ (2026-05-31)
+- ~~Hero roster T21 (verification): full test suite green, lint skipped (no eslint.config.js), manual play-through deferred~~ (2026-05-31)
+- ~~Hero roster T22 (back-compat cleanup): removed HERO_STATS export, HERO_MULTIPLIERS re-export, heroAirstrikeSource alias, legacy overcharge/airstrike/empPulse timer getters; migrated all consumers; stale-comment fix on retained ability wrappers — commits 7df445a + a3a24d2~~ (2026-05-31)
+- ~~Hero roster follow-up: UIScene was never launched (pre-existing since Phase 6) — GameScene now scene.launch('UIScene') after hero/economy ready; UIScene.create bootstraps _onHeroHudInit on first paint so hero swap works end-to-end. Browser-verified Engineer/Scout HUD swap — commit 8cb1d20~~ (2026-05-31)
+- ~~Hero roster follow-up #6 fix: tower fire-rate mods now compose via multiplier stack (systems/fireRateMods.js). Each ability registers a named mod; _baseFireRate captured once and never overwritten; fireRate = base × product(mods). Resolves Surge × Overcharge collision that left towers permanently at 2× rate. 6 new tests + browser-verified the exact regression sequence — 463 tests, commit 9672cc7~~ (2026-05-31)
+- ~~PR #18 opened for hero-roster branch (33 commits, +6745/-345, base feature/phase-3-tower-system)~~ (2026-05-31)
