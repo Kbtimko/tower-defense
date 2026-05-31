@@ -15,6 +15,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.statusEffects = {
       slow: { active: false, timer: 0, factor: 1 },
       stun: { active: false, timer: 0 },
+      burn: { active: false, timer: 0, dps: 0, tickAccum: 0 },
     };
 
     this._body  = scene.add.graphics();
@@ -45,6 +46,17 @@ export class Enemy extends Phaser.GameObjects.Container {
       if (this.statusEffects.stun.timer <= 0) {
         this.statusEffects.stun = { active: false, timer: 0 };
         this._redrawBody();
+      }
+    }
+    if (this.statusEffects.burn.active) {
+      this.statusEffects.burn.timer -= dt;
+      this.statusEffects.burn.tickAccum += dt;
+      while (this.statusEffects.burn.tickAccum >= 1 && this.statusEffects.burn.active) {
+        this.statusEffects.burn.tickAccum -= 1;
+        this.takeDamage(this.statusEffects.burn.dps, { source: { kind: 'status', type: 'burn' } });
+      }
+      if (this.statusEffects.burn.timer <= 0) {
+        this.statusEffects.burn = { active: false, timer: 0, dps: 0, tickAccum: 0 };
       }
     }
   }
@@ -79,7 +91,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     }
   }
 
-  applyStatus({ type, duration, factor }) {
+  applyStatus({ type, duration, factor, dps, multiplier }) {
     if (type === 'slow') {
       this.statusEffects.slow = { active: true, timer: duration, factor };
       this._redrawBody();
@@ -87,6 +99,11 @@ export class Enemy extends Phaser.GameObjects.Container {
     if (type === 'stun') {
       this.statusEffects.stun = { active: true, timer: duration };
       this._redrawBody();
+    }
+    if (type === 'burn') {
+      const existing = this.statusEffects.burn;
+      const newDps = existing.active ? Math.max(existing.dps, dps) : dps;
+      this.statusEffects.burn = { active: true, timer: duration, dps: newDps, tickAccum: existing.active ? existing.tickAccum : 0 };
     }
   }
 
