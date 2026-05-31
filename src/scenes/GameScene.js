@@ -23,6 +23,7 @@ import { soldierSource, heroAirstrikeSource } from '../data/sourceBuilders.js';
 import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
 import { InspectController } from './InspectController.js';
+import { SentryTurret } from '../entities/SentryTurret.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const ENEMY_MELEE_DAMAGE = 20;
@@ -84,6 +85,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Entity arrays
     this.enemies     = [];
+    this._sentries   = [];
     this.projectiles = [];
     this.particles   = [];
     this.kills       = 0;
@@ -172,6 +174,8 @@ export default class GameScene extends Phaser.Scene {
     if (am) am.stopMusic(500);
     if (this.damageNumbers) this.damageNumbers.destroy();
     if (this.shakeCtl)      this.shakeCtl.destroy();
+    for (const s of this._sentries) s.destroy();
+    this._sentries = [];
   }
 
   // ─── Update loop ───────────────────────────────────────────────────────────
@@ -187,6 +191,7 @@ export default class GameScene extends Phaser.Scene {
     this._updateProjectiles(dt);
     this._updateSoldiers(dt);
     this._updateHero(dt);
+    this._updateSentries(dt);
     this._updateParticles(dt);
     this._checkWaveComplete();
     this.inspector?.refresh();
@@ -456,9 +461,50 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  _handleDeployTurret(_result) { /* wired in T13 */ }
-  _handleRepair(_result)        { /* wired in T13 */ }
-  _handlePowerSurge(_result)    { /* wired in T13 */ }
+  _updateSentries(dt) {
+    this._sentries = this._sentries.filter(s => s.update(dt, this.enemies));
+  }
+
+  _handleDeployTurret(result) {
+    for (const s of this._sentries) s.destroy();
+    this._sentries = [new SentryTurret(this, { x: result.x, y: result.y, ownerHeroId: this.hero.heroId })];
+    const am = this.game?.registry?.get('audio');
+    if (am) am.playSfx('hero-overcharge');
+  }
+
+  _handleRepair(result) {
+    this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + result.healHero);
+    this.hero._redrawHpBar();
+    for (const tower of this.placementManager.getTowers()) {
+      if (tower.type !== 'barracks') continue;
+      for (const soldier of tower.soldiers) {
+        if (soldier.dead) continue;
+        if (Math.hypot(soldier.x - this.hero.x, soldier.y - this.hero.y) <= result.soldierRadius) {
+          soldier.heal();
+        }
+      }
+    }
+    const am = this.game?.registry?.get('audio');
+    if (am) am.playSfx('hero-respawn');
+  }
+
+  _handlePowerSurge(result) {
+    const affected = [];
+    for (const tower of this.placementManager.getTowers()) {
+      if (Math.hypot(tower.x - result.x, tower.y - result.y) <= result.radius) {
+        tower._baseFireRate ??= tower.fireRate;
+        tower.fireRate = tower._baseFireRate * result.fireRateMult;
+        affected.push(tower);
+      }
+    }
+    this.time.delayedCall(result.duration * 1000, () => {
+      for (const t of affected) {
+        if (t._baseFireRate != null) t.fireRate = t._baseFireRate;
+      }
+    });
+    const am = this.game?.registry?.get('audio');
+    if (am) am.playSfx('hero-overcharge');
+  }
   _handleMark(_result)          { /* wired in T14 */ }
   _handleVolley(_result)        { /* wired in T14 */ }
   _handlePhaseSprint(_result)   { /* wired in T14 */ }

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { raelOvercharge, raelAirstrike, raelEmp } from './heroAbilities.js';
+import { engRepair, engDeployTurret, engPowerSurge } from './heroAbilities.js';
 
 const makeHero = (overrides = {}) => ({
   dead: false,
@@ -41,5 +42,28 @@ describe('raelEmp', () => {
 
   it('returns null when hero is dead', () => {
     expect(raelEmp(makeHero({ dead: true }), {})).toBeNull();
+  });
+});
+
+describe('engineer abilities', () => {
+  it('engRepair returns kind:repair when alive', () => {
+    const h = { dead: false, hp: 40, maxHp: 95 };
+    expect(engRepair(h, {})).toEqual({ kind:'repair', healHero: 60, soldierRadius: 100 });
+  });
+  it('engRepair returns null when dead', () => {
+    expect(engRepair({ dead: true }, {})).toBeNull();
+  });
+
+  it('engDeployTurret returns kind:deploy_turret with position', () => {
+    const h = { dead: false, x: 100, y: 200 };
+    expect(engDeployTurret(h, {})).toEqual({ kind:'deploy_turret', x: 100, y: 200 });
+  });
+  it('engDeployTurret returns null when dead', () => {
+    expect(engDeployTurret({ dead: true, x:0, y:0 }, {})).toBeNull();
+  });
+
+  it('engPowerSurge returns kind:power_surge with position + radius + multiplier + duration', () => {
+    const h = { dead: false, x: 50, y: 50 };
+    expect(engPowerSurge(h, {})).toEqual({ kind:'power_surge', x:50, y:50, radius:200, fireRateMult:2.0, duration:8 });
   });
 });

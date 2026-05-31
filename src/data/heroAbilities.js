@@ -18,3 +18,18 @@ export function raelEmp(hero, _scene) {
   if (hero.dead) return null;
   return { kind: 'emp' };
 }
+
+export function engRepair(hero, _scene) {
+  if (hero.dead) return null;
+  return { kind: 'repair', healHero: 60, soldierRadius: 100 };
+}
+
+export function engDeployTurret(hero, _scene) {
+  if (hero.dead) return null;
+  return { kind: 'deploy_turret', x: hero.x, y: hero.y };
+}
+
+export function engPowerSurge(hero, _scene) {
+  if (hero.dead) return null;
+  return { kind: 'power_surge', x: hero.x, y: hero.y, radius: 200, fireRateMult: 2.0, duration: 8 };
+}

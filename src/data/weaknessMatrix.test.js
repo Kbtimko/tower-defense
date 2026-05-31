@@ -165,15 +165,15 @@ describe('describeEnemyMatchups', () => {
     expect(r.resists.sort()).toEqual(['cannon', 'sniper']);
   });
 
-  it('brute → vulnerableTo [barracks, cannon, sniper], resists [archer]', () => {
+  it('brute → vulnerableTo [barracks, cannon, hero:engineer, sniper], resists [archer]', () => {
     const r = describeEnemyMatchups('brute');
-    expect(r.vulnerableTo.sort()).toEqual(['barracks', 'cannon', 'sniper']);
+    expect(r.vulnerableTo.sort()).toEqual(['barracks', 'cannon', 'hero:engineer', 'sniper']);
     expect(r.resists.sort()).toEqual(['archer']);
   });
 
-  it('colossus → vulnerableTo [cannon, mage, sniper], resists [archer]', () => {
+  it('colossus → vulnerableTo [cannon, hero:engineer, mage, sniper], resists [archer]', () => {
     const r = describeEnemyMatchups('colossus');
-    expect(r.vulnerableTo.sort()).toEqual(['cannon', 'mage', 'sniper']);
+    expect(r.vulnerableTo.sort()).toEqual(['cannon', 'hero:engineer', 'mage', 'sniper']);
     expect(r.resists.sort()).toEqual(['archer']);
   });
 
@@ -183,9 +183,9 @@ describe('describeEnemyMatchups', () => {
     expect(r.resists.sort()).toEqual(['barracks', 'cannon', 'sniper']);
   });
 
-  it('titan → vulnerableTo [cannon, mage, sniper], resists [archer, barracks, ice]', () => {
+  it('titan → vulnerableTo [cannon, hero:engineer, mage, sniper], resists [archer, barracks, ice]', () => {
     const r = describeEnemyMatchups('titan');
-    expect(r.vulnerableTo.sort()).toEqual(['cannon', 'mage', 'sniper']);
+    expect(r.vulnerableTo.sort()).toEqual(['cannon', 'hero:engineer', 'mage', 'sniper']);
     expect(r.resists.sort()).toEqual(['archer', 'barracks', 'ice']);
   });
 
