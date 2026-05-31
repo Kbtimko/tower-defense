@@ -1,7 +1,7 @@
-import { describeEnemyMatchups, HERO_MULTIPLIERS } from '../data/weaknessMatrix.js';
+import { describeEnemyMatchups } from '../data/weaknessMatrix.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
 import { TOWER_DEFS } from '../data/towers.js';
-import { HERO_STATS } from '../entities/Hero.js';
+import { HEROES } from '../data/heroes.js';
 
 export class InspectController {
   constructor(scene) {
@@ -127,8 +127,13 @@ export class InspectController {
     const el = document.getElementById('ei-matchups');
     el.replaceChildren();
     const { vulnerableTo, resists } = describeEnemyMatchups(enemyType);
-    const displayName = (type) =>
-      type === 'hero' ? 'Hero' : (TOWER_DEFS[type]?.name ?? type);
+    const displayName = (t) => {
+      if (typeof t === 'string' && t.startsWith('hero:')) {
+        const id = t.slice(5);
+        return HEROES[id]?.shortName ?? id;
+      }
+      return TOWER_DEFS[t]?.name ?? t;
+    };
     if (vulnerableTo.length) {
       const line = document.createElement('span');
       line.className = 'mu-good';
@@ -148,11 +153,11 @@ export class InspectController {
     hpfill.style.width = `${Math.max(0, (hero.hp / hero.maxHp) * 100)}%`;
     document.getElementById('hi-hp-label').textContent = `${Math.ceil(hero.hp)} / ${hero.maxHp}`;
 
-    document.getElementById('hi-level').textContent = `Level: ${hero.level} / ${HERO_STATS.maxLevel} · Kills: ${hero.killCount}`;
-    document.getElementById('hi-attack').textContent = `Attack: ${HERO_STATS.attackDamage} dmg @ ${HERO_STATS.attackRange} range`;
+    document.getElementById('hi-level').textContent = `Level: ${hero.level} / ${hero.def.stats.maxLevel} · Kills: ${hero.killCount}`;
+    document.getElementById('hi-attack').textContent = `Attack: ${hero.def.stats.attackDamage} dmg @ ${hero.def.stats.attackRange} range`;
 
     this._renderHeroAbilities(hero);
-    this._renderHeroMatchups();
+    this._renderHeroMatchups(hero);
   }
 
   _renderHeroAbilities(hero) {
@@ -167,11 +172,13 @@ export class InspectController {
       return;
     }
 
-    const abilities = [
-      { slot: 'q', label: 'Q Overcharge', timer: hero.overchargeTimer, unlockLvl: HERO_STATS.abilityUnlockLevels.q },
-      { slot: 'w', label: 'W Airstrike',  timer: hero.airstrikeTimer,  unlockLvl: HERO_STATS.abilityUnlockLevels.w },
-      { slot: 'e', label: 'E EMP Pulse',  timer: hero.empTimer,        unlockLvl: HERO_STATS.abilityUnlockLevels.e },
-    ];
+    const timerField = { q: 'overchargeTimer', w: 'airstrikeTimer', e: 'empTimer' };
+    const abilities = Object.entries(hero.def.abilities).map(([slot, ab]) => ({
+      slot,
+      label: `${slot.toUpperCase()} ${ab.label}`,
+      timer: hero[timerField[slot]] ?? 0,
+      unlockLvl: hero.def.stats.abilityUnlockLevels[slot],
+    }));
 
     for (const ab of abilities) {
       const line = document.createElement('div');
@@ -193,10 +200,10 @@ export class InspectController {
     }
   }
 
-  _renderHeroMatchups() {
+  _renderHeroMatchups(hero) {
     const el = document.getElementById('hi-matchups');
     el.replaceChildren();
-    for (const [enemyType, mult] of Object.entries(HERO_MULTIPLIERS)) {
+    for (const [enemyType, mult] of Object.entries(hero.def.matchups)) {
       if (mult === 1.0) continue;
       const line = document.createElement('span');
       line.className = mult >= 1 ? 'mu-good' : 'mu-bad';
@@ -220,7 +227,13 @@ export class InspectController {
       peek.appendChild(stat);
 
       const { vulnerableTo, resists } = describeEnemyMatchups(target.def.type);
-      const displayName = (t) => t === 'hero' ? 'Hero' : (TOWER_DEFS[t]?.name ?? t);
+      const displayName = (t) => {
+        if (typeof t === 'string' && t.startsWith('hero:')) {
+          const id = t.slice(5);
+          return HEROES[id]?.shortName ?? id;
+        }
+        return TOWER_DEFS[t]?.name ?? t;
+      };
       if (vulnerableTo.length) {
         const v = document.createElement('div');
         v.textContent = `Weak: ${displayName(vulnerableTo[0])}`;
@@ -232,7 +245,7 @@ export class InspectController {
         peek.appendChild(r);
       }
     } else {
-      header.textContent = '🛡️ Commander Rael';
+      header.textContent = `🛡️ ${target.def.displayName}`;
       peek.appendChild(header);
       const stat = document.createElement('div');
       stat.textContent = `HP ${Math.ceil(target.hp)} / ${target.maxHp} · Level ${target.level}`;
