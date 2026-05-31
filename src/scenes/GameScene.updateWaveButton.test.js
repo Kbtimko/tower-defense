@@ -28,6 +28,8 @@ vi.mock('../entities/Barracks.js', () => ({ Barracks: class {} }));
 vi.mock('../entities/Enemy.js', () => ({ Enemy: class {} }));
 vi.mock('../entities/Projectile.js', () => ({ Projectile: class {} }));
 vi.mock('../entities/Hero.js', () => ({ Hero: class {} }));
+vi.mock('../entities/SentryTurret.js', () => ({ SentryTurret: class {} }));
+vi.mock('../systems/AreaEffectsManager.js', () => ({ AreaEffectsManager: class { update() {} destroyAll() {} } }));
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import GameScene from './GameScene.js';

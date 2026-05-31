@@ -5,6 +5,11 @@ import { starsDisplay } from '../utils/display.js';
 import { UpgradeManager }     from '../systems/UpgradeManager.js';
 import { UpgradeTreeOverlay } from '../ui/UpgradeTreeOverlay.js';
 import { SettingsOverlay }     from '../ui/SettingsOverlay.js';
+import { HEROES, HERO_ORDER } from '../data/heroes.js';
+
+function toCssColor(hex) {
+  return '#' + ('000000' + hex.toString(16)).slice(-6);
+}
 
 export default class MapSelectScene extends Phaser.Scene {
   constructor() { super('MapSelectScene'); }
@@ -31,6 +36,7 @@ export default class MapSelectScene extends Phaser.Scene {
     this._bindPlay();
     this._renderMetaBar();
     this._renderStats();
+    this._renderHeroPicker();
     this._bindUpgrades();
     this._bindSettings();
   }
@@ -89,7 +95,10 @@ export default class MapSelectScene extends Phaser.Scene {
     const btn  = old.cloneNode(true);
     old.replaceWith(btn);
     btn.addEventListener('click', () => {
-      this.scene.start('GameScene', { mapId: this._selectedId });
+      this.scene.start('GameScene', {
+        mapId:  this._selectedId,
+        heroId: this._saveMgr.getSelectedHero(),
+      });
     });
   }
 
@@ -121,6 +130,45 @@ export default class MapSelectScene extends Phaser.Scene {
       lblEl.textContent = label;
       chip.append(valEl, lblEl);
       el.appendChild(chip);
+    }
+  }
+
+  _renderHeroPicker() {
+    const host = document.getElementById('hero-picker-cards');
+    if (!host) return;
+    host.replaceChildren();
+    let selected = this._saveMgr.getSelectedHero();
+    if (!this._saveMgr.isHeroUnlocked(selected)) {
+      this._saveMgr.setSelectedHero('rael');
+      selected = 'rael';
+    }
+    for (const heroId of HERO_ORDER) {
+      const def      = HEROES[heroId];
+      const unlocked = this._saveMgr.isHeroUnlocked(heroId);
+      const card     = document.createElement('div');
+      card.className = 'hero-card' + (unlocked ? '' : ' locked') + (heroId === selected ? ' active' : '');
+
+      const portrait = document.createElement('div');
+      portrait.className   = 'hero-card-portrait';
+      portrait.style.background = toCssColor(def.bodyColor);
+      portrait.style.border     = `2px solid ${toCssColor(def.strokeColor)}`;
+      portrait.textContent = unlocked ? def.portraitChar : '🔒';
+      if (unlocked) portrait.style.color = toCssColor(def.strokeColor);
+
+      const name = document.createElement('div');
+      name.className   = 'hero-card-name';
+      name.textContent = def.shortName;
+
+      card.append(portrait, name);
+      if (unlocked) {
+        card.addEventListener('click', () => {
+          this._saveMgr.setSelectedHero(heroId);
+          this._renderHeroPicker();
+        });
+      } else if (def.unlockMapAfter != null) {
+        card.title = `Clear Map ${def.unlockMapAfter + 1} to unlock ${def.displayName}`;
+      }
+      host.appendChild(card);
     }
   }
 

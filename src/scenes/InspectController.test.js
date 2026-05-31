@@ -1,14 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-vi.mock('../entities/Hero.js', () => ({
-  HERO_STATS: {
-    attackDamage: 18,
-    attackRange:  40,
-    attackRate:   1.5,
-    maxLevel:     3,
-    abilityUnlockLevels: { q: 1, w: 2, e: 3 },
-  },
-}));
+vi.mock('../entities/Hero.js', () => ({}));
 
 import { InspectController } from './InspectController.js';
 
@@ -63,9 +55,21 @@ const makeEnemy = (overrides = {}) => ({
   ...overrides,
 });
 
+const RAEL_DEF = {
+  displayName: 'Commander Rael', shortName: 'Rael',
+  stats: { maxLevel: 3, attackDamage: 18, attackRange: 40, abilityUnlockLevels: { q: 1, w: 2, e: 3 } },
+  abilities: {
+    q: { label: 'Overcharge' },
+    w: { label: 'Airstrike' },
+    e: { label: 'EMP Pulse' },
+  },
+  matchups: { phantom: 1.5 },
+};
+
 const makeHero = (overrides = {}) => ({
   x: 50, y: 50, hp: 150, maxHp: 200, level: 2, killCount: 47, dead: false,
-  overchargeTimer: 0, airstrikeTimer: 12, empTimer: 0, respawnTimer: 0,
+  _timers: { q: 0, w: 12, e: 0 }, respawnTimer: 0,
+  def: RAEL_DEF,
   ...overrides,
 });
 
@@ -486,6 +490,56 @@ describe('InspectController — panel positioning', () => {
   });
 });
 
+// makeFakeHero builds a hero with a custom def (for non-Rael hero tests).
+// Timer fields match the names InspectController reads for each ability slot.
+const makeFakeHero = ({ def, level, killCount, hp, maxHp, dead, respawnTimer = 0, _timers = { q: 0, w: 0, e: 0 } } = {}) => ({
+  x: 50, y: 50, hp, maxHp, level, killCount, dead, respawnTimer,
+  _timers, def,
+});
+
+describe('hero panel reads hero.def', () => {
+  beforeEach(setupDom);
+
+  it('renders displayName and stats from hero.def', () => {
+    const hero = makeFakeHero({
+      def: {
+        displayName: 'Engineer Dax', shortName: 'Dax',
+        stats: { maxLevel: 3, attackDamage: 12, attackRange: 60, abilityUnlockLevels: { q: 1, w: 2, e: 3 } },
+        abilities: { q: { label: 'Repair' }, w: { label: 'Deploy Turret' }, e: { label: 'Power Surge' } },
+        matchups: { brute: 1.25 },
+      },
+      level: 2, killCount: 7, hp: 80, maxHp: 95, dead: false,
+    });
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'hero', target: hero });
+    // level line must include the def-sourced maxLevel
+    expect(document.getElementById('hi-level').textContent).toContain('Level: 2');
+    // attack line must read def.stats values (12 dmg, 60 range), not HERO_STATS (18/40)
+    const attackText = document.getElementById('hi-attack').textContent;
+    expect(attackText).toContain('12');
+    expect(attackText).toContain('60');
+  });
+
+  it('matchups render from def.matchups, not HERO_MULTIPLIERS', () => {
+    const hero = makeFakeHero({
+      def: {
+        displayName: 'Pyromancer Mira', shortName: 'Mira',
+        stats: { maxLevel: 3, attackDamage: 14, attackRange: 45, abilityUnlockLevels: { q: 1, w: 2, e: 3 } },
+        abilities: { q: { label: 'Flame Wave' }, w: { label: 'Immolate' }, e: { label: 'Firefield' } },
+        matchups: { drone: 1.5, skitter: 2.0, titan: 0.5 },
+      },
+      level: 1, killCount: 0, hp: 130, maxHp: 130, dead: false,
+    });
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'hero', target: hero });
+    const matchupsText = document.getElementById('hi-matchups').textContent;
+    // skitter: 2.0 is in Mira's matchups but NOT in rael's (phantom: 1.5)
+    expect(matchupsText.toLowerCase()).toContain('skitter');
+    // phantom should NOT appear — it's in HERO_MULTIPLIERS / Rael's def, not Mira's
+    expect(matchupsText.toLowerCase()).not.toContain('phantom');
+  });
+});
+
 describe('InspectController — refresh', () => {
   beforeEach(setupDom);
 
@@ -526,11 +580,11 @@ describe('InspectController — refresh', () => {
   });
 
   it('refresh updates hero ability cooldown as it ticks down', () => {
-    const hero = makeHero({ airstrikeTimer: 12 });
+    const hero = makeHero({ _timers: { q: 0, w: 12, e: 0 } });
     const scene = makeScene([], hero);
     const ctrl = new InspectController(scene);
     ctrl.pin({ kind: 'hero', target: hero });
-    hero.airstrikeTimer = 5;
+    hero._timers.w = 5;
     ctrl.refresh();
     expect(document.getElementById('hi-abilities').textContent).toContain('5');
   });

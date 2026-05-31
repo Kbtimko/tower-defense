@@ -53,6 +53,16 @@ describe('Enemy stun', () => {
   });
 });
 
+const makeEnemy = () => {
+  const emitted = [];
+  const scene = {
+    add: { graphics: makeGraphics, existing() {} },
+    events: { emit(event, data) { emitted.push({ event, data }); }, _emitted: emitted },
+    game: { registry: { get: () => null } },
+  };
+  return new Enemy(scene, { def: makeDef(), startX: 0, startY: 0 });
+};
+
 describe('Enemy.takeDamage — weakness matrix integration', () => {
   const makeDefWith = (overrides) => ({
     hp: 100, speed: 80, armor: 0, reward: 10,
@@ -108,7 +118,7 @@ describe('Enemy.takeDamage — weakness matrix integration', () => {
   it('hero vs phantom (1.5x)', () => {
     const scene = makeRichScene();
     const e = new Enemy(scene, { def: makeDefWith({ type: 'phantom', hp: 60, armor: 0, flying: true }), startX: 0, startY: 0 });
-    e.takeDamage(25, { source: { kind: 'hero' } });
+    e.takeDamage(25, { source: { kind: 'hero', heroId: 'rael' } });
     expect(e.hp).toBe(60 - 37); // floor((25-0) * 1.5) = 37
   });
 
@@ -126,5 +136,73 @@ describe('Enemy.takeDamage — weakness matrix integration', () => {
     const e = new Enemy(scene, { def: makeDefWith({ type: 'brute', hp: 200, armor: 8 }), startX: 0, startY: 0 });
     e.takeDamage(45, true); // bare boolean
     expect(e.hp).toBe(200 - 45); // pierce → armor 0 → max(1, 45-0)=45, no source → mult 1.0
+  });
+});
+
+describe('Enemy burn status', () => {
+  it('takes dps damage at 1-second ticks', () => {
+    const enemy = makeEnemy();
+    const start = enemy.hp;
+    enemy.applyStatus({ type:'burn', duration:4, dps:5 });
+    enemy.update(0.5);
+    expect(enemy.hp).toBe(start);
+    enemy.update(0.5);
+    expect(enemy.hp).toBe(start - 5);
+  });
+
+  it('clears burn when timer expires', () => {
+    const enemy = makeEnemy();
+    enemy.applyStatus({ type:'burn', duration:2, dps:5 });
+    enemy.update(2.0);
+    expect(enemy.statusEffects.burn.active).toBe(false);
+  });
+
+  it('re-applying with higher dps replaces dps and refreshes duration', () => {
+    const enemy = makeEnemy();
+    enemy.applyStatus({ type:'burn', duration:2, dps:3 });
+    enemy.update(0.5);
+    enemy.applyStatus({ type:'burn', duration:4, dps:5 });
+    expect(enemy.statusEffects.burn.dps).toBe(5);
+    expect(enemy.statusEffects.burn.timer).toBeCloseTo(4);
+  });
+
+  it('re-applying with lower dps keeps higher dps and refreshes duration', () => {
+    const enemy = makeEnemy();
+    enemy.applyStatus({ type:'burn', duration:2, dps:5 });
+    enemy.update(0.5);
+    enemy.applyStatus({ type:'burn', duration:4, dps:3 });
+    expect(enemy.statusEffects.burn.dps).toBe(5);
+    expect(enemy.statusEffects.burn.timer).toBeCloseTo(4);
+  });
+});
+
+describe('Enemy vulnerable status', () => {
+  it('multiplies incoming damage after the weakness multiplier', () => {
+    const enemy = makeEnemy();
+    enemy.applyStatus({ type:'vulnerable', duration:5, multiplier:2 });
+    const start = enemy.hp;
+    enemy.takeDamage(10);
+    expect(start - enemy.hp).toBe(20);
+  });
+
+  it('multiplier replaces (does not stack) on re-apply', () => {
+    const enemy = makeEnemy();
+    enemy.applyStatus({ type:'vulnerable', duration:5, multiplier:2 });
+    enemy.applyStatus({ type:'vulnerable', duration:5, multiplier:1.5 });
+    expect(enemy.statusEffects.vulnerable.multiplier).toBe(1.5);
+  });
+
+  it('clears vulnerable when timer expires', () => {
+    const enemy = makeEnemy();
+    enemy.applyStatus({ type:'vulnerable', duration:2, multiplier:2 });
+    enemy.update(2.0);
+    expect(enemy.statusEffects.vulnerable.active).toBe(false);
+  });
+
+  it('vulnerable does not apply when not active', () => {
+    const enemy = makeEnemy();
+    const start = enemy.hp;
+    enemy.takeDamage(10);
+    expect(start - enemy.hp).toBe(10);
   });
 });

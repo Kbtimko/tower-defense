@@ -234,3 +234,25 @@ Phase 4 brainstorm — post-launch features TBD (ability mechanics, new enemy ty
 **Commits this session:**
 - abb19e7 docs: Phase 7 Meta & Persistence implementation plan
 - 5ef33d7 docs: Phase 7 Meta & Persistence design spec
+
+## 2026-05-29 (auto-generated)
+**Commits this session:**
+- afb700b docs: fix-missing-music-crash design spec
+- fdbdcbb Merge pull request #14 from Kbtimko/feature/phase-9c-click-inspect
+- 0f5cff2 feat(game-scene): wire InspectController for enemy/hero click + hover
+- 60ff58d feat(scenes): InspectController peek tooltip + panel positioning
+- 7a2199c feat(scenes): InspectController panel rendering + live refresh
+
+## 2026-05-30 (auto-generated)
+**Commits this session:**
+- 78a1143 docs: hero path-restriction design spec
+
+## 2026-05-30 (auto-generated)
+**Commits this session:**
+- aa8a036 chore(hero): add Soldier-parity post-loop fallthrough to setPathPosition
+- f988b95 test(hero): cover backward path-progress movement
+- c522bf1 feat(hero): restrict movement to path corridor (snap-or-reject at 40px)
+- 106e8ba test(hero): boundary test for setPathPosition(1.0) on multi-segment path
+- 5dd4df6 feat(hero): add path-progress infrastructure (pathProgress, setPathPosition)
+- 3fb28a7 docs: hero path-restriction implementation plan
+- 78a1143 docs: hero path-restriction design spec

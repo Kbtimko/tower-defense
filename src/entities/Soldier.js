@@ -92,6 +92,12 @@ export class Soldier extends Phaser.GameObjects.Container {
     this._redrawHpBar();
   }
 
+  heal() {
+    if (this.dead) return;
+    this.hp = this.maxHp;
+    this._redrawHpBar();
+  }
+
   update(dt) {
     if (this.attackTimer > 0) this.attackTimer -= dt;
     if (!this.dead) return;

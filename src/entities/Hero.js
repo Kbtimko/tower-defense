@@ -1,35 +1,25 @@
 import Phaser from 'phaser';
 import { heroSource } from '../data/sourceBuilders.js';
-
-const MOVE_SPEED     = 130;
-const ATTACK_RANGE   = 40;
-const ATTACK_RATE    = 1.5;
-const ATTACK_DAMAGE  = 18;
-const MAX_HP         = 150;
-const RESPAWN_TIME   = 20;
-
-export const HERO_STATS = {
-  attackDamage: ATTACK_DAMAGE,
-  attackRange:  ATTACK_RANGE,
-  attackRate:   ATTACK_RATE,
-  maxLevel:     3,
-  abilityUnlockLevels: { q: 1, w: 2, e: 3 },
-};
+import { HEROES } from '../data/heroes.js';
 
 export class Hero extends Phaser.GameObjects.Container {
-  constructor(scene, { x, y, pathPoints }, modifiers = {}) {
+  constructor(scene, { x, y, heroId = 'rael', pathPoints }, modifiers = {}) {
     super(scene, x, y);
+    this.heroId = heroId;
+    this.def    = HEROES[heroId];
+    if (!this.def) throw new Error(`Hero: unknown heroId "${heroId}"`);
+    const s = this.def.stats;
 
-    const maxHp = MAX_HP + (modifiers.heroMaxHpBonus ?? 0);
-    this.hp           = maxHp;
-    this.maxHp        = maxHp;
+    this.maxHp        = s.maxHp + (modifiers.heroMaxHpBonus ?? 0);
+    this.hp           = this.maxHp;
     this.level        = modifiers.heroStartLevel ?? 1;
-    this._respawnTime = RESPAWN_TIME + (modifiers.heroRespawnDelta ?? 0);
+    this._respawnTime = s.respawnTime + (modifiers.heroRespawnDelta ?? 0);
     this.killCount    = 0;
     this.dead         = false;
     this.respawnTimer = 0;
-    this.moving = false;
+    this.moving       = false;
 
+    // Path-restricted movement state (replaces free-form targetX/Y).
     this._pathPoints      = pathPoints || [];
     this._totalPathLength = 0;
     for (let i = 0; i < this._pathPoints.length - 1; i++) {
@@ -41,9 +31,14 @@ export class Hero extends Phaser.GameObjects.Container {
     this.pathProgress   = 0;
     this.targetProgress = 0;
 
-    this.overchargeTimer     = 0;
-    this.airstrikeTimer      = 0;
-    this.empTimer            = 0;
+    // Hero-roster mutable state: facing, speed/damage mults, cloak.
+    this._facingX          = 1;
+    this._moveSpeedMult    = 1.0;
+    this._attackDamageMult = 1.0;
+    this.cloaked           = false;
+    this._cloakTimer       = 0;
+
+    this._timers = { q: 0, w: 0, e: 0 };
     this.overchargeActive    = false;
     this.overchargeRemaining = 0;
 
@@ -54,19 +49,9 @@ export class Hero extends Phaser.GameObjects.Container {
     this.add([this._body, this._hpBar]);
     scene.add.existing(this);
     this.setDepth(4);
-    this._drawBody();
+    this.def.draw(this._body);
 
     if (this._totalPathLength > 0) this.setPathPosition(0);
-  }
-
-  _drawBody() {
-    this._body.clear();
-    this._body.fillStyle(0x1a2a4a, 1);
-    this._body.fillCircle(0, -10, 6);
-    this._body.fillRect(-4, -4, 8, 10);
-    this._body.lineStyle(2, 0x4fc3f7, 1);
-    this._body.strokeCircle(0, -10, 6);
-    this._body.strokeRect(-4, -4, 8, 10);
   }
 
   _redrawHpBar() {
@@ -75,7 +60,7 @@ export class Hero extends Phaser.GameObjects.Container {
     const w = 16, h = 2, ox = -8, oy = -22;
     this._hpBar.fillStyle(0x333333, 1);
     this._hpBar.fillRect(ox, oy, w, h);
-    this._hpBar.fillStyle(0x4fc3f7, 1);
+    this._hpBar.fillStyle(this.def.strokeColor, 1);
     this._hpBar.fillRect(ox, oy, Math.max(0, w * (this.hp / this.maxHp)), h);
   }
 
@@ -96,9 +81,9 @@ export class Hero extends Phaser.GameObjects.Container {
       }
       target -= len;
     }
-    // Backstop: the `i === pts.length - 2` guard above is meant to always catch
-    // the last segment, but match Soldier.setPathProgress in case the loop ever
-    // exits without returning (defensive parity).
+    // Backstop (matches Soldier.setPathProgress) — the guard above should always
+    // catch the last segment, but if the loop ever exits without returning,
+    // pin to the path end.
     this.x = pts[pts.length - 1].x;
     this.y = pts[pts.length - 1].y;
   }
@@ -107,9 +92,10 @@ export class Hero extends Phaser.GameObjects.Container {
     if (this.dead) return;
     this.targetProgress = progress;
     this.moving = (progress !== this.pathProgress);
+    if (this.moving) this._facingX = progress >= this.pathProgress ? 1 : -1;
   }
 
-  takeDamage(amount, _pierce = false) {
+  takeDamage(amount, _opts = {}) {
     if (this.dead) return;
     this.hp = Math.max(0, this.hp - amount);
     this._redrawHpBar();
@@ -124,14 +110,18 @@ export class Hero extends Phaser.GameObjects.Container {
   }
 
   respawn() {
-    this.dead           = false;
-    this.hp             = this.maxHp;
-    this.respawnTimer   = 0;
-    this.pathProgress   = 0;
-    this.targetProgress = 0;
-    this.moving         = false;
+    this.dead              = false;
+    this.hp                = this.maxHp;
+    this.respawnTimer      = 0;
+    this.pathProgress      = 0;
+    this.targetProgress    = 0;
+    this.moving            = false;
+    this.cloaked           = false;
+    this._cloakTimer       = 0;
+    this._moveSpeedMult    = 1.0;
+    this._attackDamageMult = 1.0;
+    this._attackTimer      = 1 / this.def.stats.attackRate;
     this.setPathPosition(0);
-    this._attackTimer = 1 / ATTACK_RATE;
     this._body.setVisible(true);
     this._redrawHpBar();
     const am = this.scene.game?.registry?.get('audio');
@@ -146,33 +136,63 @@ export class Hero extends Phaser.GameObjects.Container {
     if (this.level !== prev) this.scene.events.emit('hero:level-up', { level: this.level });
   }
 
+  /**
+   * Dispatch an ability by slot ('q' | 'w' | 'e').
+   * - aimTarget is { x, y } for aim:true abilities (e.g., airstrike, firefield, mark target).
+   * - Returns the ability impl's result (or null on cooldown/dead/locked).
+   * - On non-null return, starts the slot's cooldown timer.
+   */
+  fireAbility(slot, aimTarget) {
+    const a = this.def.abilities[slot];
+    if (!a) return null;
+    if (this.dead) return null;
+    if (this._timers[slot] > 0) return null;
+    const unlockLvl = this.def.stats.abilityUnlockLevels[slot];
+    if (this.level < unlockLvl) return null;
+    const result = a.run(this, this.scene, aimTarget);
+    if (result) this._timers[slot] = a.cooldown;
+    return result;
+  }
+
+  // Back-compat wrappers retained only for Hero.test.js, which fires W/E on a
+  // level-1 hero and asserts pre-gate behavior. Production code uses
+  // fireAbility() (level-gated). Removing these requires rewriting the tests
+  // to bump hero.level before firing — separate cleanup task.
   overcharge() {
-    if (this.dead || this.overchargeTimer > 0) return false;
-    this.overchargeTimer     = 30;
-    this.overchargeActive    = true;
-    this.overchargeRemaining = 6;
-    return true;
+    if (this.dead || this._timers.q > 0) return false;
+    const r = this.def.abilities.q.run(this, this.scene);
+    if (r) this._timers.q = this.def.abilities.q.cooldown;
+    return r !== null;
   }
-
   airstrike(x, y) {
-    if (this.dead || this.airstrikeTimer > 0) return null;
-    this.airstrikeTimer = 25;
-    return { x, y, radius: 70, damage: 80 };
+    if (this.dead || this._timers.w > 0) return null;
+    const r = this.def.abilities.w.run(this, this.scene, { x, y });
+    if (r) this._timers.w = this.def.abilities.w.cooldown;
+    // Strip `kind` to preserve the pre-registry return shape consumed by
+    // Hero.test.js. fireAbility returns the full result (with `kind`).
+    return r ? { x: r.x, y: r.y, radius: r.radius, damage: r.damage } : null;
   }
-
   empPulse() {
-    if (this.dead || this.empTimer > 0) return false;
-    this.empTimer = 45;
-    return true;
+    if (this.dead || this._timers.e > 0) return false;
+    const r = this.def.abilities.e.run(this, this.scene);
+    if (r) this._timers.e = this.def.abilities.e.cooldown;
+    return r !== null;
   }
 
   update(dt, enemies) {
-    if (this.overchargeTimer    > 0) this.overchargeTimer    = Math.max(0, this.overchargeTimer    - dt);
-    if (this.airstrikeTimer     > 0) this.airstrikeTimer     = Math.max(0, this.airstrikeTimer     - dt);
-    if (this.empTimer           > 0) this.empTimer           = Math.max(0, this.empTimer           - dt);
+    for (const slot of ['q','w','e']) {
+      if (this._timers[slot] > 0) this._timers[slot] = Math.max(0, this._timers[slot] - dt);
+    }
     if (this.overchargeRemaining > 0) {
       this.overchargeRemaining = Math.max(0, this.overchargeRemaining - dt);
       if (this.overchargeRemaining === 0) this.overchargeActive = false;
+    }
+    if (this._cloakTimer > 0) {
+      this._cloakTimer -= dt;
+      if (this._cloakTimer <= 0) {
+        this.cloaked        = false;
+        this._moveSpeedMult = 1.0;
+      }
     }
 
     if (this.dead) {
@@ -182,7 +202,8 @@ export class Hero extends Phaser.GameObjects.Container {
     }
 
     if (this.moving && this._totalPathLength > 0) {
-      const deltaProgress = (MOVE_SPEED * dt) / this._totalPathLength;
+      const speed         = this.def.stats.moveSpeed * this._moveSpeedMult;
+      const deltaProgress = (speed * dt) / this._totalPathLength;
       const remaining     = this.targetProgress - this.pathProgress;
       if (Math.abs(remaining) <= deltaProgress) {
         this.pathProgress = this.targetProgress;
@@ -196,17 +217,20 @@ export class Hero extends Phaser.GameObjects.Container {
     this._attackTimer -= dt;
     if (this._attackTimer <= 0) {
       let nearest = null, nearestDist = Infinity;
+      const range = this.def.stats.attackRange;
       for (const e of enemies) {
         if (e.dead) continue;
         const d = Math.hypot(e.x - this.x, e.y - this.y);
-        if (d <= ATTACK_RANGE && d < nearestDist) { nearest = e; nearestDist = d; }
+        if (d <= range && d < nearestDist) { nearest = e; nearestDist = d; }
       }
       if (nearest) {
-        nearest.takeDamage(ATTACK_DAMAGE, { source: heroSource() });
+        const dmg = this.def.stats.attackDamage * this._attackDamageMult;
+        nearest.takeDamage(dmg, { source: heroSource(this.heroId) });
+        if (this.def.onHit) this.def.onHit(this, nearest);
         if (nearest.dead) this._registerKill();
         const am = this.scene.game?.registry?.get('audio');
         if (am) am.playSfx('hero-attack');
-        this._attackTimer = 1 / ATTACK_RATE;
+        this._attackTimer = 1 / this.def.stats.attackRate;
       }
     }
   }

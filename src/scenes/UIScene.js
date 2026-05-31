@@ -36,6 +36,9 @@ export default class UIScene extends Phaser.Scene {
         currentWave: gs.waveMgr.currentWave,
       });
     }
+    if (gs && gs.hero?.def) {
+      this._onHeroHudInit({ heroId: gs.heroId, def: gs.hero.def });
+    }
   }
 
   shutdown() {
@@ -49,6 +52,7 @@ export default class UIScene extends Phaser.Scene {
     this.game.events.off('game:victory',      this._onVictory,    this);
     this.game.events.off('game:defeat',       this._onDefeat,     this);
     this.game.events.off('ui:barracks-reposition', this._onBarracksReposition, this);
+    this.game.events.off('hero:hud-init',      this._onHeroHudInit,       this);
     this.game.events.off('hero:update',        this._onHeroUpdate,        this);
     this.game.events.off('hero:level-up',      this._onHeroLevelUp,       this);
     this.game.events.off('hero:aim-mode',      this._onHeroAimMode,       this);
@@ -167,6 +171,7 @@ export default class UIScene extends Phaser.Scene {
     this.game.events.on('game:victory',      this._onVictory,    this);
     this.game.events.on('game:defeat',       this._onDefeat,     this);
     this.game.events.on('ui:barracks-reposition', this._onBarracksReposition, this);
+    this.game.events.on('hero:hud-init',      this._onHeroHudInit,       this);
     this.game.events.on('hero:update',        this._onHeroUpdate,        this);
     this.game.events.on('hero:level-up',      this._onHeroLevelUp,       this);
     this.game.events.on('hero:aim-mode',      this._onHeroAimMode,       this);
@@ -337,13 +342,47 @@ export default class UIScene extends Phaser.Scene {
     document.getElementById('game-msg').style.display = 'block';
   }
 
+  toCssColor(hex) { return '#' + ('000000' + hex.toString(16)).slice(-6); }
+
+  _onHeroHudInit({ heroId, def }) {
+    this._heroDef = def;
+
+    const portrait = document.getElementById('hero-portrait');
+    if (portrait) {
+      portrait.textContent       = def.portraitChar;
+      portrait.style.background  = this.toCssColor(def.bodyColor);
+      portrait.style.borderColor = this.toCssColor(def.strokeColor);
+      portrait.style.color       = this.toCssColor(def.strokeColor);
+    }
+
+    const levelEl = document.getElementById('hero-level');
+    if (levelEl) levelEl.textContent = `${def.shortName} L1`;
+
+    const fill = document.getElementById('hero-hp-fill');
+    if (fill) fill.style.background = this.toCssColor(def.strokeColor);
+
+    for (const slot of ['q', 'w', 'e']) {
+      const a   = def.abilities[slot];
+      const btn = document.getElementById(`ability-${slot}`);
+      if (!btn) continue;
+      const keyEl  = btn.querySelector('.ability-key');
+      const nameEl = btn.querySelector('.ability-name');
+      if (keyEl)  keyEl.textContent  = slot.toUpperCase();
+      if (nameEl) nameEl.textContent = a.icon;
+      btn.title = `${a.label} — ${a.tooltip}`;
+      btn.classList.add('locked');
+      btn.disabled = true;
+    }
+  }
+
   _onHeroUpdate({ hp, maxHp }) {
     const fill = document.getElementById('hero-hp-fill');
     if (fill) fill.style.width = ((hp / maxHp) * 100).toFixed(1) + '%';
   }
 
   _onHeroLevelUp({ level }) {
-    document.getElementById('hero-level').textContent = 'Rael L' + level;
+    const name = this._heroDef?.shortName ?? 'Rael';
+    document.getElementById('hero-level').textContent = `${name} L${level}`;
     if (level >= 1) {
       const q = document.getElementById('ability-q');
       if (q) { q.classList.remove('locked'); q.disabled = false; }

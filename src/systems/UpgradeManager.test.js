@@ -43,9 +43,9 @@ describe('UpgradeManager — canPurchase', () => {
   it('rejects a node whose starThreshold is not met', () => {
     const sm = saveWithStars(14); // < 15
     const um = new UpgradeManager(sm);
-    um.purchase('cmd_battle_hardened');
-    um.purchase('cmd_veteran');
-    expect(um.canPurchase('cmd_elite')).toBe(false);
+    um.purchase('rael_hp');
+    um.purchase('rael_veteran');
+    expect(um.canPurchase('rael_elite')).toBe(false);
   });
 
   it('rejects a node the player cannot afford', () => {
@@ -56,9 +56,9 @@ describe('UpgradeManager — canPurchase', () => {
   it('accepts a node when prereq, threshold and affordability all pass', () => {
     const sm = saveWithStars(20);
     const um = new UpgradeManager(sm);
-    um.purchase('cmd_battle_hardened');
-    um.purchase('cmd_veteran');
-    expect(um.canPurchase('cmd_elite')).toBe(true); // 20 earned >= 15, 14 available >= 6
+    um.purchase('rael_hp');
+    um.purchase('rael_veteran');
+    expect(um.canPurchase('rael_elite')).toBe(true); // 20 earned >= 15, 14 available >= 6
   });
 });
 
@@ -78,29 +78,29 @@ describe('UpgradeManager — purchase', () => {
 describe('UpgradeManager — refund cascade', () => {
   it('refunding a leaf removes only that node', () => {
     const um = new UpgradeManager(saveWithStars(10));
-    um.purchase('cmd_battle_hardened');
-    um.purchase('cmd_rapid_redeploy');
-    um.refund('cmd_rapid_redeploy');
-    expect(um.isPurchased('cmd_rapid_redeploy')).toBe(false);
-    expect(um.isPurchased('cmd_battle_hardened')).toBe(true);
+    um.purchase('rael_hp');
+    um.purchase('rael_rapid_redeploy');
+    um.refund('rael_rapid_redeploy');
+    expect(um.isPurchased('rael_rapid_redeploy')).toBe(false);
+    expect(um.isPurchased('rael_hp')).toBe(true);
   });
 
   it('refunding a root cascades to all transitive dependents and recovers all stars', () => {
     const sm = saveWithStars(20);
     const um = new UpgradeManager(sm);
-    um.purchase('cmd_battle_hardened'); // 2
-    um.purchase('cmd_veteran');         // 4
-    um.purchase('cmd_rapid_redeploy');  // 3
-    um.purchase('cmd_elite');           // 6
+    um.purchase('rael_hp');           // 2
+    um.purchase('rael_veteran');      // 4
+    um.purchase('rael_rapid_redeploy'); // 3
+    um.purchase('rael_elite');        // 6
     expect(um.getAvailableStars()).toBe(5);
-    um.refund('cmd_battle_hardened');
+    um.refund('rael_hp');
     expect(um.getPurchasedUpgrades()).toEqual([]);
     expect(um.getAvailableStars()).toBe(20);
   });
 
   it('refunding an unowned node is a no-op', () => {
     const um = new UpgradeManager(saveWithStars(10));
-    expect(() => um.refund('cmd_elite')).not.toThrow();
+    expect(() => um.refund('rael_elite')).not.toThrow();
   });
 });
 
@@ -108,12 +108,12 @@ describe('UpgradeManager — getNodeState', () => {
   it('reports the lifecycle states', () => {
     const sm = saveWithStars(14);
     const um = new UpgradeManager(sm);
-    expect(um.getNodeState('cmd_battle_hardened')).toBe('affordable');
-    expect(um.getNodeState('cmd_veteran')).toBe('locked-prereq');
-    um.purchase('cmd_battle_hardened');
-    expect(um.getNodeState('cmd_battle_hardened')).toBe('purchased');
-    um.purchase('cmd_veteran');
-    expect(um.getNodeState('cmd_elite')).toBe('locked-threshold'); // 14 < 15
+    expect(um.getNodeState('rael_hp')).toBe('affordable');
+    expect(um.getNodeState('rael_veteran')).toBe('locked-prereq');
+    um.purchase('rael_hp');
+    expect(um.getNodeState('rael_hp')).toBe('purchased');
+    um.purchase('rael_veteran');
+    expect(um.getNodeState('rael_elite')).toBe('locked-threshold'); // 14 < 15
   });
 
   it('reports unaffordable when prereq met but stars too low', () => {
@@ -127,7 +127,7 @@ describe('UpgradeManager — getNodeState', () => {
 describe('UpgradeManager — getModifiers', () => {
   it('returns all defaults when nothing is purchased', () => {
     const um = new UpgradeManager(saveWithStars(0));
-    expect(um.getModifiers()).toEqual({
+    expect(um.getModifiers('rael')).toEqual({
       heroMaxHpBonus: 0, heroStartLevel: 1, heroRespawnDelta: 0,
       startGoldBonus: 0, killGoldMult: 1.0, startLivesBonus: 0,
       towerCostMult: 1.0, towerRangeMult: 1.0, towerDamageMult: 1.0,
@@ -140,16 +140,51 @@ describe('UpgradeManager — getModifiers', () => {
     const um = new UpgradeManager(sm);
     um.purchase('log_supply_cache');
     um.purchase('log_deep_reserves');
-    expect(um.getModifiers().startGoldBonus).toBe(120);
+    expect(um.getModifiers('rael').startGoldBonus).toBe(120);
   });
 
   it('Elite Commander beats Veteran Commander for heroStartLevel', () => {
     const sm = saveWithStars(20);
     const um = new UpgradeManager(sm);
-    um.purchase('cmd_battle_hardened');
-    um.purchase('cmd_veteran');
-    expect(um.getModifiers().heroStartLevel).toBe(2);
-    um.purchase('cmd_elite');
-    expect(um.getModifiers().heroStartLevel).toBe(3);
+    um.purchase('rael_hp');
+    um.purchase('rael_veteran');
+    expect(um.getModifiers('rael').heroStartLevel).toBe(2);
+    um.purchase('rael_elite');
+    expect(um.getModifiers('rael').heroStartLevel).toBe(3);
+  });
+});
+
+describe('UpgradeManager — heroUnlock + heroId scoping', () => {
+  it('canPurchase returns false for engineer node when Engineer is locked', () => {
+    localStorage.clear();
+    const save = new SaveManager();
+    const mgr  = new UpgradeManager(save);
+    expect(mgr.canPurchase('engineer_hp')).toBe(false);
+  });
+
+  it('canPurchase returns true for engineer_hp after Engineer unlocks and enough stars', () => {
+    localStorage.clear();
+    const save = new SaveManager();
+    const mgr  = new UpgradeManager(save);
+    save.setStars(0, 3); save.setStars(1, 3); save.setStars(2, 3);
+    expect(mgr.canPurchase('engineer_hp')).toBe(true);
+  });
+
+  it('getNodeState returns "locked-hero" for engineer_hp when hero is locked', () => {
+    localStorage.clear();
+    const save = new SaveManager();
+    const mgr  = new UpgradeManager(save);
+    expect(mgr.getNodeState('engineer_hp')).toBe('locked-hero');
+  });
+
+  it('getModifiers(heroId) only applies the active hero\'s branch', () => {
+    localStorage.clear();
+    const save = new SaveManager();
+    const mgr  = new UpgradeManager(save);
+    save.setStars(0, 3); save.setStars(1, 3); save.setStars(2, 3);
+    save.setPurchasedUpgrades(['rael_hp', 'engineer_hp']);
+    expect(mgr.getModifiers('rael').heroMaxHpBonus).toBe(50);
+    expect(mgr.getModifiers('engineer').heroMaxHpBonus).toBe(40);
+    expect(mgr.getModifiers('scout').heroMaxHpBonus).toBe(0);
   });
 });

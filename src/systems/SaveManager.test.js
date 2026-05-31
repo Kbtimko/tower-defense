@@ -49,7 +49,7 @@ describe('SaveManager — migration', () => {
     expect(sm.getStars(1)).toBe(2);
     expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
     const env = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    expect(env.version).toBe(2);
+    expect(env.version).toBe(3);
     expect(env.maps).toEqual([3,2,0,0,0,0,0,0,0,0]);
     expect(env.upgrades).toEqual([]);
     expect(env.stats).toEqual({ kills: 0, gamesPlayed: 0, victories: 0, defeats: 0, bestWave: 0 });
@@ -109,7 +109,7 @@ describe('SaveManager — v2 settings', () => {
       muted:     true,
     });
     const env = JSON.parse(localStorage.getItem('lastlight_save'));
-    expect(env.version).toBe(2);
+    expect(env.version).toBe(3);
     expect(env.settings.masterVol).toBe(0.5);
     expect(env.settings.muted).toBe(true);
   });
@@ -126,7 +126,7 @@ describe('SaveManager — v2 settings', () => {
     expect(sm.getPurchasedUpgrades()).toEqual(['command-1']);
     expect(sm.getSettings().musicVol).toBe(0.6);
     const env = JSON.parse(localStorage.getItem('lastlight_save'));
-    expect(env.version).toBe(2);
+    expect(env.version).toBe(3);
     expect(env.settings).toBeDefined();
   });
 
@@ -166,5 +166,85 @@ describe('SaveManager — future-version save', () => {
     const env = JSON.parse(localStorage.getItem('lastlight_save'));
     expect(env.version).toBe(999); // not overwritten
     warn.mockRestore();
+  });
+});
+
+describe('SaveManager v3 — selectedHeroId + cmd_* rename', () => {
+  it('fresh save defaults selectedHeroId to "rael"', () => {
+    localStorage.clear();
+    const mgr = new SaveManager();
+    expect(mgr.getSelectedHero()).toBe('rael');
+  });
+
+  it('v2 → v3 migrates cmd_* upgrade ids to rael_*', () => {
+    localStorage.clear();
+    localStorage.setItem('lastlight_save', JSON.stringify({
+      version: 2, maps: new Array(10).fill(0),
+      upgrades: ['cmd_battle_hardened', 'cmd_veteran', 'log_supply_cache'],
+      stats: { kills:0, gamesPlayed:0, victories:0, defeats:0, bestWave:0 },
+      settings: { masterVol:0.8, sfxVol:1.0, musicVol:0.6, muted:false },
+    }));
+    const mgr = new SaveManager();
+    const ups = mgr.getPurchasedUpgrades();
+    expect(ups).toContain('rael_hp');
+    expect(ups).toContain('rael_veteran');
+    expect(ups).toContain('log_supply_cache');
+    expect(ups).not.toContain('cmd_battle_hardened');
+  });
+
+  it('v2 → v3 sets selectedHeroId to "rael" when missing', () => {
+    localStorage.clear();
+    localStorage.setItem('lastlight_save', JSON.stringify({
+      version: 2, maps: new Array(10).fill(0), upgrades: [],
+      stats: { kills:0, gamesPlayed:0, victories:0, defeats:0, bestWave:0 },
+      settings: { masterVol:0.8, sfxVol:1.0, musicVol:0.6, muted:false },
+    }));
+    const mgr = new SaveManager();
+    expect(mgr.getSelectedHero()).toBe('rael');
+  });
+
+  it('v3 passes through', () => {
+    localStorage.clear();
+    localStorage.setItem('lastlight_save', JSON.stringify({
+      version: 3, maps: new Array(10).fill(0), upgrades: [],
+      stats: { kills:0, gamesPlayed:0, victories:0, defeats:0, bestWave:0 },
+      settings: { masterVol:0.8, sfxVol:1.0, musicVol:0.6, muted:false },
+      selectedHeroId: 'pyro',
+    }));
+    const mgr = new SaveManager();
+    expect(mgr.getSelectedHero()).toBe('pyro');
+  });
+
+  it('setSelectedHero rejects unknown ids', () => {
+    localStorage.clear();
+    const mgr = new SaveManager();
+    mgr.setSelectedHero('not_a_hero');
+    expect(mgr.getSelectedHero()).toBe('rael');
+  });
+
+  it('getSelectedHero falls back to rael when stored id is unknown', () => {
+    localStorage.clear();
+    localStorage.setItem('lastlight_save', JSON.stringify({
+      version: 3, maps: new Array(10).fill(0), upgrades: [],
+      stats: { kills:0, gamesPlayed:0, victories:0, defeats:0, bestWave:0 },
+      settings: { masterVol:0.8, sfxVol:1.0, musicVol:0.6, muted:false },
+      selectedHeroId: 'corrupt',
+    }));
+    const mgr = new SaveManager();
+    expect(mgr.getSelectedHero()).toBe('rael');
+  });
+
+  it('isHeroUnlocked: rael always true', () => {
+    localStorage.clear();
+    const mgr = new SaveManager();
+    expect(mgr.isHeroUnlocked('rael')).toBe(true);
+  });
+
+  it('isHeroUnlocked: engineer true after map index 2 has ≥1 star', () => {
+    localStorage.clear();
+    const mgr = new SaveManager();
+    expect(mgr.isHeroUnlocked('engineer')).toBe(false);
+    mgr.setStars(2, 1);
+    expect(mgr.isHeroUnlocked('engineer')).toBe(true);
   });
 });

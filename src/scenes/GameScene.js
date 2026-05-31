@@ -17,12 +17,15 @@ import { StoryManager }    from '../systems/StoryManager.js';
 import { DamageNumberOverlay } from '../systems/DamageNumberOverlay.js';
 import { ShakeController }    from '../systems/ShakeController.js';
 import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
+import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
 import { STORY_PANELS }    from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
-import { soldierSource, heroAirstrikeSource } from '../data/sourceBuilders.js';
+import { soldierSource, heroAbilitySource } from '../data/sourceBuilders.js';
+import { AreaEffectsManager } from '../systems/AreaEffectsManager.js';
 import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
 import { InspectController } from './InspectController.js';
+import { SentryTurret } from '../entities/SentryTurret.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const ENEMY_MELEE_DAMAGE = 20;
@@ -32,7 +35,8 @@ export default class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
 
   init(data) {
-    this.mapId = data?.mapId ?? 0;
+    this.mapId  = data?.mapId  ?? 0;
+    this.heroId = data?.heroId ?? 'rael';
   }
 
   create() {
@@ -54,7 +58,7 @@ export default class GameScene extends Phaser.Scene {
     // Systems
     this.saveMgr     = new SaveManager();
     this.upgradeMgr  = new UpgradeManager(this.saveMgr);
-    const mods       = this.upgradeMgr.getModifiers();
+    const mods       = this.upgradeMgr.getModifiers(this.heroId);
     this.killGoldMult = mods.killGoldMult;
 
     this.pathMgr  = new PathManager(map.waypoints, width, height);
@@ -78,8 +82,13 @@ export default class GameScene extends Phaser.Scene {
     const heroSpawn               = this.pathMgr.path[0];
     this.hero                     = new Hero(
       this,
-      { x: heroSpawn.x, y: heroSpawn.y, pathPoints: this.pathMgr.getPathPoints() },
-      mods
+      {
+        x:          heroSpawn.x,
+        y:          heroSpawn.y,
+        heroId:     this.heroId,
+        pathPoints: this.pathMgr.getPathPoints(),
+      },
+      mods,
     );
     this.aimMode                  = false;
     this._heroOverchargeWasActive = false;
@@ -87,6 +96,8 @@ export default class GameScene extends Phaser.Scene {
 
     // Entity arrays
     this.enemies     = [];
+    this._sentries   = [];
+    this._areaEffects = new AreaEffectsManager(this);
     this.projectiles = [];
     this.particles   = [];
     this.kills       = 0;
@@ -136,8 +147,15 @@ export default class GameScene extends Phaser.Scene {
       this.game.events.emit('hero:level-up', { level });
     }, this);
 
-    // Unlock abilities for the hero's starting level
-    this.time.delayedCall(150, () => {
+    // Launch UIScene now that GameScene state is ready. UIScene.create reads
+    // the active GameScene's hero.def + economy on first paint.
+    if (!this.scene.isActive('UIScene')) this.scene.launch('UIScene');
+
+    // Initialise HUD portrait/colors/ability icons for the active hero
+    this.game.events.emit('hero:hud-init', { heroId: this.heroId, def: this.hero.def });
+
+    // Unlock abilities for the hero's starting level (200ms gives HUD time to process hud-init)
+    this.time.delayedCall(200, () => {
       this.game.events.emit('hero:level-up', { level: this.hero.level });
     });
 
@@ -175,6 +193,9 @@ export default class GameScene extends Phaser.Scene {
     if (am) am.stopMusic(500);
     if (this.damageNumbers) this.damageNumbers.destroy();
     if (this.shakeCtl)      this.shakeCtl.destroy();
+    for (const s of this._sentries) s.destroy();
+    this._sentries = [];
+    if (this._areaEffects) this._areaEffects.destroyAll();
   }
 
   // ─── Update loop ───────────────────────────────────────────────────────────
@@ -190,6 +211,8 @@ export default class GameScene extends Phaser.Scene {
     this._updateProjectiles(dt);
     this._updateSoldiers(dt);
     this._updateHero(dt);
+    this._updateSentries(dt);
+    this._areaEffects.update(dt, this.enemies);
     this._updateParticles(dt);
     this._checkWaveComplete();
     this.inspector?.refresh();
@@ -371,64 +394,229 @@ export default class GameScene extends Phaser.Scene {
     if (this._heroCooldownAccum >= 1) {
       this._heroCooldownAccum -= 1;
       this.game.events.emit('hero:cooldown-tick', {
-        q: Math.ceil(this.hero.overchargeTimer),
-        w: Math.ceil(this.hero.airstrikeTimer),
-        e: Math.ceil(this.hero.empTimer),
+        q: Math.ceil(this.hero._timers.q),
+        w: Math.ceil(this.hero._timers.w),
+        e: Math.ceil(this.hero._timers.e),
       });
     }
   }
 
   _onAbility({ slot }) {
-    switch (slot) {
-      case 'q':
-        this.hero.overcharge();
+    const a = this.hero.def.abilities[slot];
+    if (!a) return;
+
+    if (a.aim) {
+      if (this.hero.dead) return;
+      if (this.hero._timers[slot] > 0) return;
+      if (this.hero.level < this.hero.def.stats.abilityUnlockLevels[slot]) return;
+      this.aimMode  = true;
+      this._aimSlot = slot;
+      this.game.events.emit('hero:aim-mode');
+      return;
+    }
+
+    const result = this.hero.fireAbility(slot);
+    if (!result) return;
+    this._applyAbilityResult(slot, result);
+  }
+
+  _applyAbilityResult(slot, result) {
+    switch (result.kind) {
+      case 'overcharge':
+        // SFX + tower buff handled reactively in _updateHero → _applyOvercharge
         break;
-      case 'w':
-        if (this.hero.level < 2 || this.hero.airstrikeTimer > 0 || this.hero.dead) break;
-        this.aimMode = true;
-        this.game.events.emit('hero:aim-mode');
-        break;
-      case 'e': {
-        if (this.hero.level < 3 || !this.hero.empPulse()) break;
+      case 'emp': {
+        const am = this.game?.registry?.get('audio');
+        if (am) am.playSfx('hero-emp');
         for (const e of this.enemies) e.applyStatus({ type: 'stun', duration: 3 });
         const EMP_RADIUS = 120;
-        const am = this.game.registry.get('audio');
-        if (am) am.playSfx('hero-emp');
         if (this.particleSpawner) this.particleSpawner.spawnHeroAbilityVFX('emp', this.hero.x, this.hero.y, EMP_RADIUS);
         this.events.emit('emp-pulse', { x: this.hero.x, y: this.hero.y, radius: EMP_RADIUS });
         break;
       }
+      case 'airstrike':       this._handleAirstrike(result);    break;
+      case 'deploy_turret':   this._handleDeployTurret(result); break;   // wired in T13
+      case 'flame_wave':      this._handleFlameWave(result);    break;   // wired in T15
+      case 'immolate':        this._handleImmolate(result);     break;   // wired in T15
+      case 'firefield':       this._handleFirefield(result);    break;   // wired in T15
+      case 'mark':            this._handleMark(result);         break;   // wired in T14
+      case 'volley':          this._handleVolley(result);       break;   // wired in T14
+      case 'phase_sprint':    this._handlePhaseSprint(result);  break;   // wired in T14
+      case 'repair':          this._handleRepair(result);       break;   // wired in T13
+      case 'power_surge':     this._handlePowerSurge(result);   break;   // wired in T13
+      // unknown kind — no-op
     }
   }
 
-  _triggerAirstrike(x, y) {
-    const result = this.hero.airstrike(x, y);
-    if (!result) { this.aimMode = false; this.game.events.emit('hero:aim-cancel'); return; }
+  _triggerAimAbility(x, y) {
+    if (!this._aimSlot) { this.aimMode = false; return; }
+    const slot   = this._aimSlot;
+    const result = this.hero.fireAbility(slot, { x, y });
+    this._aimSlot = null;
+    this.aimMode  = false;
+    this.game.events.emit('hero:aim-cancel');
+    if (!result) return;
+    this._applyAbilityResult(slot, result);
+  }
 
-    const am = this.game.registry.get('audio');
+  _handleAirstrike(result) {
+    const am = this.game?.registry?.get('audio');
     if (am) am.playSfx('hero-airstrike');
-    if (this.particleSpawner) this.particleSpawner.spawnHeroAbilityVFX('airstrike', x, y, result.radius);
-    this.events.emit('airstrike-impact', { x, y });
-
+    if (this.particleSpawner) this.particleSpawner.spawnHeroAbilityVFX('airstrike', result.x, result.y, result.radius);
+    this.events.emit('airstrike-impact', { x: result.x, y: result.y });
     for (const e of this.enemies) {
-      if (Math.hypot(e.x - x, e.y - y) <= result.radius) {
-        this._dealDamage(e, result.damage, true, { isAoe: true, abilityLabel: 'AIRSTRIKE', source: heroAirstrikeSource() });
+      if (Math.hypot(e.x - result.x, e.y - result.y) <= result.radius) {
+        this._dealDamage(e, result.damage, true, { isAoe: true, abilityLabel: 'AIRSTRIKE', source: heroAbilitySource('rael', 'airstrike') });
       }
     }
     // Particle burst at impact point (kept as in-game additional flair)
-    this._addParticle(x, y, 0xff6400, 18);
+    this._addParticle(result.x, result.y, 0xff6400, 18);
     for (let i = 0; i < 8; i++) {
       const angle = (Math.PI * 2 * i) / 8;
       this._addParticle(
-        x + Math.cos(angle) * 28,
-        y + Math.sin(angle) * 28,
+        result.x + Math.cos(angle) * 28,
+        result.y + Math.sin(angle) * 28,
         0xff8800,
         8
       );
     }
-    this.aimMode = false;
-    this.game.events.emit('hero:aim-cancel');
   }
+
+  _updateSentries(dt) {
+    this._sentries = this._sentries.filter(s => s.update(dt, this.enemies));
+  }
+
+  _handleDeployTurret(result) {
+    for (const s of this._sentries) s.destroy();
+    this._sentries = [new SentryTurret(this, { x: result.x, y: result.y, ownerHeroId: this.hero.heroId })];
+    const am = this.game?.registry?.get('audio');
+    if (am) am.playSfx('hero-overcharge');
+  }
+
+  _handleRepair(result) {
+    this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + result.healHero);
+    this.hero._redrawHpBar();
+    for (const tower of this.placementManager.getTowers()) {
+      if (tower.type !== 'barracks') continue;
+      for (const soldier of tower.soldiers) {
+        if (soldier.dead) continue;
+        if (Math.hypot(soldier.x - this.hero.x, soldier.y - this.hero.y) <= result.soldierRadius) {
+          soldier.heal();
+        }
+      }
+    }
+    const am = this.game?.registry?.get('audio');
+    if (am) am.playSfx('hero-respawn');
+  }
+
+  _handlePowerSurge(result) {
+    const affected = [];
+    for (const tower of this.placementManager.getTowers()) {
+      if (Math.hypot(tower.x - result.x, tower.y - result.y) <= result.radius) {
+        applyFireRateMod(tower, 'powerSurge', result.fireRateMult);
+        affected.push(tower);
+      }
+    }
+    this.time.delayedCall(result.duration * 1000, () => {
+      for (const t of affected) clearFireRateMod(t, 'powerSurge');
+    });
+    const am = this.game?.registry?.get('audio');
+    if (am) am.playSfx('hero-overcharge');
+  }
+  _handleMark(result) {
+    if (result.target && !result.target.dead) {
+      result.target.applyStatus({ type:'vulnerable', duration: result.duration, multiplier: result.multiplier });
+    }
+    const am = this.game?.registry?.get('audio');
+    if (am) am.playSfx('hero-attack');
+  }
+
+  _handleVolley(result) {
+    let hits = 0;
+    const g = this.add.graphics().setDepth(5);
+    g.lineStyle(2, 0x3fb950, 1);
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      if (hits >= result.maxTargets) break;
+      if (Math.hypot(e.x - result.x, e.y - result.y) <= result.range) {
+        if (typeof g.lineBetween === 'function') {
+          g.lineBetween(result.x, result.y, e.x, e.y);
+        }
+        this._dealDamage(e, result.damage, false);
+        hits++;
+      }
+    }
+    this.time.delayedCall(250, () => g.destroy());
+    const am = this.game?.registry?.get('audio');
+    if (am) am.playSfx('hero-attack');
+  }
+
+  _handlePhaseSprint(result) {
+    this.hero.cloaked         = true;
+    this.hero._cloakTimer     = result.cloakDuration;
+    this.hero._moveSpeedMult  = result.speedMult;
+    const am = this.game?.registry?.get('audio');
+    if (am) am.playSfx('hero-overcharge');
+  }
+  _handleFlameWave(result) {
+    const facingAngle = result.facingX >= 0 ? 0 : Math.PI;
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      const dx = e.x - result.x, dy = e.y - result.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > result.length) continue;
+      const angleToEnemy = Math.atan2(dy, dx);
+      let diff = Math.abs(angleToEnemy - facingAngle);
+      if (diff > Math.PI) diff = 2 * Math.PI - diff;
+      if (diff <= result.halfAngle) {
+        this._dealDamage(e, result.damage, false);
+        e.applyStatus({ type:'burn', duration: result.burn.duration, dps: result.burn.dps });
+      }
+    }
+    const g = this.add.graphics().setDepth(5);
+    g.fillStyle(0xff6600, 0.4);
+    g.beginPath();
+    g.moveTo(result.x, result.y);
+    const dir = result.facingX >= 0 ? 1 : -1;
+    g.lineTo(result.x + result.length * dir * Math.cos(result.halfAngle), result.y - result.length * Math.sin(result.halfAngle));
+    g.lineTo(result.x + result.length * dir * Math.cos(result.halfAngle), result.y + result.length * Math.sin(result.halfAngle));
+    g.closePath();
+    g.fillPath();
+    this.time.delayedCall(250, () => g.destroy());
+  }
+
+  _handleImmolate(result) {
+    this.hero._attackDamageMult = result.attackDamageMult;
+    this._areaEffects.add({
+      followsTarget: this.hero,
+      radius: result.radius, duration: result.duration, dps: result.dps,
+      sourceTag: heroAbilitySource(this.hero.heroId, 'immolate'),
+      drawFn: (g) => {
+        g.clear();
+        g.lineStyle(2, 0xff6600, 0.6);
+        g.strokeCircle(0, 0, result.radius);
+      },
+    });
+    this.time.delayedCall(result.duration * 1000, () => { this.hero._attackDamageMult = 1.0; });
+  }
+
+  _handleFirefield(result) {
+    this._areaEffects.add({
+      x: result.x, y: result.y,
+      radius: result.radius, duration: result.duration, dps: result.dps,
+      slowFactor: result.slowFactor,
+      sourceTag: heroAbilitySource(this.hero.heroId, 'firefield'),
+      drawFn: (g) => {
+        g.clear();
+        g.fillStyle(0xff4400, 0.25);
+        g.fillCircle(0, 0, result.radius);
+        g.lineStyle(2, 0xff6600, 0.5);
+        g.strokeCircle(0, 0, result.radius);
+      },
+    });
+  }
+
+  _triggerAirstrike(x, y) { this._triggerAimAbility(x, y); }
 
   _applyOvercharge(active) {
     if (active) {
@@ -438,12 +626,10 @@ export default class GameScene extends Phaser.Scene {
     for (const tower of this.placementManager.getTowers()) {
       if (!tower.fireRate) continue;
       if (active) {
-        tower._baseFireRate = tower.fireRate;
-        tower.fireRate = tower.fireRate * 1.5;
+        applyFireRateMod(tower, 'overcharge', 1.5);
         if (this.particleSpawner) this.particleSpawner.spawnHeroAbilityVFX('overcharge', tower.x, tower.y, 0);
-      } else if (tower._baseFireRate !== undefined) {
-        tower.fireRate = tower._baseFireRate;
-        delete tower._baseFireRate;
+      } else {
+        clearFireRateMod(tower, 'overcharge');
       }
     }
   }
@@ -559,9 +745,9 @@ export default class GameScene extends Phaser.Scene {
   _onPointerDown(pointer) {
     const mx = pointer.x, my = pointer.y;
 
-    // 1. Airstrike aim mode takes priority
+    // 1. Aim mode takes priority
     if (this.aimMode) {
-      this._triggerAirstrike(mx, my);
+      this._triggerAimAbility(mx, my);
       return;
     }
 

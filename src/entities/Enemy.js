@@ -13,8 +13,10 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.reward        = def.reward;
     this.dead          = false;
     this.statusEffects = {
-      slow: { active: false, timer: 0, factor: 1 },
-      stun: { active: false, timer: 0 },
+      slow:       { active: false, timer: 0, factor: 1 },
+      stun:       { active: false, timer: 0 },
+      burn:       { active: false, timer: 0, dps: 0, tickAccum: 0 },
+      vulnerable: { active: false, timer: 0, multiplier: 1 },
     };
 
     this._body  = scene.add.graphics();
@@ -47,6 +49,23 @@ export class Enemy extends Phaser.GameObjects.Container {
         this._redrawBody();
       }
     }
+    if (this.statusEffects.burn.active) {
+      this.statusEffects.burn.timer -= dt;
+      this.statusEffects.burn.tickAccum += dt;
+      while (this.statusEffects.burn.tickAccum >= 1 && this.statusEffects.burn.active) {
+        this.statusEffects.burn.tickAccum -= 1;
+        this.takeDamage(this.statusEffects.burn.dps, { source: { kind: 'status', type: 'burn' } });
+      }
+      if (this.statusEffects.burn.timer <= 0) {
+        this.statusEffects.burn = { active: false, timer: 0, dps: 0, tickAccum: 0 };
+      }
+    }
+    if (this.statusEffects.vulnerable.active) {
+      this.statusEffects.vulnerable.timer -= dt;
+      if (this.statusEffects.vulnerable.timer <= 0) {
+        this.statusEffects.vulnerable = { active: false, timer: 0, multiplier: 1 };
+      }
+    }
   }
 
   takeDamage(amount, opts = false) {
@@ -55,7 +74,8 @@ export class Enemy extends Phaser.GameObjects.Container {
     const armor = optsObj.pierce ? 0 : this.armor;
     const afterArmor = Math.max(1, amount - armor);
     const mult = getWeaknessMultiplier(optsObj.source, this.def.type);
-    const dmg = Math.max(1, Math.floor(afterArmor * mult));
+    const vulnMult = this.statusEffects.vulnerable.active ? this.statusEffects.vulnerable.multiplier : 1;
+    const dmg = Math.max(1, Math.floor(afterArmor * mult * vulnMult));
     this.hp -= dmg;
     const justDied = this.hp <= 0 && !this.dead;
     if (this.hp <= 0) { this.hp = 0; this.dead = true; }
@@ -79,7 +99,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     }
   }
 
-  applyStatus({ type, duration, factor }) {
+  applyStatus({ type, duration, factor, dps, multiplier }) {
     if (type === 'slow') {
       this.statusEffects.slow = { active: true, timer: duration, factor };
       this._redrawBody();
@@ -87,6 +107,14 @@ export class Enemy extends Phaser.GameObjects.Container {
     if (type === 'stun') {
       this.statusEffects.stun = { active: true, timer: duration };
       this._redrawBody();
+    }
+    if (type === 'burn') {
+      const existing = this.statusEffects.burn;
+      const newDps = existing.active ? Math.max(existing.dps, dps) : dps;
+      this.statusEffects.burn = { active: true, timer: duration, dps: newDps, tickAccum: existing.active ? existing.tickAccum : 0 };
+    }
+    if (type === 'vulnerable') {
+      this.statusEffects.vulnerable = { active: true, timer: duration, multiplier };
     }
   }
 

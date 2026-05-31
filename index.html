@@ -181,6 +181,8 @@
     .upgrade-node.unaffordable { opacity:0.55; }
     .upgrade-node.locked-prereq { opacity:0.35; }
     .upgrade-node.locked-threshold { opacity:0.7; }
+    .upgrade-node.locked-hero { opacity:0.4; cursor:not-allowed; }
+    .upgrade-branch-subtitle { font-size:11px; color:#8899aa; margin-bottom:8px; margin-top:-6px; }
     #settings-overlay { display:none; position:absolute; inset:0; z-index:16;
       background:rgba(0,0,0,0.7); align-items:center; justify-content:center; padding:24px; }
     #settings-overlay-inner { width:100%; max-width:420px; background:#0a1018;
@@ -220,6 +222,18 @@
                     padding: 5px 7px; font-size: 10px; color: #ddd; white-space: nowrap;
                     max-width: 220px; }
     #inspect-peek strong { display: block; color: #ffd700; margin-bottom: 2px; }
+    #hero-picker { margin: 14px 0; }
+    .hero-picker-label { font-size:11px; color:#aaa; margin-bottom:6px; letter-spacing:1px; }
+    .hero-picker-cards { display:flex; gap:10px; }
+    .hero-card { display:flex; flex-direction:column; align-items:center; padding:8px;
+                 border:2px solid #333; border-radius:6px; cursor:pointer; width:62px; }
+    .hero-card.locked { opacity:0.5; cursor:not-allowed; }
+    .hero-card.active { background:#1a2a3a; }
+    .hero-card-portrait { width:36px; height:36px; border-radius:50%; display:flex;
+                          align-items:center; justify-content:center; font-weight:bold;
+                          font-size:16px; margin-bottom:4px; }
+    .hero-card-name { font-size:10px; color:#ddd; }
+    .hero-card.locked .hero-card-portrait { background:#222; border:2px solid #444; color:#666; }
   </style>
 </head>
 <body>
@@ -252,6 +266,10 @@
           <div id="featured-stars"></div>
           <div id="featured-blurb"></div>
           <div id="featured-tier"></div>
+          <div id="hero-picker">
+            <div class="hero-picker-label">Commander:</div>
+            <div class="hero-picker-cards" id="hero-picker-cards"></div>
+          </div>
           <button id="featured-play">&#9654; PLAY</button>
         </div>
       </div>
