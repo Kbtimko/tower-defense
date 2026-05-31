@@ -133,8 +133,10 @@ export class Hero extends Phaser.GameObjects.Container {
     return result;
   }
 
-  // Back-compat wrappers — GameScene still calls these in some paths until T10 migrates.
-  // These bypass the level-unlock gate to preserve pre-refactor behavior (old code had no gate).
+  // Back-compat wrappers — GameScene's legacy ability paths still call these
+  // until T10 migrates to fireAbility. They DELIBERATELY bypass the level-unlock
+  // gate because pre-refactor Hero had no gate; existing tests fire W/E on a
+  // level-1 hero. fireAbility (the new path) enforces the gate. Remove in T22.
   overcharge() {
     if (this.dead || this._timers.q > 0) return false;
     const r = this.def.abilities.q.run(this, this.scene);
@@ -145,6 +147,9 @@ export class Hero extends Phaser.GameObjects.Container {
     if (this.dead || this._timers.w > 0) return null;
     const r = this.def.abilities.w.run(this, this.scene, { x, y });
     if (r) this._timers.w = this.def.abilities.w.cooldown;
+    // Strip `kind` to preserve the pre-T9 return shape consumed by existing
+    // Hero.test.js and GameScene._triggerAirstrike. fireAbility returns the
+    // full result (with `kind`) for the new path. Removed in T22.
     return r ? { x: r.x, y: r.y, radius: r.radius, damage: r.damage } : null;
   }
   empPulse() {
