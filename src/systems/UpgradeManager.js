@@ -36,6 +36,7 @@ export class UpgradeManager {
     if (node.requires && !owned.has(node.requires)) return false;
     if (node.starThreshold != null
         && this._save.getTotalStars() < node.starThreshold) return false;
+    if (node.heroUnlock && !this._save.isHeroUnlocked(node.heroUnlock)) return false;
     return this.getAvailableStars() >= node.cost;
   }
 
@@ -76,32 +77,22 @@ export class UpgradeManager {
     if (!node) return 'unaffordable';
     const owned = this._owned();
     if (owned.has(id)) return 'purchased';
+    if (node.heroUnlock && !this._save.isHeroUnlocked(node.heroUnlock)) return 'locked-hero';
     if (node.requires && !owned.has(node.requires)) return 'locked-prereq';
     if (node.starThreshold != null
         && this._save.getTotalStars() < node.starThreshold) return 'locked-threshold';
     return this.getAvailableStars() >= node.cost ? 'affordable' : 'unaffordable';
   }
 
-  getModifiers() {
+  getModifiers(heroId) {
     const owned = this._owned();
     const has = id => owned.has(id);
     const mods = {
-      heroMaxHpBonus:     0,
-      heroStartLevel:     1,
-      heroRespawnDelta:   0,
-      startGoldBonus:     0,
-      killGoldMult:       1.0,
-      startLivesBonus:    0,
-      towerCostMult:      1.0,
-      towerRangeMult:     1.0,
-      towerDamageMult:    1.0,
-      soldierMaxHpBonus:  0,
-      soldierRespawnMult: 1.0,
+      heroMaxHpBonus: 0, heroStartLevel: 1, heroRespawnDelta: 0,
+      startGoldBonus: 0, killGoldMult: 1.0, startLivesBonus: 0,
+      towerCostMult: 1.0, towerRangeMult: 1.0, towerDamageMult: 1.0,
+      soldierMaxHpBonus: 0, soldierRespawnMult: 1.0,
     };
-    if (has('cmd_battle_hardened')) mods.heroMaxHpBonus     = 50;
-    if (has('cmd_veteran'))         mods.heroStartLevel     = 2;
-    if (has('cmd_elite'))           mods.heroStartLevel     = 3;
-    if (has('cmd_rapid_redeploy'))  mods.heroRespawnDelta   = -6;
     if (has('log_supply_cache'))    mods.startGoldBonus    += 40;
     if (has('log_deep_reserves'))   mods.startGoldBonus    += 80;
     if (has('log_bounty'))          mods.killGoldMult       = 1.2;
@@ -111,6 +102,11 @@ export class UpgradeManager {
     if (has('ars_overcharge'))      mods.towerDamageMult    = 1.06;
     if (has('ars_recruits'))        mods.soldierMaxHpBonus  = 30;
     if (has('ars_drills'))          mods.soldierRespawnMult = 0.75;
+    const HERO_HP_BONUS = { rael: 50, engineer: 40, scout: 30, pyro: 35 };
+    if (has(`${heroId}_hp`))             mods.heroMaxHpBonus   = HERO_HP_BONUS[heroId];
+    if (has(`${heroId}_rapid_redeploy`)) mods.heroRespawnDelta = -6;
+    if (has(`${heroId}_veteran`))        mods.heroStartLevel   = 2;
+    if (has(`${heroId}_elite`))          mods.heroStartLevel   = 3;
     return mods;
   }
 }
