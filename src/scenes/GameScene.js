@@ -17,6 +17,7 @@ import { StoryManager }    from '../systems/StoryManager.js';
 import { DamageNumberOverlay } from '../systems/DamageNumberOverlay.js';
 import { ShakeController }    from '../systems/ShakeController.js';
 import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
+import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
 import { STORY_PANELS }    from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
 import { soldierSource, heroAbilitySource } from '../data/sourceBuilders.js';
@@ -503,15 +504,12 @@ export default class GameScene extends Phaser.Scene {
     const affected = [];
     for (const tower of this.placementManager.getTowers()) {
       if (Math.hypot(tower.x - result.x, tower.y - result.y) <= result.radius) {
-        tower._baseFireRate ??= tower.fireRate;
-        tower.fireRate = tower._baseFireRate * result.fireRateMult;
+        applyFireRateMod(tower, 'powerSurge', result.fireRateMult);
         affected.push(tower);
       }
     }
     this.time.delayedCall(result.duration * 1000, () => {
-      for (const t of affected) {
-        if (t._baseFireRate != null) t.fireRate = t._baseFireRate;
-      }
+      for (const t of affected) clearFireRateMod(t, 'powerSurge');
     });
     const am = this.game?.registry?.get('audio');
     if (am) am.playSfx('hero-overcharge');
@@ -619,12 +617,10 @@ export default class GameScene extends Phaser.Scene {
     for (const tower of this.placementManager.getTowers()) {
       if (!tower.fireRate) continue;
       if (active) {
-        tower._baseFireRate = tower.fireRate;
-        tower.fireRate = tower.fireRate * 1.5;
+        applyFireRateMod(tower, 'overcharge', 1.5);
         if (this.particleSpawner) this.particleSpawner.spawnHeroAbilityVFX('overcharge', tower.x, tower.y, 0);
-      } else if (tower._baseFireRate !== undefined) {
-        tower.fireRate = tower._baseFireRate;
-        delete tower._baseFireRate;
+      } else {
+        clearFireRateMod(tower, 'overcharge');
       }
     }
   }
