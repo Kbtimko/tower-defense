@@ -172,11 +172,10 @@ export class InspectController {
       return;
     }
 
-    const timerField = { q: 'overchargeTimer', w: 'airstrikeTimer', e: 'empTimer' };
     const abilities = Object.entries(hero.def.abilities).map(([slot, ab]) => ({
       slot,
       label: `${slot.toUpperCase()} ${ab.label}`,
-      timer: hero[timerField[slot]] ?? 0,
+      timer: hero._timers?.[slot] ?? 0,
       unlockLvl: hero.def.stats.abilityUnlockLevels[slot],
     }));
 

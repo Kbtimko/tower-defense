@@ -1,4 +1,4 @@
-import { getWeaknessMultiplier, WEAKNESS_MATRIX, TIER4_OVERRIDES, HERO_MULTIPLIERS, describeMatchups, describeEnemyMatchups } from './weaknessMatrix.js';
+import { getWeaknessMultiplier, WEAKNESS_MATRIX, TIER4_OVERRIDES, describeMatchups, describeEnemyMatchups } from './weaknessMatrix.js';
 import { HEROES } from './heroes.js';
 
 describe('getWeaknessMultiplier — defaults', () => {
@@ -102,9 +102,9 @@ describe('matrix shape sanity', () => {
       }
     }
   });
-  it('HERO_MULTIPLIERS only references known enemy types', () => {
+  it('HEROES.rael.matchups only references known enemy types', () => {
     const known = ['drone', 'skitter', 'brute', 'colossus', 'phantom', 'titan'];
-    for (const enemy of Object.keys(HERO_MULTIPLIERS)) {
+    for (const enemy of Object.keys(HEROES.rael.matchups)) {
       expect(known).toContain(enemy);
     }
   });

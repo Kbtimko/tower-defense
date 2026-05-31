@@ -19,7 +19,7 @@ import { ShakeController }    from '../systems/ShakeController.js';
 import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
 import { STORY_PANELS }    from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
-import { soldierSource, heroAirstrikeSource, heroAbilitySource } from '../data/sourceBuilders.js';
+import { soldierSource, heroAbilitySource } from '../data/sourceBuilders.js';
 import { AreaEffectsManager } from '../systems/AreaEffectsManager.js';
 import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
@@ -380,9 +380,9 @@ export default class GameScene extends Phaser.Scene {
     if (this._heroCooldownAccum >= 1) {
       this._heroCooldownAccum -= 1;
       this.game.events.emit('hero:cooldown-tick', {
-        q: Math.ceil(this.hero.overchargeTimer),
-        w: Math.ceil(this.hero.airstrikeTimer),
-        e: Math.ceil(this.hero.empTimer),
+        q: Math.ceil(this.hero._timers.q),
+        w: Math.ceil(this.hero._timers.w),
+        e: Math.ceil(this.hero._timers.e),
       });
     }
   }
@@ -452,7 +452,7 @@ export default class GameScene extends Phaser.Scene {
     this.events.emit('airstrike-impact', { x: result.x, y: result.y });
     for (const e of this.enemies) {
       if (Math.hypot(e.x - result.x, e.y - result.y) <= result.radius) {
-        this._dealDamage(e, result.damage, true, { isAoe: true, abilityLabel: 'AIRSTRIKE', source: heroAirstrikeSource() });
+        this._dealDamage(e, result.damage, true, { isAoe: true, abilityLabel: 'AIRSTRIKE', source: heroAbilitySource('rael', 'airstrike') });
       }
     }
     // Particle burst at impact point (kept as in-game additional flair)

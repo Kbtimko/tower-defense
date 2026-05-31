@@ -65,5 +65,3 @@ export function describeEnemyMatchups(enemyType) {
   return { vulnerableTo, resists };
 }
 
-// Back-compat shim until T12 migrates InspectController; removed in T22.
-export const HERO_MULTIPLIERS = HEROES.rael.matchups;

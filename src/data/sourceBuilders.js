@@ -14,7 +14,3 @@ export function burnSource() {
   return { kind:'status', type:'burn' };
 }
 
-// Back-compat alias retained until T22 cleanup; one caller in GameScene._triggerAirstrike.
-export function heroAirstrikeSource() {
-  return heroAbilitySource('rael', 'airstrike');
-}

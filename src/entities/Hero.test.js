@@ -206,7 +206,7 @@ describe('Hero — abilities', () => {
   it('empPulse returns true and sets cooldown', () => {
     const hero = new Hero(makeScene(), { x: 0, y: 0 });
     expect(hero.empPulse()).toBe(true);
-    expect(hero.empTimer).toBe(45);
+    expect(hero._timers.e).toBe(45);
   });
 
   it('empPulse returns false while on cooldown', () => {

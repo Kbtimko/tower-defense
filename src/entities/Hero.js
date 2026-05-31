@@ -2,10 +2,6 @@ import Phaser from 'phaser';
 import { heroSource } from '../data/sourceBuilders.js';
 import { HEROES } from '../data/heroes.js';
 
-// Kept exported for back-compat with InspectController until T12 migrates it.
-// T22 (cleanup) removes this once no consumers remain.
-export const HERO_STATS = HEROES.rael.stats;
-
 const MOVE_STOP_DIST = 8;
 
 export class Hero extends Phaser.GameObjects.Container {
@@ -46,14 +42,6 @@ export class Hero extends Phaser.GameObjects.Container {
     this.setDepth(4);
     this.def.draw(this._body);
   }
-
-  // Back-compat getters mirror legacy fields used by GameScene/InspectController.
-  get overchargeTimer() { return this._timers.q; }
-  set overchargeTimer(v) { this._timers.q = v; }
-  get airstrikeTimer()  { return this._timers.w; }
-  set airstrikeTimer(v)  { this._timers.w = v; }
-  get empTimer()        { return this._timers.e; }
-  set empTimer(v)        { this._timers.e = v; }
 
   _redrawHpBar() {
     this._hpBar.clear();
