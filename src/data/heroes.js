@@ -1,6 +1,6 @@
-import { raelOvercharge, raelAirstrike, raelEmp, engRepair, engDeployTurret, engPowerSurge, scoutMark, scoutVolley, scoutPhase } from './heroAbilities.js';
+import { raelOvercharge, raelAirstrike, raelEmp, engRepair, engDeployTurret, engPowerSurge, scoutMark, scoutVolley, scoutPhase, pyroFlameWave, pyroImmolate, pyroFirefield, pyroBurnOnHit } from './heroAbilities.js';
 
-export const HERO_ORDER = ['rael', 'engineer', 'scout'];
+export const HERO_ORDER = ['rael', 'engineer', 'scout', 'pyro'];
 
 export const HEROES = {
   rael: {
@@ -115,6 +115,45 @@ export const HEROES = {
       g.lineStyle(2, 0x3fb950, 1);
       g.strokeCircle(0, -10, 5);
       g.strokePath();
+    },
+  },
+  pyro: {
+    id:              'pyro',
+    displayName:     'Pyromancer Mira',
+    shortName:       'Mira',
+    portraitChar:    'P',
+    bodyColor:       0x4a1e1a,
+    strokeColor:     0xe74c3c,
+    unlockMapAfter:  6,
+    upgradeBranchId: 'pyro',
+    stats: {
+      maxHp: 130, moveSpeed: 115, attackRange: 45,
+      attackRate: 1.0, attackDamage: 14, respawnTime: 22,
+      maxLevel: 3, abilityUnlockLevels: { q: 1, w: 2, e: 3 },
+    },
+    abilities: {
+      q: { id:'flame_wave', label:'Flame Wave', icon:'🔥', cooldown:20, aim:false, run: pyroFlameWave,
+           tooltip:'90° cone, 100px reach: 30 damage + burn' },
+      w: { id:'immolate',   label:'Immolate',   icon:'♨️', cooldown:30, aim:false, run: pyroImmolate,
+           tooltip:'8s aura: 10 dmg/s in 60px + 1.5× auto-attack damage' },
+      e: { id:'firefield',  label:'Firefield',  icon:'🌋', cooldown:50, aim:true,  run: pyroFirefield,
+           tooltip:'Click ground — 100px fire pool for 6s, 15 dmg/s + slow' },
+    },
+    onHit:    pyroBurnOnHit,
+    matchups: { drone: 1.5, skitter: 2.0, brute: 1.25, titan: 0.5 },
+    draw(g) {
+      g.clear();
+      g.fillStyle(0x4a1e1a, 1);
+      g.fillCircle(0, -10, 6);
+      g.fillStyle(0xff6600, 1);
+      g.beginPath();
+      g.moveTo(0, -18); g.lineTo(-2, -15); g.lineTo(2, -15); g.closePath();
+      g.fillPath();
+      g.fillStyle(0x4a1e1a, 1);
+      g.fillRect(-5, -4, 10, 10);
+      g.lineStyle(2, 0xe74c3c, 1);
+      g.strokeCircle(0, -10, 6);
+      g.strokeRect(-5, -4, 10, 10);
     },
   },
 };

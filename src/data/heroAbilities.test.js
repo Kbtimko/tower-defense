@@ -93,3 +93,36 @@ describe('scout abilities', () => {
     expect(scoutPhase(h, {})).toEqual({ kind:'phase_sprint', cloakDuration:4, speedMult:2.0 });
   });
 });
+
+import { pyroFlameWave, pyroImmolate, pyroFirefield, pyroBurnOnHit } from './heroAbilities.js';
+import { vi } from 'vitest';
+
+describe('pyromancer abilities', () => {
+  it('pyroFlameWave returns kind:flame_wave with cone params + burn', () => {
+    const h = { dead: false, x: 0, y: 0, _facingX: 1 };
+    expect(pyroFlameWave(h, {})).toEqual({
+      kind:'flame_wave', x:0, y:0, facingX:1, length:100, halfAngle: Math.PI/4,
+      damage:30, burn:{ duration:4, dps:5 },
+    });
+  });
+
+  it('pyroImmolate returns kind:immolate with attached aura + atkDmgMult window', () => {
+    const h = { dead: false };
+    expect(pyroImmolate(h, {})).toEqual({
+      kind:'immolate', radius:60, duration:8, dps:10, attackDamageMult:1.5,
+    });
+  });
+
+  it('pyroFirefield returns kind:firefield at aim point with pool params', () => {
+    const r = pyroFirefield({ dead: false }, {}, { x: 100, y: 200 });
+    expect(r).toEqual({
+      kind:'firefield', x:100, y:200, radius:100, duration:6, dps:15, slowFactor:0.7,
+    });
+  });
+
+  it('pyroBurnOnHit applies 3dps/2s burn to the enemy', () => {
+    const enemy = { applyStatus: vi.fn() };
+    pyroBurnOnHit({}, enemy);
+    expect(enemy.applyStatus).toHaveBeenCalledWith({ type:'burn', duration:2, dps:3 });
+  });
+});

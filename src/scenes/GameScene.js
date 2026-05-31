@@ -19,7 +19,8 @@ import { ShakeController }    from '../systems/ShakeController.js';
 import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
 import { STORY_PANELS }    from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
-import { soldierSource, heroAirstrikeSource } from '../data/sourceBuilders.js';
+import { soldierSource, heroAirstrikeSource, heroAbilitySource } from '../data/sourceBuilders.js';
+import { AreaEffectsManager } from '../systems/AreaEffectsManager.js';
 import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
 import { InspectController } from './InspectController.js';
@@ -86,6 +87,7 @@ export default class GameScene extends Phaser.Scene {
     // Entity arrays
     this.enemies     = [];
     this._sentries   = [];
+    this._areaEffects = new AreaEffectsManager(this);
     this.projectiles = [];
     this.particles   = [];
     this.kills       = 0;
@@ -176,6 +178,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.shakeCtl)      this.shakeCtl.destroy();
     for (const s of this._sentries) s.destroy();
     this._sentries = [];
+    if (this._areaEffects) this._areaEffects.destroyAll();
   }
 
   // ─── Update loop ───────────────────────────────────────────────────────────
@@ -192,6 +195,7 @@ export default class GameScene extends Phaser.Scene {
     this._updateSoldiers(dt);
     this._updateHero(dt);
     this._updateSentries(dt);
+    this._areaEffects.update(dt, this.enemies);
     this._updateParticles(dt);
     this._checkWaveComplete();
     this.inspector?.refresh();
@@ -540,9 +544,63 @@ export default class GameScene extends Phaser.Scene {
     const am = this.game?.registry?.get('audio');
     if (am) am.playSfx('hero-overcharge');
   }
-  _handleFlameWave(_result)     { /* wired in T15 */ }
-  _handleImmolate(_result)      { /* wired in T15 */ }
-  _handleFirefield(_result)     { /* wired in T15 */ }
+  _handleFlameWave(result) {
+    const facingAngle = result.facingX >= 0 ? 0 : Math.PI;
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      const dx = e.x - result.x, dy = e.y - result.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > result.length) continue;
+      const angleToEnemy = Math.atan2(dy, dx);
+      let diff = Math.abs(angleToEnemy - facingAngle);
+      if (diff > Math.PI) diff = 2 * Math.PI - diff;
+      if (diff <= result.halfAngle) {
+        this._dealDamage(e, result.damage, false);
+        e.applyStatus({ type:'burn', duration: result.burn.duration, dps: result.burn.dps });
+      }
+    }
+    const g = this.add.graphics().setDepth(5);
+    g.fillStyle(0xff6600, 0.4);
+    g.beginPath();
+    g.moveTo(result.x, result.y);
+    const dir = result.facingX >= 0 ? 1 : -1;
+    g.lineTo(result.x + result.length * dir * Math.cos(result.halfAngle), result.y - result.length * Math.sin(result.halfAngle));
+    g.lineTo(result.x + result.length * dir * Math.cos(result.halfAngle), result.y + result.length * Math.sin(result.halfAngle));
+    g.closePath();
+    g.fillPath();
+    this.time.delayedCall(250, () => g.destroy());
+  }
+
+  _handleImmolate(result) {
+    this.hero._attackDamageMult = result.attackDamageMult;
+    this._areaEffects.add({
+      followsTarget: this.hero,
+      radius: result.radius, duration: result.duration, dps: result.dps,
+      sourceTag: heroAbilitySource(this.hero.heroId, 'immolate'),
+      drawFn: (g) => {
+        g.clear();
+        g.lineStyle(2, 0xff6600, 0.6);
+        g.strokeCircle(0, 0, result.radius);
+      },
+    });
+    this.time.delayedCall(result.duration * 1000, () => { this.hero._attackDamageMult = 1.0; });
+  }
+
+  _handleFirefield(result) {
+    this._areaEffects.add({
+      x: result.x, y: result.y,
+      radius: result.radius, duration: result.duration, dps: result.dps,
+      slowFactor: result.slowFactor,
+      sourceTag: heroAbilitySource(this.hero.heroId, 'firefield'),
+      drawFn: (g) => {
+        g.clear();
+        g.fillStyle(0xff4400, 0.25);
+        g.fillCircle(0, 0, result.radius);
+        g.lineStyle(2, 0xff6600, 0.5);
+        g.strokeCircle(0, 0, result.radius);
+      },
+    });
+  }
 
   _triggerAirstrike(x, y) { this._triggerAimAbility(x, y); }
 

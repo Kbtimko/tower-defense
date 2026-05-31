@@ -155,21 +155,21 @@ describe('describeMatchups', () => {
 });
 
 describe('describeEnemyMatchups', () => {
-  it('drone → vulnerableTo [hero:scout, mage], resists [cannon]', () => {
+  it('drone → vulnerableTo [hero:pyro, hero:scout, mage], resists [cannon]', () => {
     const r = describeEnemyMatchups('drone');
-    expect(r.vulnerableTo.sort()).toEqual(['hero:scout', 'mage']);
+    expect(r.vulnerableTo.sort()).toEqual(['hero:pyro', 'hero:scout', 'mage']);
     expect(r.resists.sort()).toEqual(['cannon']);
   });
 
-  it('skitter → vulnerableTo [archer, barracks], resists [cannon, sniper]', () => {
+  it('skitter → vulnerableTo [archer, barracks, hero:pyro], resists [cannon, sniper]', () => {
     const r = describeEnemyMatchups('skitter');
-    expect(r.vulnerableTo.sort()).toEqual(['archer', 'barracks']);
+    expect(r.vulnerableTo.sort()).toEqual(['archer', 'barracks', 'hero:pyro']);
     expect(r.resists.sort()).toEqual(['cannon', 'sniper']);
   });
 
-  it('brute → vulnerableTo [barracks, cannon, hero:engineer, sniper], resists [archer]', () => {
+  it('brute → vulnerableTo [barracks, cannon, hero:engineer, hero:pyro, sniper], resists [archer]', () => {
     const r = describeEnemyMatchups('brute');
-    expect(r.vulnerableTo.sort()).toEqual(['barracks', 'cannon', 'hero:engineer', 'sniper']);
+    expect(r.vulnerableTo.sort()).toEqual(['barracks', 'cannon', 'hero:engineer', 'hero:pyro', 'sniper']);
     expect(r.resists.sort()).toEqual(['archer']);
   });
 
@@ -185,10 +185,10 @@ describe('describeEnemyMatchups', () => {
     expect(r.resists.sort()).toEqual(['barracks', 'cannon', 'sniper']);
   });
 
-  it('titan → vulnerableTo [cannon, hero:engineer, mage, sniper], resists [archer, barracks, hero:scout, ice]', () => {
+  it('titan → vulnerableTo [cannon, hero:engineer, mage, sniper], resists [archer, barracks, hero:pyro, hero:scout, ice]', () => {
     const r = describeEnemyMatchups('titan');
     expect(r.vulnerableTo.sort()).toEqual(['cannon', 'hero:engineer', 'mage', 'sniper']);
-    expect(r.resists.sort()).toEqual(['archer', 'barracks', 'hero:scout', 'ice']);
+    expect(r.resists.sort()).toEqual(['archer', 'barracks', 'hero:pyro', 'hero:scout', 'ice']);
   });
 
   it('unknown enemy → empty arrays', () => {
