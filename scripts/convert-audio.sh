@@ -42,6 +42,8 @@ MUSIC_BITRATE="96k"
 BOSS_BITRATE="128k"
 # Music loops trimmed to 60s to control file size; tweak per-track if needed.
 MUSIC_DURATION="60"
+# Boss themes have a longer trim to accommodate 45-60s climactic loops.
+BOSS_DURATION="75"
 
 shopt -s nullglob
 converted=0
@@ -56,7 +58,7 @@ for src in "$SRC_DIR"/*.{wav,WAV,flac,FLAC,ogg,OGG,mp3,MP3,m4a,M4A}; do
       ;;
     boss-*)
       out="$MUSIC_OUT/$name.mp3"
-      ffmpeg -y -loglevel error -i "$src" -ac 1 -b:a "$BOSS_BITRATE" -t "$MUSIC_DURATION" "$out"
+      ffmpeg -y -loglevel error -i "$src" -ac 1 -b:a "$BOSS_BITRATE" -t "$BOSS_DURATION" "$out"
       ;;
     *)
       out="$SFX_OUT/$name.mp3"
