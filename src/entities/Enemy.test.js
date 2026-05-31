@@ -175,3 +175,34 @@ describe('Enemy burn status', () => {
     expect(enemy.statusEffects.burn.timer).toBeCloseTo(4);
   });
 });
+
+describe('Enemy vulnerable status', () => {
+  it('multiplies incoming damage after the weakness multiplier', () => {
+    const enemy = makeEnemy();
+    enemy.applyStatus({ type:'vulnerable', duration:5, multiplier:2 });
+    const start = enemy.hp;
+    enemy.takeDamage(10);
+    expect(start - enemy.hp).toBe(20);
+  });
+
+  it('multiplier replaces (does not stack) on re-apply', () => {
+    const enemy = makeEnemy();
+    enemy.applyStatus({ type:'vulnerable', duration:5, multiplier:2 });
+    enemy.applyStatus({ type:'vulnerable', duration:5, multiplier:1.5 });
+    expect(enemy.statusEffects.vulnerable.multiplier).toBe(1.5);
+  });
+
+  it('clears vulnerable when timer expires', () => {
+    const enemy = makeEnemy();
+    enemy.applyStatus({ type:'vulnerable', duration:2, multiplier:2 });
+    enemy.update(2.0);
+    expect(enemy.statusEffects.vulnerable.active).toBe(false);
+  });
+
+  it('vulnerable does not apply when not active', () => {
+    const enemy = makeEnemy();
+    const start = enemy.hp;
+    enemy.takeDamage(10);
+    expect(start - enemy.hp).toBe(10);
+  });
+});
