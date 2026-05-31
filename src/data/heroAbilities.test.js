@@ -67,3 +67,29 @@ describe('engineer abilities', () => {
     expect(engPowerSurge(h, {})).toEqual({ kind:'power_surge', x:50, y:50, radius:200, fireRateMult:2.0, duration:8 });
   });
 });
+
+import { scoutMark, scoutVolley, scoutPhase } from './heroAbilities.js';
+
+describe('scout abilities', () => {
+  it('scoutMark returns kind:mark with multiplier 2.0 and duration 6 for the aimed enemy', () => {
+    const target = { id: 'e1' };
+    const r = scoutMark({ dead: false }, {}, target);
+    expect(r).toEqual({ kind:'mark', target, multiplier:2.0, duration:6 });
+  });
+  it('scoutMark returns null when target is missing', () => {
+    expect(scoutMark({ dead: false }, {}, null)).toBeNull();
+  });
+  it('scoutMark returns null when dead', () => {
+    expect(scoutMark({ dead: true }, {}, { id:'e' })).toBeNull();
+  });
+
+  it('scoutVolley returns kind:volley with damage 25, range 180, maxTargets 8', () => {
+    const h = { dead: false, x: 100, y: 100 };
+    expect(scoutVolley(h, {})).toEqual({ kind:'volley', x:100, y:100, range:180, damage:25, maxTargets:8 });
+  });
+
+  it('scoutPhase returns kind:phase_sprint with cloakDuration 4 and speedMult 2.0', () => {
+    const h = { dead: false };
+    expect(scoutPhase(h, {})).toEqual({ kind:'phase_sprint', cloakDuration:4, speedMult:2.0 });
+  });
+});

@@ -505,9 +505,41 @@ export default class GameScene extends Phaser.Scene {
     const am = this.game?.registry?.get('audio');
     if (am) am.playSfx('hero-overcharge');
   }
-  _handleMark(_result)          { /* wired in T14 */ }
-  _handleVolley(_result)        { /* wired in T14 */ }
-  _handlePhaseSprint(_result)   { /* wired in T14 */ }
+  _handleMark(result) {
+    if (result.target && !result.target.dead) {
+      result.target.applyStatus({ type:'vulnerable', duration: result.duration, multiplier: result.multiplier });
+    }
+    const am = this.game?.registry?.get('audio');
+    if (am) am.playSfx('hero-attack');
+  }
+
+  _handleVolley(result) {
+    let hits = 0;
+    const g = this.add.graphics().setDepth(5);
+    g.lineStyle(2, 0x3fb950, 1);
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      if (hits >= result.maxTargets) break;
+      if (Math.hypot(e.x - result.x, e.y - result.y) <= result.range) {
+        if (typeof g.lineBetween === 'function') {
+          g.lineBetween(result.x, result.y, e.x, e.y);
+        }
+        this._dealDamage(e, result.damage, false);
+        hits++;
+      }
+    }
+    this.time.delayedCall(250, () => g.destroy());
+    const am = this.game?.registry?.get('audio');
+    if (am) am.playSfx('hero-attack');
+  }
+
+  _handlePhaseSprint(result) {
+    this.hero.cloaked         = true;
+    this.hero._cloakTimer     = result.cloakDuration;
+    this.hero._moveSpeedMult  = result.speedMult;
+    const am = this.game?.registry?.get('audio');
+    if (am) am.playSfx('hero-overcharge');
+  }
   _handleFlameWave(_result)     { /* wired in T15 */ }
   _handleImmolate(_result)      { /* wired in T15 */ }
   _handleFirefield(_result)     { /* wired in T15 */ }

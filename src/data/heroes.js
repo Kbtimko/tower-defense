@@ -1,6 +1,6 @@
-import { raelOvercharge, raelAirstrike, raelEmp, engRepair, engDeployTurret, engPowerSurge } from './heroAbilities.js';
+import { raelOvercharge, raelAirstrike, raelEmp, engRepair, engDeployTurret, engPowerSurge, scoutMark, scoutVolley, scoutPhase } from './heroAbilities.js';
 
-export const HERO_ORDER = ['rael', 'engineer'];
+export const HERO_ORDER = ['rael', 'engineer', 'scout'];
 
 export const HEROES = {
   rael: {
@@ -79,6 +79,42 @@ export const HEROES = {
       g.lineStyle(2, 0xff9933, 1);
       g.strokePath();
       g.strokeRect(-4, -4, 8, 10);
+    },
+  },
+  scout: {
+    id:              'scout',
+    displayName:     'Scout Vex',
+    shortName:       'Vex',
+    portraitChar:    'S',
+    bodyColor:       0x1e3a1e,
+    strokeColor:     0x3fb950,
+    unlockMapAfter:  4,
+    upgradeBranchId: 'scout',
+    stats: {
+      maxHp: 80, moveSpeed: 150, attackRange: 140,
+      attackRate: 2.0, attackDamage: 14, respawnTime: 18,
+      maxLevel: 3, abilityUnlockLevels: { q: 1, w: 2, e: 3 },
+    },
+    abilities: {
+      q: { id:'mark',         label:'Mark Target',  icon:'🎯', cooldown:20, aim:true,  run: scoutMark,
+           tooltip:'Click an enemy → takes 2× damage for 6s' },
+      w: { id:'volley',       label:'Volley',       icon:'🏹', cooldown:30, aim:false, run: scoutVolley,
+           tooltip:'Strike up to 8 enemies in 180px, 25 damage each' },
+      e: { id:'phase_sprint', label:'Phase Sprint', icon:'💨', cooldown:45, aim:false, run: scoutPhase,
+           tooltip:'Untargetable + 2× move speed for 4s (self-only)' },
+    },
+    onHit:    null,
+    matchups: { drone: 1.5, phantom: 1.75, titan: 0.75 },
+    draw(g) {
+      g.clear();
+      g.fillStyle(0x1e3a1e, 1);
+      g.fillCircle(0, -10, 5);
+      g.beginPath();
+      g.moveTo(0, -4); g.lineTo(-3, 6); g.lineTo(3, 6); g.closePath();
+      g.fillPath();
+      g.lineStyle(2, 0x3fb950, 1);
+      g.strokeCircle(0, -10, 5);
+      g.strokePath();
     },
   },
 };

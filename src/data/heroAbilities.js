@@ -33,3 +33,19 @@ export function engPowerSurge(hero, _scene) {
   if (hero.dead) return null;
   return { kind: 'power_surge', x: hero.x, y: hero.y, radius: 200, fireRateMult: 2.0, duration: 8 };
 }
+
+export function scoutMark(hero, _scene, target) {
+  if (hero.dead) return null;
+  if (!target) return null;
+  return { kind: 'mark', target, multiplier: 2.0, duration: 6 };
+}
+
+export function scoutVolley(hero, _scene) {
+  if (hero.dead) return null;
+  return { kind: 'volley', x: hero.x, y: hero.y, range: 180, damage: 25, maxTargets: 8 };
+}
+
+export function scoutPhase(hero, _scene) {
+  if (hero.dead) return null;
+  return { kind: 'phase_sprint', cloakDuration: 4, speedMult: 2.0 };
+}

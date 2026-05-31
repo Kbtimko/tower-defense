@@ -155,8 +155,10 @@ describe('describeMatchups', () => {
 });
 
 describe('describeEnemyMatchups', () => {
-  it('drone → vulnerableTo [mage], resists [cannon]', () => {
-    expect(describeEnemyMatchups('drone')).toEqual({ vulnerableTo: ['mage'], resists: ['cannon'] });
+  it('drone → vulnerableTo [hero:scout, mage], resists [cannon]', () => {
+    const r = describeEnemyMatchups('drone');
+    expect(r.vulnerableTo.sort()).toEqual(['hero:scout', 'mage']);
+    expect(r.resists.sort()).toEqual(['cannon']);
   });
 
   it('skitter → vulnerableTo [archer, barracks], resists [cannon, sniper]', () => {
@@ -177,16 +179,16 @@ describe('describeEnemyMatchups', () => {
     expect(r.resists.sort()).toEqual(['archer']);
   });
 
-  it('phantom → vulnerableTo [archer, hero:rael, mage], resists [barracks, cannon, sniper]', () => {
+  it('phantom → vulnerableTo [archer, hero:rael, hero:scout, mage], resists [barracks, cannon, sniper]', () => {
     const r = describeEnemyMatchups('phantom');
-    expect(r.vulnerableTo.sort()).toEqual(['archer', 'hero:rael', 'mage']);
+    expect(r.vulnerableTo.sort()).toEqual(['archer', 'hero:rael', 'hero:scout', 'mage']);
     expect(r.resists.sort()).toEqual(['barracks', 'cannon', 'sniper']);
   });
 
-  it('titan → vulnerableTo [cannon, hero:engineer, mage, sniper], resists [archer, barracks, ice]', () => {
+  it('titan → vulnerableTo [cannon, hero:engineer, mage, sniper], resists [archer, barracks, hero:scout, ice]', () => {
     const r = describeEnemyMatchups('titan');
     expect(r.vulnerableTo.sort()).toEqual(['cannon', 'hero:engineer', 'mage', 'sniper']);
-    expect(r.resists.sort()).toEqual(['archer', 'barracks', 'ice']);
+    expect(r.resists.sort()).toEqual(['archer', 'barracks', 'hero:scout', 'ice']);
   });
 
   it('unknown enemy → empty arrays', () => {
