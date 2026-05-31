@@ -1,9 +1,13 @@
 import { UPGRADES } from '../data/upgrades.js';
+import { HEROES }   from '../data/heroes.js';
 
 const BRANCHES = [
-  { key: 'command',   label: 'Command'   },
-  { key: 'logistics', label: 'Logistics' },
-  { key: 'arsenal',   label: 'Arsenal'   },
+  { id: 'rael',      title: 'Commander Rael',  subtitle: 'Generalist bruiser' },
+  { id: 'engineer',  title: 'Engineer Dax',    subtitle: 'Support / builder' },
+  { id: 'scout',     title: 'Scout Vex',       subtitle: 'Ranged DPS / anti-air' },
+  { id: 'pyro',      title: 'Pyromancer Mira', subtitle: 'AoE / burn' },
+  { id: 'logistics', title: 'Logistics',       subtitle: 'Economy' },
+  { id: 'arsenal',   title: 'Arsenal',         subtitle: 'Towers & soldiers' },
 ];
 
 export class UpgradeTreeOverlay {
@@ -34,9 +38,13 @@ export class UpgradeTreeOverlay {
       const col = document.createElement('div');
       col.className = 'upgrade-branch';
       const heading = document.createElement('h3');
-      heading.textContent = branch.label;
+      heading.textContent = branch.title;
+      const sub = document.createElement('div');
+      sub.className   = 'upgrade-branch-subtitle';
+      sub.textContent = branch.subtitle;
       col.appendChild(heading);
-      for (const node of UPGRADES.filter(u => u.branch === branch.key)) {
+      col.appendChild(sub);
+      for (const node of UPGRADES.filter(u => u.branch === branch.id)) {
         col.appendChild(this._renderNode(node));
       }
       this._tree.appendChild(col);
@@ -67,6 +75,12 @@ export class UpgradeTreeOverlay {
       gate.className   = 'upgrade-node-gate';
       gate.textContent = `Needs ${node.starThreshold}★ earned`;
       el.appendChild(gate);
+    }
+
+    if (state === 'locked-hero') {
+      el.classList.add('locked-hero');
+      const heroDef = HEROES[node.heroUnlock];
+      el.title = `🔒 Locked — clear Map ${heroDef.unlockMapAfter + 1} to unlock ${heroDef.displayName}`;
     }
 
     if (state === 'affordable') {
