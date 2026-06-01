@@ -587,6 +587,9 @@ export default class GameScene extends Phaser.Scene {
 
   _handleImmolate(result) {
     this.hero._attackDamageMult = result.attackDamageMult;
+    if (this.hero._attackDmgRevertEvt) {
+      this.hero._attackDmgRevertEvt.remove(false);
+    }
     this._areaEffects.add({
       followsTarget: this.hero,
       radius: result.radius, duration: result.duration, dps: result.dps,
@@ -597,7 +600,10 @@ export default class GameScene extends Phaser.Scene {
         g.strokeCircle(0, 0, result.radius);
       },
     });
-    this.time.delayedCall(result.duration * 1000, () => { this.hero._attackDamageMult = 1.0; });
+    this.hero._attackDmgRevertEvt = this.time.delayedCall(result.duration * 1000, () => {
+      this.hero._attackDamageMult = 1.0;
+      this.hero._attackDmgRevertEvt = null;
+    });
   }
 
   _handleFirefield(result) {
