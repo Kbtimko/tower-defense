@@ -38,7 +38,7 @@ MUSIC_OUT="$REPO_ROOT/public/audio/music"
 mkdir -p "$SFX_OUT" "$MUSIC_OUT"
 
 SFX_BITRATE="96k"
-MUSIC_BITRATE="96k"
+MUSIC_BITRATE="64k"
 BOSS_BITRATE="128k"
 # Music loops trimmed to 60s to control file size; tweak per-track if needed.
 MUSIC_DURATION="60"
