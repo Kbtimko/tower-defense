@@ -124,9 +124,10 @@ export class Hero extends Phaser.GameObjects.Container {
     this.moving            = false;
     this.cloaked           = false;
     this._cloakTimer       = 0;
-    this._moveSpeedMult    = 1.0;
-    this._attackDamageMult = 1.0;
-    this._attackTimer      = 1 / this.def.stats.attackRate;
+    this._moveSpeedMult      = 1.0;
+    this._attackDamageMult   = 1.0;
+    this._attackDmgRevertEvt = null;
+    this._attackTimer        = 1 / this.def.stats.attackRate;
     this.setPathPosition(0);
     this._body.setVisible(true);
     this._redrawHpBar();
