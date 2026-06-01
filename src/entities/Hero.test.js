@@ -195,6 +195,19 @@ describe('Hero — takeDamage and respawn', () => {
     hero.update(0.01, [enemy]);        // first frame alive — should NOT attack
     expect(enemy.hp).toBe(hpAfterRespawn);
   });
+
+  it('death resets _attackDamageMult to 1.0 and cancels the pending Immolate revert timer', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    const removeSpy = vi.fn();
+    hero._attackDamageMult   = 1.5;
+    hero._attackDmgRevertEvt = { remove: removeSpy };
+    hero.takeDamage(9999);
+    expect(hero.dead).toBe(true);
+    expect(hero._attackDamageMult).toBe(1.0);
+    expect(hero._attackDmgRevertEvt).toBeNull();
+    expect(removeSpy).toHaveBeenCalledOnce();
+    expect(removeSpy).toHaveBeenCalledWith(false);
+  });
 });
 
 describe('Hero — leveling', () => {

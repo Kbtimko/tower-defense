@@ -104,6 +104,11 @@ export class Hero extends Phaser.GameObjects.Container {
       this.respawnTimer = this._respawnTime;
       this._body.setVisible(false);
       this._hpBar.clear();
+      this._attackDamageMult = 1.0;
+      if (this._attackDmgRevertEvt) {
+        this._attackDmgRevertEvt.remove(false);
+        this._attackDmgRevertEvt = null;
+      }
       const am = this.scene.game?.registry?.get('audio');
       if (am) am.playSfx('hero-death');
     }
