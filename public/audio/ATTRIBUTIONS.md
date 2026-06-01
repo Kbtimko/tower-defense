@@ -8,7 +8,7 @@ required attribution text below.
 
 ## SFX (`public/audio/sfx/`)
 
-23 mono MP3s at 96 kbps. Total size: 248 KB.
+23 mono MP3s at 96 kbps. Total size: 316 KB.
 
 | File | Source pack | Source filename | License |
 |---|---|---|---|
@@ -32,35 +32,50 @@ required attribution text below.
 | `hero-emp.mp3`              | Kenney Sci-Fi Sounds | `laserRetro_004.ogg`             | CC0 |
 | `wave-start.mp3`            | Kenney UI Audio      | `switch20.ogg`                   | CC0 |
 | `life-lost.mp3`             | Kenney Sci-Fi Sounds | `explosionCrunch_003.ogg`        | CC0 |
-| `victory.mp3`               | Kenney UI Audio      | `switch38.ogg`                   | CC0 |
-| `defeat.mp3`                | Kenney UI Audio      | `switch1.ogg`                    | CC0 |
+| `victory.mp3`               | freesound.org        | https://freesound.org/people/el_boss/sounds/677858/ (el_boss) | CC0 |
+| `defeat.mp3`                | freesound.org        | https://freesound.org/people/Wagna/sounds/242208/ (Wagna)     | CC0 |
 | `ui-click.mp3`              | Kenney UI Audio      | `click3.ogg`                     | CC0 |
 
 **Source URLs:**
 - Kenney Sci-Fi Sounds: https://kenney.nl/assets/sci-fi-sounds
 - Kenney UI Audio:     https://kenney.nl/assets/ui-audio
 
-**Known placeholders:** `victory.mp3` and `defeat.mp3` are short UI switch sounds —
-neither pack ships a true fanfare/error tone. Replace with dedicated CC0 jingles
-when curated.
-
 ## Music (`public/audio/music/`)
 
-**Status: not yet curated.** 22 mono MP3s expected (10 maps × 2 + 2 boss themes).
-Each ambient/combat pair within a map should share key and tempo so the in-game
-cross-fade is seamless. Target ≤200 KB each (≤250 KB for boss themes), total
-audio budget ≤5 MB.
+22 mono MP3s — 20 map tracks (64 kbps) + 2 boss themes (128 kbps).
+Total size: 10 MB.
 
-Suggested source: freesound.org filtered to License = CC0. Filename schema must
-match `MUSIC_KEYS` in `src/systems/AudioManager.js`:
+| File | Source | Source URL | Author | License |
+|---|---|---|---|---|
+| `map-0-ambient.mp3` | freesound.org | https://freesound.org/people/DylanTheFish/sounds/442181/ | DylanTheFish | CC0 |
+| `map-0-combat.mp3`  | freesound.org | https://freesound.org/people/Seth_Makes_Sounds/sounds/713035/ | Seth_Makes_Sounds | CC0 |
+| `map-1-ambient.mp3` | freesound.org | https://freesound.org/people/deadrobotmusic/sounds/808032/ | deadrobotmusic | CC0 |
+| `map-1-combat.mp3`  | freesound.org | https://freesound.org/people/deadrobotmusic/sounds/664150/ | deadrobotmusic | CC0 |
+| `map-2-ambient.mp3` | freesound.org | https://freesound.org/people/szegvari/sounds/574537/ | szegvari | CC0 |
+| `map-2-combat.mp3`  | freesound.org | https://freesound.org/people/DaveN/sounds/269399/ | DaveN | CC0 |
+| `map-3-ambient.mp3` | freesound.org | https://freesound.org/people/Sonicfreak/sounds/174450/ | Sonicfreak | CC0 |
+| `map-3-combat.mp3`  | freesound.org | https://freesound.org/people/Magmi.Soundtracks/sounds/476556/ | Magmi.Soundtracks | CC0 |
+| `map-4-ambient.mp3` | freesound.org | https://freesound.org/people/pryanic/sounds/777335/ | pryanic | CC0 |
+| `map-4-combat.mp3`  | freesound.org | https://freesound.org/people/burning-mir/sounds/155139/ | burning-mir | CC0 |
+| `map-5-ambient.mp3` | freesound.org | https://freesound.org/people/LookIMadeAThing/sounds/534018/ | LookIMadeAThing | CC0 |
+| `map-5-combat.mp3`  | freesound.org | https://freesound.org/people/Seth_Makes_Sounds/sounds/702337/ | Seth_Makes_Sounds | CC0 |
+| `map-6-ambient.mp3` | freesound.org | https://freesound.org/people/Zeraora/sounds/726006/ | Zeraora | CC0 |
+| `map-6-combat.mp3`  | freesound.org | https://freesound.org/people/awrmacd/sounds/387223/ | awrmacd | CC0 |
+| `map-7-ambient.mp3` | freesound.org | https://freesound.org/people/MarkAllentheProducer/sounds/758233/ | MarkAllentheProducer | CC0 |
+| `map-7-combat.mp3`  | freesound.org | https://freesound.org/people/Vospi/sounds/368146/ | Vospi | CC0 |
+| `map-8-ambient.mp3` | freesound.org | https://freesound.org/people/+frame+/sounds/837364/ | +frame+ | CC0 |
+| `map-8-combat.mp3`  | freesound.org | https://freesound.org/people/furbyguy/sounds/331869/ | furbyguy | CC0 |
+| `map-9-ambient.mp3` | freesound.org | https://freesound.org/people/Aemyn/sounds/609250/ | Aemyn | CC0 |
+| `map-9-combat.mp3`  | freesound.org | https://freesound.org/people/Seth_Makes_Sounds/sounds/685334/ | Seth_Makes_Sounds | CC0 |
+| `boss-mid.mp3`      | freesound.org | https://freesound.org/people/Seth_Makes_Sounds/sounds/683457/ | Seth_Makes_Sounds | CC0 |
+| `boss-final.mp3`    | opengameart.org | https://opengameart.org/content/determined-pursuit-epic-orchestra-loop | Emma_MA | CC0 |
 
-```
-map-0-ambient.mp3   map-0-combat.mp3
-map-1-ambient.mp3   map-1-combat.mp3
-... (through map-9)
-boss-mid.mp3
-boss-final.mp3
-```
+Pair note: each map's ambient + combat track share key and tempo for the
+1.5 s cross-fade in `AudioManager.setCombatActive`.
+
+Boss-trigger: `GameScene` plays `boss-mid` on `mapId === 4` (Asteroid Belt)
+and `boss-final` on all other titan-boss maps (currently only `mapId === 9`,
+Last Light).
 
 ## Notes for future contributors
 
