@@ -4,28 +4,29 @@
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
 ## Current Status
-Phases 1–8 + 9a (send-wave-early) + 9b (weakness matrix) + 9c (click-to-inspect) all merged to production. Dead-enemy cleanup also merged (PR #16). Two backlog items in flight on separate branches:
-- `feature/hero-path-restriction` — pathProgress + setPathPosition + 40px corridor snap-or-reject. 5 commits, no PR yet.
-- `feature/hero-roster` — backlog item #1 (additional heroes with different skills). 33 commits, **PR #18 open** to `feature/phase-3-tower-system`. All 22 plan tasks (T1–T22) shipped: 4-hero registry, per-hero upgrade tree, SaveManager v3 migration, MapSelect picker, dynamic HUD, restructured overlay, back-compat cleanup. Plus 2 follow-up fixes: UIScene launch bug (pre-existing since Phase 6) and Power Surge × Overcharge `_baseFireRate` collision (backlog #6). 463 tests passing.
+Phases 1–8 + 9a (send-wave-early) + 9b (weakness matrix) + 9c (click-to-inspect) + dead-enemy cleanup (PR #16) + hero path-restriction (PR #17) + hero roster (PR #18) all merged. Phase 8b music curation + victory/defeat replacement shipped on `feature/phase-8b-music-curation` (PR pending). 468 tests passing.
 
 ## Blockers
 - None active
 
 ## Known Bugs
-- Hero may not be blocking enemies on Level 2 (Lunar Gate) — reported 2026-05-30, unverified. Likely related to path-progress work currently on `feature/hero-path-restriction`.
+- Hero may not be blocking enemies on Level 2 (Lunar Gate) — reported 2026-05-30, unverified.
 
 ## In Progress
-- **Hero roster** — PR #18 open at https://github.com/Kbtimko/tower-defense/pull/18. Awaiting review/merge into `feature/phase-3-tower-system`. Manual play-through (each hero's Q/W/E visuals, level-up unlocks, respawn) still pending — machine verification + Playwright spot-checks all green. Stashed: `stash@{0}` on `feature/hero-path-restriction` has prior in-flight edits to .claude/notes.md / sessions.md / SESSION_NOTES.md from before the branch switch.
-- **Hero path-restriction** on branch `feature/hero-path-restriction`: pathProgress + `setPathPosition` infrastructure, 40px corridor snap-or-reject, Soldier-parity post-loop fallthrough, tests for backward movement and multi-segment boundary. Needs PR.
+- **Phase 8b music curation** — `feature/phase-8b-music-curation` branch off `feature/phase-3-tower-system`. 22 CC0 music tracks (20 map ambient/combat + boss-mid + boss-final) + victory/defeat SFX replacement shipped; 0 audio decode errors (was 22); audio bundle ~10 MB. PR pending.
 
 ## Prioritized Backlog
-1. **Phase 8b (deferred from Phase 8):** music curation (22 freesound.org CC0 tracks — 10 ambient/combat pairs + 2 boss themes); per-tower SFX for 5 tier-4 branches (currently reuse base fire sound); per-enemy-type hit sounds (currently generic + detuned); replace placeholder victory.mp3/defeat.mp3
+1. **Phase 8b — remaining SFX work (music + victory/defeat shipped 2026-05-31):** per-tower SFX for 5 tier-4 branches (currently reuse base fire sound); per-enemy-type hit sounds (currently generic + detuned)
 2. Phase 10 (future): iOS Prep — Capacitor, touch controls, App Store pipeline
-3. Verify hero is working properly on Level 2 (Lunar Gate) — reports indicate hero isn't blocking any enemies; likely related to path-restriction work on `feature/hero-path-restriction` or map-specific path geometry _(added 2026-05-30)_
+3. Verify hero is working properly on Level 2 (Lunar Gate) — reports indicate hero isn't blocking any enemies; verify against post-PR-17 state _(added 2026-05-30)_
 4. Resize game canvas as the browser window resizes (responsive Phaser scaling) _(added 2026-05-30)_
 5. **AreaEffectsManager `followsTarget.dead` not handled** — Pyromancer's Immolate aura (8s, follows hero) keeps ticking 10 dps if hero dies mid-aura, and if hero respawns before the aura ends, the aura teleports to the respawn point. T5 design gap exposed by T15. Fix: in `AreaEffectsManager.update`, treat `eff.followsTarget?.dead` as duration-expired. _(added 2026-05-31)_
 6. **heroAbilities.test.js mid-file imports** — T15 appended `import { pyroFlameWave, ... }` and `import { vi } from 'vitest'` mid-file. Violates ~/projects/CLAUDE.md "imports at the top". Trivial fix: hoist + dedupe. _(added 2026-05-31)_
 7. **"Heroes" icon on MapSelect → hero management UI** — add an icon button next to the existing ⚙ Upgrades / ♪ Audio cluster that opens a unified Hero Management overlay. Inside: hero picker (current MapSelect cards, larger) + per-hero upgrade tree (current overlay's per-hero branches, scoped to the selected hero). Lets player switch hero + spend stars on one hero without leaving the modal. _(added 2026-05-31)_
+8. **Overarching storyline + per-level mini-stories** — write a campaign narrative explaining *why* the player is fighting through the 10 maps toward the final level (player motivation, faction, end goal). Add a short mini-story per map (pre-battle briefing / post-battle epilogue), tying boss-bearing levels into key story beats. Surface via StoryManager or pre-wave dialog. _(added 2026-05-31)_
+9. **Space-themed backgrounds per level** — replace generic terrain with distinct space settings per map: planets (terrestrial, ice, lava, gas giant), space ships (interior corridor, hangar), asteroids, derelicts, orbital stations, nebulae. Each map gets its own visual identity tied to its mini-story. _(added 2026-05-31)_
+10. **Map-progression overworld for MapSelect** — replace the current card grid with a map/star-chart UI showing the 10 levels as nodes connected by a progression path (Super Mario World / FTL-style). Visualizes the journey and locked/unlocked state spatially. _(added 2026-05-31)_
+11. **Music start-of-level latency (~5s)** — when a level loads, music takes about 5 seconds to start playing. Likely Phaser/WebAudio lazy MP3 decode on first `.play()` (preloading via `scene.load.audio` doesn't pre-decode). Fix candidates: call `.play({ volume: 0 })` on each track during BootScene to warm the decoder; OR convert music to OGG (faster decode in browser); OR keep silent ambient track playing globally and swap source on level change. _(added 2026-05-31)_
 
 ## Completed
 - ~~Phase 1: Core game loop (Phaser setup, path, basic enemies, HUD)~~ (2026-05-07)
@@ -72,3 +73,8 @@ Phases 1–8 + 9a (send-wave-early) + 9b (weakness matrix) + 9c (click-to-inspec
 - ~~Hero roster follow-up: UIScene was never launched (pre-existing since Phase 6) — GameScene now scene.launch('UIScene') after hero/economy ready; UIScene.create bootstraps _onHeroHudInit on first paint so hero swap works end-to-end. Browser-verified Engineer/Scout HUD swap — commit 8cb1d20~~ (2026-05-31)
 - ~~Hero roster follow-up #6 fix: tower fire-rate mods now compose via multiplier stack (systems/fireRateMods.js). Each ability registers a named mod; _baseFireRate captured once and never overwritten; fireRate = base × product(mods). Resolves Surge × Overcharge collision that left towers permanently at 2× rate. 6 new tests + browser-verified the exact regression sequence — 463 tests, commit 9672cc7~~ (2026-05-31)
 - ~~PR #18 opened for hero-roster branch (33 commits, +6745/-345, base feature/phase-3-tower-system)~~ (2026-05-31)
+- ~~Merge PR #17 (hero path-restriction)~~ (2026-05-31)
+- ~~Hero roster merge resolution: free-form `moveTo` replaced by path-restricted `moveToProgress`; speed scales by def.stats.moveSpeed × _moveSpeedMult (preserves Scout's Phase Sprint); _facingX derives from movement direction; obsolete constants/exports already cleaned in T22 dropped — commit 70c12ca~~ (2026-05-31)
+- ~~Merge PR #18 (hero roster)~~ (2026-05-31)
+- ~~Phase 8b music curation brainstorm + design spec + implementation plan (12 tasks)~~ (2026-05-31)
+- ~~Phase 8b — music curation (22 CC0 tracks + 2 SFX replacements): 10 map ambient/combat pairs + boss-mid + boss-final, victory/defeat fanfares, ATTRIBUTIONS.md updated, 0 audio decode errors on page load (was 22), `convert-audio.sh` extended with BOSS_DURATION=75s + MUSIC_BITRATE dropped to 64k, audio bundle ~10MB, automated `scripts/fetch-phase-8b-staging.sh` downloader replaces manual staging~~ (2026-05-31)
