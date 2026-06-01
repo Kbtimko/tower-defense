@@ -145,18 +145,26 @@ The existing SFX table stays as-is. The victory/defeat rows update to point at t
 
 | Asset class | Current | After Phase 8b | Cap |
 |---|---|---|---|
-| `public/audio/sfx/` | 248 KB | 248 KB + (≤200 KB × 2 replacements) | ≤500 KB |
-| `public/audio/music/` | 0 | ≤7.5 MB (22 tracks, ~340 KB avg) | ≤7.5 MB |
-| `public/audio/` total | 252 KB | ≤8 MB | **≤8 MB hard ceiling** |
+| `public/audio/sfx/` | 248 KB | ~316 KB (victory/defeat replaced) | ≤500 KB |
+| `public/audio/music/` | 0 | ~10 MB (22 tracks at 64 kbps mono, 128 kbps boss) | ≤10 MB |
+| `public/audio/` total | 252 KB | ~10 MB | **≤10 MB ceiling** |
 
-Per-track guidance (sized to fit the 7.5 MB music cap):
-- Map ambient/combat loops: ~20-25 s sources, ~250-300 KB each at 96 kbps mono → 20 tracks ≈ 5.5-6.0 MB
-- Boss themes: ~45-50 s sources, ~700-800 KB each at 128 kbps mono → 2 tracks ≈ 1.4-1.6 MB
-- Reserve: ~0.5-1.0 MB headroom
+**Budget revised from 8 MB → 10 MB during implementation.** Initial 8 MB target assumed ~340 KB/track average; actual encoding at 64 kbps mono with 60s map trim + 75s boss trim lands at ~470 KB per max-length map track + ~1.1 MB per boss theme. Hitting 8 MB strictly would have required either 48 kbps music (audible quality loss on synth pads/percussion) or 45s loops (risk of cutting mid-phrase since picks were not auditioned at the trim point). 10 MB accepted as the practical floor at acceptable music quality.
 
-Running total target: ~7.0-7.5 MB music + ~350 KB SFX ≈ 7.4-7.9 MB total.
+Per-track guidance (sized to the 10 MB cap):
+- Map ambient/combat loops: ~20-60 s sources, ~150-470 KB each at 64 kbps mono → 20 tracks ≈ 7.5 MB
+- Boss themes: ~45-75 s sources, ~1.1 MB each at 128 kbps mono → 2 tracks ≈ 2.2 MB
+- SFX: ~316 KB
+- Reserve: ~0.5 MB headroom
 
-If the bundle exceeds 8 MB after conversion, drop bitrate on the largest offenders (60 kbps mono is still acceptable for ambient pads) or trim source duration. Don't ship a bundle larger than 8 MB.
+`scripts/convert-audio.sh` settings post-implementation:
+- `SFX_BITRATE="96k"` (unchanged)
+- `MUSIC_BITRATE="64k"` (lowered from 96k)
+- `BOSS_BITRATE="128k"` (unchanged)
+- `MUSIC_DURATION="60"` (unchanged)
+- `BOSS_DURATION="75"` (new)
+
+If a future curation pass produces a bundle larger than 10 MB, drop the highest-priority oversized tracks to shorter source clips or trim further. Don't ship a bundle larger than 10 MB.
 
 ---
 
