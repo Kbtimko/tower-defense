@@ -32,11 +32,12 @@ export class Hero extends Phaser.GameObjects.Container {
     this.targetProgress = 0;
 
     // Hero-roster mutable state: facing, speed/damage mults, cloak.
-    this._facingX          = 1;
-    this._moveSpeedMult    = 1.0;
-    this._attackDamageMult = 1.0;
-    this.cloaked           = false;
-    this._cloakTimer       = 0;
+    this._facingX            = 1;
+    this._moveSpeedMult      = 1.0;
+    this._attackDamageMult   = 1.0;
+    this._attackDmgRevertEvt = null;
+    this.cloaked             = false;
+    this._cloakTimer         = 0;
 
     this._timers = { q: 0, w: 0, e: 0 };
     this.overchargeActive    = false;
