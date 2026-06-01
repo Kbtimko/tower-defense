@@ -49,22 +49,33 @@ This is generic: any current or future `followsTarget` effect benefits. Stationa
 
 ### 2. `src/entities/Hero.js`
 
-In `die()`, after setting `dead = true` and resetting the respawn timer, reset the multiplier and cancel any pending revert event:
+`Hero` does not have a standalone `die()` method — death is detected inline inside `takeDamage` when `hp <= 0` (currently lines 102–109). Extend that block so it also resets the multiplier and cancels any pending revert event:
 
 ```js
-this._attackDamageMult = 1.0;
-if (this._attackDmgRevertEvt) {
-  this._attackDmgRevertEvt.remove(false);
-  this._attackDmgRevertEvt = null;
+if (this.hp <= 0) {
+  this.dead         = true;
+  this.respawnTimer = this._respawnTime;
+  this._body.setVisible(false);
+  this._hpBar.clear();
+  // New: end Immolate cleanly on death.
+  this._attackDamageMult = 1.0;
+  if (this._attackDmgRevertEvt) {
+    this._attackDmgRevertEvt.remove(false);
+    this._attackDmgRevertEvt = null;
+  }
+  const am = this.scene.game?.registry?.get('audio');
+  if (am) am.playSfx('hero-death');
 }
 ```
 
-The field `_attackDmgRevertEvt` is the Phaser `TimerEvent` handle returned by `time.delayedCall`. It is stored on the hero (not the scene) so that `die()` — which has access to `this` but not the scene's timer system — can cancel it. `.remove(false)` cancels without firing the callback.
+The field `_attackDmgRevertEvt` is the Phaser `TimerEvent` handle returned by `time.delayedCall`. It is stored on the hero (not the scene) so that the death branch — which has access to `this` but not the scene's timer system directly — can cancel it. `.remove(false)` cancels without firing the callback.
+
+`respawn()` already resets `_attackDamageMult = 1.0` (line 122), so the death-side reset is hygiene rather than strictly necessary; the value can only matter again after a respawn. But pairing it with the timer cancellation here keeps the two halves of the ability's state in one place.
 
 ### 3. `src/scenes/GameScene.js — _handleImmolate`
 
 - Before scheduling a new revert, cancel any prior one. This guards the case where Immolate is somehow recast before the previous revert fires (e.g., death-respawn-recast).
-- Store the new `TimerEvent` on the hero so `Hero.die()` can cancel it.
+- Store the new `TimerEvent` on the hero so the death branch in `Hero.takeDamage` can cancel it.
 - Inside the callback, null the field after reverting.
 
 ```js
@@ -88,7 +99,7 @@ _handleImmolate(result) {
 
 ### `src/entities/Hero.test.js` — one new case
 
-- **`die()` resets `_attackDamageMult` to 1.0 and cancels the pending revert timer** — set `_attackDamageMult = 1.5`, assign `_attackDmgRevertEvt` to a stub `{ remove: vi.fn() }`, call `die()`. Assert `_attackDamageMult === 1.0`, `_attackDmgRevertEvt === null`, and the stub's `remove` was called once with `false`.
+- **death (via `takeDamage`) resets `_attackDamageMult` to 1.0 and cancels the pending revert timer** — instantiate a hero, set `_attackDamageMult = 1.5`, assign `_attackDmgRevertEvt` to a stub `{ remove: vi.fn() }`, then call `hero.takeDamage(huge)` to drop hp to 0. Assert `hero.dead === true`, `_attackDamageMult === 1.0`, `_attackDmgRevertEvt === null`, and the stub's `remove` was called once with `false`.
 
 ### `src/scenes/GameScene.handleImmolate.test.js` — new file, following `GameScene.dead-cleanup.test.js` pattern
 
