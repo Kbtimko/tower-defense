@@ -424,11 +424,7 @@ Then in the browser:
 
 If any of those fail, return to the relevant task and inspect the production code path; do not paper over with extra test mocks.
 
-- [ ] **Step 3: Update the backlog in `.claude/notes.md`**
-
-In the *primary* working tree at `/Users/keithtimko/projects/tower-defense`, but **only after merging** — do not modify notes.md during this branch's work, since another session may have it open. Defer this step to the post-merge cleanup; do not include in this PR. Skip this step now and just note it for the human follow-up.
-
-- [ ] **Step 4: Push the branch and open a PR**
+- [ ] **Step 3: Push the branch and open a PR**
 
 Per ~/projects/CLAUDE.md: "Finishing a branch: default to Option 2 — push and create a PR". Run:
 ```bash
