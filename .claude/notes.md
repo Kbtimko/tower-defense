@@ -4,7 +4,7 @@
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
 ## Current Status
-Phases 1–8 + 9a (send-wave-early) + 9b (weakness matrix) + 9c (click-to-inspect) + dead-enemy cleanup (PR #16) + hero path-restriction (PR #17) + hero roster (PR #18) all merged. Phase 8b music curation + victory/defeat replacement shipped on `feature/phase-8b-music-curation` (PR pending). 468 tests passing.
+Phases 1–8 + 9a (send-wave-early) + 9b (weakness matrix) + 9c (click-to-inspect) + dead-enemy cleanup (PR #16) + hero path-restriction (PR #17) + hero roster (PR #18) all merged. Phase 8b music curation + victory/defeat replacement + OGG/Opus latency fix shipped on `feature/phase-8b-music-curation` (PR pending). 470 tests passing.
 
 ## Blockers
 - None active
@@ -13,7 +13,7 @@ Phases 1–8 + 9a (send-wave-early) + 9b (weakness matrix) + 9c (click-to-inspec
 - Hero may not be blocking enemies on Level 2 (Lunar Gate) — reported 2026-05-30, unverified.
 
 ## In Progress
-- **Phase 8b music curation** — `feature/phase-8b-music-curation` branch off `feature/phase-3-tower-system`. 22 CC0 music tracks (20 map ambient/combat + boss-mid + boss-final) + victory/defeat SFX replacement shipped; 0 audio decode errors (was 22); audio bundle ~10 MB. PR pending.
+- **Phase 8b music curation + OGG/Opus latency fix** — `feature/phase-8b-music-curation` branch off `feature/phase-3-tower-system`. 22 CC0 music tracks + victory/defeat SFX shipped; OGG/Opus dual-format load now eliminates ~5s decode wait (modern browsers fetch `.ogg`, Safari <17.4 falls back to `.mp3`). 470 tests passing, audio bundle ~16 MB on disk / ~5.4 MB over-wire for modern browsers. PR pending.
 
 ## Prioritized Backlog
 1. **Phase 8b — remaining SFX work (music + victory/defeat shipped 2026-05-31):** per-tower SFX for 5 tier-4 branches (currently reuse base fire sound); per-enemy-type hit sounds (currently generic + detuned)
@@ -26,8 +26,7 @@ Phases 1–8 + 9a (send-wave-early) + 9b (weakness matrix) + 9c (click-to-inspec
 8. **Overarching storyline + per-level mini-stories** — write a campaign narrative explaining *why* the player is fighting through the 10 maps toward the final level (player motivation, faction, end goal). Add a short mini-story per map (pre-battle briefing / post-battle epilogue), tying boss-bearing levels into key story beats. Surface via StoryManager or pre-wave dialog. _(added 2026-05-31)_
 9. **Space-themed backgrounds per level** — replace generic terrain with distinct space settings per map: planets (terrestrial, ice, lava, gas giant), space ships (interior corridor, hangar), asteroids, derelicts, orbital stations, nebulae. Each map gets its own visual identity tied to its mini-story. _(added 2026-05-31)_
 10. **Map-progression overworld for MapSelect** — replace the current card grid with a map/star-chart UI showing the 10 levels as nodes connected by a progression path (Super Mario World / FTL-style). Visualizes the journey and locked/unlocked state spatially. _(added 2026-05-31)_
-11. **Remove music start-of-level latency (~5s)** — when a level loads, music takes about 5 seconds to start playing. Likely Phaser/WebAudio lazy MP3 decode on first `.play()` (preloading via `scene.load.audio` doesn't pre-decode). Fix candidates: call `.play({ volume: 0 })` on each track during BootScene to warm the decoder; OR convert music to OGG (faster decode in browser); OR keep silent ambient track playing globally and swap source on level change. _(added 2026-05-31, reframed as action 2026-05-31)_
-12. **Add music to main menu (MapSelectScene)** — `MapSelectScene` currently plays no music; player lands on a silent map-picker after the boot splash. Only `GameScene.create` calls `AudioManager.playMusic(mapId)`. Options: (a) reuse `map-0-ambient.mp3` as a low-volume menu loop, (b) curate a dedicated `menu.mp3` track (calm, mysterious — sets the tone before levels), (c) curate `menu-ambient` + use existing combat-swap mechanism with a different fanfare on map-select hover. Pairs naturally with backlog #11 — solving the lazy-decode issue makes a quiet menu loop trivial. _(added 2026-05-31)_
+11. **Add music to main menu (MapSelectScene)** — `MapSelectScene` currently plays no music; player lands on a silent map-picker after the boot splash. Only `GameScene.create` calls `AudioManager.playMusic(mapId)`. Options: (a) reuse `map-0-ambient` as a low-volume menu loop, (b) curate a dedicated `menu` track (calm, mysterious — sets the tone before levels), (c) curate `menu-ambient` + use existing combat-swap mechanism with a different fanfare on map-select hover. With Opus decode now sub-100ms, a quiet menu loop drops in trivially. _(added 2026-05-31)_
 
 ## Completed
 - ~~Phase 1: Core game loop (Phaser setup, path, basic enemies, HUD)~~ (2026-05-07)
@@ -79,3 +78,4 @@ Phases 1–8 + 9a (send-wave-early) + 9b (weakness matrix) + 9c (click-to-inspec
 - ~~Merge PR #18 (hero roster)~~ (2026-05-31)
 - ~~Phase 8b music curation brainstorm + design spec + implementation plan (12 tasks)~~ (2026-05-31)
 - ~~Phase 8b — music curation (22 CC0 tracks + 2 SFX replacements): 10 map ambient/combat pairs + boss-mid + boss-final, victory/defeat fanfares, ATTRIBUTIONS.md updated, 0 audio decode errors on page load (was 22), `convert-audio.sh` extended with BOSS_DURATION=75s + MUSIC_BITRATE dropped to 64k, audio bundle ~10MB, automated `scripts/fetch-phase-8b-staging.sh` downloader replaces manual staging~~ (2026-05-31)
+- ~~Music start-of-level latency fix (backlog #11): OGG/Opus dual-format load via `[ogg, mp3]` URL array in AudioManager.loadAssets — Phaser auto-picks fastest supported format. Modern browsers fetch `.ogg` (sub-100ms decode), iOS Safari <17.4 falls back to `.mp3`. 45 new `.ogg` files (~5.4 MB), new `scripts/mp3-to-opus.sh` helper, `convert-audio.sh` extended with Opus pass + libopus precondition check. 2 new unit tests, browser-verified music begins on scene start (was ~5s wait). 470 tests passing.~~ (2026-06-02)
