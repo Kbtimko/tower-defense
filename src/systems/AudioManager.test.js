@@ -271,3 +271,35 @@ describe('AudioManager music — missing keys', () => {
     warnSpy.mockRestore();
   });
 });
+
+describe('AudioManager.loadAssets', () => {
+  it('loads music keys as [ogg, mp3] fallback list', () => {
+    const loadAudioSpy = vi.fn();
+    const scene = { load: { audio: loadAudioSpy } };
+    const am = new AudioManager(makeGame(), new SaveManager());
+    am.loadAssets(scene);
+    expect(loadAudioSpy).toHaveBeenCalledWith(
+      'map-0-ambient',
+      ['audio/music/map-0-ambient.ogg', 'audio/music/map-0-ambient.mp3'],
+    );
+    expect(loadAudioSpy).toHaveBeenCalledWith(
+      'boss-final',
+      ['audio/music/boss-final.ogg', 'audio/music/boss-final.mp3'],
+    );
+  });
+
+  it('loads sfx keys as [ogg, mp3] fallback list', () => {
+    const loadAudioSpy = vi.fn();
+    const scene = { load: { audio: loadAudioSpy } };
+    const am = new AudioManager(makeGame(), new SaveManager());
+    am.loadAssets(scene);
+    expect(loadAudioSpy).toHaveBeenCalledWith(
+      'tower-fire-cannon',
+      ['audio/sfx/tower-fire-cannon.ogg', 'audio/sfx/tower-fire-cannon.mp3'],
+    );
+    expect(loadAudioSpy).toHaveBeenCalledWith(
+      'ui-click',
+      ['audio/sfx/ui-click.ogg', 'audio/sfx/ui-click.mp3'],
+    );
+  });
+});
