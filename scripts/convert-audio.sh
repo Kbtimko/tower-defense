@@ -21,6 +21,11 @@ if ! command -v ffmpeg >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! ffmpeg -hide_banner -encoders 2>&1 | grep -qE "^ A[^ ]+ +libopus "; then
+  echo "error: ffmpeg lacks libopus encoder. Reinstall with: brew reinstall ffmpeg" >&2
+  exit 1
+fi
+
 if [ $# -lt 1 ]; then
   echo "usage: $0 <source-dir>" >&2
   exit 2
