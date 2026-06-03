@@ -170,9 +170,9 @@ This script is the primary path for generating the `.ogg` files. It walks `publi
 
 - [ ] **Step 1: Verify ffmpeg has libopus available**
 
-Run: `ffmpeg -encoders 2>&1 | grep libopus`
+Run: `ffmpeg -hide_banner -encoders 2>&1 | grep ' libopus '`
 
-Expected: a line like `A....D libopus              libopus Opus`. If empty, install with `brew install ffmpeg` (macOS) or `apt install ffmpeg` (Linux). Do NOT proceed without libopus — the script will fail otherwise.
+Expected: a line like ` A....D libopus              libopus Opus (codec opus)`. If empty, install with `brew install ffmpeg` (macOS) or `apt install ffmpeg` (Linux). Do NOT proceed without libopus — the script will fail otherwise.
 
 - [ ] **Step 2: Write the helper script**
 
@@ -201,7 +201,7 @@ if ! command -v ffmpeg >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! ffmpeg -hide_banner -encoders 2>&1 | grep -q "^.....D libopus"; then
+if ! ffmpeg -hide_banner -encoders 2>&1 | grep -qE "^ A[^ ]+ +libopus "; then
   echo "error: ffmpeg lacks libopus encoder. Reinstall with: brew reinstall ffmpeg" >&2
   exit 1
 fi
