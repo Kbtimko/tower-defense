@@ -60,10 +60,10 @@ export class AudioManager {
 
   loadAssets(scene) {
     for (const key of SFX_KEYS) {
-      scene.load.audio(key, `audio/sfx/${key}.mp3`);
+      scene.load.audio(key, [`audio/sfx/${key}.ogg`, `audio/sfx/${key}.mp3`]);
     }
     for (const key of MUSIC_KEYS) {
-      scene.load.audio(key, `audio/music/${key}.mp3`);
+      scene.load.audio(key, [`audio/music/${key}.ogg`, `audio/music/${key}.mp3`]);
     }
   }
 
