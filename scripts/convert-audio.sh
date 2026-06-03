@@ -45,6 +45,12 @@ MUSIC_DURATION="60"
 # Boss themes have a longer trim to accommodate 45-60s climactic loops.
 BOSS_DURATION="75"
 
+# Opus/OGG variants — emitted alongside MP3. Modern browsers fetch
+# these (faster decode); MP3 stays as Safari <17.4 fallback.
+SFX_OPUS_BITRATE="64k"
+MUSIC_OPUS_BITRATE="32k"
+BOSS_OPUS_BITRATE="64k"
+
 shopt -s nullglob
 converted=0
 for src in "$SRC_DIR"/*.{wav,WAV,flac,FLAC,ogg,OGG,mp3,MP3,m4a,M4A}; do
@@ -55,14 +61,17 @@ for src in "$SRC_DIR"/*.{wav,WAV,flac,FLAC,ogg,OGG,mp3,MP3,m4a,M4A}; do
     map-*)
       out="$MUSIC_OUT/$name.mp3"
       ffmpeg -y -loglevel error -i "$src" -ac 1 -b:a "$MUSIC_BITRATE" -t "$MUSIC_DURATION" "$out"
+      ffmpeg -y -loglevel error -i "$src" -ac 1 -c:a libopus -b:a "$MUSIC_OPUS_BITRATE" -t "$MUSIC_DURATION" "$MUSIC_OUT/$name.ogg"
       ;;
     boss-*)
       out="$MUSIC_OUT/$name.mp3"
       ffmpeg -y -loglevel error -i "$src" -ac 1 -b:a "$BOSS_BITRATE" -t "$BOSS_DURATION" "$out"
+      ffmpeg -y -loglevel error -i "$src" -ac 1 -c:a libopus -b:a "$BOSS_OPUS_BITRATE" -t "$BOSS_DURATION" "$MUSIC_OUT/$name.ogg"
       ;;
     *)
       out="$SFX_OUT/$name.mp3"
       ffmpeg -y -loglevel error -i "$src" -ac 1 -b:a "$SFX_BITRATE" "$out"
+      ffmpeg -y -loglevel error -i "$src" -ac 1 -c:a libopus -b:a "$SFX_OPUS_BITRATE" "$SFX_OUT/$name.ogg"
       ;;
   esac
 
