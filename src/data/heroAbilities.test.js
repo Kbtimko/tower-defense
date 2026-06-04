@@ -1,6 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { raelOvercharge, raelAirstrike, raelEmp } from './heroAbilities.js';
-import { engRepair, engDeployTurret, engPowerSurge } from './heroAbilities.js';
+import { describe, it, expect, vi } from 'vitest';
+import {
+  raelOvercharge, raelAirstrike, raelEmp,
+  engRepair, engDeployTurret, engPowerSurge,
+  scoutMark, scoutVolley, scoutPhase,
+  pyroFlameWave, pyroImmolate, pyroFirefield, pyroBurnOnHit,
+} from './heroAbilities.js';
 
 const makeHero = (overrides = {}) => ({
   dead: false,
@@ -68,8 +72,6 @@ describe('engineer abilities', () => {
   });
 });
 
-import { scoutMark, scoutVolley, scoutPhase } from './heroAbilities.js';
-
 describe('scout abilities', () => {
   it('scoutMark returns kind:mark with multiplier 2.0 and duration 6 for the aimed enemy', () => {
     const target = { id: 'e1' };
@@ -93,9 +95,6 @@ describe('scout abilities', () => {
     expect(scoutPhase(h, {})).toEqual({ kind:'phase_sprint', cloakDuration:4, speedMult:2.0 });
   });
 });
-
-import { pyroFlameWave, pyroImmolate, pyroFirefield, pyroBurnOnHit } from './heroAbilities.js';
-import { vi } from 'vitest';
 
 describe('pyromancer abilities', () => {
   it('pyroFlameWave returns kind:flame_wave with cone params + burn', () => {
