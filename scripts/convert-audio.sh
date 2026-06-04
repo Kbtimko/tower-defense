@@ -73,6 +73,11 @@ for src in "$SRC_DIR"/*.{wav,WAV,flac,FLAC,ogg,OGG,mp3,MP3,m4a,M4A}; do
       ffmpeg -y -loglevel error -i "$src" -ac 1 -b:a "$BOSS_BITRATE" -t "$BOSS_DURATION" "$out"
       ffmpeg -y -loglevel error -i "$src" -ac 1 -c:a libopus -b:a "$BOSS_OPUS_BITRATE" -t "$BOSS_DURATION" "$MUSIC_OUT/$name.ogg"
       ;;
+    menu*)
+      out="$MUSIC_OUT/$name.mp3"
+      ffmpeg -y -loglevel error -i "$src" -ac 1 -b:a "$MUSIC_BITRATE" -t "$MUSIC_DURATION" "$out"
+      ffmpeg -y -loglevel error -i "$src" -ac 1 -c:a libopus -b:a "$MUSIC_OPUS_BITRATE" -t "$MUSIC_DURATION" "$MUSIC_OUT/$name.ogg"
+      ;;
     *)
       out="$SFX_OUT/$name.mp3"
       ffmpeg -y -loglevel error -i "$src" -ac 1 -b:a "$SFX_BITRATE" "$out"
