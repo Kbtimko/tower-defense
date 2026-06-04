@@ -42,8 +42,8 @@ required attribution text below.
 
 ## Music (`public/audio/music/`)
 
-22 mono MP3s — 20 map tracks (64 kbps) + 2 boss themes (128 kbps).
-Total size: 10 MB.
+23 mono MP3s — 20 map tracks (64 kbps) + 2 boss themes (128 kbps) + 1 menu loop (64 kbps).
+Total size: ~10 MB.
 
 | File | Source | Source URL | Author | License |
 |---|---|---|---|---|
@@ -69,6 +69,7 @@ Total size: 10 MB.
 | `map-9-combat.mp3`  | freesound.org | https://freesound.org/people/Seth_Makes_Sounds/sounds/685334/ | Seth_Makes_Sounds | CC0 |
 | `boss-mid.mp3`      | freesound.org | https://freesound.org/people/Seth_Makes_Sounds/sounds/683457/ | Seth_Makes_Sounds | CC0 |
 | `boss-final.mp3`    | opengameart.org | https://opengameart.org/content/determined-pursuit-epic-orchestra-loop | Emma_MA | CC0 |
+| `menu.mp3`          | freesound.org | https://freesound.org/people/Seth_Makes_Sounds/sounds/684511/ | Seth_Makes_Sounds | CC0 |
 
 Pair note: each map's ambient + combat track share key and tempo for the
 1.5 s cross-fade in `AudioManager.setCombatActive`.
@@ -85,5 +86,5 @@ Last Light).
   `src/systems/AudioManager.js`. The loader uses the bare key.
 - **Conversion:** use `scripts/convert-audio.sh` to batch-convert from a working
   directory of `.wav` / `.flac` / `.ogg` source files. The script auto-routes
-  `map-*` and `boss-*` to `public/audio/music/` and everything else to
-  `public/audio/sfx/`.
+  `map-*`, `boss-*`, and `menu*` to `public/audio/music/` and everything else
+  to `public/audio/sfx/`.
