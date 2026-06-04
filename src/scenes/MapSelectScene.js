@@ -39,6 +39,9 @@ export default class MapSelectScene extends Phaser.Scene {
     this._renderHeroPicker();
     this._bindUpgrades();
     this._bindSettings();
+
+    const am = this.game.registry.get('audio');
+    if (am) am.playMusic('menu');
   }
 
   _populateSidebar() {
