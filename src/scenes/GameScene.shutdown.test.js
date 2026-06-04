@@ -8,7 +8,6 @@ vi.mock('phaser', () => ({
         constructor(scene, x, y) { this.scene = scene; this.x = x; this.y = y; }
         add() {}
         setDepth() { return this; }
-        setVisible() { return this; }
       },
     },
   },
