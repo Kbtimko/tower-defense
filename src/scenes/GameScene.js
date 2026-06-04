@@ -132,10 +132,17 @@ export default class GameScene extends Phaser.Scene {
     this.events.on('economy:update', this._updateHUD,   this);
     this.events.on('game:defeat',    this._onDefeat,    this);
 
+    this._userPaused = false;
+
     // Show DOM UI
     document.getElementById('hud').style.display        = 'flex';
     document.getElementById('bottom-bar').style.display = 'flex';
     document.getElementById('game-msg').style.display   = 'none';
+    // Clear .disabled left over from a previous game-over (shutdown clones the
+    // node but cloneNode preserves classes — without this, a second play in
+    // the same tab opens with Exit + Pause permanently dead).
+    document.getElementById('exit-btn').classList.remove('disabled');
+    document.getElementById('pause-btn').classList.remove('disabled');
 
     // Wire DOM buttons (use once-registered named functions; shutdown() cleans up via clone)
     this._bindDOMEvents();
@@ -161,6 +168,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Wire ability dispatch
     this.game.events.on('ui:ability', this._onAbility, this);
+    this.game.events.on('ui:pause-toggle', this._onPauseToggle, this);
 
     if (import.meta.env.DEV) window.__game = this;
   }
@@ -175,20 +183,56 @@ export default class GameScene extends Phaser.Scene {
     document.getElementById('panel-sell-btn').addEventListener('click',    () => this._sellSelectedTower());
     document.getElementById('panel-reposition-btn').addEventListener('click', () => this._startReposition());
     document.getElementById('msg-btn').addEventListener('click', () => this.scene.start('MapSelectScene'));
+    document.getElementById('exit-btn').addEventListener('click', () => this._showConfirmExit());
+    document.getElementById('msg-cancel-btn').addEventListener('click', () => {
+      document.getElementById('game-msg').style.display = 'none';
+      if (!this._userPaused) this.scene.resume();
+    });
+    document.getElementById('pause-btn').addEventListener('click', () => this._onPauseToggle());
+  }
+
+  _showConfirmExit() {
+    if (this.over || this.won) return;
+    this.scene.pause();
+    document.getElementById('msg-title').textContent        = 'Abandon level?';
+    document.getElementById('msg-body').textContent         = 'Progress on this level will be lost.';
+    document.getElementById('msg-btn').textContent          = 'Abandon Level';
+    document.getElementById('msg-cancel-btn').style.display = 'inline-block';
+    document.getElementById('game-msg').style.display       = 'block';
+  }
+
+  _onPauseToggle() {
+    if (this.over || this.won) return;
+    this._userPaused = !this._userPaused;
+    const btn     = document.getElementById('pause-btn');
+    const overlay = document.getElementById('paused-overlay');
+    if (this._userPaused) {
+      this.scene.pause();
+      overlay.classList.add('shown');
+      btn.textContent = '▶ Resume';
+    } else {
+      this.scene.resume();
+      overlay.classList.remove('shown');
+      btn.textContent = '⏸ Pause';
+    }
   }
 
   shutdown() {
     this.inspector?.destroy();
     if (import.meta.env.DEV) window.__game = null;
     this.game.events.off('ui:ability', this._onAbility, this);
+    this.game.events.off('ui:pause-toggle', this._onPauseToggle, this);
     // Remove all DOM listeners without tracking refs: clone replaces the node
-    ['wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','panel-reposition-btn','story-dismiss'].forEach(id => {
+    ['wave-btn','speed-btn','pause-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','msg-cancel-btn','exit-btn','panel-reposition-btn','story-dismiss'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.replaceWith(el.cloneNode(true));
     });
     document.querySelectorAll('.tower-btn').forEach(btn => btn.replaceWith(btn.cloneNode(true)));
-    document.getElementById('hud').style.display        = 'none';
-    document.getElementById('bottom-bar').style.display = 'none';
+    document.getElementById('hud').style.display          = 'none';
+    document.getElementById('bottom-bar').style.display   = 'none';
+    document.getElementById('tower-panel').style.display  = 'none';
+    document.getElementById('game-msg').style.display     = 'none';
+    document.getElementById('paused-overlay').classList.remove('shown');
     const am = this.game.registry.get('audio');
     if (am) am.stopMusic(500);
     if (this.damageNumbers) this.damageNumbers.destroy();
@@ -1095,6 +1139,10 @@ export default class GameScene extends Phaser.Scene {
     document.getElementById('msg-title').textContent = '🏆 Victory!';
     document.getElementById('msg-body').textContent  =
       starsDisplay(stars) + ' — ' + this.kills + ' kills';
+    document.getElementById('msg-btn').textContent          = '↩ Map Select';
+    document.getElementById('msg-cancel-btn').style.display = 'none';
+    document.getElementById('exit-btn').classList.add('disabled');
+    document.getElementById('pause-btn').classList.add('disabled');
     document.getElementById('game-msg').style.display = 'block';
   }
 
@@ -1106,6 +1154,10 @@ export default class GameScene extends Phaser.Scene {
     this._commitStats(false);
     document.getElementById('msg-title').textContent = '💀 Defeat';
     document.getElementById('msg-body').textContent  = `The line did not hold. Wave ${this.waveMgr.currentWave}.`;
+    document.getElementById('msg-btn').textContent          = '↩ Map Select';
+    document.getElementById('msg-cancel-btn').style.display = 'none';
+    document.getElementById('exit-btn').classList.add('disabled');
+    document.getElementById('pause-btn').classList.add('disabled');
     document.getElementById('game-msg').style.display = 'block';
   }
 

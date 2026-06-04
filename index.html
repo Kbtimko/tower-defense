@@ -15,6 +15,11 @@
     .hud-lbl { color: #aaa; font-size: 11px; }
     #speed-btn { background: #1a2a1a; border: 1px solid #4a6a4a; color: #aaddaa;
                  padding: 4px 9px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    #pause-btn { background: #1a2a1a; border: 1px solid #4a6a4a; color: #aaddaa;
+                 padding: 4px 9px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    #pause-btn.disabled, #exit-btn.disabled {
+                 background: #2a2a2a; border-color: #444; color: #666;
+                 cursor: not-allowed; pointer-events: none; }
     #game { flex: 1; position: relative; min-height: 0; overflow: hidden; }
     #game canvas { display: block; width: 100% !important; height: 100% !important; }
     #bottom-bar { display: none; align-items: center; gap: 8px; padding: 8px 14px;
@@ -38,11 +43,15 @@
     #tower-panel .panel-matchups .mu-good { display: block; color: #6f6; }
     #tower-panel .panel-matchups .mu-bad  { display: block; color: #f88; }
     .branch-card .branch-matchup { color: #ffcc66; font-size: 10px; margin-bottom: 3px; }
-    #wave-btn { margin-left: auto; background: #8b1a1a; border: 2px solid #cc3333;
+    #wave-btn { background: #8b1a1a; border: 2px solid #cc3333;
                 color: #fff; padding: 8px 16px; border-radius: 6px; cursor: pointer;
                 font-size: 13px; font-weight: bold; }
     #wave-btn:hover { background: #aa2222; }
     #wave-btn:disabled { background: #333; border-color: #555; color: #666; cursor: not-allowed; }
+    #exit-btn { margin-left: auto; background: #2a1a1a; border: 1px solid #6a4a4a;
+                color: #ddaaaa; padding: 8px 14px; border-radius: 6px; cursor: pointer;
+                font-size: 13px; }
+    #exit-btn:hover { background: #3a2222; border-color: #8a5a5a; }
     #tower-panel { position: absolute; background: #0f0f1e; border: 2px solid #8b6914;
                    border-radius: 8px; padding: 11px; width: 170px; z-index: 10; display: none; }
     #tower-panel .panel-name { font-size: 13px; font-weight: bold; color: #ffd700; margin-bottom: 5px; }
@@ -76,11 +85,18 @@
     #game-msg p { color: #aaa; margin-bottom: 14px; font-size: 13px; }
     #game-msg button { background: #8b6914; border: none; color: #fff; padding: 9px 22px;
                        border-radius: 6px; cursor: pointer; font-size: 14px; }
+    #game-msg #msg-cancel-btn { background: #333; margin-left: 8px; }
     .story-banner { position:absolute; top:-130px; left:5%; right:5%; background:linear-gradient(135deg,#0a1a2a,#0a2a1a);
                     border:1px solid #2a5a3a; border-radius:8px; padding:12px 16px; z-index:25;
                     display:flex; align-items:flex-start; gap:12px;
                     transition:transform 0.35s ease; pointer-events:none; }
     .story-banner.visible { transform:translateY(145px); pointer-events:auto; }
+    #paused-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.55);
+                      display: none; z-index: 30; pointer-events: none;
+                      align-items: center; justify-content: center;
+                      font-size: 56px; font-weight: bold; color: #fff;
+                      text-shadow: 0 2px 8px rgba(0,0,0,0.7); letter-spacing: 6px; }
+    #paused-overlay.shown { display: flex; }
     .story-content { flex:1; }
     #story-headline { font-size:10px; color:#5a9a6a; letter-spacing:1px; text-transform:uppercase; margin-bottom:5px; }
     #story-body { font-size:13px; color:#ddd; line-height:1.6; }
@@ -243,8 +259,10 @@
     <div class="hud-stat"><span>🌊</span><span class="hud-val" id="stat-wave">0/10</span><span class="hud-lbl">Wave</span></div>
     <div class="hud-stat"><span>💀</span><span class="hud-val" id="stat-kills">0</span><span class="hud-lbl">Kills</span></div>
     <button id="speed-btn">⏩ 2x</button>
+    <button id="pause-btn">⏸ Pause</button>
   </div>
   <div id="game">
+    <div id="paused-overlay">PAUSED</div>
     <div id="story-banner" class="story-banner">
       <div class="story-content">
         <div id="story-headline"></div>
@@ -300,6 +318,7 @@
       <h2 id="msg-title">Victory!</h2>
       <p id="msg-body">You defended humanity!</p>
       <button id="msg-btn">&#8617; Map Select</button>
+      <button id="msg-cancel-btn" style="display:none">Cancel</button>
     </div>
     <div id="upgrade-overlay">
       <div id="upgrade-overlay-inner">
@@ -374,6 +393,7 @@
     <button class="tower-btn" data-type="barracks">
       <span class="t-icon">⚔️</span><span class="t-cost">100g</span><span class="t-name">Barracks</span>
     </button>
+    <button id="exit-btn">⏻ Exit</button>
     <button id="wave-btn">▶ Send Wave 1</button>
   </div>
   <div id="tower-tooltip"></div>
