@@ -145,7 +145,7 @@ export default class UIScene extends Phaser.Scene {
     // Keyboard shortcuts
     this._onKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-      if (e.key === ' ' || e.key === 'Spacebar') {
+      if (e.key === ' ') {
         e.preventDefault();
         this.game.events.emit('ui:pause-toggle');
         return;
