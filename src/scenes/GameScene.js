@@ -138,6 +138,11 @@ export default class GameScene extends Phaser.Scene {
     document.getElementById('hud').style.display        = 'flex';
     document.getElementById('bottom-bar').style.display = 'flex';
     document.getElementById('game-msg').style.display   = 'none';
+    // Clear .disabled left over from a previous game-over (shutdown clones the
+    // node but cloneNode preserves classes — without this, a second play in
+    // the same tab opens with Exit + Pause permanently dead).
+    document.getElementById('exit-btn').classList.remove('disabled');
+    document.getElementById('pause-btn').classList.remove('disabled');
 
     // Wire DOM buttons (use once-registered named functions; shutdown() cleans up via clone)
     this._bindDOMEvents();
