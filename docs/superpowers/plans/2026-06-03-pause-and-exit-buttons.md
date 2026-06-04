@@ -299,7 +299,7 @@ function setupDOM() {
   const gameMsg = el('div', { id: 'game-msg', display: 'block' });
   el('button', { id: 'msg-btn' }, gameMsg);
   el('button', { id: 'msg-cancel-btn' }, gameMsg);
-  el('div', { id: 'paused-overlay', display: 'flex' });
+  el('div', { id: 'paused-overlay', className: 'shown' });
   const bar = el('div', { id: 'bottom-bar', display: 'flex' });
   el('button', { className: 'tower-btn' }, bar);
   el('button', { id: 'exit-btn' }, bar);
@@ -330,13 +330,13 @@ function makeScene() {
 describe('GameScene.shutdown', () => {
   beforeEach(setupDOM);
 
-  it('hides hud, bottom-bar, tower-panel, game-msg and paused-overlay', () => {
+  it('hides hud/bottom-bar/tower-panel/game-msg and clears the paused-overlay shown class', () => {
     makeScene().shutdown();
     expect(document.getElementById('hud').style.display).toBe('none');
     expect(document.getElementById('bottom-bar').style.display).toBe('none');
     expect(document.getElementById('tower-panel').style.display).toBe('none');
     expect(document.getElementById('game-msg').style.display).toBe('none');
-    expect(document.getElementById('paused-overlay').style.display).toBe('none');
+    expect(document.getElementById('paused-overlay').classList.contains('shown')).toBe(false);
   });
 
   it('removes the exit-btn listener by replacing the node', () => {
@@ -431,7 +431,7 @@ Replace the whole method with:
     document.getElementById('bottom-bar').style.display   = 'none';
     document.getElementById('tower-panel').style.display  = 'none';
     document.getElementById('game-msg').style.display     = 'none';
-    document.getElementById('paused-overlay').style.display = 'none';
+    document.getElementById('paused-overlay').classList.remove('shown');
     const am = this.game.registry.get('audio');
     if (am) am.stopMusic(500);
     if (this.damageNumbers) this.damageNumbers.destroy();
@@ -649,7 +649,7 @@ Append two new listeners before the closing `}`:
   }
 ```
 
-(Task 7 will refine the Cancel handler to skip `scene.resume()` when the user had paused. For now the unconditional resume matches PR #8 behavior.)
+(Task 5 will refine the Cancel handler to skip `scene.resume()` when the user had paused. For now the unconditional resume matches PR #8 behavior.)
 
 - [ ] **Step 5: Reset modal state in `_showVictoryOverlay()`**
 
