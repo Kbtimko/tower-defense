@@ -17,9 +17,10 @@
 - **Modify** `src/systems/AudioManager.js` — add `'menu'` to `MUSIC_KEYS`, add `'menu'` branch in `playMusic`.
 - **Modify** `src/systems/AudioManager.test.js` — add two new tests in the existing music describe blocks.
 - **Modify** `src/scenes/MapSelectScene.js` — add one line in `create()` to call `playMusic('menu')`.
-- **Create** `src/scenes/MapSelectScene.menuMusic.test.js` — new test file, one test.
+- **Create** `src/scenes/MapSelectScene.menuMusic.test.js` — new test file, one test (+ a non-throwing-no-audio guard test).
+- **Modify** `scripts/convert-audio.sh` — add a `menu*)` case so menu source files route to the music output dir (the current case statement only routes `map-*` and `boss-*` to music; everything else lands in `public/audio/sfx/`).
 - **Create** `public/audio/music/menu.mp3` + `public/audio/music/menu.ogg` — the new track (asset; produced by curation step).
-- **Modify** `ATTRIBUTIONS.md` — one new music entry.
+- **Modify** `public/audio/ATTRIBUTIONS.md` — one new row in the Music table.
 
 ---
 
@@ -359,31 +360,76 @@ git commit -m "feat(scenes): MapSelectScene plays 'menu' music on create"
 
 ## Task 4: Curate the `menu` audio asset
 
-This task is the manual curation step. It does NOT block Tasks 1–3 — they're complete on their own. With `'menu'` in `MUSIC_KEYS` but no file on disk, `_addMusic` will log one console warning and the game runs fine. The asset can land in a follow-up commit (still on this branch) or after manual sourcing.
+This task is the manual curation step (track sourcing). It does NOT block Tasks 1–3 — those are complete on their own. With `'menu'` in `MUSIC_KEYS` but no file on disk, `_addMusic` will log one console warning per session and the game runs fine. The asset can land in a follow-up commit on this branch.
 
 **Files:**
+- Modify: `scripts/convert-audio.sh` (one new case branch)
 - Create: `public/audio/music/menu.mp3`
 - Create: `public/audio/music/menu.ogg`
-- Modify: `ATTRIBUTIONS.md`
+- Modify: `public/audio/ATTRIBUTIONS.md` (one new table row)
 
-- [ ] **Step 1: Source one CC0 ambient/menu track**
+- [ ] **Step 1: Extend `convert-audio.sh` to route `menu*` to the music dir**
 
-Manual step. Browse the same CC0 wells used in Phase 8b — Kenney, OpenGameArt.org, Patrick de Arteaga, Bensound (CC0/free tier). Target:
+`scripts/convert-audio.sh` (around lines 65–81) currently has a case statement:
+
+```bash
+  case "$name" in
+    map-*)
+      out="$MUSIC_OUT/$name.mp3"
+      ffmpeg -y -loglevel error -i "$src" -ac 1 -b:a "$MUSIC_BITRATE" -t "$MUSIC_DURATION" "$out"
+      ffmpeg -y -loglevel error -i "$src" -ac 1 -c:a libopus -b:a "$MUSIC_OPUS_BITRATE" -t "$MUSIC_DURATION" "$MUSIC_OUT/$name.ogg"
+      ;;
+    boss-*)
+      out="$MUSIC_OUT/$name.mp3"
+      ffmpeg -y -loglevel error -i "$src" -ac 1 -b:a "$BOSS_BITRATE" -t "$BOSS_DURATION" "$out"
+      ffmpeg -y -loglevel error -i "$src" -ac 1 -c:a libopus -b:a "$BOSS_OPUS_BITRATE" -t "$BOSS_DURATION" "$MUSIC_OUT/$name.ogg"
+      ;;
+    *)
+      out="$SFX_OUT/$name.mp3"
+      ffmpeg -y -loglevel error -i "$src" -ac 1 -b:a "$SFX_BITRATE" "$out"
+      ffmpeg -y -loglevel error -i "$src" -ac 1 -c:a libopus -b:a "$SFX_OPUS_BITRATE" "$SFX_OUT/$name.ogg"
+      ;;
+  esac
+```
+
+The default `*)` arm routes to SFX, which would misplace a `menu.wav` source. Add a new `menu*)` branch immediately after the `boss-*)` branch and before the default. Use the same bitrates and trim duration as the `map-*)` branch — menu music is a low-bitrate ambient loop, not a climactic boss theme:
+
+```bash
+    menu*)
+      out="$MUSIC_OUT/$name.mp3"
+      ffmpeg -y -loglevel error -i "$src" -ac 1 -b:a "$MUSIC_BITRATE" -t "$MUSIC_DURATION" "$out"
+      ffmpeg -y -loglevel error -i "$src" -ac 1 -c:a libopus -b:a "$MUSIC_OPUS_BITRATE" -t "$MUSIC_DURATION" "$MUSIC_OUT/$name.ogg"
+      ;;
+```
+
+The pattern is `menu*` (with glob) rather than exact `menu)` so a future `menu-quiet`, `menu-loud`, etc. would also route correctly.
+
+- [ ] **Step 2: Source one CC0 ambient/menu track**
+
+Manual step. Browse the same CC0 wells used in Phase 8b. The existing Music table in `public/audio/ATTRIBUTIONS.md` shows the wells the project has already drawn from — predominantly `freesound.org` for CC0 ambient tracks. Target:
 
 - Calm, mysterious, slightly cinematic tone
-- 60–90 s seamless loop preferred (the AudioManager loops via `loop: true`)
+- 60–90 s seamless loop preferred (the AudioManager loops via `loop: true`; the convert script trims to 60 s per `MUSIC_DURATION=60` in `scripts/convert-audio.sh`)
 - No prominent percussion or combat motifs
-- License must be CC0 or equivalent (CC-BY acceptable if attribution is added)
+- License must be CC0 or equivalent
 
-Place the raw source file in the project's audio staging area following Phase 8b convention. Refer to the previous music curation spec at [docs/superpowers/specs/2026-05-31-phase-8b-music-curation-design.md](../specs/2026-05-31-phase-8b-music-curation-design.md) if the staging path is non-obvious; the Phase 8b downloader script `scripts/fetch-phase-8b-staging.sh` is also a reference for how the existing tracks were sourced.
+Name the downloaded source file `menu.<ext>` (e.g., `menu.wav`, `menu.flac`, `menu.mp3`) and place it in a staging directory. The convert script accepts any directory path as its argument and reads files matching `*.{wav,flac,ogg,mp3,m4a}` from it.
 
-- [ ] **Step 2: Run `convert-audio.sh` to produce both formats**
+Reference: [docs/superpowers/specs/2026-05-31-phase-8b-music-curation-design.md](../specs/2026-05-31-phase-8b-music-curation-design.md) is the prior curation spec; `scripts/fetch-phase-8b-staging.sh` is the prior downloader script.
 
-The existing `scripts/convert-audio.sh` writes MP3 + Opus(.ogg) for every input. Run it. The output file basename must be `menu` so the final paths are `public/audio/music/menu.mp3` and `public/audio/music/menu.ogg`.
+- [ ] **Step 3: Run `convert-audio.sh` on the staging dir**
 
-Run: `./scripts/convert-audio.sh` (or the project's documented invocation if it takes args — check `scripts/convert-audio.sh --help` or read the top of the script).
+The script's usage is `scripts/convert-audio.sh <source-dir>`. Pass the directory containing the `menu.*` source file:
 
-Verify both files exist and play correctly:
+```bash
+./scripts/convert-audio.sh path/to/staging/dir
+```
+
+Expected output:
+- One log line `menu.<ext> -> public/audio/music/menu.mp3`
+- A summary `converted 1 file(s)` and an `audio size:` line
+
+Verify both formats land in the music dir:
 
 ```bash
 ls -lh public/audio/music/menu.*
@@ -391,16 +437,40 @@ file public/audio/music/menu.ogg
 file public/audio/music/menu.mp3
 ```
 
-Expected: two files present, OGG identified as Ogg/Opus, MP3 identified as MPEG ADTS.
+Expected: two files present (`menu.mp3` and `menu.ogg`); `file` reports OGG as Ogg data / Opus codec and MP3 as MPEG ADTS layer III.
 
-- [ ] **Step 3: Update `ATTRIBUTIONS.md`**
+- [ ] **Step 4: Update `public/audio/ATTRIBUTIONS.md`**
 
-Open `ATTRIBUTIONS.md`. Find the Music section (the existing Phase 8b tracks are listed there). Add a new entry in the same format as the existing ones — typically `Track Title — Artist — License — Source URL — used as: menu loop`. Read the existing entries to confirm the exact format before adding.
+Open `public/audio/ATTRIBUTIONS.md`. Find the `## Music (\`public/audio/music/\`)` section — it contains a markdown table with header `| File | Source | Source URL | Author | License |`. The 22 existing tracks are listed as rows in that table.
 
-- [ ] **Step 4: Commit**
+Add a new row at the end of the music table (before the next heading) with the actual values for the chosen track:
+
+```markdown
+| `menu.mp3`          | freesound.org | <paste the freesound URL here>            | <paste the author name here> | CC0 |
+```
+
+If a non-freesound source is used, mirror the format of whichever existing row best matches (e.g., the `victory.mp3` row in the SFX table demonstrates an external URL in the Source URL column).
+
+Also update the count and total-size line directly above the table. The current line reads:
+
+```
+22 mono MP3s — 20 map tracks (64 kbps) + 2 boss themes (128 kbps).
+Total size: 10 MB.
+```
+
+Update to reflect the addition. Example post-change text:
+
+```
+23 mono MP3s — 20 map tracks (64 kbps) + 2 boss themes (128 kbps) + 1 menu loop (64 kbps).
+Total size: ~10 MB.
+```
+
+(Re-run `du -sh public/audio/` if a precise size is desired.)
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add public/audio/music/menu.mp3 public/audio/music/menu.ogg ATTRIBUTIONS.md
+git add scripts/convert-audio.sh public/audio/music/menu.mp3 public/audio/music/menu.ogg public/audio/ATTRIBUTIONS.md
 git commit -m "feat(audio): add CC0 'menu' track for MapSelectScene"
 ```
 
@@ -459,7 +529,7 @@ If the working tree is clean, this is a no-op. Otherwise commit any straggler fi
 ## Self-Review (already run)
 
 **Spec coverage:**
-- §Asset → Task 4 (curation + convert + attributions)
+- §Asset → Task 4 (script extension + curation + convert + attributions)
 - §API extension `MUSIC_KEYS` → Task 1 Step 3
 - §API extension `playMusic('menu')` branch → Task 1 Step 4
 - §Backward compatibility → covered implicitly (Task 1 is additive only)
@@ -472,7 +542,7 @@ If the working tree is clean, this is a no-op. Otherwise commit any straggler fi
 - §Test coverage (4) MapSelectScene calls playMusic('menu') → Task 3 Step 1
 - §Implementation order → mirrors the spec ordering
 - §Risks → asset-agnostic claim verified (Task 4 deferral is explicit in plan narrative)
-- §Files touched → all 6 file paths from the spec appear in the File Map
+- §Files touched → all spec paths in File Map; plan also adds `scripts/convert-audio.sh` (build-tooling change discovered during plan review, needed for the spec's curation pipeline to land the asset in the music dir)
 
 **Placeholder scan:** No TBDs, no "similar to Task N", no abstract "add validation" — every step has code or commands.
 
