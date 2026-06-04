@@ -163,6 +163,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Wire ability dispatch
     this.game.events.on('ui:ability', this._onAbility, this);
+    this.game.events.on('ui:pause-toggle', this._onPauseToggle, this);
 
     if (import.meta.env.DEV) window.__game = this;
   }
@@ -215,6 +216,7 @@ export default class GameScene extends Phaser.Scene {
     this.inspector?.destroy();
     if (import.meta.env.DEV) window.__game = null;
     this.game.events.off('ui:ability', this._onAbility, this);
+    this.game.events.off('ui:pause-toggle', this._onPauseToggle, this);
     // Remove all DOM listeners without tracking refs: clone replaces the node
     ['wave-btn','speed-btn','pause-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','msg-cancel-btn','exit-btn','panel-reposition-btn','story-dismiss'].forEach(id => {
       const el = document.getElementById(id);
