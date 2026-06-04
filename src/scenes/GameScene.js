@@ -132,6 +132,8 @@ export default class GameScene extends Phaser.Scene {
     this.events.on('economy:update', this._updateHUD,   this);
     this.events.on('game:defeat',    this._onDefeat,    this);
 
+    this._userPaused = false;
+
     // Show DOM UI
     document.getElementById('hud').style.display        = 'flex';
     document.getElementById('bottom-bar').style.display = 'flex';
@@ -178,8 +180,9 @@ export default class GameScene extends Phaser.Scene {
     document.getElementById('exit-btn').addEventListener('click', () => this._showConfirmExit());
     document.getElementById('msg-cancel-btn').addEventListener('click', () => {
       document.getElementById('game-msg').style.display = 'none';
-      this.scene.resume();
+      if (!this._userPaused) this.scene.resume();
     });
+    document.getElementById('pause-btn').addEventListener('click', () => this._onPauseToggle());
   }
 
   _showConfirmExit() {
@@ -190,6 +193,22 @@ export default class GameScene extends Phaser.Scene {
     document.getElementById('msg-btn').textContent          = 'Abandon Level';
     document.getElementById('msg-cancel-btn').style.display = 'inline-block';
     document.getElementById('game-msg').style.display       = 'block';
+  }
+
+  _onPauseToggle() {
+    if (this.over || this.won) return;
+    this._userPaused = !this._userPaused;
+    const btn     = document.getElementById('pause-btn');
+    const overlay = document.getElementById('paused-overlay');
+    if (this._userPaused) {
+      this.scene.pause();
+      overlay.classList.add('shown');
+      btn.textContent = '▶ Resume';
+    } else {
+      this.scene.resume();
+      overlay.classList.remove('shown');
+      btn.textContent = '⏸ Pause';
+    }
   }
 
   shutdown() {
