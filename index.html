@@ -15,6 +15,11 @@
     .hud-lbl { color: #aaa; font-size: 11px; }
     #speed-btn { background: #1a2a1a; border: 1px solid #4a6a4a; color: #aaddaa;
                  padding: 4px 9px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    #pause-btn { background: #1a2a1a; border: 1px solid #4a6a4a; color: #aaddaa;
+                 padding: 4px 9px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    #pause-btn.disabled, #exit-btn.disabled {
+                 background: #2a2a2a; border-color: #444; color: #666;
+                 cursor: not-allowed; pointer-events: none; }
     #game { flex: 1; position: relative; min-height: 0; overflow: hidden; }
     #game canvas { display: block; width: 100% !important; height: 100% !important; }
     #bottom-bar { display: none; align-items: center; gap: 8px; padding: 8px 14px;
@@ -86,6 +91,12 @@
                     display:flex; align-items:flex-start; gap:12px;
                     transition:transform 0.35s ease; pointer-events:none; }
     .story-banner.visible { transform:translateY(145px); pointer-events:auto; }
+    #paused-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.55);
+                      display: none; z-index: 30; pointer-events: none;
+                      align-items: center; justify-content: center;
+                      font-size: 56px; font-weight: bold; color: #fff;
+                      text-shadow: 0 2px 8px rgba(0,0,0,0.7); letter-spacing: 6px; }
+    #paused-overlay.shown { display: flex; }
     .story-content { flex:1; }
     #story-headline { font-size:10px; color:#5a9a6a; letter-spacing:1px; text-transform:uppercase; margin-bottom:5px; }
     #story-body { font-size:13px; color:#ddd; line-height:1.6; }
@@ -248,8 +259,10 @@
     <div class="hud-stat"><span>🌊</span><span class="hud-val" id="stat-wave">0/10</span><span class="hud-lbl">Wave</span></div>
     <div class="hud-stat"><span>💀</span><span class="hud-val" id="stat-kills">0</span><span class="hud-lbl">Kills</span></div>
     <button id="speed-btn">⏩ 2x</button>
+    <button id="pause-btn">⏸ Pause</button>
   </div>
   <div id="game">
+    <div id="paused-overlay">PAUSED</div>
     <div id="story-banner" class="story-banner">
       <div class="story-content">
         <div id="story-headline"></div>
