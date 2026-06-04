@@ -38,11 +38,15 @@
     #tower-panel .panel-matchups .mu-good { display: block; color: #6f6; }
     #tower-panel .panel-matchups .mu-bad  { display: block; color: #f88; }
     .branch-card .branch-matchup { color: #ffcc66; font-size: 10px; margin-bottom: 3px; }
-    #wave-btn { margin-left: auto; background: #8b1a1a; border: 2px solid #cc3333;
+    #wave-btn { background: #8b1a1a; border: 2px solid #cc3333;
                 color: #fff; padding: 8px 16px; border-radius: 6px; cursor: pointer;
                 font-size: 13px; font-weight: bold; }
     #wave-btn:hover { background: #aa2222; }
     #wave-btn:disabled { background: #333; border-color: #555; color: #666; cursor: not-allowed; }
+    #exit-btn { margin-left: auto; background: #2a1a1a; border: 1px solid #6a4a4a;
+                color: #ddaaaa; padding: 8px 14px; border-radius: 6px; cursor: pointer;
+                font-size: 13px; }
+    #exit-btn:hover { background: #3a2222; border-color: #8a5a5a; }
     #tower-panel { position: absolute; background: #0f0f1e; border: 2px solid #8b6914;
                    border-radius: 8px; padding: 11px; width: 170px; z-index: 10; display: none; }
     #tower-panel .panel-name { font-size: 13px; font-weight: bold; color: #ffd700; margin-bottom: 5px; }
@@ -76,6 +80,7 @@
     #game-msg p { color: #aaa; margin-bottom: 14px; font-size: 13px; }
     #game-msg button { background: #8b6914; border: none; color: #fff; padding: 9px 22px;
                        border-radius: 6px; cursor: pointer; font-size: 14px; }
+    #msg-cancel-btn { background: #333; margin-left: 8px; }
     .story-banner { position:absolute; top:-130px; left:5%; right:5%; background:linear-gradient(135deg,#0a1a2a,#0a2a1a);
                     border:1px solid #2a5a3a; border-radius:8px; padding:12px 16px; z-index:25;
                     display:flex; align-items:flex-start; gap:12px;
@@ -300,6 +305,7 @@
       <h2 id="msg-title">Victory!</h2>
       <p id="msg-body">You defended humanity!</p>
       <button id="msg-btn">&#8617; Map Select</button>
+      <button id="msg-cancel-btn" style="display:none">Cancel</button>
     </div>
     <div id="upgrade-overlay">
       <div id="upgrade-overlay-inner">
@@ -374,6 +380,7 @@
     <button class="tower-btn" data-type="barracks">
       <span class="t-icon">⚔️</span><span class="t-cost">100g</span><span class="t-name">Barracks</span>
     </button>
+    <button id="exit-btn">⏻ Exit</button>
     <button id="wave-btn">▶ Send Wave 1</button>
   </div>
   <div id="tower-tooltip"></div>
