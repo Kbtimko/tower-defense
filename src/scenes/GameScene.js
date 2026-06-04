@@ -182,13 +182,16 @@ export default class GameScene extends Phaser.Scene {
     if (import.meta.env.DEV) window.__game = null;
     this.game.events.off('ui:ability', this._onAbility, this);
     // Remove all DOM listeners without tracking refs: clone replaces the node
-    ['wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','panel-reposition-btn','story-dismiss'].forEach(id => {
+    ['wave-btn','speed-btn','pause-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','msg-cancel-btn','exit-btn','panel-reposition-btn','story-dismiss'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.replaceWith(el.cloneNode(true));
     });
     document.querySelectorAll('.tower-btn').forEach(btn => btn.replaceWith(btn.cloneNode(true)));
-    document.getElementById('hud').style.display        = 'none';
-    document.getElementById('bottom-bar').style.display = 'none';
+    document.getElementById('hud').style.display          = 'none';
+    document.getElementById('bottom-bar').style.display   = 'none';
+    document.getElementById('tower-panel').style.display  = 'none';
+    document.getElementById('game-msg').style.display     = 'none';
+    document.getElementById('paused-overlay').classList.remove('shown');
     const am = this.game.registry.get('audio');
     if (am) am.stopMusic(500);
     if (this.damageNumbers) this.damageNumbers.destroy();
