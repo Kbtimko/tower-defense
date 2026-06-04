@@ -27,6 +27,8 @@ function setupDOM() {
   const cancel = document.createElement('button'); cancel.id = 'msg-cancel-btn';
   cancel.style.display = 'none'; gameMsg.appendChild(cancel);
   document.body.appendChild(gameMsg);
+  const exitBtn  = document.createElement('button'); exitBtn.id  = 'exit-btn';  document.body.appendChild(exitBtn);
+  const pauseBtn = document.createElement('button'); pauseBtn.id = 'pause-btn'; document.body.appendChild(pauseBtn);
 }
 
 function makeScene({ over = false, won = false } = {}) {
@@ -90,6 +92,18 @@ describe('GameScene._showVictoryOverlay modal reset', () => {
     expect(document.getElementById('msg-cancel-btn').style.display).toBe('none');
     expect(document.getElementById('game-msg').style.display).toBe('block');
   });
+
+  it('adds the disabled class to #exit-btn and #pause-btn', () => {
+    const exit  = document.getElementById('exit-btn');
+    const pause = document.getElementById('pause-btn');
+
+    const scene = Object.create(GameScene.prototype);
+    scene.kills = 0;
+    scene._showVictoryOverlay(2);
+
+    expect(exit.classList.contains('disabled')).toBe(true);
+    expect(pause.classList.contains('disabled')).toBe(true);
+  });
 });
 
 describe('GameScene._onDefeat modal reset', () => {
@@ -112,5 +126,23 @@ describe('GameScene._onDefeat modal reset', () => {
     expect(document.getElementById('msg-btn').textContent).toBe('↩ Map Select');
     expect(document.getElementById('msg-cancel-btn').style.display).toBe('none');
     expect(document.getElementById('game-msg').style.display).toBe('block');
+  });
+
+  it('adds the disabled class to #exit-btn and #pause-btn', () => {
+    const exit  = document.getElementById('exit-btn');
+    const pause = document.getElementById('pause-btn');
+
+    const scene = Object.create(GameScene.prototype);
+    scene.over = false;
+    scene.won  = false;
+    scene.waveMgr = { currentWave: 5 };
+    scene.kills = 0;
+    scene.game = { registry: { get() { return null; } } };
+    scene._commitStats = () => {};
+
+    scene._onDefeat();
+
+    expect(exit.classList.contains('disabled')).toBe(true);
+    expect(pause.classList.contains('disabled')).toBe(true);
   });
 });

@@ -1136,6 +1136,8 @@ export default class GameScene extends Phaser.Scene {
       starsDisplay(stars) + ' — ' + this.kills + ' kills';
     document.getElementById('msg-btn').textContent          = '↩ Map Select';
     document.getElementById('msg-cancel-btn').style.display = 'none';
+    document.getElementById('exit-btn').classList.add('disabled');
+    document.getElementById('pause-btn').classList.add('disabled');
     document.getElementById('game-msg').style.display = 'block';
   }
 
@@ -1149,6 +1151,8 @@ export default class GameScene extends Phaser.Scene {
     document.getElementById('msg-body').textContent  = `The line did not hold. Wave ${this.waveMgr.currentWave}.`;
     document.getElementById('msg-btn').textContent          = '↩ Map Select';
     document.getElementById('msg-cancel-btn').style.display = 'none';
+    document.getElementById('exit-btn').classList.add('disabled');
+    document.getElementById('pause-btn').classList.add('disabled');
     document.getElementById('game-msg').style.display = 'block';
   }
 
