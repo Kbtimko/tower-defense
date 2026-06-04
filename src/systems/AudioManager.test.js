@@ -145,6 +145,21 @@ describe('AudioManager music', () => {
     expect(combat.volume).toBe(0);
   });
 
+  it("playMusic('menu') plays menu on the ambient slot at musicVol, no combat layer", () => {
+    const { game, created } = makeMusicGame();
+    const am = new AudioManager(game, new SaveManager());
+    am.playMusic('menu');
+    const menu   = created.find(s => s.key === 'menu');
+    const combat = created.find(s => s.key === 'menu-combat');
+    expect(menu).toBeDefined();
+    expect(menu.isPlaying).toBe(true);
+    expect(menu.volume).toBeCloseTo(0.8 * 0.6); // master * music defaults
+    expect(combat).toBeUndefined();
+    expect(am._music.ambient).toBe(menu);
+    expect(am._music.combat).toBeNull();
+    expect(am._music.boss).toBeNull();
+  });
+
   it('setCombatActive(true) fades combat to musicVol over 1500ms', () => {
     const { game, created } = makeMusicGame();
     const am = new AudioManager(game, new SaveManager());

@@ -13,7 +13,7 @@ export const SFX_KEYS = [
 export const MUSIC_KEYS = [
   ...Array.from({ length: 10 }, (_, i) => `map-${i}-ambient`),
   ...Array.from({ length: 10 }, (_, i) => `map-${i}-combat`),
-  'boss-mid', 'boss-final',
+  'boss-mid', 'boss-final', 'menu',
 ];
 
 function clamp(v, lo, hi) {
@@ -119,6 +119,13 @@ export class AudioManager {
       this._stopLayers();
       this._music.boss = this._addMusic(id);
       if (this._music.boss) this._music.boss.play({ volume: this.getEffectiveVolume('music'), loop: true });
+      return;
+    }
+    if (id === 'menu') {
+      this._stopLayers();
+      this._music.combatActive = false;
+      this._music.ambient = this._addMusic('menu');
+      if (this._music.ambient) this._music.ambient.play({ volume: this.getEffectiveVolume('music'), loop: true });
       return;
     }
     this._stopLayers();
