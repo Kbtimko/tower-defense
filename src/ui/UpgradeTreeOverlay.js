@@ -1,4 +1,6 @@
 import { UPGRADES } from '../data/upgrades.js';
+// HEROES satisfies renderUpgradeNode's signature; logistics/arsenal nodes
+// carry no heroUnlock, so the helper's locked-hero branch never fires here.
 import { HEROES }   from '../data/heroes.js';
 import { renderUpgradeNode } from './upgradeNode.js';
 
