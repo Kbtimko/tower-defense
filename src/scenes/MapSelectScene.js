@@ -86,6 +86,7 @@ export default class MapSelectScene extends Phaser.Scene {
   }
 
   _bindPlay() {
+    // Clone removes any prior event listener before re-adding (across scene re-entries).
     const old = document.getElementById('featured-play');
     const btn = old.cloneNode(true);
     old.replaceWith(btn);
@@ -129,6 +130,7 @@ export default class MapSelectScene extends Phaser.Scene {
   }
 
   _bindUpgrades() {
+    // Clone removes any prior listener before re-adding (matches _bindPlay).
     const old = document.getElementById('open-upgrades');
     const btn = old.cloneNode(true);
     old.replaceWith(btn);
@@ -136,6 +138,7 @@ export default class MapSelectScene extends Phaser.Scene {
   }
 
   _bindHeroes() {
+    // Clone removes any prior listener before re-adding (matches _bindUpgrades).
     const old = document.getElementById('open-heroes');
     const btn = old.cloneNode(true);
     old.replaceWith(btn);
@@ -143,6 +146,7 @@ export default class MapSelectScene extends Phaser.Scene {
   }
 
   _bindSettings() {
+    // Clone removes any prior listener before re-adding (matches _bindUpgrades).
     const old = document.getElementById('open-settings');
     const btn = old.cloneNode(true);
     old.replaceWith(btn);
@@ -155,9 +159,11 @@ export default class MapSelectScene extends Phaser.Scene {
   }
 
   shutdown() {
+    // Call close() on overlays so their event listeners are torn down before the
+    // DOM persists into the next scene. Direct style mutation would leak listeners.
+    if (this._heroOverlay) this._heroOverlay.close();
     document.getElementById('map-select').style.display          = 'none';
     document.getElementById('upgrade-overlay').style.display     = 'none';
-    document.getElementById('hero-mgmt-overlay').style.display   = 'none';
     document.getElementById('settings-overlay').style.display    = 'none';
   }
 }
