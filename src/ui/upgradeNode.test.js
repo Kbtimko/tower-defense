@@ -1,10 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderUpgradeNode } from './upgradeNode.js';
 
-function makeMgr(state, available = 10) {
+function makeMgr(state) {
   return {
     getNodeState: vi.fn(() => state),
-    getAvailableStars: vi.fn(() => available),
     purchase: vi.fn(),
     refund:   vi.fn(),
   };

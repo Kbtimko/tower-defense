@@ -35,7 +35,6 @@ export function renderUpgradeNode(node, upgradeMgr, heroDefs, onChange) {
   }
 
   if (state === 'locked-hero') {
-    el.classList.add('locked-hero');
     const heroDef = heroDefs[node.heroUnlock];
     el.title = `🔒 Locked — Clear Map ${heroDef.unlockMapAfter + 1} to unlock ${heroDef.displayName}`;
   }
