@@ -221,7 +221,8 @@ describe('HeroManagementOverlay — click semantics', () => {
 });
 
 describe('HeroManagementOverlay — purchase / refund through tree', () => {
-  it('clicking an affordable node delegates to upgradeMgr.purchase and re-renders', () => {
+  // Re-render is asserted separately in the next test via the available-stars chip.
+  it('clicking an affordable node delegates to upgradeMgr.purchase', () => {
     const mgr  = makeMgr();
     const save = makeSave();
     const ov   = new HeroManagementOverlay(mgr, save);
@@ -235,6 +236,7 @@ describe('HeroManagementOverlay — purchase / refund through tree', () => {
 
   it('after purchase, available-stars chip re-reads from the manager', () => {
     const mgr  = makeMgr();
+    // First call is during open(); second call is after the re-render triggered by click().
     mgr.getAvailableStars.mockReturnValueOnce(10).mockReturnValue(8);
     const ov = new HeroManagementOverlay(mgr, makeSave());
     ov.open();
@@ -254,7 +256,7 @@ describe('HeroManagementOverlay — purchase / refund through tree', () => {
     expect(mgr.refund).toHaveBeenCalledWith('rael_hp');
   });
 
-  it('purchase nodes inside a locked-hero tree do not fire purchase (every node is locked-hero)', () => {
+  it('clicking nodes in a locked-hero tree does not fire purchase regardless of node state', () => {
     const mgr = makeMgr();
     // Return 'locked-hero' only for engineer nodes (which carry heroUnlock: 'engineer');
     // Rael nodes have no heroUnlock so they must not get 'locked-hero'.
