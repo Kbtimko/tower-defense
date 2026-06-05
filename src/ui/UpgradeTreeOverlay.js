@@ -1,13 +1,10 @@
 import { UPGRADES } from '../data/upgrades.js';
 import { HEROES }   from '../data/heroes.js';
+import { renderUpgradeNode } from './upgradeNode.js';
 
 const BRANCHES = [
-  { id: 'rael',      title: 'Commander Rael',  subtitle: 'Generalist bruiser' },
-  { id: 'engineer',  title: 'Engineer Dax',    subtitle: 'Support / builder' },
-  { id: 'scout',     title: 'Scout Vex',       subtitle: 'Ranged DPS / anti-air' },
-  { id: 'pyro',      title: 'Pyromancer Mira', subtitle: 'AoE / burn' },
-  { id: 'logistics', title: 'Logistics',       subtitle: 'Economy' },
-  { id: 'arsenal',   title: 'Arsenal',         subtitle: 'Towers & soldiers' },
+  { id: 'logistics', title: 'Logistics', subtitle: 'Economy' },
+  { id: 'arsenal',   title: 'Arsenal',   subtitle: 'Towers & soldiers' },
 ];
 
 export class UpgradeTreeOverlay {
@@ -45,61 +42,9 @@ export class UpgradeTreeOverlay {
       col.appendChild(heading);
       col.appendChild(sub);
       for (const node of UPGRADES.filter(u => u.branch === branch.id)) {
-        col.appendChild(this._renderNode(node));
+        col.appendChild(renderUpgradeNode(node, this._mgr, HEROES, () => this._render()));
       }
       this._tree.appendChild(col);
     }
-  }
-
-  _renderNode(node) {
-    const state = this._mgr.getNodeState(node.id);
-    const el = document.createElement('div');
-    el.className = `upgrade-node ${state}`;
-
-    const name = document.createElement('div');
-    name.className   = 'upgrade-node-name';
-    name.textContent = node.name;
-
-    const fx = document.createElement('div');
-    fx.className   = 'upgrade-node-fx';
-    fx.textContent = node.effect;
-
-    const cost = document.createElement('div');
-    cost.className   = 'upgrade-node-cost';
-    cost.textContent = `${node.cost}★`;
-
-    el.append(name, fx, cost);
-
-    if (state === 'locked-threshold') {
-      const gate = document.createElement('div');
-      gate.className   = 'upgrade-node-gate';
-      gate.textContent = `Needs ${node.starThreshold}★ earned`;
-      el.appendChild(gate);
-    }
-
-    if (state === 'locked-hero') {
-      el.classList.add('locked-hero');
-      const heroDef = HEROES[node.heroUnlock];
-      el.title = `🔒 Locked — clear Map ${heroDef.unlockMapAfter + 1} to unlock ${heroDef.displayName}`;
-    }
-
-    if (state === 'affordable') {
-      el.addEventListener('click', () => {
-        this._mgr.purchase(node.id);
-        this._render();
-      });
-    } else if (state === 'purchased') {
-      const refund = document.createElement('button');
-      refund.className   = 'upgrade-node-refund';
-      refund.textContent = 'Refund';
-      refund.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this._mgr.refund(node.id);
-        this._render();
-      });
-      el.appendChild(refund);
-    }
-
-    return el;
   }
 }
