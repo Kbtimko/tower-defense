@@ -39,7 +39,10 @@ export class HeroManagementOverlay {
 
   _renderRail() {
     this._rail.replaceChildren();
-    const selected = this._save.getSelectedHero();
+    // committedHeroId = who drops into the next match (single source: SaveManager).
+    // Distinct from this._inspectedHeroId, which is local to this overlay (whose
+    // tree is currently shown). They diverge whenever the player previews a locked hero.
+    const committedHeroId = this._save.getSelectedHero();
     for (const heroId of HERO_ORDER) {
       const def      = HEROES[heroId];
       const unlocked = this._save.isHeroUnlocked(heroId);
@@ -81,7 +84,7 @@ export class HeroManagementOverlay {
 
       card.append(portrait, meta);
 
-      if (unlocked && heroId === selected) {
+      if (unlocked && heroId === committedHeroId) {
         const badge = document.createElement('div');
         badge.className   = 'ho-card-badge';
         badge.textContent = '✓ SELECTED';
@@ -127,7 +130,7 @@ export class HeroManagementOverlay {
   _branchStarsLabel(heroId) {
     const branchNodes = UPGRADES.filter(u => u.branch === heroId);
     const totalCost   = branchNodes.reduce((s, n) => s + n.cost, 0);
-    const purchased   = new Set(this._mgr.getPurchasedUpgrades?.() ?? []);
+    const purchased   = new Set(this._mgr.getPurchasedUpgrades());
     const spent       = branchNodes
       .filter(n => purchased.has(n.id))
       .reduce((s, n) => s + n.cost, 0);

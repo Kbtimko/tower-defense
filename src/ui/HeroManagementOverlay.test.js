@@ -28,10 +28,11 @@ function setupDom() {
 
 function makeMgr() {
   return {
-    getAvailableStars: vi.fn(() => 5),
-    getNodeState:      vi.fn(() => 'affordable'),
-    purchase:          vi.fn(),
-    refund:            vi.fn(),
+    getAvailableStars:    vi.fn(() => 5),
+    getNodeState:         vi.fn(() => 'affordable'),
+    getPurchasedUpgrades: vi.fn(() => []),
+    purchase:             vi.fn(),
+    refund:               vi.fn(),
   };
 }
 
