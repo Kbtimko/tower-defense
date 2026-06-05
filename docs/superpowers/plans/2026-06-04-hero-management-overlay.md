@@ -788,6 +788,25 @@ describe('HeroManagementOverlay — render', () => {
     expect(document.querySelectorAll('#hero-tree .upgrade-node').length).toBe(4);
   });
 
+  it('stars header shows "★ X / Y spent on {shortName}" for inspected hero', () => {
+    const mgr = makeMgr();
+    // Rael branch nodes have costs 2, 3, 4, 6 → total 15. With no purchases, spent = 0.
+    mgr.getPurchasedUpgrades = vi.fn(() => []);
+    new HeroManagementOverlay(mgr, makeSave()).open();
+    const stars = document.querySelector('#hero-tree .ho-tree-head-stars');
+    expect(stars.textContent).toBe('★ 0 / 15 spent on Rael');
+  });
+
+  it('stars header sums only purchased nodes in the current branch', () => {
+    const mgr = makeMgr();
+    // Pretend Rael's first two nodes (cost 2 + 3) are purchased; a logistics
+    // node is also purchased but must NOT contribute to Rael's branch total.
+    mgr.getPurchasedUpgrades = vi.fn(() => ['rael_hp', 'rael_rapid_redeploy', 'log_supply_cache']);
+    new HeroManagementOverlay(mgr, makeSave()).open();
+    const stars = document.querySelector('#hero-tree .ho-tree-head-stars');
+    expect(stars.textContent).toBe('★ 5 / 15 spent on Rael');
+  });
+
   it('available-stars chip reflects getAvailableStars', () => {
     const mgr = makeMgr();
     mgr.getAvailableStars.mockReturnValue(7);
@@ -967,7 +986,7 @@ export class HeroManagementOverlay {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run src/ui/HeroManagementOverlay.test.js`
-Expected: PASS — all 8 cases green.
+Expected: PASS — all 10 cases green.
 
 - [ ] **Step 5: Commit**
 
@@ -1083,7 +1102,7 @@ describe('HeroManagementOverlay — click semantics', () => {
 - [ ] **Step 2: Run tests to verify the new ones fail**
 
 Run: `npx vitest run src/ui/HeroManagementOverlay.test.js`
-Expected: 8 prior cases still PASS; the 8 new cases FAIL because click handlers aren't wired yet.
+Expected: 10 prior cases still PASS; the 8 new cases FAIL because click handlers aren't wired yet.
 
 - [ ] **Step 3: Wire the rail click handler**
 
@@ -1106,7 +1125,7 @@ with:
 - [ ] **Step 4: Run tests to verify all pass**
 
 Run: `npx vitest run src/ui/HeroManagementOverlay.test.js`
-Expected: PASS — all 16 cases green.
+Expected: PASS — all 18 cases green.
 
 - [ ] **Step 5: Run full suite**
 
@@ -1192,7 +1211,7 @@ describe('HeroManagementOverlay — purchase / refund through tree', () => {
 - [ ] **Step 2: Run tests**
 
 Run: `npx vitest run src/ui/HeroManagementOverlay.test.js`
-Expected: PASS — all 20 cases green. The closures from Task 6 (`() => this._render()`) handle the re-render path correctly; no code changes needed in this task.
+Expected: PASS — all 22 cases green. The closures from Task 6 (`() => this._render()`) handle the re-render path correctly; no code changes needed in this task.
 
 - [ ] **Step 3: Commit**
 
