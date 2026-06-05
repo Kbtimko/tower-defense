@@ -49,7 +49,7 @@ describe('UpgradeTreeOverlay (post-refactor)', () => {
     ov.open();
     const headings = Array.from(document.querySelectorAll('.upgrade-branch h3'))
       .map(h => h.textContent.toLowerCase());
-    for (const banned of ['rael', 'engineer', 'scout', 'pyromancer']) {
+    for (const banned of ['rael', 'engineer', 'scout', 'pyro']) {
       expect(headings.some(h => h.includes(banned))).toBe(false);
     }
   });
