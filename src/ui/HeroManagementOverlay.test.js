@@ -132,3 +132,86 @@ describe('HeroManagementOverlay — render', () => {
     expect(document.getElementById('hero-mgmt-overlay').style.display).toBe('none');
   });
 });
+
+describe('HeroManagementOverlay — click semantics', () => {
+  it('clicking an unlocked card calls setSelectedHero AND moves the inspecting border', () => {
+    const save = makeSave({ selected: 'rael', unlocked: ['rael', 'engineer'] });
+    const ov   = new HeroManagementOverlay(makeMgr(), save);
+    ov.open();
+    document.querySelectorAll('#hero-rail .ho-card')[1].click();
+    expect(save.setSelectedHero).toHaveBeenCalledWith('engineer');
+    const cards = document.querySelectorAll('#hero-rail .ho-card');
+    expect(cards[1].classList.contains('inspecting')).toBe(true);
+    expect(cards[0].classList.contains('inspecting')).toBe(false);
+  });
+
+  it('clicking an unlocked card moves the ✓ SELECTED badge to that card', () => {
+    const save = makeSave({ selected: 'rael', unlocked: ['rael', 'engineer'] });
+    const ov   = new HeroManagementOverlay(makeMgr(), save);
+    ov.open();
+    document.querySelectorAll('#hero-rail .ho-card')[1].click();
+    const cards = document.querySelectorAll('#hero-rail .ho-card');
+    expect(cards[1].querySelector('.ho-card-badge')).not.toBeNull();
+    expect(cards[0].querySelector('.ho-card-badge')).toBeNull();
+  });
+
+  it('clicking an unlocked card swaps the tree to that hero', () => {
+    const save = makeSave({ selected: 'rael', unlocked: ['rael', 'engineer'] });
+    const ov   = new HeroManagementOverlay(makeMgr(), save);
+    ov.open();
+    document.querySelectorAll('#hero-rail .ho-card')[1].click();
+    const head = document.querySelector('#hero-tree .ho-tree-head h4');
+    expect(head.textContent).toBe('Engineer Dax');
+  });
+
+  it('clicking a locked card does NOT call setSelectedHero', () => {
+    const save = makeSave({ selected: 'rael', unlocked: ['rael'] });
+    const ov   = new HeroManagementOverlay(makeMgr(), save);
+    ov.open();
+    document.querySelectorAll('#hero-rail .ho-card')[1].click();
+    expect(save.setSelectedHero).not.toHaveBeenCalled();
+  });
+
+  it('clicking a locked card switches inspecting border AND tree to that hero', () => {
+    const save = makeSave({ selected: 'rael', unlocked: ['rael'] });
+    const ov   = new HeroManagementOverlay(makeMgr(), save);
+    ov.open();
+    document.querySelectorAll('#hero-rail .ho-card')[1].click();
+    const cards = document.querySelectorAll('#hero-rail .ho-card');
+    expect(cards[1].classList.contains('inspecting')).toBe(true);
+    expect(document.querySelector('#hero-tree .ho-tree-head h4').textContent).toBe('Engineer Dax');
+  });
+
+  it('clicking a locked card shows the orange unlock banner in the tree', () => {
+    const save = makeSave({ selected: 'rael', unlocked: ['rael'] });
+    const ov   = new HeroManagementOverlay(makeMgr(), save);
+    ov.open();
+    document.querySelectorAll('#hero-rail .ho-card')[1].click();
+    const banner = document.querySelector('#hero-tree .ho-tree-banner');
+    expect(banner).not.toBeNull();
+    expect(banner.textContent).toContain('Clear Map 3');
+    expect(banner.textContent).toContain('Engineer Dax');
+  });
+
+  it('the ✓ SELECTED badge stays on Rael when inspecting a locked hero', () => {
+    const save = makeSave({ selected: 'rael', unlocked: ['rael'] });
+    const ov   = new HeroManagementOverlay(makeMgr(), save);
+    ov.open();
+    document.querySelectorAll('#hero-rail .ho-card')[1].click();
+    const cards = document.querySelectorAll('#hero-rail .ho-card');
+    expect(cards[0].querySelector('.ho-card-badge')).not.toBeNull();
+    expect(cards[1].querySelector('.ho-card-badge')).toBeNull();
+  });
+
+  it('open() always resets _inspectedHeroId to the selected hero', () => {
+    const save = makeSave({ selected: 'rael', unlocked: ['rael'] });
+    const ov   = new HeroManagementOverlay(makeMgr(), save);
+    ov.open();
+    document.querySelectorAll('#hero-rail .ho-card')[1].click();  // inspect locked engineer
+    ov.close();
+    ov.open();
+    const cards = document.querySelectorAll('#hero-rail .ho-card');
+    expect(cards[0].classList.contains('inspecting')).toBe(true);
+    expect(cards[1].classList.contains('inspecting')).toBe(false);
+  });
+});

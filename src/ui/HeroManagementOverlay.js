@@ -91,7 +91,11 @@ export class HeroManagementOverlay {
         card.appendChild(badge);
       }
 
-      // Click handlers added in Task 7.
+      card.addEventListener('click', () => {
+        if (unlocked) this._save.setSelectedHero(heroId);
+        this._inspectedHeroId = heroId;
+        this._render();
+      });
 
       this._rail.appendChild(card);
     }
