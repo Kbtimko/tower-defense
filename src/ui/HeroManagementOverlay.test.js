@@ -208,6 +208,10 @@ describe('HeroManagementOverlay — click semantics', () => {
     const ov   = new HeroManagementOverlay(makeMgr(), save);
     ov.open();
     document.querySelectorAll('#hero-rail .ho-card')[1].click();  // inspect locked engineer
+    // Sanity-check the intermediate state so we know open() reversed a real prior state.
+    const beforeReopen = document.querySelectorAll('#hero-rail .ho-card');
+    expect(beforeReopen[1].classList.contains('inspecting')).toBe(true);
+    expect(beforeReopen[0].classList.contains('inspecting')).toBe(false);
     ov.close();
     ov.open();
     const cards = document.querySelectorAll('#hero-rail .ho-card');
