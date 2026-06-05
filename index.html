@@ -151,6 +151,10 @@
                      padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
                      font-family:'Georgia',serif; }
     #open-upgrades:hover { background:#223344; }
+    #open-heroes { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
+                   padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
+                   font-family:'Georgia',serif; }
+    #open-heroes:hover { background:#223344; }
     #open-settings { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
                      padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
                      font-family:'Georgia',serif; }
@@ -162,7 +166,7 @@
     .stat-chip-val { display:block; font-size:16px; color:#ffd700; font-weight:bold; }
     .stat-chip-lbl { display:block; font-size:9px; color:#888; text-transform:uppercase;
                      letter-spacing:.5px; }
-    #hero-mgmt-overlay { display:none; position:absolute; inset:0; z-index:15;
+    #hero-mgmt-overlay { display:none; position:absolute; inset:0; z-index:16;
                          background:rgba(5,10,16,0.85); align-items:center; justify-content:center; padding:24px; }
     #hero-mgmt-overlay-inner { width:100%; max-width:780px; max-height:100%;
                                background:#0e1620; border:1px solid #2a3a4e; border-radius:8px;
@@ -178,8 +182,11 @@
     #hero-rail { display:flex; flex-direction:column; gap:8px; }
     .ho-card { position:relative; display:flex; gap:10px; align-items:center; padding:10px;
                border:1px solid #233044; border-radius:6px; background:#152030; cursor:pointer; font-size:12px; }
+    .ho-card:hover { border-color:#3a5070; background:#1a2535; }
     .ho-card.inspecting { border-color:#4fc3f7; background:#1a2a3a; }
-    .ho-card.locked { opacity:0.55; }
+    .ho-card.inspecting:hover { border-color:#4fc3f7; background:#1a2a3a; }
+    .ho-card.locked { opacity:0.55; cursor:default; }
+    .ho-card.locked:hover { border-color:#233044; background:#152030; }
     .ho-card-portrait { width:32px; height:32px; border-radius:50%; display:flex;
                          align-items:center; justify-content:center; font-weight:bold; font-size:13px; }
     .ho-card-meta { display:flex; flex-direction:column; gap:2px; }
