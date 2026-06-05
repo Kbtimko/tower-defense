@@ -219,3 +219,54 @@ describe('HeroManagementOverlay — click semantics', () => {
     expect(cards[1].classList.contains('inspecting')).toBe(false);
   });
 });
+
+describe('HeroManagementOverlay — purchase / refund through tree', () => {
+  it('clicking an affordable node delegates to upgradeMgr.purchase and re-renders', () => {
+    const mgr  = makeMgr();
+    const save = makeSave();
+    const ov   = new HeroManagementOverlay(mgr, save);
+    ov.open();
+    const firstNode = document.querySelector('#hero-tree .upgrade-node');
+    firstNode.click();
+    expect(mgr.purchase).toHaveBeenCalledTimes(1);
+    // The id of the first Rael node in upgrades.js:
+    expect(mgr.purchase).toHaveBeenCalledWith('rael_hp');
+  });
+
+  it('after purchase, available-stars chip re-reads from the manager', () => {
+    const mgr  = makeMgr();
+    mgr.getAvailableStars.mockReturnValueOnce(10).mockReturnValue(8);
+    const ov = new HeroManagementOverlay(mgr, makeSave());
+    ov.open();
+    expect(document.getElementById('hero-mgmt-avail').textContent).toBe('⭐ 10 to spend');
+    document.querySelector('#hero-tree .upgrade-node').click();
+    expect(document.getElementById('hero-mgmt-avail').textContent).toBe('⭐ 8 to spend');
+  });
+
+  it('refund-button click delegates to upgradeMgr.refund', () => {
+    const mgr = makeMgr();
+    mgr.getNodeState.mockReturnValue('purchased');
+    const ov = new HeroManagementOverlay(mgr, makeSave());
+    ov.open();
+    const refundBtn = document.querySelector('#hero-tree .upgrade-node-refund');
+    refundBtn.click();
+    expect(mgr.refund).toHaveBeenCalledTimes(1);
+    expect(mgr.refund).toHaveBeenCalledWith('rael_hp');
+  });
+
+  it('purchase nodes inside a locked-hero tree do not fire purchase (every node is locked-hero)', () => {
+    const mgr = makeMgr();
+    // Return 'locked-hero' only for engineer nodes (which carry heroUnlock: 'engineer');
+    // Rael nodes have no heroUnlock so they must not get 'locked-hero'.
+    mgr.getNodeState.mockImplementation(id =>
+      id.startsWith('engineer') ? 'locked-hero' : 'locked'
+    );
+    const save = makeSave({ selected: 'rael', unlocked: ['rael'] });
+    const ov   = new HeroManagementOverlay(mgr, save);
+    ov.open();
+    document.querySelectorAll('#hero-rail .ho-card')[1].click();  // inspect locked engineer
+    const nodes = document.querySelectorAll('#hero-tree .upgrade-node');
+    for (const n of nodes) n.click();
+    expect(mgr.purchase).not.toHaveBeenCalled();
+  });
+});
