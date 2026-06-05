@@ -162,6 +162,40 @@
     .stat-chip-val { display:block; font-size:16px; color:#ffd700; font-weight:bold; }
     .stat-chip-lbl { display:block; font-size:9px; color:#888; text-transform:uppercase;
                      letter-spacing:.5px; }
+    #hero-mgmt-overlay { display:none; position:absolute; inset:0; z-index:15;
+                         background:rgba(5,10,16,0.85); align-items:center; justify-content:center; padding:24px; }
+    #hero-mgmt-overlay-inner { width:100%; max-width:780px; max-height:100%;
+                               background:#0e1620; border:1px solid #2a3a4e; border-radius:8px;
+                               padding:16px; color:#cfd8e0; display:flex; flex-direction:column; gap:12px; overflow:auto; }
+    #hero-mgmt-overlay-header { display:flex; align-items:center; gap:14px; padding-bottom:10px;
+                                border-bottom:1px solid #233044; }
+    #hero-mgmt-overlay-title { font-size:16px; color:#ffd700; font-weight:bold; }
+    #hero-mgmt-avail { margin-left:auto; font-size:12px; color:#9aa; padding:4px 10px;
+                       border:1px solid #2a3a4e; border-radius:4px; background:#0a121b; }
+    #hero-mgmt-close { font-size:11px; color:#cfd8e0; padding:4px 10px; border:1px solid #2a3a4e;
+                       border-radius:4px; background:#152030; cursor:pointer; }
+    #hero-mgmt-body { display:grid; grid-template-columns:170px 1fr; gap:12px; min-height:300px; }
+    #hero-rail { display:flex; flex-direction:column; gap:8px; }
+    .ho-card { position:relative; display:flex; gap:10px; align-items:center; padding:10px;
+               border:1px solid #233044; border-radius:6px; background:#152030; cursor:pointer; font-size:12px; }
+    .ho-card.inspecting { border-color:#4fc3f7; background:#1a2a3a; }
+    .ho-card.locked { opacity:0.55; }
+    .ho-card-portrait { width:32px; height:32px; border-radius:50%; display:flex;
+                         align-items:center; justify-content:center; font-weight:bold; font-size:13px; }
+    .ho-card-meta { display:flex; flex-direction:column; gap:2px; }
+    .ho-card-name { font-weight:bold; color:#cfd8e0; }
+    .ho-card-role { font-size:10px; color:#8a99aa; }
+    .ho-card-unlock { font-size:9px; color:#888; margin-top:2px; }
+    .ho-card-badge { position:absolute; top:-6px; right:-6px; background:#4caf50; color:#0a121b;
+                     font-size:9px; font-weight:bold; padding:2px 6px; border-radius:10px; letter-spacing:0.5px; }
+    #hero-tree { border:1px solid #233044; border-radius:6px; padding:14px; background:#0a121b; overflow-y:auto; }
+    .ho-tree-head { display:flex; align-items:baseline; gap:10px; padding-bottom:10px;
+                    border-bottom:1px solid #233044; margin-bottom:10px; }
+    .ho-tree-head h4 { font-size:14px; margin:0; }
+    .ho-tree-head-sub { font-size:11px; color:#8a99aa; }
+    .ho-tree-head-stars { font-size:11px; color:#9aa; margin-left:auto; }
+    .ho-tree-banner { background:#2a1a0a; border:1px dashed #ff9933; border-radius:4px; padding:8px 12px;
+                      font-size:11px; color:#ffc080; margin-bottom:10px; }
     #upgrade-overlay { display:none; position:absolute; inset:0; z-index:15;
                        background:rgba(4,4,14,0.96); align-items:center;
                        justify-content:center; padding:24px; }
@@ -238,18 +272,6 @@
                     padding: 5px 7px; font-size: 10px; color: #ddd; white-space: nowrap;
                     max-width: 220px; }
     #inspect-peek strong { display: block; color: #ffd700; margin-bottom: 2px; }
-    #hero-picker { margin: 14px 0; }
-    .hero-picker-label { font-size:11px; color:#aaa; margin-bottom:6px; letter-spacing:1px; }
-    .hero-picker-cards { display:flex; gap:10px; }
-    .hero-card { display:flex; flex-direction:column; align-items:center; padding:8px;
-                 border:2px solid #333; border-radius:6px; cursor:pointer; width:62px; }
-    .hero-card.locked { opacity:0.5; cursor:not-allowed; }
-    .hero-card.active { background:#1a2a3a; }
-    .hero-card-portrait { width:36px; height:36px; border-radius:50%; display:flex;
-                          align-items:center; justify-content:center; font-weight:bold;
-                          font-size:16px; margin-bottom:4px; }
-    .hero-card-name { font-size:10px; color:#ddd; }
-    .hero-card.locked .hero-card-portrait { background:#222; border:2px solid #444; color:#666; }
   </style>
 </head>
 <body>
@@ -275,6 +297,7 @@
       <div id="map-meta-bar">
         <div id="total-stars">★ 0 / 30</div>
         <button id="open-upgrades">⚙ Upgrades</button>
+        <button id="open-heroes" title="Hero command">🦸 Heroes</button>
         <button id="open-settings" title="Audio settings">♪ Audio</button>
       </div>
       <div id="map-select-layout">
@@ -284,10 +307,6 @@
           <div id="featured-stars"></div>
           <div id="featured-blurb"></div>
           <div id="featured-tier"></div>
-          <div id="hero-picker">
-            <div class="hero-picker-label">Commander:</div>
-            <div class="hero-picker-cards" id="hero-picker-cards"></div>
-          </div>
           <button id="featured-play">&#9654; PLAY</button>
         </div>
       </div>
@@ -323,11 +342,24 @@
     <div id="upgrade-overlay">
       <div id="upgrade-overlay-inner">
         <div id="upgrade-overlay-header">
-          <span id="upgrade-overlay-title">Command Doctrine</span>
+          <span id="upgrade-overlay-title">Doctrine</span>
           <span id="upgrade-available">Available: 0★</span>
           <button id="upgrade-close">✕ Close</button>
         </div>
         <div id="upgrade-tree"></div>
+      </div>
+    </div>
+    <div id="hero-mgmt-overlay">
+      <div id="hero-mgmt-overlay-inner">
+        <div id="hero-mgmt-overlay-header">
+          <span id="hero-mgmt-overlay-title">🦸 Hero Command</span>
+          <span id="hero-mgmt-avail">⭐ 0 to spend</span>
+          <button id="hero-mgmt-close">✕ Close</button>
+        </div>
+        <div id="hero-mgmt-body">
+          <div id="hero-rail"></div>
+          <div id="hero-tree"></div>
+        </div>
       </div>
     </div>
     <div id="settings-overlay">
