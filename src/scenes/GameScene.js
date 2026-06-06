@@ -853,19 +853,15 @@ export default class GameScene extends Phaser.Scene {
     // 4. Inspect click (enemy or hero)
     if (this.inspector?.tryClickInspect(mx, my)) return;
 
-    // 5. Tower placement
+    // 5. Tower placement — snap to the nearest free slot within disc radius
     if (this.selectedType) {
-      const zones = this.placementManager.getZones();
-      for (let i = 0; i < zones.length; i++) {
-        const zone = zones[i];
-        if (!zone.occupied && Math.hypot(zone.cx - mx, zone.cy - my) < zone.radius + 8) {
-          const tower = this.placementManager.placeTower(i, this.selectedType, this);
-          if (!tower) { this._toast('Not enough gold!'); return; }
-          if (this.selectedType === 'barracks') {
-            tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(zone.cx, zone.cy);
-            tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
-          }
-          return;
+      const slot = this.placementManager.getNearestSlot(mx, my, 22, true);
+      if (slot) {
+        const tower = this.placementManager.placeTower(slot.slotIndex, this.selectedType, this);
+        if (!tower) { this._toast('Not enough gold!'); return; }
+        if (this.selectedType === 'barracks') {
+          tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(slot.x, slot.y);
+          tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
         }
       }
       return;

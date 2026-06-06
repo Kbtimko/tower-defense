@@ -17,6 +17,24 @@ export class TowerPlacementManager {
     return this.towers.find(t => t.zoneIndex === zoneIndex) ?? null;
   }
 
+  /**
+   * Find the nearest slot to (worldX, worldY) within `snapPx` pixels.
+   * If requireFree is true, skips occupied slots.
+   * Returns { slotIndex, x, y } or null.
+   */
+  getNearestSlot(worldX, worldY, snapPx, requireFree = true) {
+    let bestIdx = -1;
+    let bestDist = snapPx;
+    for (let i = 0; i < this.zones.length; i++) {
+      const z = this.zones[i];
+      if (requireFree && z.occupied) continue;
+      const d = Math.hypot(z.cx - worldX, z.cy - worldY);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    if (bestIdx === -1) return null;
+    return { slotIndex: bestIdx, x: this.zones[bestIdx].cx, y: this.zones[bestIdx].cy };
+  }
+
   placeTower(zoneIndex, type, scene) {
     const zone = this.zones[zoneIndex];
     if (!zone || zone.occupied) return null;
