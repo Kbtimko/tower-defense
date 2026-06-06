@@ -7,6 +7,7 @@ describe('MAPS', () => {
     'backgroundImage','pathRenderStyle','blockerVocab','blockerSeed','towerSlots',
   ];
   const PATH_STYLES = ['planet-dust','station-strip','space-nav','organic-glow'];
+  const VALID_BLOCKER_VOCAB = ['crater','rocks','metal_bulkhead','asteroid','organic_spire','glowing_pool'];
 
   for (const map of MAPS) {
     it(`map ${map.id} has all required fields`, () => {
@@ -20,19 +21,23 @@ describe('MAPS', () => {
       }
     });
 
-    it(`map ${map.id} backgroundImage is a non-empty string`, () => {
+    it(`map ${map.id} backgroundImage is a .png filename`, () => {
       expect(typeof map.backgroundImage).toBe('string');
       expect(map.backgroundImage.length).toBeGreaterThan(0);
+      expect(map.backgroundImage.endsWith('.png')).toBe(true);
     });
 
     it(`map ${map.id} pathRenderStyle is one of the 4 supported styles`, () => {
       expect(PATH_STYLES).toContain(map.pathRenderStyle);
     });
 
-    it(`map ${map.id} blockerVocab is a non-empty string array`, () => {
+    it(`map ${map.id} blockerVocab is a non-empty array of supported types`, () => {
       expect(Array.isArray(map.blockerVocab)).toBe(true);
       expect(map.blockerVocab.length).toBeGreaterThan(0);
-      for (const v of map.blockerVocab) expect(typeof v).toBe('string');
+      for (const v of map.blockerVocab) {
+        expect(typeof v).toBe('string');
+        expect(VALID_BLOCKER_VOCAB).toContain(v);
+      }
     });
 
     it(`map ${map.id} blockerSeed is a number`, () => {
