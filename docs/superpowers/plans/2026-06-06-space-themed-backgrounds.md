@@ -1781,7 +1781,10 @@ _renderStaticLayers(map) {
   const g = this._staticLayers;
   g.clear();
 
-  // === Blockers (depth 10 within the static layer) ===
+  // Spec depth order (bottom → top): blockers (10) → platforms (15) → path (20).
+  // Since all three share one Graphics, render order = draw order.
+
+  // === Blockers ===
   const placements = computeBlockerPlacements(this.pathMgr.path, map.blockerVocab, map.blockerSeed);
   for (const p of placements) {
     const type = BLOCKER_TYPES[p.type];
@@ -1790,11 +1793,11 @@ _renderStaticLayers(map) {
     type.draw(g, p.x, p.y, p.scale, tint);
   }
 
-  // === Path (depth 20 — drawn after blockers so it sits on top) ===
-  renderPath(g, this.pathMgr.path, map.pathRenderStyle);
-
-  // === Platforms (drawn last so + glyphs are visible) ===
+  // === Platforms ===
   renderPlatforms(g, this.pathMgr.buildZones, map.id);
+
+  // === Path (drawn last so it sits on top per spec §4 depth ordering) ===
+  renderPath(g, this.pathMgr.path, map.pathRenderStyle);
 },
 ```
 
@@ -1856,30 +1859,149 @@ EOF
 
 ---
 
-## Task 11: Visible-slot UX — snap hover, tighten click acceptance
+## Task 11: `TowerPlacementManager.getNearestSlot` + tighten placement click
 
 **Files:**
+- Modify: `src/systems/TowerPlacementManager.js`
+- Modify: `src/systems/TowerPlacementManager.test.js`
 - Modify: `src/scenes/GameScene.js`
 
-`TowerPlacementManager.placeTower(zoneIndex, ...)` already enforces slot-only placement — the existing click handler iterates `placementMgr.getZones()` and calls `placeTower(i, ...)` when the click is within radius. With visible slots from Task 10 the player can SEE the targets; tighten the click acceptance radius from the legacy ~40px ambient zone to the 22px disc radius so misclicks-onto-grass don't accidentally place towers.
+Spec §6.1: add `getNearestSlot(worldX, worldY, snapPx, requireFree)` to `TowerPlacementManager`. Tighten the visible-slot click radius. This method becomes the single source of truth for "is this click on a usable slot?" — both Task 11 (placement) and Task 12 (barracks reposition) call it.
 
-- [ ] **Step 1: Find the existing placement click logic in `GameScene.js`**
+- [ ] **Step 1: Add failing test for `getNearestSlot`**
 
-The relevant block lives in the pointerdown handler. Find this exact line:
+Append to `src/systems/TowerPlacementManager.test.js`:
 
 ```js
+describe('TowerPlacementManager.getNearestSlot', () => {
+  const zones = [
+    { cx: 100, cy: 100, radius: 22, occupied: false },
+    { cx: 200, cy: 100, radius: 22, occupied: true  },
+    { cx: 300, cy: 100, radius: 22, occupied: false },
+  ];
+
+  it('returns the nearest free slot within snapPx', () => {
+    const mgr = new TowerPlacementManager(zones, makeEconomy(), makeFactory());
+    const result = mgr.getNearestSlot(105, 100, 22, true);
+    expect(result).not.toBeNull();
+    expect(result.slotIndex).toBe(0);
+    expect(result.x).toBe(100);
+    expect(result.y).toBe(100);
+  });
+
+  it('returns null when no slot within snapPx', () => {
+    const mgr = new TowerPlacementManager(zones, makeEconomy(), makeFactory());
+    expect(mgr.getNearestSlot(500, 500, 22, true)).toBeNull();
+  });
+
+  it('with requireFree=true, skips occupied slots even if they are nearer', () => {
+    const mgr = new TowerPlacementManager(zones, makeEconomy(), makeFactory());
+    // (210,100) is closest to occupied slot 1 (10px away) but slot 0 (110px) and slot 2 (90px) are free
+    const result = mgr.getNearestSlot(210, 100, 100, true);
+    expect(result).not.toBeNull();
+    expect(result.slotIndex).toBe(2);
+  });
+
+  it('with requireFree=false, returns the nearest slot regardless of occupied state', () => {
+    const mgr = new TowerPlacementManager(zones, makeEconomy(), makeFactory());
+    const result = mgr.getNearestSlot(210, 100, 100, false);
+    expect(result).not.toBeNull();
+    expect(result.slotIndex).toBe(1);
+  });
+});
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+```bash
+npx vitest run src/systems/TowerPlacementManager.test.js
+```
+
+Expected: 4 new tests fail — `mgr.getNearestSlot is not a function`.
+
+- [ ] **Step 3: Implement `getNearestSlot` on `TowerPlacementManager`**
+
+Add this method to the `TowerPlacementManager` class in `src/systems/TowerPlacementManager.js` (just after `getTowerAtZone`):
+
+```js
+  /**
+   * Find the nearest slot to (worldX, worldY) within `snapPx` pixels.
+   * If requireFree is true, skips occupied slots.
+   * Returns { slotIndex, x, y } or null.
+   */
+  getNearestSlot(worldX, worldY, snapPx, requireFree = true) {
+    let bestIdx = -1;
+    let bestDist = snapPx;
+    for (let i = 0; i < this.zones.length; i++) {
+      const z = this.zones[i];
+      if (requireFree && z.occupied) continue;
+      const d = Math.hypot(z.cx - worldX, z.cy - worldY);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    if (bestIdx === -1) return null;
+    return { slotIndex: bestIdx, x: this.zones[bestIdx].cx, y: this.zones[bestIdx].cy };
+  }
+```
+
+- [ ] **Step 4: Run the test to verify it passes**
+
+```bash
+npx vitest run src/systems/TowerPlacementManager.test.js
+```
+
+Expected: all tests (including the 4 new ones) pass.
+
+- [ ] **Step 5: Refactor the GameScene placement click handler to use `getNearestSlot`**
+
+Find this block in `src/scenes/GameScene.js` (search `placementManager.getZones`):
+
+```js
+    // 5. Tower placement
+    if (this.selectedType) {
+      const zones = this.placementManager.getZones();
+      for (let i = 0; i < zones.length; i++) {
+        const zone = zones[i];
         if (!zone.occupied && Math.hypot(zone.cx - mx, zone.cy - my) < zone.radius + 8) {
+          const tower = this.placementManager.placeTower(i, this.selectedType, this);
+          if (!tower) { this._toast('Not enough gold!'); return; }
+          if (this.selectedType === 'barracks') {
+            tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(zone.cx, zone.cy);
+            tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
+          }
+          return;
+        }
+      }
+      return;
 ```
 
-- [ ] **Step 2: Tighten the radius**
-
-Replace `zone.radius + 8` with `zone.radius` so the click-hit test matches the visual disc exactly:
+Replace with:
 
 ```js
-        if (!zone.occupied && Math.hypot(zone.cx - mx, zone.cy - my) < zone.radius) {
+    // 5. Tower placement — snap to the nearest free slot within disc radius
+    if (this.selectedType) {
+      const slot = this.placementManager.getNearestSlot(mx, my, 22, true);
+      if (slot) {
+        const tower = this.placementManager.placeTower(slot.slotIndex, this.selectedType, this);
+        if (!tower) { this._toast('Not enough gold!'); return; }
+        if (this.selectedType === 'barracks') {
+          tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(slot.x, slot.y);
+          tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
+        }
+      }
+      return;
 ```
 
-- [ ] **Step 3: Verify in the browser**
+(snapPx of 22 = disc radius, matches the visual platform).
+
+- [ ] **Step 6: Run the full test suite**
+
+```bash
+npx vitest run
+```
+
+Expected: all green.
+
+- [ ] **Step 7: Browser verify**
 
 ```bash
 npm run dev
@@ -1889,16 +2011,17 @@ npm run dev
 - Clicking on the grass *next to* a platform does nothing (no tower placed, no money spent).
 - Clicking on an occupied platform opens that tower's panel (existing behavior).
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add src/scenes/GameScene.js
+git add src/systems/TowerPlacementManager.js src/systems/TowerPlacementManager.test.js src/scenes/GameScene.js
 git commit -m "$(cat <<'EOF'
-refactor(game-scene): tighten tower-placement hit test to slot radius
+feat(tower-placement): add getNearestSlot + tighten click hit-test
 
-Now that platforms are visually marked, restrict placement clicks to
-within the platform disc itself. Prevents accidental placement on
-adjacent terrain.
+New TowerPlacementManager.getNearestSlot(x, y, snapPx, requireFree)
+gives a single source of truth for "is this click on a usable slot?"
+GameScene's placement handler now snaps clicks to within the visible
+platform disc (snapPx = 22, the disc radius).
 
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 EOF
@@ -1922,39 +2045,36 @@ grep -n "repositionMode && this.repositioningBarracks" src/scenes/GameScene.js
 
 Expected two matches: one in the pointerdown handler (~line 805) and one in update or pointer move (~line 1206).
 
-- [ ] **Step 2: Update the pointerdown resolution to use nearest-free-slot snap**
+- [ ] **Step 2: Update the pointerdown resolution to use `getNearestSlot` (free filter)**
 
 In the pointerdown handler block (the first match around line 805-815), replace the body with:
 
 ```js
 if (this.repositionMode && this.repositioningBarracks) {
   const barracks = this.repositioningBarracks;
-  // Find nearest FREE zone within 60px snap range
-  const zones = this.placementManager.getZones();
-  let bestIdx = -1, bestDist = 60;
-  for (let i = 0; i < zones.length; i++) {
-    if (zones[i].occupied) continue;
-    const d = Math.hypot(worldX - zones[i].cx, worldY - zones[i].cy);
-    if (d < bestDist) { bestDist = d; bestIdx = i; }
-  }
-  if (bestIdx === -1) {
+  // Use getNearestSlot (added in Task 11) with requireFree=true and a
+  // 60px reposition snap range (looser than the 22px placement radius
+  // because the player is dragging, not single-clicking a target).
+  const slot = this.placementManager.getNearestSlot(worldX, worldY, 60, true);
+  if (!slot) {
     // No valid target — cancel reposition silently
     this.repositionMode = false;
     this.repositioningBarracks = null;
     return;
   }
   // Free the old slot, occupy the new one, move barracks.
+  const zones = this.placementManager.getZones();
   zones[barracks.zoneIndex].occupied = false;
-  zones[bestIdx].occupied = true;
-  barracks.zoneIndex = bestIdx;
-  barracks.setPosition(zones[bestIdx].cx, zones[bestIdx].cy);
+  zones[slot.slotIndex].occupied = true;
+  barracks.zoneIndex = slot.slotIndex;
+  barracks.setPosition(slot.x, slot.y);
   this.repositionMode = false;
   this.repositioningBarracks = null;
   return;
 }
 ```
 
-Make sure the variable names match the existing code (the local `worldX/worldY` and `this.placementManager` are correct; the existing block may also call `_clearReposition()` or similar helpers — if so, preserve those calls at the appropriate point).
+If the existing block contains `_clearReposition()` or similar helpers, preserve those calls in place of the manual `this.repositionMode = false; this.repositioningBarracks = null;` lines.
 
 - [ ] **Step 3: Verify in the browser**
 
