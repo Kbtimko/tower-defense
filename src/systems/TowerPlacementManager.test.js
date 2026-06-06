@@ -101,3 +101,40 @@ describe('TowerPlacementManager', () => {
     expect(tower.level).toBe(1);
   });
 });
+
+describe('TowerPlacementManager.getNearestSlot', () => {
+  const zones = [
+    { cx: 100, cy: 100, radius: 22, occupied: false },
+    { cx: 200, cy: 100, radius: 22, occupied: true  },
+    { cx: 300, cy: 100, radius: 22, occupied: false },
+  ];
+
+  it('returns the nearest free slot within snapPx', () => {
+    const mgr = new TowerPlacementManager(zones, makeEconomy(), makeFactory());
+    const result = mgr.getNearestSlot(105, 100, 22, true);
+    expect(result).not.toBeNull();
+    expect(result.slotIndex).toBe(0);
+    expect(result.x).toBe(100);
+    expect(result.y).toBe(100);
+  });
+
+  it('returns null when no slot within snapPx', () => {
+    const mgr = new TowerPlacementManager(zones, makeEconomy(), makeFactory());
+    expect(mgr.getNearestSlot(500, 500, 22, true)).toBeNull();
+  });
+
+  it('with requireFree=true, skips occupied slots even if they are nearer', () => {
+    const mgr = new TowerPlacementManager(zones, makeEconomy(), makeFactory());
+    // (210,100) is closest to occupied slot 1 (10px away) but slot 0 (110px) and slot 2 (90px) are free
+    const result = mgr.getNearestSlot(210, 100, 100, true);
+    expect(result).not.toBeNull();
+    expect(result.slotIndex).toBe(2);
+  });
+
+  it('with requireFree=false, returns the nearest slot regardless of occupied state', () => {
+    const mgr = new TowerPlacementManager(zones, makeEconomy(), makeFactory());
+    const result = mgr.getNearestSlot(210, 100, 100, false);
+    expect(result).not.toBeNull();
+    expect(result.slotIndex).toBe(1);
+  });
+});
