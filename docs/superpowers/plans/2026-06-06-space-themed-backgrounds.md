@@ -629,8 +629,10 @@ import { BLOCKER_TYPES } from './blockerTypes.js';
 // Mock Phaser Graphics call recorder — never imports Phaser directly.
 function makeGfx() {
   const calls = [];
-  const proxy = new Proxy({}, {
-    get(_t, prop) {
+  const stored = {};
+  const proxy = new Proxy(stored, {
+    get(t, prop) {
+      if (prop in t) return t[prop];  // expose _calls and other named members
       return (...args) => { calls.push({ method: prop, args }); return proxy; };
     },
   });
@@ -1077,8 +1079,10 @@ import { renderPath, PATH_STYLES } from './PathRenderer.js';
 
 function makeGfx() {
   const calls = [];
-  const proxy = new Proxy({}, {
-    get(_t, prop) {
+  const stored = {};
+  const proxy = new Proxy(stored, {
+    get(t, prop) {
+      if (prop in t) return t[prop];  // expose _calls and other named members
       return (...args) => { calls.push({ method: prop, args }); return proxy; };
     },
   });
@@ -1280,8 +1284,10 @@ import { renderPlatforms, PLATFORM_STYLE_FOR_MAP } from './PlatformRenderer.js';
 
 function makeGfx() {
   const calls = [];
-  const proxy = new Proxy({}, {
-    get(_t, prop) {
+  const stored = {};
+  const proxy = new Proxy(stored, {
+    get(t, prop) {
+      if (prop in t) return t[prop];  // expose _calls and other named members
       return (...args) => { calls.push({ method: prop, args }); return proxy; };
     },
   });
