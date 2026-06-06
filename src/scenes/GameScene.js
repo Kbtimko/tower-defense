@@ -825,16 +825,24 @@ export default class GameScene extends Phaser.Scene {
     // 2. Barracks reposition mode
     if (this.repositionMode && this.repositioningBarracks) {
       const barracks = this.repositioningBarracks;
-      this.repositionMode        = false;
-      this.repositioningBarracks = null;
-      if (this.pathMgr.isOnPath(mx, my, 30) &&
-          Math.hypot(mx - barracks.x, my - barracks.y) <= barracks.range) {
-        const progress = this.pathMgr.getNearestPathProgress(mx, my);
-        barracks.repositionSoldiers(progress, this.pathMgr.getPathPoints());
-      } else {
-        this._toast('Click on the path within Barracks range!');
+      // Use getNearestSlot (added in Task 11) with requireFree=true and a
+      // 60px reposition snap range (looser than the 22px placement radius
+      // because the player is dragging, not single-clicking a target).
+      const slot = this.placementManager.getNearestSlot(mx, my, 60, true);
+      if (!slot) {
+        // No valid target — cancel reposition silently
+        this.repositionMode = false;
+        this.repositioningBarracks = null;
+        return;
       }
-      if (this.selectedTower) this._openTowerPanel(barracks, mx, my);
+      // Free the old slot, occupy the new one, move barracks.
+      const zones = this.placementManager.getZones();
+      zones[barracks.zoneIndex].occupied = false;
+      zones[slot.slotIndex].occupied = true;
+      barracks.zoneIndex = slot.slotIndex;
+      barracks.setPosition(slot.x, slot.y);
+      this.repositionMode = false;
+      this.repositioningBarracks = null;
       return;
     }
 
