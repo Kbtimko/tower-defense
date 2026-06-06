@@ -26,6 +26,10 @@ import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
 import { InspectController } from './InspectController.js';
 import { SentryTurret } from '../entities/SentryTurret.js';
+import { renderPath } from '../systems/PathRenderer.js';
+import { renderPlatforms } from '../systems/PlatformRenderer.js';
+import { computeBlockerPlacements } from '../systems/BlockerPlacement.js';
+import { BLOCKER_TYPES } from '../data/blockerTypes.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const ENEMY_MELEE_DAMAGE = 20;
@@ -61,7 +65,7 @@ export default class GameScene extends Phaser.Scene {
     const mods       = this.upgradeMgr.getModifiers(this.heroId);
     this.killGoldMult = mods.killGoldMult;
 
-    this.pathMgr  = new PathManager(map.waypoints, width, height);
+    this.pathMgr  = new PathManager(map.waypoints, map.towerSlots, width, height);
     this.economy  = new EconomyManager(
       map.startGold  + mods.startGoldBonus,
       map.startLives + mods.startLivesBonus,
@@ -112,9 +116,24 @@ export default class GameScene extends Phaser.Scene {
     this.repositionMode        = false;
     this.repositioningBarracks = null;
 
-    // Phaser graphics (cleared + redrawn every frame)
-    this.gfx = this.add.graphics();
+    // Solid-color fallback (visible if the bitmap PNG isn't present)
     this.cameras.main.setBackgroundColor(map.background);
+
+    // Bitmap backdrop (depth 0) — Phaser logs 404 if PNG missing; game still runs.
+    const bgKey = `bg_map_${map.id}`;
+    if (this.textures.exists(bgKey)) {
+      this.add.image(width / 2, height / 2, bgKey)
+        .setDisplaySize(width, height)
+        .setDepth(0);
+    }
+
+    // Static layers (depth 10) — blockers → platforms → path. Painted once.
+    this._staticLayers = this.add.graphics().setDepth(10);
+    this._renderStaticLayers(map);
+
+    // Per-frame graphics (depth 30) — cleared + redrawn every frame; sits on
+    // top of the static layer so hover indicators stay visible.
+    this.gfx = this.add.graphics().setDepth(30);
 
     // Static IN/OUT text labels
     const p = this.pathMgr.path;
@@ -240,6 +259,8 @@ export default class GameScene extends Phaser.Scene {
     for (const s of this._sentries) s.destroy();
     this._sentries = [];
     if (this._areaEffects) this._areaEffects.destroyAll();
+    this._staticLayers?.destroy();
+    this._staticLayers = null;
   }
 
   // ─── Update loop ───────────────────────────────────────────────────────────
@@ -1182,9 +1203,33 @@ export default class GameScene extends Phaser.Scene {
 
   // ─── Rendering ─────────────────────────────────────────────────────────────
 
+  _renderStaticLayers(map) {
+    const g = this._staticLayers;
+    g.clear();
+
+    // Spec §4 depth order within the static layer (draw order = visual stacking):
+    // blockers (bottom) → platforms → path (top).
+
+    // Blockers at every interior waypoint
+    const placements = computeBlockerPlacements(this.pathMgr.path, map.blockerVocab, map.blockerSeed);
+    for (const p of placements) {
+      const type = BLOCKER_TYPES[p.type];
+      if (!type) continue;
+      const tint = type.defaultTint(map.id);
+      type.draw(g, p.x, p.y, p.scale, tint);
+    }
+
+    // Platforms
+    renderPlatforms(g, this.pathMgr.buildZones, map.id);
+
+    // Path on top so it sits above platforms/blockers per spec §4.
+    renderPath(g, this.pathMgr.path, map.pathRenderStyle);
+  }
+
   _drawPath() {
-    const map = MAPS[this.mapId];
-    this.pathMgr.renderPath(this.gfx, map.pathColor);
+    // Path itself is now drawn by PathRenderer in _renderStaticLayers.
+    // This method only draws the per-frame IN/OUT colored dots (under the
+    // static text labels) on top of the static layer.
     const p = this.pathMgr.path;
     this.gfx.fillStyle(0x27ae60, 1); this.gfx.fillCircle(p[0].x, p[0].y, 13);
     this.gfx.fillStyle(0xc0392b, 1); this.gfx.fillCircle(p[p.length-1].x, p[p.length-1].y, 13);
