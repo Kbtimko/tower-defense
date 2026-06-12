@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 import { MAPS } from '../data/maps.js';
 import { renderPath } from '../systems/PathRenderer.js';
 import { renderPlatforms } from '../systems/PlatformRenderer.js';
-import { slotInPathCorridor } from '../systems/mapEditorUtils.js';
+import { serializeMapArrays, slotInPathCorridor } from '../systems/mapEditorUtils.js';
 
 /**
  * Dev-only overlay editor. Activated by BootScene when the URL has
@@ -42,6 +42,37 @@ export default class MapEditorScene extends Phaser.Scene {
 
     console.log(`[MapEditor] editing map ${this.mapId} (${map.name})`);
     this._render();
+
+    this.drag = null; // { kind: 'wp'|'slot', index }
+    this.input.mouse?.disableContextMenu();
+
+    this.input.on('pointerdown', (pointer) => {
+      const { worldX: x, worldY: y } = pointer;
+      const hit = this._hitTest(x, y);
+      if (pointer.rightButtonDown()) {
+        if (hit?.kind === 'wp' && this.waypoints.length > 2) {
+          this.waypoints.splice(hit.index, 1);
+          this._render();
+        }
+        return;
+      }
+      if (hit) { this.drag = hit; return; }
+      // Click on empty space near the path inserts a waypoint there.
+      this._insertWaypointAt(x, y);
+    });
+
+    this.input.on('pointermove', (pointer) => {
+      if (!this.drag) return;
+      const nx = Phaser.Math.Clamp(pointer.worldX / this.W, 0, 1);
+      const ny = Phaser.Math.Clamp(pointer.worldY / this.H, 0, 1);
+      const arr = this.drag.kind === 'wp' ? this.waypoints : this.slots;
+      arr[this.drag.index] = [nx, ny];
+      this._render();
+    });
+
+    this.input.on('pointerup', () => { this.drag = null; });
+
+    this.input.keyboard.on('keydown-E', () => this._export());
   }
 
   // Normalized [x,y] -> pixel {x,y}.
@@ -108,5 +139,51 @@ export default class MapEditorScene extends Phaser.Scene {
       `[E] export to clipboard+console`,
       `drag handle = move · click path = add waypoint · right-click waypoint = delete`,
     ].join('\n'));
+  }
+
+  // Returns { kind, index } for the closest handle within its radius, else null.
+  _hitTest(x, y) {
+    for (let i = 0; i < this.waypoints.length; i++) {
+      const p = this._toPx(this.waypoints[i]);
+      if (Math.hypot(p.x - x, p.y - y) <= 10) return { kind: 'wp', index: i };
+    }
+    for (let i = 0; i < this.slots.length; i++) {
+      const p = this._toPx(this.slots[i]);
+      if (Math.hypot(p.x - x, p.y - y) <= 22) return { kind: 'slot', index: i };
+    }
+    return null;
+  }
+
+  // Insert a waypoint on the segment nearest the click (only if reasonably close).
+  _insertWaypointAt(x, y) {
+    let best = { dist: Infinity, index: -1 };
+    for (let i = 0; i < this.waypoints.length - 1; i++) {
+      const a = this._toPx(this.waypoints[i]);
+      const b = this._toPx(this.waypoints[i + 1]);
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const lenSq = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / lenSq));
+      const cx = a.x + t * dx, cy = a.y + t * dy;
+      const d = Math.hypot(cx - x, cy - y);
+      if (d < best.dist) best = { dist: d, index: i + 1 };
+    }
+    if (best.index >= 0 && best.dist <= 40) {
+      this.waypoints.splice(best.index, 0, [
+        Phaser.Math.Clamp(x / this.W, 0, 1),
+        Phaser.Math.Clamp(y / this.H, 0, 1),
+      ]);
+      this._render();
+    }
+  }
+
+  _export() {
+    const snippet = serializeMapArrays(this.waypoints, this.slots);
+    console.log(`\n=== Map ${this.mapId} (${MAPS[this.mapId].name}) ===\n${snippet}\n`);
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(snippet).then(
+        () => { this.hud.setText(this.hud.text + '\n✓ copied to clipboard'); },
+        () => { /* clipboard blocked; console output still available */ },
+      );
+    }
   }
 }
