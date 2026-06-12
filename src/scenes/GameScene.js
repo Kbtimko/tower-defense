@@ -1214,8 +1214,10 @@ export default class GameScene extends Phaser.Scene {
     // Spec §4 depth order within the static layer (draw order = visual stacking):
     // blockers (bottom) → platforms → path (top).
 
+    // Blockers key off path BENDS and renderPath samples the curve internally,
+    // so both take the raw waypoints. (Enemy movement uses the dense pathMgr.path.)
     // Blockers at every interior waypoint
-    const placements = computeBlockerPlacements(this.pathMgr.path, map.blockerVocab, map.blockerSeed);
+    const placements = computeBlockerPlacements(this.pathMgr.waypoints, map.blockerVocab, map.blockerSeed);
     for (const p of placements) {
       const type = BLOCKER_TYPES[p.type];
       if (!type) continue;
@@ -1227,7 +1229,7 @@ export default class GameScene extends Phaser.Scene {
     renderPlatforms(g, this.pathMgr.buildZones, map.id);
 
     // Path on top so it sits above platforms/blockers per spec §4.
-    renderPath(g, this.pathMgr.path, map.pathRenderStyle);
+    renderPath(g, this.pathMgr.waypoints, map.pathRenderStyle);
   }
 
   _drawPath() {

@@ -63,4 +63,11 @@ describe('PathRenderer', () => {
     renderPath(gfx, [{ x: 0, y: 0 }], 'planet-dust');
     expect(gfx._calls()).toHaveLength(0);
   });
+
+  it('samples the curve into many lineTo segments (not one straight line)', () => {
+    const gfx = makeGfx();
+    renderPath(gfx, PATH, 'planet-dust');
+    const lineTos = gfx._calls().filter(c => c.method === 'lineTo').length;
+    expect(lineTos).toBeGreaterThan(20); // dense sampling, not 2-3 raw segments
+  });
 });
