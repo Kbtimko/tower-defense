@@ -53,18 +53,38 @@ export function renderPath(gfx, points, style) {
   }
 }
 
+// Samples per quadratic-bezier segment. 12 gives visually-smooth corners
+// at the path widths we draw without overspending on Graphics commands.
+const CURVE_SAMPLES = 12;
+
 function drawSmoothStroke(gfx, points, color, alpha, width) {
+  if (points.length < 2) return;
   gfx.lineStyle(width, color, alpha);
   gfx.beginPath();
   gfx.moveTo(points[0].x, points[0].y);
-  // Quadratic-curve through midpoints: control = current waypoint,
-  // endpoint = midpoint to next. Smooths the corners.
+
+  // Phaser Graphics has no quadraticCurveTo, so we sample the curve into
+  // short line segments. For each interior waypoint we draw a quadratic
+  // bezier whose control point is the waypoint itself and whose endpoint
+  // is the midpoint between this waypoint and the next — this rounds the
+  // corner without overshooting it.
+  let prevX = points[0].x, prevY = points[0].y;
   for (let i = 1; i < points.length - 1; i++) {
-    const mid = { x: (points[i].x + points[i + 1].x) / 2, y: (points[i].y + points[i + 1].y) / 2 };
-    gfx.quadraticCurveTo(points[i].x, points[i].y, mid.x, mid.y);
+    const ctrlX = points[i].x, ctrlY = points[i].y;
+    const endX  = (points[i].x + points[i + 1].x) / 2;
+    const endY  = (points[i].y + points[i + 1].y) / 2;
+    for (let s = 1; s <= CURVE_SAMPLES; s++) {
+      const t  = s / CURVE_SAMPLES;
+      const it = 1 - t;
+      const x  = it * it * prevX + 2 * it * t * ctrlX + t * t * endX;
+      const y  = it * it * prevY + 2 * it * t * ctrlY + t * t * endY;
+      gfx.lineTo(x, y);
+    }
+    prevX = endX; prevY = endY;
   }
-  const last = points[points.length - 1];
-  gfx.lineTo(last.x, last.y);
+
+  // Final straight segment to the last waypoint.
+  gfx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
   gfx.strokePath();
 }
 

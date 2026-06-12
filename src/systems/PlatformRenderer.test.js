@@ -1,11 +1,27 @@
 import { renderPlatforms, PLATFORM_STYLE_FOR_MAP } from './PlatformRenderer.js';
 
+// Whitelist of methods that actually exist on Phaser.GameObjects.Graphics.
+// The mock throws on anything outside the list so HTML-Canvas-API confusion
+// (e.g. quadraticCurveTo) is caught at test time instead of in the browser.
+const VALID_GFX_METHODS = new Set([
+  'lineStyle', 'fillStyle',
+  'beginPath', 'closePath', 'strokePath', 'fillPath',
+  'moveTo', 'lineTo', 'lineBetween',
+  'fillRect', 'strokeRect',
+  'fillCircle', 'strokeCircle',
+  'arc', 'setDepth', 'clear', 'destroy',
+]);
+
 function makeGfx() {
   const calls = [];
   const stored = {};
   const proxy = new Proxy(stored, {
     get(t, prop) {
       if (prop in t) return t[prop];  // expose _calls and other named members
+      if (typeof prop === 'symbol') return undefined;
+      if (!VALID_GFX_METHODS.has(prop)) {
+        throw new TypeError(`Mock Graphics: '${prop}' is not a Phaser.GameObjects.Graphics method`);
+      }
       return (...args) => { calls.push({ method: prop, args }); return proxy; };
     },
   });

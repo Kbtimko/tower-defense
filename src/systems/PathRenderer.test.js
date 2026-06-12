@@ -1,11 +1,28 @@
 import { renderPath, PATH_STYLES } from './PathRenderer.js';
 
+// Whitelist of methods that actually exist on Phaser.GameObjects.Graphics.
+// If a renderer calls a method NOT in here, the mock throws — this catches
+// HTML-Canvas-API confusion (e.g. quadraticCurveTo) that real Phaser would
+// also reject at runtime but our prior any-method-passes mock silently ignored.
+const VALID_GFX_METHODS = new Set([
+  'lineStyle', 'fillStyle',
+  'beginPath', 'closePath', 'strokePath', 'fillPath',
+  'moveTo', 'lineTo', 'lineBetween',
+  'fillRect', 'strokeRect',
+  'fillCircle', 'strokeCircle',
+  'arc', 'setDepth', 'clear', 'destroy',
+]);
+
 function makeGfx() {
   const calls = [];
   const stored = {};
   const proxy = new Proxy(stored, {
     get(t, prop) {
       if (prop in t) return t[prop];  // expose _calls and other named members
+      if (typeof prop === 'symbol') return undefined;
+      if (!VALID_GFX_METHODS.has(prop)) {
+        throw new TypeError(`Mock Graphics: '${prop}' is not a Phaser.GameObjects.Graphics method`);
+      }
       return (...args) => { calls.push({ method: prop, args }); return proxy; };
     },
   });
