@@ -1,3 +1,5 @@
+import { samplePath } from './pathGeometry.js';
+
 export const PATH_STYLES = ['planet-dust', 'station-strip', 'space-nav', 'organic-glow'];
 
 // Style colors: { haloColor, haloAlpha, haloWidth, mainColor, mainWidth, dashColor, dashWidth, dashAlpha, dashOn, dashOff }
@@ -53,51 +55,30 @@ export function renderPath(gfx, points, style) {
   }
 }
 
-// Samples per quadratic-bezier segment. 12 gives visually-smooth corners
-// at the path widths we draw without overspending on Graphics commands.
+// Samples per Catmull-Rom segment. 12 gives visually-smooth corners at the
+// path widths we draw without overspending on Graphics commands.
 const CURVE_SAMPLES = 12;
 
 function drawSmoothStroke(gfx, points, color, alpha, width) {
   if (points.length < 2) return;
+  const curve = samplePath(points, CURVE_SAMPLES);
   gfx.lineStyle(width, color, alpha);
   gfx.beginPath();
-  gfx.moveTo(points[0].x, points[0].y);
-
-  // Phaser Graphics has no quadraticCurveTo, so we sample the curve into
-  // short line segments. For each interior waypoint we draw a quadratic
-  // bezier whose control point is the waypoint itself and whose endpoint
-  // is the midpoint between this waypoint and the next — this rounds the
-  // corner without overshooting it.
-  let prevX = points[0].x, prevY = points[0].y;
-  for (let i = 1; i < points.length - 1; i++) {
-    const ctrlX = points[i].x, ctrlY = points[i].y;
-    const endX  = (points[i].x + points[i + 1].x) / 2;
-    const endY  = (points[i].y + points[i + 1].y) / 2;
-    for (let s = 1; s <= CURVE_SAMPLES; s++) {
-      const t  = s / CURVE_SAMPLES;
-      const it = 1 - t;
-      const x  = it * it * prevX + 2 * it * t * ctrlX + t * t * endX;
-      const y  = it * it * prevY + 2 * it * t * ctrlY + t * t * endY;
-      gfx.lineTo(x, y);
-    }
-    prevX = endX; prevY = endY;
+  gfx.moveTo(curve[0].x, curve[0].y);
+  for (let i = 1; i < curve.length; i++) {
+    gfx.lineTo(curve[i].x, curve[i].y);
   }
-
-  // Final straight segment to the last waypoint.
-  gfx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
   gfx.strokePath();
 }
 
 function drawDashedStroke(gfx, points, color, alpha, width, dashOn, dashOff) {
-  // Approximate dashes by walking segments and laying short line segments.
-  // Phaser's Graphics doesn't expose dash arrays natively; this is the
-  // standard workaround used throughout this codebase.
+  const curve = samplePath(points, CURVE_SAMPLES);
   gfx.lineStyle(width, color, alpha);
-  let phase = 0; // 0 = drawing on-segment, 1 = drawing off-segment
+  let phase = 0;
   let remaining = dashOn;
-  for (let i = 0; i < points.length - 1; i++) {
-    let x = points[i].x, y = points[i].y;
-    const tx = points[i + 1].x, ty = points[i + 1].y;
+  for (let i = 0; i < curve.length - 1; i++) {
+    let x = curve[i].x, y = curve[i].y;
+    const tx = curve[i + 1].x, ty = curve[i + 1].y;
     let dx = tx - x, dy = ty - y;
     let segLen = Math.hypot(dx, dy);
     if (segLen === 0) continue;
