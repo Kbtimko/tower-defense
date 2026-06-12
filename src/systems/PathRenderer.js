@@ -29,8 +29,8 @@ const STYLE_SPEC = {
 /**
  * Render a curved path through `points` using one of PATH_STYLES.
  * Draws up to 3 stacked strokes: halo (soft underlay), main, dashed overlay.
- * Curves are approximated with quadratic Bezier segments interpolated
- * at every waypoint (smooth corners through real waypoint positions).
+ * Curves are sampled from a centripetal Catmull-Rom spline that passes
+ * through every waypoint (see pathGeometry.samplePath).
  *
  * @param {Phaser.GameObjects.Graphics} gfx
  * @param {{x:number,y:number}[]} points
@@ -72,6 +72,7 @@ function drawSmoothStroke(gfx, points, color, alpha, width) {
 }
 
 function drawDashedStroke(gfx, points, color, alpha, width, dashOn, dashOff) {
+  if (points.length < 2) return;
   const curve = samplePath(points, CURVE_SAMPLES);
   gfx.lineStyle(width, color, alpha);
   let phase = 0;

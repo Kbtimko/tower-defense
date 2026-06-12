@@ -68,6 +68,6 @@ describe('PathRenderer', () => {
     const gfx = makeGfx();
     renderPath(gfx, PATH, 'planet-dust');
     const lineTos = gfx._calls().filter(c => c.method === 'lineTo').length;
-    expect(lineTos).toBeGreaterThan(10); // dense sampling, not 2-3 raw segments
+    expect(lineTos).toBeGreaterThan(20); // dense sampling, not 2-3 raw segments
   });
 });
