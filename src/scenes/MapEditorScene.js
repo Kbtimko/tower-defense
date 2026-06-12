@@ -72,7 +72,7 @@ export default class MapEditorScene extends Phaser.Scene {
 
     this.input.on('pointerup', () => { this.drag = null; });
 
-    this.input.keyboard.on('keydown-E', () => this._export());
+    this.input.keyboard?.on('keydown-E', () => this._export());
   }
 
   // Normalized [x,y] -> pixel {x,y}.

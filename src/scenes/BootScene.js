@@ -23,7 +23,8 @@ export default class BootScene extends Phaser.Scene {
   create() {
     const params = new URLSearchParams(window.location.search);
     if (params.get('edit') === '1') {
-      const mapId = Number.parseInt(params.get('map') ?? '0', 10) || 0;
+      const mapId = Math.max(0, Math.min(MAPS.length - 1,
+        Number.parseInt(params.get('map') ?? '0', 10) || 0));
       this.scene.start('MapEditorScene', { mapId });
       return;
     }
