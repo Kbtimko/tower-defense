@@ -25,6 +25,7 @@ function knotLerp(a, b, ta, tb, t) {
  * @returns {{x:number,y:number}[]}        dense polyline
  */
 export function samplePath(points, samplesPerSegment = 12) {
+  samplesPerSegment = Math.max(1, Math.floor(samplesPerSegment));
   const n = points.length;
   if (n < 2) return points.map(p => ({ x: p.x, y: p.y }));
 

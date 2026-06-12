@@ -43,11 +43,21 @@ describe('samplePath', () => {
     expect(samplePath([{ x: 1, y: 2 }], 8)).toEqual([{ x: 1, y: 2 }]);
     expect(samplePath([], 8)).toEqual([]);
   });
+
+  it('clamps samplesPerSegment below 1 and never emits NaN', () => {
+    const out = samplePath([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }], 0);
+    expect(out.length).toBeGreaterThanOrEqual(2);
+    expect(out.every(p => Number.isFinite(p.x) && Number.isFinite(p.y))).toBe(true);
+  });
 });
 
 describe('clampToBounds', () => {
   it('clamps each point into [0,w] x [0,h]', () => {
     const out = clampToBounds([{ x: -5, y: 50 }, { x: 120, y: -3 }], 100, 80);
     expect(out).toEqual([{ x: 0, y: 50 }, { x: 100, y: 0 }]);
+  });
+
+  it('leaves in-bounds points unchanged', () => {
+    expect(clampToBounds([{ x: 50, y: 50 }], 100, 100)).toEqual([{ x: 50, y: 50 }]);
   });
 });
