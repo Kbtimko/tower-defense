@@ -153,3 +153,34 @@ describe('FX_FAMILIES.electrical', () => {
     expect(gfx._calls().length).toBeGreaterThan(0);
   });
 });
+
+describe('FX_FAMILIES["bio-pulse"]', () => {
+  const fam = FX_FAMILIES['bio-pulse'];
+  const W = 800, H = 600;
+
+  it('init is deterministic for a given seed', () => {
+    expect(fam.init(new SeededRandom(4827), W, H))
+      .toEqual(fam.init(new SeededRandom(4827), W, H));
+  });
+
+  it('respects MAX_ELEMENTS', () => {
+    const s = fam.init(new SeededRandom(4827), W, H);
+    expect(s.blobs.length).toBeLessThanOrEqual(MAX_ELEMENTS);
+  });
+
+  it('blobs drift horizontally in bounds', () => {
+    const s = fam.init(new SeededRandom(4827), W, H);
+    for (let i = 0; i < 1000; i++) fam.step(s, 16);
+    for (const b of s.blobs) {
+      expect(b.x).toBeGreaterThanOrEqual(0);
+      expect(b.x).toBeLessThanOrEqual(W);
+    }
+  });
+
+  it('draw issues only whitelisted gfx calls', () => {
+    const s = fam.init(new SeededRandom(4827), W, H);
+    const gfx = makeGfx();
+    expect(() => fam.draw(gfx, s)).not.toThrow();
+    expect(gfx._calls().length).toBeGreaterThan(0);
+  });
+});

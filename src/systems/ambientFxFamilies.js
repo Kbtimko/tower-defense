@@ -173,4 +173,40 @@ export const FX_FAMILIES = {
       }
     },
   },
+
+  // Large soft radial blobs that breathe (radius + alpha oscillate out of
+  // phase) with a faint drift. Additive teal glow for the homeworld.
+  'bio-pulse': {
+    blendMode: 'ADD',
+    init(rng, w, h) {
+      const palette = [0x00ffc8, 0x4affd0];
+      const blobs = [];
+      for (let i = 0; i < 7; i++) {
+        blobs.push({
+          x: rng.next() * w,
+          y: rng.next() * h,
+          baseR: 40 + rng.next() * 50,
+          baseAlpha: 0.05 + rng.next() * 0.06,
+          period: 2600 + rng.next() * 2600,
+          phase: rng.next() * TWO_PI,
+          driftX: (rng.next() * 0.006 - 0.003),
+          color: palette[Math.floor(rng.next() * palette.length)],
+        });
+      }
+      return { w, h, blobs, t: 0 };
+    },
+    step(s, dtMs) {
+      s.t += dtMs;
+      for (const b of s.blobs) b.x = wrap(b.x + b.driftX * dtMs, s.w);
+    },
+    draw(gfx, s) {
+      for (const b of s.blobs) {
+        const pulse = 0.5 + 0.5 * Math.sin(s.t * (TWO_PI / b.period) + b.phase);
+        const r = b.baseR * (0.8 + 0.4 * pulse);
+        const a = b.baseAlpha * (0.5 + 0.5 * pulse);
+        gfx.fillStyle(b.color, a);
+        gfx.fillCircle(b.x, b.y, r);
+      }
+    },
+  },
 };
