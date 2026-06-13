@@ -4,7 +4,7 @@ export const MAPS = [
     name: 'Outpost Sigma',
     background: 0x1a2e1a,
     pathColor: 0x7a6040,
-    waypoints: [[0,.42],[.10,.50],[.16,.66],[.30,.74],[.45,.76],[.55,.62],[.52,.46],[.64,.40],[.74,.50],[.85,.58],[.93,.48],[1,.50]],
+    waypoints: [[0,.57],[.06,.44],[.09,.46],[.141,.415],[.231,.503],[.286,.465],[.362,.579],[.392,.547],[.467,.572],[.608,.56],[.683,.61],[.693,.686],[.744,.704],[.814,.673],[.874,.585],[.915,.648],[1,.597]],
     startGold: 200,
     startLives: 25,
     unlockCost: 0,
@@ -18,11 +18,8 @@ export const MAPS = [
     // No auto-placed blockers — the painted backdrop already has craters/rock mounds.
     blockerVocab: [],
     blockerSeed: 7341,
-    // Hand-placed pinch-point mounds to channel the single path on open stretches.
-    blockers: [
-      { type: 'rocks', x: 0.62, y: 0.31, scale: 1.3 },
-      { type: 'rocks', x: 0.37, y: 0.60, scale: 1.2 },
-    ],
+    // Painted craters channel the path on their own; no procedural pinch mounds needed.
+    blockers: [],
     ambientFx: { family: 'dust', seed: 7341 },
     towerSlots: [
       [0.09, 0.52], [0.31, 0.55], [0.33, 0.92],
