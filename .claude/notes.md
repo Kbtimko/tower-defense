@@ -3,8 +3,7 @@
 ## Goal
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
-## Current Status
-Phases 1–8 + 9a/9b/9c + dead-enemy cleanup + hero path-restriction + hero roster + Phase 8b music + in-level Pause/Exit buttons + menu music + areaeffects-dead-target-fix + test-imports hoist all merged. Open: PR #21 (music start-of-level latency — OGG/Opus conversion, green CI, awaiting merge). Starting next: Hero Management UI on MapSelect (backlog #4 below).
+Phases 1–8 + 9a/9b/9c + dead-enemy cleanup + hero path-restriction + hero roster + Phase 8b music + in-level Pause/Exit buttons + menu music + areaeffects-dead-target-fix + test-imports hoist + Hero Management overlay + Space-Themed Backgrounds (PR #26, including the 10 ChatGPT bitmaps) all merged. Natural-Fit Paths + dev map editor (PR #27) merged into `feature/space-themed-backgrounds`. PR #21 (music latency) still open. Next: pick a backlog item (#6 animated backgrounds recommended).
 
 ## Blockers
 - None active
@@ -13,18 +12,19 @@ Phases 1–8 + 9a/9b/9c + dead-enemy cleanup + hero path-restriction + hero rost
 - Hero may not be blocking enemies on Level 2 (Lunar Gate) — reported 2026-05-30, unverified.
 
 ## In Progress
-- **Heroes icon → Hero Management UI** — brainstorming. Will add a Heroes button next to ⚙ Upgrades / ♪ Audio on MapSelect that opens a unified overlay: hero picker (larger cards) + per-hero upgrade tree, scoped to the selected hero. Lets player switch hero + spend stars on one hero without leaving the modal.
+- Nothing active. Pick a backlog item to start.
+- **Propagation gap (action):** PR #27 (natural-fit paths + editor) merged into `feature/space-themed-backgrounds`, but that branch was already merged into the integration line `feature/phase-3-tower-system` by PR #26 *before* #27 landed. Verified: commit `5becad0` is in `origin/feature/space-themed-backgrounds` but NOT in `origin/feature/phase-3-tower-system`. Open a PR `feature/space-themed-backgrounds` → `feature/phase-3-tower-system` to land the natural-fit + editor work in the integration line.
 
 ## Prioritized Backlog
 1. **Phase 8b — remaining SFX work:** per-tower SFX for 5 tier-4 branches (currently reuse base fire sound); per-enemy-type hit sounds (currently generic + detuned)
 2. Verify hero is working properly on Level 2 (Lunar Gate) — reports indicate hero isn't blocking any enemies; verify against post-PR-17 state _(added 2026-05-30)_
 3. Resize game canvas as the browser window resizes (responsive Phaser scaling) _(added 2026-05-30)_
 4. **Overarching storyline + per-level mini-stories** — write a campaign narrative explaining *why* the player is fighting through the 10 maps toward the final level (player motivation, faction, end goal). Add a short mini-story per map (pre-battle briefing / post-battle epilogue), tying boss-bearing levels into key story beats. Surface via StoryManager or pre-wave dialog. _(added 2026-05-31)_
-5. **Space-themed backgrounds per level** — replace generic terrain with distinct space settings per map: planets (terrestrial, ice, lava, gas giant), space ships (interior corridor, hangar), asteroids, derelicts, orbital stations, nebulae. Each map gets its own visual identity tied to its mini-story. _(added 2026-05-31)_
-6. **Map-progression overworld for MapSelect** — replace the current card grid with a map/star-chart UI showing the 10 levels as nodes connected by a progression path (Super Mario World / FTL-style). Visualizes the journey and locked/unlocked state spatially. _(added 2026-05-31)_
-7. Phase 10 (future): iOS Prep — Capacitor, touch controls, App Store pipeline
+5. **Map-progression overworld for MapSelect** — replace the current card grid with a map/star-chart UI showing the 10 levels as nodes connected by a progression path (Super Mario World / FTL-style). Visualizes the journey and locked/unlocked state spatially. _(added 2026-05-31)_
+6. Phase 10 (future): iOS Prep — Capacitor, touch controls, App Store pipeline
 
 ## Completed
+- ~~Animated background layer (backlog #6, PR pending): reusable `AmbientBackgroundLayer` (depth-5 Graphics) + pure deterministic `ambientFxFamilies` registry (dust/embers/stars/electrical/bio-pulse, seeded via `SeededRandom`, `MAX_ELEMENTS=90`); `ambientFx:{family,seed}` on all 10 maps; GameScene mount + per-frame update + shutdown; `ambientMotion` registry flag seeded at boot from `SaveManager` honoring `prefers-reduced-motion`; "Ambient motion" toggle in SettingsOverlay. 676 tests; build clean; browser-verified layer render + live toggle on map 0~~ (2026-06-12)
 - ~~Phase 1: Core game loop (Phaser setup, path, basic enemies, HUD)~~ (2026-05-07)
 - ~~Phase 2: UIScene, Entity Containers, event-based panel~~ (2026-05-08)
 - ~~Phase 3: Tower system, tier branching, hero abilities, soldiers~~ (2026-05-10)
@@ -79,3 +79,8 @@ Phases 1–8 + 9a/9b/9c + dead-enemy cleanup + hero path-restriction + hero rost
 - ~~Merge PR #22 (hoist heroAbilities.test.js imports to top)~~ (2026-06-01)
 - ~~Merge PR #23 (menu music on MapSelectScene)~~ (2026-06-02)
 - ~~In-level Pause + Exit buttons (PR #24 merged): port of original PR #8 Exit button + new Pause toggle with overlay, Space-key Pause shortcut, game-over visual disable, shutdown leak fixes~~ (2026-06-03)
+- ~~Hero Management overlay implemented on `feature/hero-mgmt-overlay` (not yet PR'd): unified Heroes button on MapSelect, left-rail hero cards + right-pane per-hero upgrade tree, locked-card read-only preview, auto-commits selectedHeroId on unlocked-card click~~ (2026-06-04 / 2026-06-05)
+- ~~Space-themed backgrounds + restricted tower placement design (spec + plan + review-plan) on `feature/space-themed-backgrounds`: AI-bitmap backdrop pipeline (ChatGPT/DALL-E or Midjourney) + procedural overlay (curved bezier path, 6-type blocker registry, theme-styled platform discs), restricted tower placement via TowerPlacementManager.getNearestSlot, barracks reposition snap, 13-task plan~~ (2026-06-06)
+- ~~Space-themed backgrounds — Tasks 1-13 implementation: 14 commits, 633/633 tests, PR #26 open + CI green; PNGs downloaded & named in ~/Downloads, integration deferred to next session per .claude/RESUME-pr26-bitmaps.md~~ (2026-06-06 / 2026-06-07)
+- ~~PR #26 merged: PathRenderer `quadraticCurveTo` bug fixed (Phaser Graphics has no such method — Canvas-2D API confusion that the lax Proxy mock silently accepted) + 10 ChatGPT bitmaps committed. Phaser-mock whitelist tightened across PathRenderer / PlatformRenderer / blockerTypes tests so this class of bug can't recur~~ (2026-06-07)
+- ~~Natural-fit paths + tower slots (backlog #7) + dev map editor (PR #27, merged into `feature/space-themed-backgrounds`): brainstorm → spec (`2026-06-12-natural-fit-paths-slots-design.md`) → 9-task plan → subagent-driven execution. Shared `src/systems/pathGeometry.js` (`samplePath` centripetal Catmull-Rom that passes through every control point + `clampToBounds`); `PathRenderer` and `PathManager` both consume it so the visible curve and enemy movement are now identical (PathManager exposes raw `waypoints` for renderer/blockers + dense `path` for movement; GameScene `_renderStaticLayers` rewired to raw waypoints). Dev-only `MapEditorScene` at `?edit=1&map=N` (drag/insert/delete handles, no-build corridor band, slot-count HUD, `E` exports maps.js-ready arrays to clipboard+console) + pure `mapEditorUtils.js`. All 10 maps re-fitted (one commit each). 21 commits; 647/647 tests; production build clean; browser-verified curve-aligned movement + editor interactions + gameplay playtest~~ (2026-06-12)
