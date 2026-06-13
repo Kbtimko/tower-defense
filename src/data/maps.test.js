@@ -1,4 +1,5 @@
 import { MAPS } from './maps.js';
+import { PATH_STYLES } from '../systems/PathRenderer.js';
 
 describe('MAPS', () => {
   const REQUIRED = [
@@ -6,7 +7,6 @@ describe('MAPS', () => {
     'startLives','unlockCost','waveCount','maxTierAllowed','storyKey','blurb',
     'backgroundImage','pathRenderStyle','blockerVocab','blockerSeed','towerSlots',
   ];
-  const PATH_STYLES = ['planet-dust','station-strip','space-nav','organic-glow'];
   const VALID_BLOCKER_VOCAB = ['crater','rocks','metal_bulkhead','asteroid','organic_spire','glowing_pool'];
 
   for (const map of MAPS) {
@@ -27,7 +27,7 @@ describe('MAPS', () => {
       expect(map.backgroundImage.endsWith('.png')).toBe(true);
     });
 
-    it(`map ${map.id} pathRenderStyle is one of the 4 supported styles`, () => {
+    it(`map ${map.id} pathRenderStyle is a supported style`, () => {
       expect(PATH_STYLES).toContain(map.pathRenderStyle);
     });
 

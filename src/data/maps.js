@@ -13,7 +13,8 @@ export const MAPS = [
     storyKey: 'outpost_sigma',
     blurb: "Earth's last forward base. Hold the line or lose everything.",
     backgroundImage: 'map_0_outpost_sigma.png',
-    pathRenderStyle: 'planet-dust',
+    // Path renders as the road (terrain-only backdrop pilot) — see specs 2026-06-12-terrain-only-backdrops-road-path.
+    pathRenderStyle: 'planet-road',
     // No procedural blockers — the painted backdrop already has craters/rock mounds.
     blockerVocab: [],
     blockerSeed: 7341,
