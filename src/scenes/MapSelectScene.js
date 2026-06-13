@@ -153,7 +153,7 @@ export default class MapSelectScene extends Phaser.Scene {
     btn.addEventListener('click', () => {
       const am = this.game.registry.get('audio');
       if (!am) return;
-      if (!this._settingsOverlay) this._settingsOverlay = new SettingsOverlay(am);
+      if (!this._settingsOverlay) this._settingsOverlay = new SettingsOverlay(am, this.game);
       this._settingsOverlay.open();
     });
   }

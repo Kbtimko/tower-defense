@@ -28,6 +28,7 @@ import { InspectController } from './InspectController.js';
 import { SentryTurret } from '../entities/SentryTurret.js';
 import { renderPath } from '../systems/PathRenderer.js';
 import { renderPlatforms } from '../systems/PlatformRenderer.js';
+import { AmbientBackgroundLayer } from '../systems/AmbientBackgroundLayer.js';
 import { computeBlockerPlacements } from '../systems/BlockerPlacement.js';
 import { BLOCKER_TYPES } from '../data/blockerTypes.js';
 
@@ -130,6 +131,10 @@ export default class GameScene extends Phaser.Scene {
     // Static layers (depth 10) — blockers → platforms → path. Painted once.
     this._staticLayers = this.add.graphics().setDepth(10);
     this._renderStaticLayers(map);
+
+    // Ambient motion layer (depth 5) — between the bitmap and the static
+    // layers, so it reads as deep environment and never overlaps gameplay.
+    this._ambient = map.ambientFx ? new AmbientBackgroundLayer(this, map.ambientFx) : null;
 
     // Per-frame graphics (depth 30) — cleared + redrawn every frame; sits on
     // top of the static layer so hover indicators stay visible.
@@ -261,6 +266,8 @@ export default class GameScene extends Phaser.Scene {
     if (this._areaEffects) this._areaEffects.destroyAll();
     this._staticLayers?.destroy();
     this._staticLayers = null;
+    this._ambient?.destroy();
+    this._ambient = null;
   }
 
   // ─── Update loop ───────────────────────────────────────────────────────────
@@ -269,6 +276,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.over || this.won) return;
     const dt    = (delta / 1000) * this.speed;
     const dtMs  = delta * this.speed;
+    this._ambient?.update(dtMs);
 
     this.waveMgr.update(dtMs);
     this._updateEnemies(dt);
