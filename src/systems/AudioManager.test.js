@@ -114,7 +114,7 @@ describe('AudioManager music', () => {
       add: vi.fn((key) => {
         const s = {
           key, isPlaying: false, __channel: 'music', volume: 0,
-          play(opts = {}) { this.isPlaying = true; this.volume = opts.volume ?? 0; },
+          play(opts = {}) { this.isPlaying = true; this.volume = opts.volume ?? 0; this.loop = opts.loop ?? false; },
           stop() { this.isPlaying = false; },
           setVolume(v) { this.volume = v; },
         };
@@ -143,6 +143,38 @@ describe('AudioManager music', () => {
     expect(ambient.volume).toBeCloseTo(0.8 * 0.6); // master * music
     expect(combat.isPlaying).toBe(true);
     expect(combat.volume).toBe(0);
+  });
+
+  it("playMusic('menu') plays menu on the ambient slot at musicVol, no combat layer", () => {
+    const { game, created } = makeMusicGame();
+    const am = new AudioManager(game, new SaveManager());
+    am.playMusic('menu');
+    const menu   = created.find(s => s.key === 'menu');
+    const combat = created.find(s => s.key === 'menu-combat');
+    expect(menu).toBeDefined();
+    expect(menu.isPlaying).toBe(true);
+    expect(menu.loop).toBe(true);
+    expect(menu.volume).toBeCloseTo(0.8 * 0.6); // master * music defaults
+    expect(combat).toBeUndefined();
+    expect(am._music.ambient).toBe(menu);
+    expect(am._music.combat).toBeNull();
+    expect(am._music.boss).toBeNull();
+  });
+
+  it("playMusic('menu') -> playMusic(0) stops menu and starts map-0 layers", () => {
+    const { game, created } = makeMusicGame();
+    const am = new AudioManager(game, new SaveManager());
+    am.playMusic('menu');
+    const menu = created.find(s => s.key === 'menu');
+    expect(menu.isPlaying).toBe(true);
+    am.playMusic(0);
+    const ambient = created.find(s => s.key === 'map-0-ambient');
+    const combat  = created.find(s => s.key === 'map-0-combat');
+    expect(menu.isPlaying).toBe(false);
+    expect(ambient.isPlaying).toBe(true);
+    expect(combat.isPlaying).toBe(true);
+    expect(am._music.ambient).toBe(ambient);
+    expect(am._music.combat).toBe(combat);
   });
 
   it('setCombatActive(true) fades combat to musicVol over 1500ms', () => {
@@ -269,5 +301,37 @@ describe('AudioManager music — missing keys', () => {
     expect(am._music.boss).toBeNull();
 
     warnSpy.mockRestore();
+  });
+});
+
+describe('AudioManager.loadAssets', () => {
+  it('loads music keys as [ogg, mp3] fallback list', () => {
+    const loadAudioSpy = vi.fn();
+    const scene = { load: { audio: loadAudioSpy } };
+    const am = new AudioManager(makeGame(), new SaveManager());
+    am.loadAssets(scene);
+    expect(loadAudioSpy).toHaveBeenCalledWith(
+      'map-0-ambient',
+      ['audio/music/map-0-ambient.ogg', 'audio/music/map-0-ambient.mp3'],
+    );
+    expect(loadAudioSpy).toHaveBeenCalledWith(
+      'boss-final',
+      ['audio/music/boss-final.ogg', 'audio/music/boss-final.mp3'],
+    );
+  });
+
+  it('loads sfx keys as [ogg, mp3] fallback list', () => {
+    const loadAudioSpy = vi.fn();
+    const scene = { load: { audio: loadAudioSpy } };
+    const am = new AudioManager(makeGame(), new SaveManager());
+    am.loadAssets(scene);
+    expect(loadAudioSpy).toHaveBeenCalledWith(
+      'tower-fire-cannon',
+      ['audio/sfx/tower-fire-cannon.ogg', 'audio/sfx/tower-fire-cannon.mp3'],
+    );
+    expect(loadAudioSpy).toHaveBeenCalledWith(
+      'ui-click',
+      ['audio/sfx/ui-click.ogg', 'audio/sfx/ui-click.mp3'],
+    );
   });
 });
