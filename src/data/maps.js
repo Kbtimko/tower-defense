@@ -4,7 +4,7 @@ export const MAPS = [
     name: 'Outpost Sigma',
     background: 0x1a2e1a,
     pathColor: 0x7a6040,
-    waypoints: [[0,.32],[.13,.36],[.2,.52],[.17,.7],[.32,.77],[.47,.68],[.49,.47],[.6,.33],[.74,.38],[.8,.56],[.9,.62],[1,.6]],
+    waypoints: [[0,.40],[.12,.37],[.25,.42],[.21,.61],[.34,.77],[.50,.78],[.58,.63],[.55,.47],[.70,.50],[.82,.55],[.92,.47],[1,.50]],
     startGold: 200,
     startLives: 25,
     unlockCost: 0,
@@ -14,7 +14,8 @@ export const MAPS = [
     blurb: "Earth's last forward base. Hold the line or lose everything.",
     backgroundImage: 'map_0_outpost_sigma.png',
     pathRenderStyle: 'planet-dust',
-    blockerVocab: ['crater', 'rocks'],
+    // No procedural blockers — the painted backdrop already has craters/rock mounds.
+    blockerVocab: [],
     blockerSeed: 7341,
     ambientFx: { family: 'dust', seed: 7341 },
     towerSlots: [

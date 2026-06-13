@@ -31,9 +31,10 @@ describe('MAPS', () => {
       expect(PATH_STYLES).toContain(map.pathRenderStyle);
     });
 
-    it(`map ${map.id} blockerVocab is a non-empty array of supported types`, () => {
+    it(`map ${map.id} blockerVocab is an array of supported types (may be empty)`, () => {
       expect(Array.isArray(map.blockerVocab)).toBe(true);
-      expect(map.blockerVocab.length).toBeGreaterThan(0);
+      // An empty vocab is valid — the map opts out of procedural blockers
+      // (e.g. map 0, whose painted backdrop already has craters/rock mounds).
       for (const v of map.blockerVocab) {
         expect(typeof v).toBe('string');
         expect(VALID_BLOCKER_VOCAB).toContain(v);
