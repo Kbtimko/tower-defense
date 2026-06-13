@@ -41,6 +41,19 @@ describe('MAPS', () => {
       }
     });
 
+    it(`map ${map.id} blockers (if present) are valid fixed placements`, () => {
+      if (map.blockers === undefined) return; // optional field
+      expect(Array.isArray(map.blockers)).toBe(true);
+      for (const b of map.blockers) {
+        expect(VALID_BLOCKER_VOCAB).toContain(b.type);
+        expect(b.x).toBeGreaterThanOrEqual(0);
+        expect(b.x).toBeLessThanOrEqual(1);
+        expect(b.y).toBeGreaterThanOrEqual(0);
+        expect(b.y).toBeLessThanOrEqual(1);
+        if (b.scale !== undefined) expect(b.scale).toBeGreaterThan(0);
+      }
+    });
+
     it(`map ${map.id} blockerSeed is a number`, () => {
       expect(typeof map.blockerSeed).toBe('number');
       expect(Number.isFinite(map.blockerSeed)).toBe(true);

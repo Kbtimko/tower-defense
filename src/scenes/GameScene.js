@@ -1233,6 +1233,16 @@ export default class GameScene extends Phaser.Scene {
       type.draw(g, p.x, p.y, p.scale, tint);
     }
 
+    // Explicit per-map blockers at fixed normalized positions — pinch-point
+    // mounds that channel the single path on open terrain. Same vocab as the
+    // auto-placements, but hand-authored coords ({ type, x, y, scale? }).
+    const { width, height } = this.scale;
+    for (const b of map.blockers ?? []) {
+      const type = BLOCKER_TYPES[b.type];
+      if (!type) continue;
+      type.draw(g, b.x * width, b.y * height, b.scale ?? 1, type.defaultTint(map.id));
+    }
+
     // Platforms
     renderPlatforms(g, this.pathMgr.buildZones, map.id);
 
