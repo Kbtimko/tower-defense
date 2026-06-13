@@ -2,14 +2,10 @@ import Phaser from 'phaser';
 import { MAPS } from '../data/maps.js';
 import { SaveManager } from '../systems/SaveManager.js';
 import { starsDisplay } from '../utils/display.js';
-import { UpgradeManager }     from '../systems/UpgradeManager.js';
-import { UpgradeTreeOverlay } from '../ui/UpgradeTreeOverlay.js';
-import { SettingsOverlay }     from '../ui/SettingsOverlay.js';
-import { HEROES, HERO_ORDER } from '../data/heroes.js';
-
-function toCssColor(hex) {
-  return '#' + ('000000' + hex.toString(16)).slice(-6);
-}
+import { UpgradeManager }         from '../systems/UpgradeManager.js';
+import { UpgradeTreeOverlay }     from '../ui/UpgradeTreeOverlay.js';
+import { SettingsOverlay }        from '../ui/SettingsOverlay.js';
+import { HeroManagementOverlay }  from '../ui/HeroManagementOverlay.js';
 
 export default class MapSelectScene extends Phaser.Scene {
   constructor() { super('MapSelectScene'); }
@@ -20,11 +16,11 @@ export default class MapSelectScene extends Phaser.Scene {
     const container = document.getElementById('map-select');
     container.style.display = 'flex';
 
-    this._saveMgr = new SaveManager();
+    this._saveMgr    = new SaveManager();
     this._upgradeMgr = new UpgradeManager(this._saveMgr);
     this._overlay    = new UpgradeTreeOverlay(this._upgradeMgr);
+    this._heroOverlay = new HeroManagementOverlay(this._upgradeMgr, this._saveMgr);
 
-    // Default to highest unlocked map
     let defaultId = 0;
     for (let i = MAPS.length - 1; i >= 0; i--) {
       if (this._saveMgr.isUnlocked(i)) { defaultId = i; break; }
@@ -36,8 +32,8 @@ export default class MapSelectScene extends Phaser.Scene {
     this._bindPlay();
     this._renderMetaBar();
     this._renderStats();
-    this._renderHeroPicker();
     this._bindUpgrades();
+    this._bindHeroes();
     this._bindSettings();
 
     const am = this.game.registry.get('audio');
@@ -93,9 +89,9 @@ export default class MapSelectScene extends Phaser.Scene {
   }
 
   _bindPlay() {
-    // Clone removes any prior event listener before re-adding
+    // Clone removes any prior event listener before re-adding (across scene re-entries).
     const old = document.getElementById('featured-play');
-    const btn  = old.cloneNode(true);
+    const btn = old.cloneNode(true);
     old.replaceWith(btn);
     btn.addEventListener('click', () => {
       this.scene.start('GameScene', {
@@ -136,51 +132,20 @@ export default class MapSelectScene extends Phaser.Scene {
     }
   }
 
-  _renderHeroPicker() {
-    const host = document.getElementById('hero-picker-cards');
-    if (!host) return;
-    host.replaceChildren();
-    let selected = this._saveMgr.getSelectedHero();
-    if (!this._saveMgr.isHeroUnlocked(selected)) {
-      this._saveMgr.setSelectedHero('rael');
-      selected = 'rael';
-    }
-    for (const heroId of HERO_ORDER) {
-      const def      = HEROES[heroId];
-      const unlocked = this._saveMgr.isHeroUnlocked(heroId);
-      const card     = document.createElement('div');
-      card.className = 'hero-card' + (unlocked ? '' : ' locked') + (heroId === selected ? ' active' : '');
-
-      const portrait = document.createElement('div');
-      portrait.className   = 'hero-card-portrait';
-      portrait.style.background = toCssColor(def.bodyColor);
-      portrait.style.border     = `2px solid ${toCssColor(def.strokeColor)}`;
-      portrait.textContent = unlocked ? def.portraitChar : '🔒';
-      if (unlocked) portrait.style.color = toCssColor(def.strokeColor);
-
-      const name = document.createElement('div');
-      name.className   = 'hero-card-name';
-      name.textContent = def.shortName;
-
-      card.append(portrait, name);
-      if (unlocked) {
-        card.addEventListener('click', () => {
-          this._saveMgr.setSelectedHero(heroId);
-          this._renderHeroPicker();
-        });
-      } else if (def.unlockMapAfter != null) {
-        card.title = `Clear Map ${def.unlockMapAfter + 1} to unlock ${def.displayName}`;
-      }
-      host.appendChild(card);
-    }
-  }
-
   _bindUpgrades() {
     // Clone removes any prior listener before re-adding (matches _bindPlay).
     const old = document.getElementById('open-upgrades');
     const btn = old.cloneNode(true);
     old.replaceWith(btn);
     btn.addEventListener('click', () => this._overlay.open());
+  }
+
+  _bindHeroes() {
+    // Clone removes any prior listener before re-adding (matches _bindUpgrades).
+    const old = document.getElementById('open-heroes');
+    const btn = old.cloneNode(true);
+    old.replaceWith(btn);
+    btn.addEventListener('click', () => this._heroOverlay.open());
   }
 
   _bindSettings() {
@@ -197,8 +162,11 @@ export default class MapSelectScene extends Phaser.Scene {
   }
 
   shutdown() {
-    document.getElementById('map-select').style.display       = 'none';
-    document.getElementById('upgrade-overlay').style.display  = 'none';
-    document.getElementById('settings-overlay').style.display = 'none';
+    // Call close() on overlays so their event listeners are torn down before the
+    // DOM persists into the next scene. Direct style mutation would leak listeners.
+    if (this._heroOverlay) this._heroOverlay.close();
+    document.getElementById('map-select').style.display          = 'none';
+    document.getElementById('upgrade-overlay').style.display     = 'none';
+    document.getElementById('settings-overlay').style.display    = 'none';
   }
 }

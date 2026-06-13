@@ -53,3 +53,19 @@ describe('HEROES registry contract', () => {
     });
   }
 });
+
+describe('HEROES role field', () => {
+  it('each hero in HERO_ORDER has a non-empty role string', () => {
+    for (const id of HERO_ORDER) {
+      expect(typeof HEROES[id].role, `${id}.role`).toBe('string');
+      expect(HEROES[id].role.length, `${id}.role length`).toBeGreaterThan(0);
+    }
+  });
+
+  it('role values match the canonical strings from the spec', () => {
+    expect(HEROES.rael.role).toBe('Generalist bruiser');
+    expect(HEROES.engineer.role).toBe('Support / builder');
+    expect(HEROES.scout.role).toBe('Ranged DPS / anti-air');
+    expect(HEROES.pyro.role).toBe('AoE / burn');
+  });
+});

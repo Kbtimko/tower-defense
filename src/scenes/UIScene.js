@@ -145,6 +145,11 @@ export default class UIScene extends Phaser.Scene {
     // Keyboard shortcuts
     this._onKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.key === ' ') {
+        e.preventDefault();
+        this.game.events.emit('ui:pause-toggle');
+        return;
+      }
       const key = e.key.toLowerCase();
       if (['q', 'w', 'e'].includes(key)) {
         this.game.events.emit('ui:ability', { slot: key });

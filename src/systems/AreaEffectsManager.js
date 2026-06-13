@@ -19,7 +19,7 @@ export class AreaEffectsManager {
     for (let i = this._effects.length - 1; i >= 0; i--) {
       const eff = this._effects[i];
       eff._remaining -= dt;
-      if (eff._remaining <= 0) {
+      if (eff._remaining <= 0 || eff.followsTarget?.dead) {
         eff._g.destroy();
         this._effects.splice(i, 1);
         continue;

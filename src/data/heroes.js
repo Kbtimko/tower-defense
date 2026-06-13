@@ -12,6 +12,7 @@ export const HEROES = {
     strokeColor:     0x4fc3f7,
     unlockMapAfter:  null,
     upgradeBranchId: 'rael',
+    role:            'Generalist bruiser',
     stats: {
       maxHp: 150, moveSpeed: 130, attackRange: 40,
       attackRate: 1.5, attackDamage: 18, respawnTime: 20,
@@ -42,6 +43,7 @@ export const HEROES = {
     strokeColor:     0xff9933,
     unlockMapAfter:  2,
     upgradeBranchId: 'engineer',
+    role:            'Support / builder',
     stats: {
       maxHp: 95, moveSpeed: 110, attackRange: 60,
       attackRate: 1.2, attackDamage: 12, respawnTime: 20,
@@ -90,6 +92,7 @@ export const HEROES = {
     strokeColor:     0x3fb950,
     unlockMapAfter:  4,
     upgradeBranchId: 'scout',
+    role:            'Ranged DPS / anti-air',
     stats: {
       maxHp: 80, moveSpeed: 150, attackRange: 140,
       attackRate: 2.0, attackDamage: 14, respawnTime: 18,
@@ -126,6 +129,7 @@ export const HEROES = {
     strokeColor:     0xe74c3c,
     unlockMapAfter:  6,
     upgradeBranchId: 'pyro',
+    role:            'AoE / burn',
     stats: {
       maxHp: 130, moveSpeed: 115, attackRange: 45,
       attackRate: 1.0, attackDamage: 14, respawnTime: 22,

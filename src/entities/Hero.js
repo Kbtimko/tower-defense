@@ -32,11 +32,12 @@ export class Hero extends Phaser.GameObjects.Container {
     this.targetProgress = 0;
 
     // Hero-roster mutable state: facing, speed/damage mults, cloak.
-    this._facingX          = 1;
-    this._moveSpeedMult    = 1.0;
-    this._attackDamageMult = 1.0;
-    this.cloaked           = false;
-    this._cloakTimer       = 0;
+    this._facingX            = 1;
+    this._moveSpeedMult      = 1.0;
+    this._attackDamageMult   = 1.0;
+    this._attackDmgRevertEvt = null;
+    this.cloaked             = false;
+    this._cloakTimer         = 0;
 
     this._timers = { q: 0, w: 0, e: 0 };
     this.overchargeActive    = false;
@@ -104,6 +105,11 @@ export class Hero extends Phaser.GameObjects.Container {
       this.respawnTimer = this._respawnTime;
       this._body.setVisible(false);
       this._hpBar.clear();
+      this._attackDamageMult = 1.0;
+      if (this._attackDmgRevertEvt) {
+        this._attackDmgRevertEvt.remove(false);
+        this._attackDmgRevertEvt = null;
+      }
       const am = this.scene.game?.registry?.get('audio');
       if (am) am.playSfx('hero-death');
     }
@@ -118,9 +124,10 @@ export class Hero extends Phaser.GameObjects.Container {
     this.moving            = false;
     this.cloaked           = false;
     this._cloakTimer       = 0;
-    this._moveSpeedMult    = 1.0;
-    this._attackDamageMult = 1.0;
-    this._attackTimer      = 1 / this.def.stats.attackRate;
+    this._moveSpeedMult      = 1.0;
+    this._attackDamageMult   = 1.0;
+    this._attackDmgRevertEvt = null;
+    this._attackTimer        = 1 / this.def.stats.attackRate;
     this.setPathPosition(0);
     this._body.setVisible(true);
     this._redrawHpBar();
