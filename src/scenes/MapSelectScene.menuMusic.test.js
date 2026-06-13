@@ -8,12 +8,46 @@ import MapSelectScene from './MapSelectScene.js';
 
 function setupDom() {
   document.body.replaceChildren();
-  const ids = [
-    'map-select', 'map-sidebar', 'featured-name', 'featured-stars',
-    'featured-blurb', 'featured-tier', 'featured-play', 'total-stars',
-    'lifetime-stats', 'hero-picker-cards', 'open-upgrades', 'open-settings',
-  ];
-  for (const id of ids) {
+
+  const root = document.createElement('div');
+  root.id = 'map-select';
+  document.body.appendChild(root);
+
+  const metaBar = document.createElement('div');
+  metaBar.id = 'map-meta-bar';
+  const totalStars = document.createElement('span');
+  totalStars.id = 'total-stars';
+  metaBar.appendChild(totalStars);
+  for (const id of ['open-upgrades', 'open-heroes', 'open-settings']) {
+    const btn = document.createElement('button');
+    btn.id = id;
+    metaBar.appendChild(btn);
+  }
+  document.body.appendChild(metaBar);
+
+  const sidebar = document.createElement('div');
+  sidebar.id = 'map-sidebar';
+  document.body.appendChild(sidebar);
+  for (const id of ['featured-name', 'featured-stars', 'featured-blurb', 'featured-tier', 'featured-play']) {
+    const el = document.createElement(id === 'featured-play' ? 'button' : 'div');
+    el.id = id;
+    document.body.appendChild(el);
+  }
+  const stats = document.createElement('div');
+  stats.id = 'lifetime-stats';
+  document.body.appendChild(stats);
+
+  // Overlays (constructors cache refs) + their sub-elements
+  for (const ovId of ['upgrade-overlay', 'hero-mgmt-overlay', 'settings-overlay']) {
+    const ov = document.createElement('div');
+    ov.id = ovId;
+    ov.style.display = 'none';
+    document.body.appendChild(ov);
+  }
+  for (const id of [
+    'upgrade-tree', 'upgrade-available', 'upgrade-close',
+    'hero-rail', 'hero-tree', 'hero-mgmt-avail', 'hero-mgmt-close',
+  ]) {
     const el = document.createElement('div');
     el.id = id;
     document.body.appendChild(el);

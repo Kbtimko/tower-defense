@@ -68,6 +68,7 @@ describe('MapSelectScene heroes-overlay integration', () => {
 
   it('does NOT render the old #hero-picker block', () => {
     const scene = new MapSelectScene();
+    scene.game = { registry: new Map() };
     scene.create();
     expect(document.getElementById('hero-picker')).toBeNull();
     expect(document.querySelectorAll('.hero-card').length).toBe(0);
@@ -75,6 +76,7 @@ describe('MapSelectScene heroes-overlay integration', () => {
 
   it('clicking #open-heroes opens the Hero Management overlay', () => {
     const scene = new MapSelectScene();
+    scene.game = { registry: new Map() };
     scene.create();
     document.getElementById('open-heroes').click();
     expect(document.getElementById('hero-mgmt-overlay').style.display).toBe('flex');
@@ -82,6 +84,7 @@ describe('MapSelectScene heroes-overlay integration', () => {
 
   it('shutdown() hides #hero-mgmt-overlay along with the others', () => {
     const scene = new MapSelectScene();
+    scene.game = { registry: new Map() };
     scene.create();
     document.getElementById('open-heroes').click();
     scene.shutdown();
@@ -95,6 +98,7 @@ describe('MapSelectScene heroes-overlay integration', () => {
     save.setStars(2, 1);            // unlock Engineer
     save.setSelectedHero('engineer');
     const scene = new MapSelectScene();
+    scene.game = { registry: new Map() };
     // Stub scene.start to capture launch args
     scene.scene = { start: vi.fn() };
     scene.create();
