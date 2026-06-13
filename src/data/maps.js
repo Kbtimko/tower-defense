@@ -16,6 +16,7 @@ export const MAPS = [
     pathRenderStyle: 'planet-dust',
     blockerVocab: ['crater', 'rocks'],
     blockerSeed: 7341,
+    ambientFx: { family: 'dust', seed: 7341 },
     towerSlots: [
       [0.09, 0.52], [0.31, 0.55], [0.33, 0.92],
       [0.60, 0.84], [0.67, 0.52], [0.89, 0.42],
@@ -38,6 +39,7 @@ export const MAPS = [
     pathRenderStyle: 'planet-dust',
     blockerVocab: ['crater', 'rocks'],
     blockerSeed: 4291,
+    ambientFx: { family: 'dust', seed: 4291 },
     towerSlots: [
       [0.10, 0.46], [0.29, 0.52], [0.31, 0.90],
       [0.52, 0.80], [0.56, 0.56], [0.72, 0.26],
@@ -61,6 +63,7 @@ export const MAPS = [
     pathRenderStyle: 'planet-dust',
     blockerVocab: ['crater', 'rocks'],
     blockerSeed: 5582,
+    ambientFx: { family: 'dust', seed: 5582 },
     towerSlots: [
       [0.10, 0.28], [0.10, 0.72], [0.30, 0.34],
       [0.33, 0.88], [0.55, 0.85], [0.74, 0.66],
@@ -84,6 +87,7 @@ export const MAPS = [
     pathRenderStyle: 'station-strip',
     blockerVocab: ['metal_bulkhead'],
     blockerSeed: 9182,
+    ambientFx: { family: 'electrical', seed: 9182 },
     towerSlots: [
       [0.10, 0.55], [0.20, 0.42], [0.22, 0.72],
       [0.40, 0.82], [0.50, 0.50], [0.60, 0.80],
@@ -107,6 +111,7 @@ export const MAPS = [
     pathRenderStyle: 'space-nav',
     blockerVocab: ['asteroid'],
     blockerSeed: 6453,
+    ambientFx: { family: 'stars', seed: 6453 },
     towerSlots: [
       [0.10, 0.62], [0.28, 0.38], [0.31, 0.90],
       [0.45, 0.84], [0.52, 0.60], [0.60, 0.86],
@@ -131,6 +136,7 @@ export const MAPS = [
     pathRenderStyle: 'planet-dust',
     blockerVocab: ['rocks', 'organic_spire'],
     blockerSeed: 1709,
+    ambientFx: { family: 'dust', seed: 1709 },
     towerSlots: [
       [0.08, 0.62], [0.26, 0.40], [0.30, 0.90],
       [0.42, 0.86], [0.50, 0.62], [0.58, 0.86],
@@ -155,6 +161,7 @@ export const MAPS = [
     pathRenderStyle: 'station-strip',
     blockerVocab: ['metal_bulkhead'],
     blockerSeed: 8924,
+    ambientFx: { family: 'electrical', seed: 8924 },
     towerSlots: [
       [0.08, 0.50], [0.10, 0.72], [0.26, 0.38],
       [0.30, 0.88], [0.42, 0.84], [0.50, 0.60],
@@ -179,6 +186,7 @@ export const MAPS = [
     pathRenderStyle: 'space-nav',
     blockerVocab: ['asteroid'],
     blockerSeed: 3217,
+    ambientFx: { family: 'stars', seed: 3217 },
     towerSlots: [
       [0.08, 0.60], [0.12, 0.80], [0.24, 0.38],
       [0.30, 0.88], [0.40, 0.82], [0.48, 0.60],
@@ -204,6 +212,7 @@ export const MAPS = [
     pathRenderStyle: 'organic-glow',
     blockerVocab: ['organic_spire', 'glowing_pool'],
     blockerSeed: 4827,
+    ambientFx: { family: 'bio-pulse', seed: 4827 },
     towerSlots: [
       [0.08, 0.66], [0.10, 0.40], [0.26, 0.42],
       [0.30, 0.88], [0.40, 0.84], [0.48, 0.62],
@@ -229,6 +238,7 @@ export const MAPS = [
     pathRenderStyle: 'planet-dust',
     blockerVocab: ['rocks', 'glowing_pool'],
     blockerSeed: 6391,
+    ambientFx: { family: 'embers', seed: 6391 },
     towerSlots: [
       [0.07, 0.58], [0.10, 0.32], [0.24, 0.40],
       [0.28, 0.86], [0.38, 0.82], [0.46, 0.62],
