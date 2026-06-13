@@ -2,14 +2,16 @@ import Phaser from 'phaser';
 import { TOWER_DEFS } from '../data/towers.js';
 
 export class Tower extends Phaser.GameObjects.Container {
-  constructor(scene, { type, x, y, def, zoneIndex }) {
+  constructor(scene, { type, x, y, def, zoneIndex, modifiers = {} }) {
     super(scene, x, y);
 
+    this._rangeMult   = modifiers.towerRangeMult  ?? 1;
+    this._damageMult  = modifiers.towerDamageMult ?? 1;
     this.type         = type;
     this.level        = 1;
     this.branch       = null;
-    this.damage       = def.damage;
-    this.range        = def.range;
+    this.damage       = Math.round(def.damage * this._damageMult);
+    this.range        = Math.round(def.range  * this._rangeMult);
     this.fireRate     = def.fireRate;
     this.splashRadius = def.splashRadius;
     this.pierce       = def.pierce;
@@ -44,12 +46,13 @@ export class Tower extends Phaser.GameObjects.Container {
   }
 
   upgrade(tier, branch = null) {
-    const tierDef = TOWER_DEFS[this.type]['tier' + tier];
+    const key     = tier === 4 && branch ? `tier4${branch}` : `tier${tier}`;
+    const tierDef = TOWER_DEFS[this.type][key];
     if (!tierDef) return;
     this.level = tier;
     if (branch)                             this.branch       = branch;
-    if (tierDef.damage       !== undefined) this.damage       = tierDef.damage;
-    if (tierDef.range        !== undefined) this.range        = tierDef.range;
+    if (tierDef.damage       !== undefined) this.damage       = Math.round(tierDef.damage * this._damageMult);
+    if (tierDef.range        !== undefined) this.range        = Math.round(tierDef.range  * this._rangeMult);
     if (tierDef.splashRadius !== undefined) this.splashRadius = tierDef.splashRadius;
     if (tierDef.slow         !== undefined) this.slow         = tierDef.slow;
     if (tierDef.fireRate     !== undefined) this.fireRate     = tierDef.fireRate;

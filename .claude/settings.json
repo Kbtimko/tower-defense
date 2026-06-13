@@ -18,7 +18,18 @@
       "Bash(mkdir -p /Users/keithtimko/.config/superpowers/worktrees/tower-defense)",
       "Bash(git -C /Users/keithtimko/projects/tower-defense worktree add /Users/keithtimko/.config/superpowers/worktrees/tower-defense/feature/phase-3-tower-system -b feature/phase-3-tower-system)",
       "Bash(cd /Users/keithtimko/.config/superpowers/worktrees/tower-defense/feature/phase-3-tower-system && npm test 2>&1)",
-      "Read(//Users/keithtimko/.config/superpowers/worktrees/tower-defense/feature/phase-3-tower-system/**)"
+      "Read(//Users/keithtimko/.config/superpowers/worktrees/tower-defense/feature/phase-3-tower-system/**)",
+      "mcp__plugin_playwright_playwright__browser_snapshot",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__plugin_playwright_playwright__browser_take_screenshot",
+      "mcp__plugin_playwright_playwright__browser_console_messages",
+      "mcp__plugin_vercel_vercel__get_runtime_logs",
+      "mcp__plugin_vercel_vercel__list_deployments",
+      "Bash(npx tsc --noEmit *)",
+      "Bash(git fetch *)",
+      "Bash(vercel env ls *)",
+      "Bash(claude plugin list *)",
+      "Bash(claude plugin marketplace list *)"
     ],
     "additionalDirectories": [
       "/Users/keithtimko/.config/superpowers/worktrees/tower-defense/feature/phase-2-core-engine/src"

@@ -1,13 +1,19 @@
 import Phaser from 'phaser';
 import { TOWER_DEFS } from '../data/towers.js';
 import { MAPS } from '../data/maps.js';
+import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
+import { ENEMY_DEFS } from '../data/enemies.js';
 
 export default class UIScene extends Phaser.Scene {
   constructor() { super('UIScene'); }
 
   create() {
+    this.events.on('shutdown', this.shutdown, this);
+
     this._selectedType = null;
     this._speedFast    = false;
+    this._openTower    = null;
+    this._onKeyDown    = null;
 
     document.getElementById('hud').style.display        = 'flex';
     document.getElementById('bottom-bar').style.display = 'flex';
@@ -30,6 +36,9 @@ export default class UIScene extends Phaser.Scene {
         currentWave: gs.waveMgr.currentWave,
       });
     }
+    if (gs && gs.hero?.def) {
+      this._onHeroHudInit({ heroId: gs.heroId, def: gs.hero.def });
+    }
   }
 
   shutdown() {
@@ -42,8 +51,16 @@ export default class UIScene extends Phaser.Scene {
     this.game.events.off('tower:panel-close', this._onPanelClose, this);
     this.game.events.off('game:victory',      this._onVictory,    this);
     this.game.events.off('game:defeat',       this._onDefeat,     this);
+    this.game.events.off('ui:barracks-reposition', this._onBarracksReposition, this);
+    this.game.events.off('hero:hud-init',      this._onHeroHudInit,       this);
+    this.game.events.off('hero:update',        this._onHeroUpdate,        this);
+    this.game.events.off('hero:level-up',      this._onHeroLevelUp,       this);
+    this.game.events.off('hero:aim-mode',      this._onHeroAimMode,       this);
+    this.game.events.off('hero:aim-cancel',    this._onHeroAimCancel,     this);
+    this.game.events.off('hero:cooldown-tick', this._onHeroCooldownTick,  this);
+    if (this._onKeyDown) document.removeEventListener('keydown', this._onKeyDown);
 
-    ['wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn'].forEach(id => {
+    ['wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','panel-reposition-btn','ability-q','ability-w','ability-e'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.replaceWith(el.cloneNode(true));
     });
@@ -65,6 +82,45 @@ export default class UIScene extends Phaser.Scene {
           this.game.events.emit('ui:tower-type-select', { type });
         }
       });
+
+      btn.addEventListener('mouseenter', () => {
+        const type = btn.dataset.type;
+        const def  = TOWER_DEFS[type];
+        if (!def) return;
+        const m = describeMatchups({ kind: 'tower', type, tier: 1, branch: null });
+        const renderEnemyNames = (types) =>
+          types.map(t => (ENEMY_DEFS[t]?.name ?? t).replace(/^Veth\s+/, '')).join(', ');
+        const tt = document.getElementById('tower-tooltip');
+        tt.replaceChildren();
+        const header = document.createElement('strong');
+        header.textContent = `${def.icon} ${def.name} — ${def.cost}g`;
+        tt.appendChild(header);
+        if (m.effective.length) {
+          const line = document.createElement('span');
+          line.className = 'tt-line-good';
+          line.textContent = `Effective vs: ${renderEnemyNames(m.effective)}`;
+          tt.appendChild(line);
+        }
+        if (m.weak.length) {
+          const line = document.createElement('span');
+          line.className = 'tt-line-bad';
+          line.textContent = `Weak vs: ${renderEnemyNames(m.weak)}`;
+          tt.appendChild(line);
+        }
+        const rect = btn.getBoundingClientRect();
+        tt.style.left = `${rect.left}px`;
+        tt.style.top  = `${rect.top - tt.offsetHeight - 6}px`;
+        tt.style.display = 'block';
+        // After display:block, offsetHeight is now real; reposition once.
+        requestAnimationFrame(() => {
+          tt.style.top = `${rect.top - tt.offsetHeight - 6}px`;
+        });
+      });
+
+      btn.addEventListener('mouseleave', () => {
+        const tt = document.getElementById('tower-tooltip');
+        tt.style.display = 'none';
+      });
     });
 
     document.getElementById('wave-btn').addEventListener('click',
@@ -77,12 +133,39 @@ export default class UIScene extends Phaser.Scene {
       () => this.game.events.emit('ui:tower-sell'));
     document.getElementById('msg-btn').addEventListener('click',
       () => this.game.events.emit('ui:restart'));
+    document.getElementById('panel-reposition-btn').addEventListener('click',
+      () => this.game.events.emit('ui:barracks-reposition'));
+
+    // Ability button clicks
+    ['q', 'w', 'e'].forEach(slot => {
+      const btn = document.getElementById('ability-' + slot);
+      if (btn) btn.addEventListener('click', () => this.game.events.emit('ui:ability', { slot }));
+    });
+
+    // Keyboard shortcuts
+    this._onKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.key === ' ') {
+        e.preventDefault();
+        this.game.events.emit('ui:pause-toggle');
+        return;
+      }
+      const key = e.key.toLowerCase();
+      if (['q', 'w', 'e'].includes(key)) {
+        this.game.events.emit('ui:ability', { slot: key });
+      }
+    };
+    document.addEventListener('keydown', this._onKeyDown);
   }
 
   _onSpeedToggle() {
     this._speedFast = !this._speedFast;
     document.getElementById('speed-btn').textContent = this._speedFast ? '⏸ 1x' : '⏩ 2x';
     this.game.events.emit('ui:speed-toggle');
+  }
+
+  _onBarracksReposition() {
+    document.getElementById('tower-panel').style.display = 'none';
   }
 
   _subscribeToGameEvents() {
@@ -92,6 +175,13 @@ export default class UIScene extends Phaser.Scene {
     this.game.events.on('tower:panel-close', this._onPanelClose, this);
     this.game.events.on('game:victory',      this._onVictory,    this);
     this.game.events.on('game:defeat',       this._onDefeat,     this);
+    this.game.events.on('ui:barracks-reposition', this._onBarracksReposition, this);
+    this.game.events.on('hero:hud-init',      this._onHeroHudInit,       this);
+    this.game.events.on('hero:update',        this._onHeroUpdate,        this);
+    this.game.events.on('hero:level-up',      this._onHeroLevelUp,       this);
+    this.game.events.on('hero:aim-mode',      this._onHeroAimMode,       this);
+    this.game.events.on('hero:aim-cancel',    this._onHeroAimCancel,     this);
+    this.game.events.on('hero:cooldown-tick', this._onHeroCooldownTick,  this);
   }
 
   _onHudUpdate({ gold, lives, wave, waveCount, kills }) {
@@ -118,28 +208,48 @@ export default class UIScene extends Phaser.Scene {
   }
 
   _onPanelOpen({ tower, def, x, y, mapId }) {
+    this._openTower = tower;
     const map = MAPS[mapId];
-    document.getElementById('panel-name').textContent = def.icon + ' ' + def.name;
-    document.getElementById('panel-dmg').textContent  = 'Damage: ' + tower.damage;
-    document.getElementById('panel-rng').textContent  = 'Range: ' + tower.range;
-    document.getElementById('panel-spd').textContent  = 'Fire rate: ' + (tower.fireRate * 100).toFixed(0) + '%';
+
+    const branchLabel = tower.branch ? ` · ${def['tier4' + tower.branch]?.label ?? ''}` : '';
+    document.getElementById('panel-name').textContent = def.icon + ' ' + def.name + branchLabel;
     document.getElementById('panel-lvl').textContent  = 'Level: ' + tower.level + '/4';
 
-    const upgradeBtn = document.getElementById('panel-upgrade-btn');
-    const nextLevel  = tower.level + 1;
-    if (tower.level >= 4) {
-      upgradeBtn.textContent = 'MAX LEVEL';
-      upgradeBtn.className   = 'upgrade-btn maxed';
-    } else if (nextLevel > map.maxTierAllowed) {
-      const unlockMap = map.maxTierAllowed < 2 ? 3 : 5;
-      upgradeBtn.textContent = `🔒 Unlocked on Map ${unlockMap}`;
-      upgradeBtn.className   = 'upgrade-btn maxed';
+    if (tower.type === 'barracks') {
+      document.getElementById('panel-std-stats').style.display      = 'none';
+      document.getElementById('panel-barracks-stats').style.display = 'block';
+      const ss = tower.soldierStats;
+      document.getElementById('panel-soldier-count').textContent   = ss.count;
+      document.getElementById('panel-soldier-hp').textContent      = ss.hp;
+      document.getElementById('panel-soldier-dmg').textContent     = ss.damage;
+      document.getElementById('panel-soldier-respawn').textContent = ss.respawnDuration;
+      document.getElementById('panel-soldier-blocks').textContent  = ss.canBlockFlyers ? 'Ground + Air' : 'Ground';
+      document.getElementById('panel-reposition-btn').style.display = 'block';
     } else {
-      const tierDef = def['tier' + nextLevel];
-      upgradeBtn.textContent = `Upgrade 💰${tierDef.cost}: ${tierDef.label}`;
-      upgradeBtn.className   = 'upgrade-btn';
+      document.getElementById('panel-std-stats').style.display      = 'block';
+      document.getElementById('panel-barracks-stats').style.display = 'none';
+      document.getElementById('panel-reposition-btn').style.display = 'none';
+      document.getElementById('panel-dmg').textContent = 'Damage: '    + tower.damage;
+      document.getElementById('panel-rng').textContent = 'Range: '     + tower.range;
+      document.getElementById('panel-spd').textContent = 'Fire rate: ' + (tower.fireRate * 100).toFixed(0) + '%';
     }
-    document.getElementById('panel-sell-btn').textContent = `💰 Sell (${Math.floor(tower.totalCost * 0.6)}g)`;
+
+    const upgradeBtn = document.getElementById('panel-upgrade-btn');
+    const picker     = document.getElementById('panel-branch-picker');
+    picker.style.display = 'none';
+    picker.querySelector('.branch-cards').replaceChildren();
+    upgradeBtn.style.display = '';
+
+    if (tower.level === 3 && !tower.branch) {
+      upgradeBtn.style.display = 'none';
+      picker.style.display     = 'block';
+      this._renderBranchPicker(picker.querySelector('.branch-cards'), def, map);
+    } else {
+      this._setUpgradeButton(upgradeBtn, tower, def, map);
+    }
+
+    document.getElementById('panel-sell-btn').textContent =
+      '💰 Sell (' + Math.floor(tower.totalCost * 0.6) + 'g)';
 
     const gameRect = document.getElementById('game').getBoundingClientRect();
     const panel    = document.getElementById('tower-panel');
@@ -147,13 +257,82 @@ export default class UIScene extends Phaser.Scene {
     panel.style.top     = Math.min(y - 10, gameRect.height - 220) + 'px';
     panel.style.display = 'block';
 
-    // Deselect tower build buttons when panel opens
     this._selectedType = null;
     document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('selected'));
   }
 
+  _setUpgradeButton(btn, tower, def, map) {
+    const nextLevel = tower.level + 1;
+    if (tower.level >= 4) {
+      btn.disabled    = true;
+      btn.textContent = 'MAX LEVEL';
+      btn.className   = 'upgrade-btn maxed';
+    } else if (nextLevel > map.maxTierAllowed) {
+      const unlockMap = nextLevel <= 3 ? 3 : 5;
+      btn.disabled    = true;
+      btn.textContent = '🔒 Unlocked on Map ' + unlockMap;
+      btn.className   = 'upgrade-btn maxed';
+    } else {
+      btn.disabled    = false;
+      const tierDef   = def['tier' + nextLevel];
+      btn.textContent = 'Upgrade 💰' + tierDef.cost + ': ' + tierDef.label;
+      btn.className   = 'upgrade-btn';
+    }
+  }
+
+  _renderBranchPicker(container, def, map) {
+    const towerType = Object.keys(TOWER_DEFS).find(k => TOWER_DEFS[k] === def);
+    const tierLocked = map.maxTierAllowed < 4;
+    for (const [branch, tierDef] of [['A', def.tier4A], ['B', def.tier4B]]) {
+      const card = document.createElement('div');
+      card.className = tierLocked ? 'branch-card locked' : 'branch-card';
+
+      const label = document.createElement('div');
+      label.className   = 'branch-label';
+      label.textContent = tierDef.label;
+
+      const effect = document.createElement('div');
+      effect.className   = 'branch-effect';
+      effect.textContent = tierDef.passiveEffect;
+
+      card.append(label, effect);
+
+      const headline = headlineOverride(towerType, branch);
+      if (headline) {
+        const matchup = document.createElement('div');
+        matchup.className = 'branch-matchup';
+        matchup.textContent = `⚡ ${headline.value}× vs ${headline.name}`;
+        card.appendChild(matchup);
+      }
+
+      const cost = document.createElement('div');
+      cost.className   = 'branch-cost';
+      cost.textContent = tierDef.cost + 'g';
+
+      const btn = document.createElement('button');
+      btn.className   = 'upgrade-btn';
+      btn.textContent = 'Choose';
+      if (tierLocked) {
+        btn.disabled = true;
+        btn.title    = 'Unlocked on Map 5';
+      }
+      btn.addEventListener('click', () =>
+        this.game.events.emit('ui:tower-upgrade', { branch }));
+
+      card.append(cost, btn);
+      container.appendChild(card);
+    }
+  }
+
   _onPanelClose() {
-    document.getElementById('tower-panel').style.display = 'none';
+    document.getElementById('tower-panel').style.display          = 'none';
+    const picker = document.getElementById('panel-branch-picker');
+    picker.style.display = 'none';
+    picker.querySelector('.branch-cards').replaceChildren();
+    document.getElementById('panel-upgrade-btn').style.display    = '';
+    document.getElementById('panel-std-stats').style.display      = 'block';
+    document.getElementById('panel-barracks-stats').style.display = 'none';
+    document.getElementById('panel-reposition-btn').style.display = 'none';
   }
 
   _onVictory({ kills, waveCount }) {
@@ -167,4 +346,103 @@ export default class UIScene extends Phaser.Scene {
     document.getElementById('msg-body').textContent   = `The line did not hold. Wave ${wave}.`;
     document.getElementById('game-msg').style.display = 'block';
   }
+
+  toCssColor(hex) { return '#' + ('000000' + hex.toString(16)).slice(-6); }
+
+  _onHeroHudInit({ heroId, def }) {
+    this._heroDef = def;
+
+    const portrait = document.getElementById('hero-portrait');
+    if (portrait) {
+      portrait.textContent       = def.portraitChar;
+      portrait.style.background  = this.toCssColor(def.bodyColor);
+      portrait.style.borderColor = this.toCssColor(def.strokeColor);
+      portrait.style.color       = this.toCssColor(def.strokeColor);
+    }
+
+    const levelEl = document.getElementById('hero-level');
+    if (levelEl) levelEl.textContent = `${def.shortName} L1`;
+
+    const fill = document.getElementById('hero-hp-fill');
+    if (fill) fill.style.background = this.toCssColor(def.strokeColor);
+
+    for (const slot of ['q', 'w', 'e']) {
+      const a   = def.abilities[slot];
+      const btn = document.getElementById(`ability-${slot}`);
+      if (!btn) continue;
+      const keyEl  = btn.querySelector('.ability-key');
+      const nameEl = btn.querySelector('.ability-name');
+      if (keyEl)  keyEl.textContent  = slot.toUpperCase();
+      if (nameEl) nameEl.textContent = a.icon;
+      btn.title = `${a.label} — ${a.tooltip}`;
+      btn.classList.add('locked');
+      btn.disabled = true;
+    }
+  }
+
+  _onHeroUpdate({ hp, maxHp }) {
+    const fill = document.getElementById('hero-hp-fill');
+    if (fill) fill.style.width = ((hp / maxHp) * 100).toFixed(1) + '%';
+  }
+
+  _onHeroLevelUp({ level }) {
+    const name = this._heroDef?.shortName ?? 'Rael';
+    document.getElementById('hero-level').textContent = `${name} L${level}`;
+    if (level >= 1) {
+      const q = document.getElementById('ability-q');
+      if (q) { q.classList.remove('locked'); q.disabled = false; }
+    }
+    if (level >= 2) {
+      const w = document.getElementById('ability-w');
+      if (w) { w.classList.remove('locked'); w.disabled = false; }
+    }
+    if (level >= 3) {
+      const e = document.getElementById('ability-e');
+      if (e) { e.classList.remove('locked'); e.disabled = false; }
+    }
+  }
+
+  _onHeroAimMode() {
+    document.body.style.cursor = 'crosshair';
+    const w = document.getElementById('ability-w');
+    if (w) w.style.outline = '2px solid #ff6400';
+  }
+
+  _onHeroAimCancel() {
+    document.body.style.cursor = '';
+    const w = document.getElementById('ability-w');
+    if (w) w.style.outline = '';
+  }
+
+  _onHeroCooldownTick({ q, w, e }) {
+    this._setAbilityCd('ability-q', q);
+    this._setAbilityCd('ability-w', w);
+    this._setAbilityCd('ability-e', e);
+  }
+
+  _setAbilityCd(id, secs) {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    const cdEl = btn.querySelector('.ability-cd');
+    if (secs > 0) {
+      btn.disabled = true;
+      if (cdEl) cdEl.textContent = secs + 's';
+    } else {
+      if (!btn.classList.contains('locked')) btn.disabled = false;
+      if (cdEl) cdEl.textContent = '';
+    }
+  }
+}
+
+function headlineOverride(towerType, branch) {
+  const cells = TIER4_OVERRIDES[towerType]?.[branch];
+  if (!cells || Object.keys(cells).length === 0) return null;
+  let bestEnemy = null;
+  let bestVal = -Infinity;
+  for (const enemy of Object.keys(cells).sort()) { // alphabetical tiebreak
+    const v = cells[enemy];
+    if (v > bestVal) { bestVal = v; bestEnemy = enemy; }
+  }
+  const niceName = (ENEMY_DEFS[bestEnemy]?.name ?? bestEnemy).replace(/^Veth\s+/, '');
+  return { enemy: bestEnemy, value: bestVal, name: niceName };
 }

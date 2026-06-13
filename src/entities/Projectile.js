@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
 export class Projectile extends Phaser.GameObjects.Container {
-  constructor(scene, { x, y, target, damage, splashRadius = 0, pierce = false, slowFactor = 0, color = 0xffffff }) {
+  constructor(scene, { x, y, target, damage, splashRadius = 0, pierce = false, slowFactor = 0, color = 0xffffff, towerType = 'default', tier = 1, branch = null }) {
     super(scene, x, y);
 
     this.target      = target;
@@ -12,6 +12,8 @@ export class Projectile extends Phaser.GameObjects.Container {
     this.pierce      = pierce;
     this.slowFactor  = slowFactor;
     this.color       = color;
+    this.tier        = tier;
+    this.branch      = branch;
     this.dead        = false;
     this.speed       = 280;
 
@@ -26,5 +28,18 @@ export class Projectile extends Phaser.GameObjects.Container {
     this.add(dot);
     scene.add.existing(this);
     this.setDepth(4);
+
+    this.towerType = towerType;
+    this._trail = null;
+    if (scene.particleSpawner) {
+      this._trail = scene.particleSpawner.spawnProjectileTrail(this, towerType);
+    }
+  }
+
+  destroyTrail() {
+    if (this._trail && this._trail.destroy) {
+      this._trail.destroy();
+      this._trail = null;
+    }
   }
 }
