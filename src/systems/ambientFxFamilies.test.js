@@ -92,3 +92,34 @@ describe('FX_FAMILIES.dust', () => {
     expect(gfx._calls().length).toBeGreaterThan(0);
   });
 });
+
+describe('FX_FAMILIES.stars', () => {
+  const fam = FX_FAMILIES.stars;
+  const W = 800, H = 600;
+
+  it('init is deterministic for a given seed', () => {
+    expect(fam.init(new SeededRandom(6453), W, H))
+      .toEqual(fam.init(new SeededRandom(6453), W, H));
+  });
+
+  it('total points respect MAX_ELEMENTS', () => {
+    const s = fam.init(new SeededRandom(6453), W, H);
+    expect(s.far.length + s.near.length).toBeLessThanOrEqual(MAX_ELEMENTS);
+  });
+
+  it('drift keeps stars horizontally in bounds', () => {
+    const s = fam.init(new SeededRandom(6453), W, H);
+    for (let i = 0; i < 800; i++) fam.step(s, 16);
+    for (const p of [...s.far, ...s.near]) {
+      expect(p.x).toBeGreaterThanOrEqual(0);
+      expect(p.x).toBeLessThanOrEqual(W);
+    }
+  });
+
+  it('draw issues only whitelisted gfx calls', () => {
+    const s = fam.init(new SeededRandom(6453), W, H);
+    const gfx = makeGfx();
+    expect(() => fam.draw(gfx, s)).not.toThrow();
+    expect(gfx._calls().length).toBeGreaterThan(0);
+  });
+});

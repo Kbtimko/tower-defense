@@ -87,4 +87,41 @@ export const FX_FAMILIES = {
       }
     },
   },
+
+  // Two parallax drift layers plus subtle twinkle. Additive over dark space.
+  stars: {
+    blendMode: 'ADD',
+    init(rng, w, h) {
+      const mk = (count, rMin, rRange, aMin, aRange) => {
+        const out = [];
+        for (let i = 0; i < count; i++) {
+          out.push({
+            x: rng.next() * w,
+            y: rng.next() * h,
+            r: rMin + rng.next() * rRange,
+            baseAlpha: aMin + rng.next() * aRange,
+            phase: rng.next() * TWO_PI,
+            twFreq: 0.0008 + rng.next() * 0.0010,
+            color: rng.next() < 0.5 ? 0xffffff : 0xcfe6ff,
+          });
+        }
+        return out;
+      };
+      const far = mk(60, 0.5, 0.6, 0.20, 0.30);
+      const near = mk(25, 1.0, 0.7, 0.50, 0.40);
+      return { w, h, far, near, t: 0, driftFar: -0.004, driftNear: -0.010 };
+    },
+    step(s, dtMs) {
+      s.t += dtMs;
+      for (const p of s.far) p.x = wrap(p.x + s.driftFar * dtMs, s.w);
+      for (const p of s.near) p.x = wrap(p.x + s.driftNear * dtMs, s.w);
+    },
+    draw(gfx, s) {
+      for (const p of [...s.far, ...s.near]) {
+        const a = p.baseAlpha * (0.6 + 0.4 * Math.sin(s.t * p.twFreq + p.phase));
+        gfx.fillStyle(p.color, Math.max(0, a));
+        gfx.fillCircle(p.x, p.y, p.r);
+      }
+    },
+  },
 };
