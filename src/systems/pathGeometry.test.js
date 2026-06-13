@@ -61,3 +61,28 @@ describe('clampToBounds', () => {
     expect(clampToBounds([{ x: 50, y: 50 }], 100, 100)).toEqual([{ x: 50, y: 50 }]);
   });
 });
+
+import { offsetPolyline } from './pathGeometry.js';
+
+describe('offsetPolyline', () => {
+  // A straight horizontal centerline. Tangent is +x, so the LEFT normal is
+  // (-ty, tx) = (0, 1): a positive offset shifts points to +y, negative to -y.
+  const LINE = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 20, y: 0 }];
+
+  it('offsets a horizontal line by +dist along +y', () => {
+    const out = offsetPolyline(LINE, 5);
+    expect(out).toHaveLength(LINE.length);
+    for (const p of out) expect(p.y).toBeCloseTo(5, 6);
+    expect(out.map((p) => p.x)).toEqual([0, 10, 20]);
+  });
+
+  it('offsets by -dist along -y', () => {
+    const out = offsetPolyline(LINE, -5);
+    for (const p of out) expect(p.y).toBeCloseTo(-5, 6);
+  });
+
+  it('returns the input unchanged in shape for <2 points', () => {
+    expect(offsetPolyline([{ x: 1, y: 2 }], 5)).toEqual([{ x: 1, y: 2 }]);
+    expect(offsetPolyline([], 5)).toEqual([]);
+  });
+});
