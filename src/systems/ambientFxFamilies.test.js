@@ -28,6 +28,37 @@ export function makeGfx() {
 
 const W = 800, H = 600;
 
+describe('FX_FAMILIES.embers', () => {
+  const fam = FX_FAMILIES.embers;
+  const W = 800, H = 600;
+
+  it('init is deterministic for a given seed', () => {
+    expect(fam.init(new SeededRandom(6391), W, H))
+      .toEqual(fam.init(new SeededRandom(6391), W, H));
+  });
+
+  it('respects MAX_ELEMENTS', () => {
+    const s = fam.init(new SeededRandom(6391), W, H);
+    expect(s.embers.length).toBeLessThanOrEqual(MAX_ELEMENTS);
+  });
+
+  it('embers rise and respawn within vertical bounds', () => {
+    const s = fam.init(new SeededRandom(6391), W, H);
+    for (let i = 0; i < 2000; i++) fam.step(s, 16);
+    for (const e of s.embers) {
+      expect(e.y).toBeGreaterThanOrEqual(-10);
+      expect(e.y).toBeLessThanOrEqual(H + 10);
+    }
+  });
+
+  it('draw issues only whitelisted gfx calls', () => {
+    const s = fam.init(new SeededRandom(6391), W, H);
+    const gfx = makeGfx();
+    expect(() => fam.draw(gfx, s)).not.toThrow();
+    expect(gfx._calls().length).toBeGreaterThan(0);
+  });
+});
+
 describe('FX_FAMILIES.dust', () => {
   const fam = FX_FAMILIES.dust;
 

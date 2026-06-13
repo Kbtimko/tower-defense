@@ -48,4 +48,43 @@ export const FX_FAMILIES = {
       }
     },
   },
+
+  // Warm embers rising with horizontal sway, fading as they climb, wrapping
+  // back to the bottom. Additive glow over dark backdrops.
+  embers: {
+    blendMode: 'ADD',
+    init(rng, w, h) {
+      const palette = [0xff8844, 0xffaa44];
+      const embers = [];
+      for (let i = 0; i < 35; i++) {
+        embers.push({
+          x: rng.next() * w,
+          y: rng.next() * h,
+          r: 1 + rng.next(),
+          vy: -(0.01 + rng.next() * 0.02),
+          baseAlpha: 0.3 + rng.next() * 0.4,
+          swayAmp: 3 + rng.next() * 5,
+          swayFreq: 0.0006 + rng.next() * 0.0006,
+          phase: rng.next() * TWO_PI,
+          color: palette[Math.floor(rng.next() * palette.length)],
+        });
+      }
+      return { w, h, embers, t: 0 };
+    },
+    step(s, dtMs) {
+      s.t += dtMs;
+      for (const e of s.embers) {
+        e.y += e.vy * dtMs;
+        if (e.y < -10) e.y += s.h + 20;
+      }
+    },
+    draw(gfx, s) {
+      for (const e of s.embers) {
+        const sway = Math.sin(s.t * e.swayFreq + e.phase) * e.swayAmp;
+        const a = e.baseAlpha * Math.max(0, Math.min(1, e.y / s.h));
+        gfx.fillStyle(e.color, a);
+        gfx.fillCircle(wrap(e.x + sway, s.w), e.y, e.r);
+      }
+    },
+  },
 };
