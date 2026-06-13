@@ -117,11 +117,13 @@ export const FX_FAMILIES = {
       for (const p of s.near) p.x = wrap(p.x + s.driftNear * dtMs, s.w);
     },
     draw(gfx, s) {
-      for (const p of [...s.far, ...s.near]) {
+      const drawPoint = (p) => {
         const a = p.baseAlpha * (0.6 + 0.4 * Math.sin(s.t * p.twFreq + p.phase));
         gfx.fillStyle(p.color, Math.max(0, a));
         gfx.fillCircle(p.x, p.y, p.r);
-      }
+      };
+      for (const p of s.far) drawPoint(p);
+      for (const p of s.near) drawPoint(p);
     },
   },
 

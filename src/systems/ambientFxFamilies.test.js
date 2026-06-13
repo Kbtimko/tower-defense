@@ -9,7 +9,7 @@ const VALID_GFX_METHODS = new Set([
   'moveTo', 'lineTo', 'lineBetween', 'fillRect', 'strokeRect',
   'fillCircle', 'strokeCircle', 'arc', 'setDepth', 'setBlendMode', 'clear', 'destroy',
 ]);
-export function makeGfx() {
+function makeGfx() {
   const calls = [];
   const stored = {};
   const proxy = new Proxy(stored, {
@@ -30,7 +30,6 @@ const W = 800, H = 600;
 
 describe('FX_FAMILIES.embers', () => {
   const fam = FX_FAMILIES.embers;
-  const W = 800, H = 600;
 
   it('init is deterministic for a given seed', () => {
     expect(fam.init(new SeededRandom(6391), W, H))
@@ -95,7 +94,6 @@ describe('FX_FAMILIES.dust', () => {
 
 describe('FX_FAMILIES.stars', () => {
   const fam = FX_FAMILIES.stars;
-  const W = 800, H = 600;
 
   it('init is deterministic for a given seed', () => {
     expect(fam.init(new SeededRandom(6453), W, H))
@@ -126,7 +124,6 @@ describe('FX_FAMILIES.stars', () => {
 
 describe('FX_FAMILIES.electrical', () => {
   const fam = FX_FAMILIES.electrical;
-  const W = 800, H = 600;
 
   it('init is deterministic for a given seed', () => {
     expect(fam.init(new SeededRandom(9182), W, H))
@@ -146,17 +143,25 @@ describe('FX_FAMILIES.electrical', () => {
 
   it('draw issues only whitelisted gfx calls', () => {
     const s = fam.init(new SeededRandom(9182), W, H);
-    // Advance far enough that at least one conduit spark is firing.
-    for (let i = 0; i < 200; i++) fam.step(s, 16);
+    fam.step(s, 100);
     const gfx = makeGfx();
     expect(() => fam.draw(gfx, s)).not.toThrow();
     expect(gfx._calls().length).toBeGreaterThan(0);
+  });
+
+  it('draw emits a conduit arc (lineBetween) when a conduit is sparking', () => {
+    const s = fam.init(new SeededRandom(9182), W, H);
+    // Force a guaranteed spark: at t=0, sin(0 + PI/2) = 1.0 > 0.9 threshold.
+    s.conduits.push({ x1: 10, y1: 10, x2: 50, y2: 50, period: 1000, phase: Math.PI / 2 });
+    s.t = 0;
+    const gfx = makeGfx();
+    fam.draw(gfx, s);
+    expect(gfx._calls().some((c) => c.method === 'lineBetween')).toBe(true);
   });
 });
 
 describe('FX_FAMILIES["bio-pulse"]', () => {
   const fam = FX_FAMILIES['bio-pulse'];
-  const W = 800, H = 600;
 
   it('init is deterministic for a given seed', () => {
     expect(fam.init(new SeededRandom(4827), W, H))
