@@ -123,3 +123,33 @@ describe('FX_FAMILIES.stars', () => {
     expect(gfx._calls().length).toBeGreaterThan(0);
   });
 });
+
+describe('FX_FAMILIES.electrical', () => {
+  const fam = FX_FAMILIES.electrical;
+  const W = 800, H = 600;
+
+  it('init is deterministic for a given seed', () => {
+    expect(fam.init(new SeededRandom(9182), W, H))
+      .toEqual(fam.init(new SeededRandom(9182), W, H));
+  });
+
+  it('respects MAX_ELEMENTS', () => {
+    const s = fam.init(new SeededRandom(9182), W, H);
+    expect(s.lights.length + s.conduits.length).toBeLessThanOrEqual(MAX_ELEMENTS);
+  });
+
+  it('step advances time', () => {
+    const s = fam.init(new SeededRandom(9182), W, H);
+    fam.step(s, 100);
+    expect(s.t).toBe(100);
+  });
+
+  it('draw issues only whitelisted gfx calls', () => {
+    const s = fam.init(new SeededRandom(9182), W, H);
+    // Advance far enough that at least one conduit spark is firing.
+    for (let i = 0; i < 200; i++) fam.step(s, 16);
+    const gfx = makeGfx();
+    expect(() => fam.draw(gfx, s)).not.toThrow();
+    expect(gfx._calls().length).toBeGreaterThan(0);
+  });
+});

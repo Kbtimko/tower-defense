@@ -124,4 +124,53 @@ export const FX_FAMILIES = {
       }
     },
   },
+
+  // Blinking station lights (smooth alpha oscillation) plus occasional brief
+  // spark arcs along seeded conduit segments. Additive cool-blue glow.
+  electrical: {
+    blendMode: 'ADD',
+    init(rng, w, h) {
+      const color = 0x3a8ad0;
+      const lights = [];
+      for (let i = 0; i < 20; i++) {
+        lights.push({
+          x: rng.next() * w,
+          y: rng.next() * h,
+          r: 1.5 + rng.next() * 1.5,
+          baseAlpha: 0.4 + rng.next() * 0.4,
+          period: 700 + rng.next() * 1800,
+          phase: rng.next() * TWO_PI,
+        });
+      }
+      const conduits = [];
+      for (let i = 0; i < 4; i++) {
+        const x1 = rng.next() * w, y1 = rng.next() * h;
+        conduits.push({
+          x1, y1,
+          x2: x1 + (rng.next() * 80 - 40),
+          y2: y1 + (rng.next() * 80 - 40),
+          period: 1200 + rng.next() * 2400,
+          phase: rng.next() * TWO_PI,
+        });
+      }
+      return { w, h, lights, conduits, t: 0, color };
+    },
+    step(s, dtMs) {
+      s.t += dtMs;
+    },
+    draw(gfx, s) {
+      for (const l of s.lights) {
+        const a = l.baseAlpha * (0.5 + 0.5 * Math.sin(s.t * (TWO_PI / l.period) + l.phase));
+        gfx.fillStyle(s.color, Math.max(0, a));
+        gfx.fillCircle(l.x, l.y, l.r);
+      }
+      for (const c of s.conduits) {
+        const spark = Math.sin(s.t * (TWO_PI / c.period) + c.phase);
+        if (spark > 0.9) {
+          gfx.lineStyle(2, s.color, 0.7);
+          gfx.lineBetween(c.x1, c.y1, c.x2, c.y2);
+        }
+      }
+    },
+  },
 };
