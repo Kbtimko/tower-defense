@@ -153,6 +153,16 @@ hover gfx.
 - When off: the layer skips `step` / `draw` and clears its gfx (static bitmap alone).
   Toggling is live — no reload.
 
+Wiring: the registry flag (e.g. `ambientMotion`) is the runtime source of truth that
+`AmbientBackgroundLayer` reads each frame; `SaveManager` persists it across sessions.
+At boot, seed the registry flag from the saved value, falling back to the inverse of
+`prefers-reduced-motion` when no preference is stored. The settings checkbox needs a
+new element in the settings-overlay HTML (alongside the existing `mute-all` checkbox),
+and `SettingsOverlay` needs access to the persistence/registry path it currently lacks
+(it is constructed with only `audioManager`) — pass the game registry or a small
+settings accessor so the toggle can update the registry flag and persist via
+`SaveManager`. The plan resolves the exact accessor.
+
 ## Testing
 
 - **Pure families** (jsdom, no Phaser):
