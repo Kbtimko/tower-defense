@@ -1,6 +1,6 @@
-import { samplePath } from './pathGeometry.js';
+import { samplePath, offsetPolyline } from './pathGeometry.js';
 
-export const PATH_STYLES = ['planet-dust', 'station-strip', 'space-nav', 'organic-glow'];
+export const PATH_STYLES = ['planet-dust', 'station-strip', 'space-nav', 'organic-glow', 'planet-road'];
 
 // Style colors: { haloColor, haloAlpha, haloWidth, mainColor, mainWidth, dashColor, dashWidth, dashAlpha, dashOn, dashOff }
 const STYLE_SPEC = {
@@ -24,6 +24,16 @@ const STYLE_SPEC = {
     mainColor: 0x4affd0, mainAlpha: 0.65, mainWidth: 8,
     dashColor: 0xffffff, dashAlpha: 0.6,  dashWidth: 1.5, dashOn: 5, dashOff: 7,
   },
+  'planet-road': {
+    // Road layers (drawn first, bottom→top)
+    bermWidth: 34, bermColor: 0x9a8362, bermAlpha: 0.30,
+    roadbedWidth: 26, roadbedColor: 0x6b5740, roadbedAlpha: 0.78,
+    rutOffset: 6, rutWidth: 2, rutColor: 0x4a3c2c, rutAlpha: 0.55,
+    // Accents
+    haloColor: 0x000000, haloAlpha: 0, haloWidth: 0,
+    mainColor: 0x000000, mainAlpha: 0, mainWidth: 0,
+    dashColor: 0x3a2e20, dashAlpha: 0.45, dashWidth: 2, dashOn: 5, dashOff: 9,
+  },
 };
 
 /**
@@ -41,6 +51,23 @@ export function renderPath(gfx, points, style) {
   const spec = STYLE_SPEC[style];
   if (!spec) throw new Error(`PathRenderer: unknown style "${style}"`);
 
+  // ── Road layers (optional; drawn first so accents sit on top) ──
+  // Dust berms: soft, wide, light edge underlay.
+  if (spec.bermWidth > 0 && spec.bermAlpha > 0) {
+    drawSmoothStroke(gfx, points, spec.bermColor, spec.bermAlpha, spec.bermWidth);
+  }
+  // Packed-earth roadbed.
+  if (spec.roadbedWidth > 0 && spec.roadbedAlpha > 0) {
+    drawSmoothStroke(gfx, points, spec.roadbedColor, spec.roadbedAlpha, spec.roadbedWidth);
+  }
+  // Worn wheel ruts: two thin lines offset ± along the curve normals.
+  if (spec.rutOffset > 0 && spec.rutWidth > 0 && spec.rutAlpha > 0) {
+    const curve = samplePath(points, CURVE_SAMPLES);
+    drawPolylineStroke(gfx, offsetPolyline(curve, spec.rutOffset), spec.rutColor, spec.rutAlpha, spec.rutWidth);
+    drawPolylineStroke(gfx, offsetPolyline(curve, -spec.rutOffset), spec.rutColor, spec.rutAlpha, spec.rutWidth);
+  }
+
+  // ── Themed accents ──
   // Halo layer
   if (spec.haloWidth > 0 && spec.haloAlpha > 0) {
     drawSmoothStroke(gfx, points, spec.haloColor, spec.haloAlpha, spec.haloWidth);
@@ -59,16 +86,20 @@ export function renderPath(gfx, points, style) {
 // path widths we draw without overspending on Graphics commands.
 const CURVE_SAMPLES = 12;
 
-function drawSmoothStroke(gfx, points, color, alpha, width) {
-  if (points.length < 2) return;
-  const curve = samplePath(points, CURVE_SAMPLES);
+function drawPolylineStroke(gfx, pts, color, alpha, width) {
+  if (pts.length < 2) return;
   gfx.lineStyle(width, color, alpha);
   gfx.beginPath();
-  gfx.moveTo(curve[0].x, curve[0].y);
-  for (let i = 1; i < curve.length; i++) {
-    gfx.lineTo(curve[i].x, curve[i].y);
+  gfx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) {
+    gfx.lineTo(pts[i].x, pts[i].y);
   }
   gfx.strokePath();
+}
+
+function drawSmoothStroke(gfx, points, color, alpha, width) {
+  if (points.length < 2) return;
+  drawPolylineStroke(gfx, samplePath(points, CURVE_SAMPLES), color, alpha, width);
 }
 
 function drawDashedStroke(gfx, points, color, alpha, width, dashOn, dashOff) {
