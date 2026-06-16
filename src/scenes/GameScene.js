@@ -31,6 +31,7 @@ import { renderPlatforms } from '../systems/PlatformRenderer.js';
 import { AmbientBackgroundLayer } from '../systems/AmbientBackgroundLayer.js';
 import { computeBlockerPlacements } from '../systems/BlockerPlacement.js';
 import { BLOCKER_TYPES } from '../data/blockerTypes.js';
+import { previewRange } from '../systems/rangePreview.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const ENEMY_MELEE_DAMAGE = 20;
@@ -65,6 +66,7 @@ export default class GameScene extends Phaser.Scene {
     this.upgradeMgr  = new UpgradeManager(this.saveMgr);
     const mods       = this.upgradeMgr.getModifiers(this.heroId);
     this.killGoldMult = mods.killGoldMult;
+    this._towerRangeMult = mods.towerRangeMult ?? 1;
 
     this.pathMgr  = new PathManager(map.waypoints, map.towerSlots, width, height);
     this.economy  = new EconomyManager(
@@ -113,6 +115,10 @@ export default class GameScene extends Phaser.Scene {
     this.selectedTower  = null;
     this._openTowerId   = null;
 
+    // Latest pointer world position, used to draw the build-time range ring.
+    this._buildCursorX  = 0;
+    this._buildCursorY  = 0;
+
     // Reposition mode state
     this.repositionMode        = false;
     this.repositioningBarracks = null;
@@ -146,7 +152,11 @@ export default class GameScene extends Phaser.Scene {
     this.add.text(p[p.length-1].x, p[p.length-1].y, 'OUT', { fontSize: '10px', color: '#fff', fontFamily: 'Georgia', fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
 
     this.inspector = new InspectController(this);
-    this.input.on('pointermove', (p) => this.inspector.onPointerMove(p.worldX, p.worldY));
+    this.input.on('pointermove', (p) => {
+      this._buildCursorX = p.worldX;
+      this._buildCursorY = p.worldY;
+      this.inspector.onPointerMove(p.worldX, p.worldY);
+    });
 
     // Phaser input
     this.input.on('pointerdown', this._onPointerDown, this);
@@ -1269,6 +1279,30 @@ export default class GameScene extends Phaser.Scene {
       this.gfx.strokeCircle(zone.cx, zone.cy, zone.radius);
       if (this.selectedType && canAfford) {
         this.gfx.fillStyle(0xffd700, 0.07); this.gfx.fillCircle(zone.cx, zone.cy, zone.radius);
+      }
+    }
+
+    // Build-time range preview: a single ring at the cursor (snapping to the
+    // nearest free slot when close) showing the coverage the tower would have.
+    if (this.selectedType && !this.repositionMode) {
+      const def    = TOWER_DEFS[this.selectedType];
+      const radius = previewRange(def.range, this._towerRangeMult);
+      // getNearestSlot returns { slotIndex, x, y } — note x/y, not the slot's cx/cy.
+      const slot   = this.placementManager.getNearestSlot(
+        this._buildCursorX, this._buildCursorY, 60, true,
+      );
+      const cx = slot ? slot.x : this._buildCursorX;
+      const cy = slot ? slot.y : this._buildCursorY;
+      const valid = canAfford && !!slot;
+
+      if (valid) {
+        this.gfx.lineStyle(2, 0xffd700, 0.5);
+        this.gfx.strokeCircle(cx, cy, radius);
+        this.gfx.fillStyle(0xffd700, 0.07);
+        this.gfx.fillCircle(cx, cy, radius);
+      } else {
+        this.gfx.lineStyle(2, 0x884444, 0.4);
+        this.gfx.strokeCircle(cx, cy, radius);
       }
     }
 
