@@ -65,6 +65,7 @@ export default class GameScene extends Phaser.Scene {
     this.upgradeMgr  = new UpgradeManager(this.saveMgr);
     const mods       = this.upgradeMgr.getModifiers(this.heroId);
     this.killGoldMult = mods.killGoldMult;
+    this._towerRangeMult = mods.towerRangeMult ?? 1;
 
     this.pathMgr  = new PathManager(map.waypoints, map.towerSlots, width, height);
     this.economy  = new EconomyManager(
@@ -113,6 +114,10 @@ export default class GameScene extends Phaser.Scene {
     this.selectedTower  = null;
     this._openTowerId   = null;
 
+    // Latest pointer world position, used to draw the build-time range ring.
+    this._buildCursorX  = 0;
+    this._buildCursorY  = 0;
+
     // Reposition mode state
     this.repositionMode        = false;
     this.repositioningBarracks = null;
@@ -146,7 +151,11 @@ export default class GameScene extends Phaser.Scene {
     this.add.text(p[p.length-1].x, p[p.length-1].y, 'OUT', { fontSize: '10px', color: '#fff', fontFamily: 'Georgia', fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
 
     this.inspector = new InspectController(this);
-    this.input.on('pointermove', (p) => this.inspector.onPointerMove(p.worldX, p.worldY));
+    this.input.on('pointermove', (p) => {
+      this._buildCursorX = p.worldX;
+      this._buildCursorY = p.worldY;
+      this.inspector.onPointerMove(p.worldX, p.worldY);
+    });
 
     // Phaser input
     this.input.on('pointerdown', this._onPointerDown, this);
