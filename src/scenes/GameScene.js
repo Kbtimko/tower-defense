@@ -31,6 +31,7 @@ import { renderPlatforms } from '../systems/PlatformRenderer.js';
 import { AmbientBackgroundLayer } from '../systems/AmbientBackgroundLayer.js';
 import { computeBlockerPlacements } from '../systems/BlockerPlacement.js';
 import { BLOCKER_TYPES } from '../data/blockerTypes.js';
+import { previewRange } from '../systems/rangePreview.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const ENEMY_MELEE_DAMAGE = 20;
@@ -1278,6 +1279,30 @@ export default class GameScene extends Phaser.Scene {
       this.gfx.strokeCircle(zone.cx, zone.cy, zone.radius);
       if (this.selectedType && canAfford) {
         this.gfx.fillStyle(0xffd700, 0.07); this.gfx.fillCircle(zone.cx, zone.cy, zone.radius);
+      }
+    }
+
+    // Build-time range preview: a single ring at the cursor (snapping to the
+    // nearest free slot when close) showing the coverage the tower would have.
+    if (this.selectedType && !this.repositionMode) {
+      const def    = TOWER_DEFS[this.selectedType];
+      const radius = previewRange(def.range, this._towerRangeMult);
+      // getNearestSlot returns { slotIndex, x, y } — note x/y, not the slot's cx/cy.
+      const slot   = this.placementManager.getNearestSlot(
+        this._buildCursorX, this._buildCursorY, 60, true,
+      );
+      const cx = slot ? slot.x : this._buildCursorX;
+      const cy = slot ? slot.y : this._buildCursorY;
+      const valid = canAfford && !!slot;
+
+      if (valid) {
+        this.gfx.lineStyle(2, 0xffd700, 0.5);
+        this.gfx.strokeCircle(cx, cy, radius);
+        this.gfx.fillStyle(0xffd700, 0.07);
+        this.gfx.fillCircle(cx, cy, radius);
+      } else {
+        this.gfx.lineStyle(2, 0x884444, 0.4);
+        this.gfx.strokeCircle(cx, cy, radius);
       }
     }
 
