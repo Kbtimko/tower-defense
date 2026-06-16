@@ -4,7 +4,7 @@ export const MAPS = [
     name: 'Outpost Sigma',
     background: 0x1a2e1a,
     pathColor: 0x7a6040,
-    waypoints: [[0,.32],[.13,.36],[.2,.52],[.17,.7],[.32,.77],[.47,.68],[.49,.47],[.6,.33],[.74,.38],[.8,.56],[.9,.62],[1,.6]],
+    waypoints: [[0,.403],[.05,.42],[.075,.37],[.095,.412],[.181,.42],[.166,.378],[.196,.328],[.246,.319],[.286,.387],[.286,.437],[.342,.471],[.372,.445],[.452,.513],[.462,.63],[.533,.605],[.558,.546],[.588,.563],[.598,.496],[.653,.487],[.704,.756],[.764,.79],[.854,.782],[.92,.613],[1,.63]],
     startGold: 200,
     startLives: 25,
     unlockCost: 0,
@@ -13,13 +13,17 @@ export const MAPS = [
     storyKey: 'outpost_sigma',
     blurb: "Earth's last forward base. Hold the line or lose everything.",
     backgroundImage: 'map_0_outpost_sigma.png',
-    pathRenderStyle: 'planet-dust',
-    blockerVocab: ['crater', 'rocks'],
+    // Path renders as the road (terrain-only backdrop pilot) — see specs 2026-06-12-terrain-only-backdrops-road-path.
+    pathRenderStyle: 'planet-road',
+    // No auto-placed blockers — the painted backdrop already has craters/rock mounds.
+    blockerVocab: [],
     blockerSeed: 7341,
+    // Painted craters channel the path on their own; no procedural pinch mounds needed.
+    blockers: [],
     ambientFx: { family: 'dust', seed: 7341 },
     towerSlots: [
-      [0.09, 0.52], [0.31, 0.55], [0.33, 0.92],
-      [0.60, 0.84], [0.67, 0.52], [0.89, 0.42],
+      [0.216, 0.572], [0.441, 0.439], [0.678, 0.461],
+      [0.878, 0.628], [0.478, 0.839], [0.791, 0.806],
     ],
   },
   {

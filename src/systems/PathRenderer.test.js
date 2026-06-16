@@ -37,11 +37,11 @@ const PATH = [
 ];
 
 describe('PathRenderer', () => {
-  it('exports the 4 supported style names', () => {
-    expect(PATH_STYLES).toEqual(['planet-dust','station-strip','space-nav','organic-glow']);
+  it('exports the supported style names including planet-road', () => {
+    expect(PATH_STYLES).toEqual(['planet-dust','station-strip','space-nav','organic-glow','planet-road']);
   });
 
-  for (const style of ['planet-dust','station-strip','space-nav','organic-glow']) {
+  for (const style of ['planet-dust','station-strip','space-nav','organic-glow','planet-road']) {
     it(`renderPath(gfx, path, '${style}') issues drawing calls without throwing`, () => {
       const gfx = makeGfx();
       expect(() => renderPath(gfx, PATH, style)).not.toThrow();
@@ -52,6 +52,30 @@ describe('PathRenderer', () => {
       expect(drew).toBe(true);
     });
   }
+
+  const PATH3 = [
+    { x: 0,   y: 100 },
+    { x: 100, y: 100 },
+    { x: 100, y: 200 },
+  ];
+  const lineStyleCount = (gfx) => gfx._calls().filter((c) => c.method === 'lineStyle').length;
+
+  it('planet-road draws more stroke layers than planet-dust (road layers present)', () => {
+    const road = makeGfx();
+    const dust = makeGfx();
+    renderPath(road, PATH3, 'planet-road');
+    renderPath(dust, PATH3, 'planet-dust');
+    // planet-road = berm + roadbed + 2 ruts + dashes (5); planet-dust = halo + main + dashes (3)
+    expect(lineStyleCount(road)).toBeGreaterThan(lineStyleCount(dust));
+    expect(lineStyleCount(road)).toBeGreaterThanOrEqual(5);
+  });
+
+  it('a style without road fields draws no road layers (unchanged)', () => {
+    const g = makeGfx();
+    renderPath(g, PATH3, 'planet-dust');
+    // planet-dust = halo (1) + main (1) + dashes (1) = 3 lineStyle calls, no road layers
+    expect(lineStyleCount(g)).toBe(3);
+  });
 
   it('throws on an unknown style', () => {
     const gfx = makeGfx();

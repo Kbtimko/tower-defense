@@ -81,3 +81,30 @@ export function clampToBounds(points, w, h) {
     y: Math.max(0, Math.min(h, p.y)),
   }));
 }
+
+/**
+ * Return a polyline parallel to `points`, offset by `dist` pixels along the
+ * per-point left normal. The tangent at point i uses neighbours i-1 and i+1
+ * (one-sided at the ends); the left normal of tangent (tx,ty) is (-ty,tx).
+ * Positive `dist` offsets left, negative offsets right.
+ *
+ * @param {{x:number,y:number}[]} points
+ * @param {number} dist
+ * @returns {{x:number,y:number}[]}
+ */
+export function offsetPolyline(points, dist) {
+  const n = points.length;
+  if (n < 2) return points.map((p) => ({ x: p.x, y: p.y }));
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const prev = points[Math.max(0, i - 1)];
+    const next = points[Math.min(n - 1, i + 1)];
+    let tx = next.x - prev.x;
+    let ty = next.y - prev.y;
+    const len = Math.hypot(tx, ty) || 1;
+    tx /= len;
+    ty /= len;
+    out.push({ x: points[i].x + -ty * dist, y: points[i].y + tx * dist });
+  }
+  return out;
+}

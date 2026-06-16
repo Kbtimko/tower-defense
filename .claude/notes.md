@@ -24,6 +24,7 @@ Phases 1–8 + 9a/9b/9c + dead-enemy cleanup + hero path-restriction + hero rost
 6. Phase 10 (future): iOS Prep — Capacitor, touch controls, App Store pipeline
 
 ## Completed
+- ~~Terrain-only/road-path pilot (map 0): worn-road PathRenderer layers (berm+roadbed+normal-offset ruts via new `offsetPolyline`) behind a new `planet-road` style; map 0 switched to it + blockers removed + path re-fit; `maps.test` now imports real `PATH_STYLES`. Root-cause fix for path/art mismatch (AI backdrops have no separable road — verified via in-browser pixel probe). Terrain-only backdrop is a user image-gen step (prompt in spec). 682 tests; build clean; browser-verified road look on map 0. spec/plan 2026-06-12-terrain-only-backdrops-road-path~~ (2026-06-12)
 - ~~Animated background layer (backlog #6, PR pending): reusable `AmbientBackgroundLayer` (depth-5 Graphics) + pure deterministic `ambientFxFamilies` registry (dust/embers/stars/electrical/bio-pulse, seeded via `SeededRandom`, `MAX_ELEMENTS=90`); `ambientFx:{family,seed}` on all 10 maps; GameScene mount + per-frame update + shutdown; `ambientMotion` registry flag seeded at boot from `SaveManager` honoring `prefers-reduced-motion`; "Ambient motion" toggle in SettingsOverlay. 676 tests; build clean; browser-verified layer render + live toggle on map 0~~ (2026-06-12)
 - ~~Phase 1: Core game loop (Phaser setup, path, basic enemies, HUD)~~ (2026-05-07)
 - ~~Phase 2: UIScene, Entity Containers, event-based panel~~ (2026-05-08)
