@@ -59,9 +59,11 @@ describe('MAPS', () => {
       expect(Number.isFinite(map.blockerSeed)).toBe(true);
     });
 
-    it(`map ${map.id} has exactly 6 + id tower slots`, () => {
+    it(`map ${map.id} has a generous set of tower slots`, () => {
       expect(Array.isArray(map.towerSlots)).toBe(true);
-      expect(map.towerSlots.length).toBe(6 + map.id);
+      // Slots are placed hugging the path within tower range; every map gets a
+      // generous reachable set (no longer the old fixed 6 + id count).
+      expect(map.towerSlots.length).toBeGreaterThanOrEqual(8);
     });
 
     it(`map ${map.id} towerSlots are normalized 0-1 pairs`, () => {
