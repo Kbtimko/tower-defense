@@ -6,6 +6,8 @@ export class Enemy extends Phaser.GameObjects.Container {
     super(scene, startX, startY);
 
     this.def           = def;
+    // Index into PathManager.path — the DENSE sampled curve (~12 points per
+    // waypoint span), not the raw waypoints. Only compared ordinally.
     this.waypointIndex = 0;
     this.maxHp         = def.hp * scaleFactor;
     this.hp            = this.maxHp;

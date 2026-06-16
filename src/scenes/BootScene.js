@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SaveManager } from '../systems/SaveManager.js';
 import { getOrCreateAudioManager } from '../systems/AudioManager.js';
 import { MAPS } from '../data/maps.js';
+import { resolveAmbientMotion } from '../systems/AmbientBackgroundLayer.js';
 
 export default class BootScene extends Phaser.Scene {
   constructor() { super('BootScene'); }
@@ -9,6 +10,11 @@ export default class BootScene extends Phaser.Scene {
   preload() {
     const sm = new SaveManager();
     this.game.registry.set('save', sm);
+    const prefersReduced = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false;
+    this.game.registry.set('ambientMotion',
+      resolveAmbientMotion(sm.getSettings().ambientMotion, prefersReduced));
     const am = getOrCreateAudioManager(this.game, sm);
     am.loadAssets(this);
     this.load.image('spark', 'particles/spark.png');
@@ -21,6 +27,13 @@ export default class BootScene extends Phaser.Scene {
   }
 
   create() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('edit') === '1') {
+      const mapId = Math.max(0, Math.min(MAPS.length - 1,
+        Number.parseInt(params.get('map') ?? '0', 10) || 0));
+      this.scene.start('MapEditorScene', { mapId });
+      return;
+    }
     this.scene.start('MenuScene');
   }
 }

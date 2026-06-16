@@ -28,6 +28,7 @@ import { InspectController } from './InspectController.js';
 import { SentryTurret } from '../entities/SentryTurret.js';
 import { renderPath } from '../systems/PathRenderer.js';
 import { renderPlatforms } from '../systems/PlatformRenderer.js';
+import { AmbientBackgroundLayer } from '../systems/AmbientBackgroundLayer.js';
 import { computeBlockerPlacements } from '../systems/BlockerPlacement.js';
 import { BLOCKER_TYPES } from '../data/blockerTypes.js';
 
@@ -130,6 +131,10 @@ export default class GameScene extends Phaser.Scene {
     // Static layers (depth 10) — blockers → platforms → path. Painted once.
     this._staticLayers = this.add.graphics().setDepth(10);
     this._renderStaticLayers(map);
+
+    // Ambient motion layer (depth 5) — between the bitmap and the static
+    // layers, so it reads as deep environment and never overlaps gameplay.
+    this._ambient = map.ambientFx ? new AmbientBackgroundLayer(this, map.ambientFx) : null;
 
     // Per-frame graphics (depth 30) — cleared + redrawn every frame; sits on
     // top of the static layer so hover indicators stay visible.
@@ -261,6 +266,8 @@ export default class GameScene extends Phaser.Scene {
     if (this._areaEffects) this._areaEffects.destroyAll();
     this._staticLayers?.destroy();
     this._staticLayers = null;
+    this._ambient?.destroy();
+    this._ambient = null;
   }
 
   // ─── Update loop ───────────────────────────────────────────────────────────
@@ -269,6 +276,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.over || this.won) return;
     const dt    = (delta / 1000) * this.speed;
     const dtMs  = delta * this.speed;
+    this._ambient?.update(dtMs);
 
     this.waveMgr.update(dtMs);
     this._updateEnemies(dt);
@@ -1214,8 +1222,10 @@ export default class GameScene extends Phaser.Scene {
     // Spec §4 depth order within the static layer (draw order = visual stacking):
     // blockers (bottom) → platforms → path (top).
 
+    // Blockers key off path BENDS and renderPath samples the curve internally,
+    // so both take the raw waypoints. (Enemy movement uses the dense pathMgr.path.)
     // Blockers at every interior waypoint
-    const placements = computeBlockerPlacements(this.pathMgr.path, map.blockerVocab, map.blockerSeed);
+    const placements = computeBlockerPlacements(this.pathMgr.waypoints, map.blockerVocab, map.blockerSeed);
     for (const p of placements) {
       const type = BLOCKER_TYPES[p.type];
       if (!type) continue;
@@ -1223,11 +1233,21 @@ export default class GameScene extends Phaser.Scene {
       type.draw(g, p.x, p.y, p.scale, tint);
     }
 
+    // Explicit per-map blockers at fixed normalized positions — pinch-point
+    // mounds that channel the single path on open terrain. Same vocab as the
+    // auto-placements, but hand-authored coords ({ type, x, y, scale? }).
+    const { width, height } = this.scale;
+    for (const b of map.blockers ?? []) {
+      const type = BLOCKER_TYPES[b.type];
+      if (!type) continue;
+      type.draw(g, b.x * width, b.y * height, b.scale ?? 1, type.defaultTint(map.id));
+    }
+
     // Platforms
     renderPlatforms(g, this.pathMgr.buildZones, map.id);
 
     // Path on top so it sits above platforms/blockers per spec §4.
-    renderPath(g, this.pathMgr.path, map.pathRenderStyle);
+    renderPath(g, this.pathMgr.waypoints, map.pathRenderStyle);
   }
 
   _drawPath() {

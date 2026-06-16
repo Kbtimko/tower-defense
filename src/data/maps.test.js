@@ -1,4 +1,5 @@
 import { MAPS } from './maps.js';
+import { PATH_STYLES } from '../systems/PathRenderer.js';
 
 describe('MAPS', () => {
   const REQUIRED = [
@@ -6,7 +7,6 @@ describe('MAPS', () => {
     'startLives','unlockCost','waveCount','maxTierAllowed','storyKey','blurb',
     'backgroundImage','pathRenderStyle','blockerVocab','blockerSeed','towerSlots',
   ];
-  const PATH_STYLES = ['planet-dust','station-strip','space-nav','organic-glow'];
   const VALID_BLOCKER_VOCAB = ['crater','rocks','metal_bulkhead','asteroid','organic_spire','glowing_pool'];
 
   for (const map of MAPS) {
@@ -27,16 +27,30 @@ describe('MAPS', () => {
       expect(map.backgroundImage.endsWith('.png')).toBe(true);
     });
 
-    it(`map ${map.id} pathRenderStyle is one of the 4 supported styles`, () => {
+    it(`map ${map.id} pathRenderStyle is a supported style`, () => {
       expect(PATH_STYLES).toContain(map.pathRenderStyle);
     });
 
-    it(`map ${map.id} blockerVocab is a non-empty array of supported types`, () => {
+    it(`map ${map.id} blockerVocab is an array of supported types (may be empty)`, () => {
       expect(Array.isArray(map.blockerVocab)).toBe(true);
-      expect(map.blockerVocab.length).toBeGreaterThan(0);
+      // An empty vocab is valid — the map opts out of procedural blockers
+      // (e.g. map 0, whose painted backdrop already has craters/rock mounds).
       for (const v of map.blockerVocab) {
         expect(typeof v).toBe('string');
         expect(VALID_BLOCKER_VOCAB).toContain(v);
+      }
+    });
+
+    it(`map ${map.id} blockers (if present) are valid fixed placements`, () => {
+      if (map.blockers === undefined) return; // optional field
+      expect(Array.isArray(map.blockers)).toBe(true);
+      for (const b of map.blockers) {
+        expect(VALID_BLOCKER_VOCAB).toContain(b.type);
+        expect(b.x).toBeGreaterThanOrEqual(0);
+        expect(b.x).toBeLessThanOrEqual(1);
+        expect(b.y).toBeGreaterThanOrEqual(0);
+        expect(b.y).toBeLessThanOrEqual(1);
+        if (b.scale !== undefined) expect(b.scale).toBeGreaterThan(0);
       }
     });
 
@@ -45,9 +59,11 @@ describe('MAPS', () => {
       expect(Number.isFinite(map.blockerSeed)).toBe(true);
     });
 
-    it(`map ${map.id} has exactly 6 + id tower slots`, () => {
+    it(`map ${map.id} has a generous set of tower slots`, () => {
       expect(Array.isArray(map.towerSlots)).toBe(true);
-      expect(map.towerSlots.length).toBe(6 + map.id);
+      // Slots are placed hugging the path within tower range; every map gets a
+      // generous reachable set (no longer the old fixed 6 + id count).
+      expect(map.towerSlots.length).toBeGreaterThanOrEqual(8);
     });
 
     it(`map ${map.id} towerSlots are normalized 0-1 pairs`, () => {
