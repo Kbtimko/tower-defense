@@ -1,6 +1,6 @@
 import { samplePath, offsetPolyline } from './pathGeometry.js';
 
-export const PATH_STYLES = ['planet-dust', 'station-strip', 'space-nav', 'organic-glow', 'planet-road'];
+export const PATH_STYLES = ['planet-dust', 'station-strip', 'space-nav', 'organic-glow', 'planet-road', 'lunar-road'];
 
 // Style colors: { haloColor, haloAlpha, haloWidth, mainColor, mainWidth, dashColor, dashWidth, dashAlpha, dashOn, dashOff }
 const STYLE_SPEC = {
@@ -33,6 +33,15 @@ const STYLE_SPEC = {
     haloColor: 0x000000, haloAlpha: 0, haloWidth: 0,
     mainColor: 0x000000, mainAlpha: 0, mainWidth: 0,
     dashColor: 0x3a2e20, dashAlpha: 0.45, dashWidth: 2, dashOn: 5, dashOff: 9,
+  },
+  // Grey regolith road for the lunar maps (1, 2).
+  'lunar-road': {
+    bermWidth: 34, bermColor: 0xb8bcc4, bermAlpha: 0.26,
+    roadbedWidth: 26, roadbedColor: 0x6e7178, roadbedAlpha: 0.80,
+    rutOffset: 6, rutWidth: 2, rutColor: 0x44474e, rutAlpha: 0.55,
+    haloColor: 0x000000, haloAlpha: 0, haloWidth: 0,
+    mainColor: 0x000000, mainAlpha: 0, mainWidth: 0,
+    dashColor: 0x2e3138, dashAlpha: 0.40, dashWidth: 2, dashOn: 5, dashOff: 9,
   },
 };
 

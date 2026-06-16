@@ -37,11 +37,16 @@ const PATH = [
 ];
 
 describe('PathRenderer', () => {
-  it('exports the supported style names including planet-road', () => {
-    expect(PATH_STYLES).toEqual(['planet-dust','station-strip','space-nav','organic-glow','planet-road']);
+  it('exports a non-empty list of string style names including the base styles', () => {
+    expect(Array.isArray(PATH_STYLES)).toBe(true);
+    expect(PATH_STYLES.every((s) => typeof s === 'string')).toBe(true);
+    for (const base of ['planet-dust', 'station-strip', 'space-nav', 'organic-glow', 'planet-road']) {
+      expect(PATH_STYLES).toContain(base);
+    }
   });
 
-  for (const style of ['planet-dust','station-strip','space-nav','organic-glow','planet-road']) {
+  // Every registered style must render without throwing (auto-covers new styles).
+  for (const style of PATH_STYLES) {
     it(`renderPath(gfx, path, '${style}') issues drawing calls without throwing`, () => {
       const gfx = makeGfx();
       expect(() => renderPath(gfx, PATH, style)).not.toThrow();
