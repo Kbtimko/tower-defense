@@ -152,3 +152,67 @@ Midjourney returns 4 variants natively; pick the best. Crop / resize / pngquant 
 - **Don't ask for "more dramatic" / "more sci-fi" / etc. mid-batch.** That drifts the style. Iterate by saying "regenerate, closer to the style brief."
 - **First 2-3 maps are calibration.** If maps 0-2 look great, the rest will likely follow. If they drift, reset the brief and try again.
 - **Final maps should feel weightier.** Map 9 (Last Light) is the campaign finale — give it more aggressive prompting if the default result feels too gentle.
+
+---
+
+# Terrain-only regeneration (2026-06) — CURRENT DIRECTION
+
+The prompts above produced the original backdrops, which often baked in a road/path,
+a horizon/vista, or large foreground structures. The current pipeline draws the
+**path procedurally as the road** and the **tower pads procedurally**, so backdrops
+must be **terrain-only** (no painted road) and **flat top-down** so the route + pads
+sit right. The gameplay route is **computed from the image** (it threads the open
+clearings and dodges obstacle clusters), so the art needs clustered obstacles with
+open clearings spanning the whole frame. Map 0 was regenerated this way first; these
+blocks regenerate maps 1–9 to match.
+
+## Universal rules — prepend/include in EVERY map prompt below
+
+> Directly **top-down / straight overhead, flat** view. **No horizon, no sky, no
+> perspective/vista, no large foreground structures** — the entire frame is the
+> surface (for space maps: the field seen from directly above). Arrange the theme's
+> obstacles into **distinct clusters separated by broad meandering clearings of open
+> ground that wind across the whole frame, top to bottom**, so a route can snake the
+> full height — no wall-to-wall coverage. **Do NOT include** any road, path, trail,
+> track, lane, walkway, line, or any constructed/painted route; no characters,
+> vehicles, towers, or text. Even readable mid-tones; no large pure-black or
+> blown-out regions in the central play area. **Aspect: 16:9 landscape (1792×1024).**
+
+## Per-map theme blocks (universal rules + the block = full prompt)
+
+### Map 1 — Lunar Gate → `map_1_lunar_gate.png`
+> Grey lunar regolith battlefield. Clusters: impact craters, boulder fields, scattered rubble and broken equipment. Clearings: smooth open grey dust. Cold neutral grey palette with subtle blue-grey shadows.
+
+### Map 2 — The Crater → `map_2_the_crater.png`
+> Flat floor of a vast lunar crater. Clusters: jagged rock spires, smaller craters, rockslides. Clearings: flat pale-grey crater floor. Stark grey palette, hard crisp shadows.
+
+### Map 3 — Orbital Station → `map_3_orbital_station.png`
+> Top-down view of a space-station hangar deck — a FLAT floor, NOT a view out into space. Clusters: machinery banks, cargo containers, reactor housings, bulkhead segments. Clearings: open riveted metal deck plating. Gunmetal / steel-blue palette with cyan accent lights.
+
+### Map 4 — Asteroid Belt → `map_4_asteroid_belt.png`
+> Top-down view of a dense asteroid field seen from directly above. Clusters: groups of grey-brown asteroids and rubble. Clearings: open dark starfield void between the asteroid groups. Dark space backdrop with faint distant stars; rock clusters lit from one side.
+
+### Map 5 — Titan's Reach → `map_5_titans_reach.png`
+> Top-down frozen-methane surface of Titan — flat overhead, no atmosphere/horizon. Clusters: cryo-ice ridges, frozen craters, hydrocarbon sludge mounds. Clearings: open amber-tan icy flats. Hazy orange/amber palette with pale icy highlights.
+
+### Map 6 — Deep Space Corridor → `map_6_deep_space_corridor.png`
+> Top-down view of a derelict starship deck — a FLAT floor, no windows/space/horizon. Clusters: collapsed machinery, conduits, debris, hull-breach wreckage. Clearings: open metal grating / deck floor. Dim industrial blue-grey palette with sparse amber warning lights.
+
+### Map 7 — The Void Frontier → `map_7_the_void_frontier.png`
+> Top-down deep-space frontier seen from directly above. Clusters: shattered asteroids, derelict ship debris, wreckage fields. Clearings: open void with faint blue/purple nebula glow and distant stars. Dark palette, cool nebula tints, debris rim-lit.
+
+### Map 8 — Enemy Homeworld → `map_8_enemy_homeworld.png`
+> Top-down alien organic terrain. Clusters: chitinous growths, fleshy mounds, bioluminescent teal pools, egg-sac nests. Clearings: open dark veined organic ground. Deep teal/green palette with glowing cyan-magenta bio-light. **Keep the glow in clustered pools, NOT continuous glowing channels** (channels read as a path).
+
+### Map 9 — Last Light → `map_9_last_light.png`
+> Top-down volcanic surface. Clusters: cooled black basalt outcrops, magma pools, lava-filled craters, slag heaps. Clearings: open cracked dark-basalt ground with faint ember glow. Charcoal/black palette with molten orange-red cracks. **Keep magma in clustered pools — no continuous lava river** (a river reads as a path).
+
+## Workflow for the rollout
+
+1. Generate one map (or a batch) per the block above; save to the exact filename shown.
+2. Tell Claude which map landed → Claude computes the route, re-fits the `6 + id`
+   tower slots onto clear pads, and adds that theme's road style + pad style, then
+   browser-verifies.
+3. Planet maps (1, 2, 5) reuse `planet-road` + sandbag-emplacement pads; the station,
+   space, organic, and lava themes each get their own road + pad style, tuned to the
+   actual art.
