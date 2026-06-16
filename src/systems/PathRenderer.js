@@ -1,6 +1,6 @@
 import { samplePath, offsetPolyline } from './pathGeometry.js';
 
-export const PATH_STYLES = ['planet-dust', 'station-strip', 'space-nav', 'organic-glow', 'planet-road'];
+export const PATH_STYLES = ['planet-dust', 'station-strip', 'space-nav', 'organic-glow', 'planet-road', 'lunar-road', 'station-road', 'space-lane', 'organic-road', 'scorched-road'];
 
 // Style colors: { haloColor, haloAlpha, haloWidth, mainColor, mainWidth, dashColor, dashWidth, dashAlpha, dashOn, dashOff }
 const STYLE_SPEC = {
@@ -33,6 +33,51 @@ const STYLE_SPEC = {
     haloColor: 0x000000, haloAlpha: 0, haloWidth: 0,
     mainColor: 0x000000, mainAlpha: 0, mainWidth: 0,
     dashColor: 0x3a2e20, dashAlpha: 0.45, dashWidth: 2, dashOn: 5, dashOff: 9,
+  },
+  // Grey regolith road for the lunar maps (1, 2).
+  'lunar-road': {
+    bermWidth: 34, bermColor: 0xb8bcc4, bermAlpha: 0.26,
+    roadbedWidth: 26, roadbedColor: 0x6e7178, roadbedAlpha: 0.80,
+    rutOffset: 6, rutWidth: 2, rutColor: 0x44474e, rutAlpha: 0.55,
+    haloColor: 0x000000, haloAlpha: 0, haloWidth: 0,
+    mainColor: 0x000000, mainAlpha: 0, mainWidth: 0,
+    dashColor: 0x2e3138, dashAlpha: 0.40, dashWidth: 2, dashOn: 5, dashOff: 9,
+  },
+  // Metal deck walkway for the station maps (3, 6) — steel roadbed + cyan lane dashes.
+  'station-road': {
+    bermWidth: 30, bermColor: 0x33414e, bermAlpha: 0.28,
+    roadbedWidth: 24, roadbedColor: 0x49555f, roadbedAlpha: 0.82,
+    rutOffset: 8, rutWidth: 2, rutColor: 0x252c33, rutAlpha: 0.60,
+    haloColor: 0x000000, haloAlpha: 0, haloWidth: 0,
+    mainColor: 0x000000, mainAlpha: 0, mainWidth: 0,
+    dashColor: 0x66ccff, dashAlpha: 0.55, dashWidth: 2, dashOn: 6, dashOff: 10,
+  },
+  // Glowing nav-lane for the open-space maps (4, 7) — soft glow + bright dashed line, no roadbed.
+  'space-lane': {
+    bermWidth: 22, bermColor: 0x2a5a8a, bermAlpha: 0.30,
+    roadbedWidth: 0, roadbedColor: 0x000000, roadbedAlpha: 0,
+    rutOffset: 0, rutWidth: 0, rutColor: 0x000000, rutAlpha: 0,
+    haloColor: 0x000000, haloAlpha: 0, haloWidth: 0,
+    mainColor: 0x000000, mainAlpha: 0, mainWidth: 0,
+    dashColor: 0x9fe0ff, dashAlpha: 0.85, dashWidth: 3, dashOn: 6, dashOff: 7,
+  },
+  // Veined organic path for the homeworld (8) — membrane roadbed + glowing teal ruts.
+  'organic-road': {
+    bermWidth: 30, bermColor: 0x0e3a34, bermAlpha: 0.35,
+    roadbedWidth: 24, roadbedColor: 0x1f5048, roadbedAlpha: 0.72,
+    rutOffset: 7, rutWidth: 2, rutColor: 0x00ffc8, rutAlpha: 0.50,
+    haloColor: 0x000000, haloAlpha: 0, haloWidth: 0,
+    mainColor: 0x000000, mainAlpha: 0, mainWidth: 0,
+    dashColor: 0x66ffd0, dashAlpha: 0.50, dashWidth: 2, dashOn: 5, dashOff: 7,
+  },
+  // Charred road with ember edges for the volcanic finale (9).
+  'scorched-road': {
+    bermWidth: 32, bermColor: 0xff7a30, bermAlpha: 0.22,
+    roadbedWidth: 26, roadbedColor: 0x2a1a16, roadbedAlpha: 0.82,
+    rutOffset: 6, rutWidth: 2, rutColor: 0xff5522, rutAlpha: 0.50,
+    haloColor: 0x000000, haloAlpha: 0, haloWidth: 0,
+    mainColor: 0x000000, mainAlpha: 0, mainWidth: 0,
+    dashColor: 0x884422, dashAlpha: 0.40, dashWidth: 2, dashOn: 5, dashOff: 9,
   },
 };
 
