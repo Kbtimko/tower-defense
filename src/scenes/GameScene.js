@@ -65,6 +65,7 @@ export default class GameScene extends Phaser.Scene {
     this.upgradeMgr  = new UpgradeManager(this.saveMgr);
     const mods       = this.upgradeMgr.getModifiers(this.heroId);
     this.killGoldMult = mods.killGoldMult;
+    this.rewardMult = map.rewardMult ?? 1;
 
     this.pathMgr  = new PathManager(map.waypoints, map.towerSlots, width, height);
     this.economy  = new EconomyManager(
@@ -445,7 +446,7 @@ export default class GameScene extends Phaser.Scene {
     this.hero.update(dt, this.enemies);
     for (const e of aliveBeforeHero) {
       if (e.dead) {
-        this.economy.earn(Math.round(e.reward * this.killGoldMult));
+        this.economy.earn(this._killReward(e.reward));
         this.kills++;
         this._updateHUD();
       }
@@ -788,7 +789,7 @@ export default class GameScene extends Phaser.Scene {
   _dealDamage(enemy, damage, pierce, opts = {}) {
     enemy.takeDamage(damage, { pierce, ...opts });
     if (enemy.dead) {
-      this.economy.earn(Math.round(enemy.reward * this.killGoldMult));
+      this.economy.earn(this._killReward(enemy.reward));
       this.kills++;
       this._updateHUD();
       // Central flash
@@ -1137,6 +1138,10 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
     btn.disabled = false; btn.textContent = `▶ Send Wave ${this.waveMgr.currentWave + 1}`;
+  }
+
+  _killReward(reward) {
+    return Math.round(reward * this.killGoldMult * this.rewardMult);
   }
 
   _computeEarlyBonus() {
