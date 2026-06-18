@@ -35,6 +35,7 @@ import { BLOCKER_TYPES } from '../data/blockerTypes.js';
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const ENEMY_MELEE_DAMAGE = 20;
 const MELEE_RANGE        = 30;
+const WAVE_CLEAR_BONUS   = 38;
 
 export default class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
@@ -342,7 +343,7 @@ export default class GameScene extends Phaser.Scene {
     if (!this.waveMgr.active) return;
     if (this.waveMgr.hasQueuedEnemies || this.enemies.length > 0) return;
     this.waveMgr.active = false;
-    this.economy.earn(38);
+    this.economy.earn(Math.round(WAVE_CLEAR_BONUS * this.rewardMult));
     if (this.waveMgr.done) {
       this._onVictory();
     } else {
@@ -1150,7 +1151,7 @@ export default class GameScene extends Phaser.Scene {
       if (e.dead) continue;
       sum += (e.def && typeof e.def.reward === 'number') ? e.def.reward : 0;
     }
-    return Math.floor(0.5 * sum);
+    return Math.floor(0.5 * sum * this.rewardMult);
   }
 
   // ─── Game end ──────────────────────────────────────────────────────────────
