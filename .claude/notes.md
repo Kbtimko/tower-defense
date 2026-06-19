@@ -9,7 +9,7 @@ Phases 1–8 + 9a/9b/9c + dead-enemy cleanup + hero path-restriction + hero rost
 - None active
 
 ## Known Bugs
-- Hero may not be blocking enemies on Level 2 (Lunar Gate) — reported 2026-05-30, unverified.
+- None active. _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug — the hero is a ranged auto-attacker by design; non-blocking is documented as a deliberate out-of-scope decision in the hero-path-restriction spec. See backlog #2.)_
 
 ## In Progress
 - **PR #32 (open)** `feature/map0-path-fit` → integration `feature/phase-3-tower-system`: consolidates 62 commits — natural-fit paths + dev map editor (commit `5becad0`), animated backgrounds, terrain-only backdrops/roads, themed emplacement pads, difficulty-calibrated tower slots. 697 tests, clean build. **This lands the old propagation-gap work in the integration line.** Merge #32 before #33.
@@ -19,7 +19,7 @@ Phases 1–8 + 9a/9b/9c + dead-enemy cleanup + hero path-restriction + hero rost
 
 ## Prioritized Backlog
 1. **Phase 8b — remaining SFX work:** per-tower SFX for 5 tier-4 branches (currently reuse base fire sound); per-enemy-type hit sounds (currently generic + detuned)
-2. Verify hero is working properly on Level 2 (Lunar Gate) — reports indicate hero isn't blocking any enemies; verify against post-PR-17 state _(added 2026-05-30)_
+2. ✅ **Verify hero on Level 2** — DONE (2026-06-18), **not a bug**. Root cause: the hero is a path-positioned ranged auto-attacker (range ~45), never a hard-blocker; `_checkSoldierBlock` is soldier-only **by explicit design** (hero-path-restriction spec §"Hero does NOT block enemies", flagged out-of-scope). Live-verified on Level 2 with `window.__game` introspection: hero spawns on-path, detects enemies in range, attacks (timer resets), and deals damage (skitter 45→17 hp) as they pass — it just doesn't stop them. Hero attack/move/respawn also covered by passing unit tests. _Optional future feature (not scheduled):_ soldier-style hero blocking — would need `_checkSoldierBlock` to include the hero + enemy-vs-hero melee; its own spec/plan.
 3. Resize game canvas as the browser window resizes (responsive Phaser scaling) _(added 2026-05-30)_
 4. **Overarching storyline + per-level mini-stories** — write a campaign narrative explaining *why* the player is fighting through the 10 maps toward the final level (player motivation, faction, end goal). Add a short mini-story per map (pre-battle briefing / post-battle epilogue), tying boss-bearing levels into key story beats. Surface via StoryManager or pre-wave dialog. _(added 2026-05-31)_
 5. **Map-progression overworld for MapSelect** — replace the current card grid with a map/star-chart UI showing the 10 levels as nodes connected by a progression path (Super Mario World / FTL-style). Visualizes the journey and locked/unlocked state spatially. _(added 2026-05-31)_
