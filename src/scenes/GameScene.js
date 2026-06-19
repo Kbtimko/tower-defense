@@ -36,6 +36,7 @@ import { previewRange } from '../systems/rangePreview.js';
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const ENEMY_MELEE_DAMAGE = 20;
 const MELEE_RANGE        = 30;
+const WAVE_CLEAR_BONUS   = 38;
 
 export default class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
@@ -66,6 +67,7 @@ export default class GameScene extends Phaser.Scene {
     this.upgradeMgr  = new UpgradeManager(this.saveMgr);
     const mods       = this.upgradeMgr.getModifiers(this.heroId);
     this.killGoldMult = mods.killGoldMult;
+    this.rewardMult = map.rewardMult ?? 1;
     this._towerRangeMult = mods.towerRangeMult ?? 1;
 
     this.pathMgr  = new PathManager(map.waypoints, map.towerSlots, width, height);
@@ -351,7 +353,7 @@ export default class GameScene extends Phaser.Scene {
     if (!this.waveMgr.active) return;
     if (this.waveMgr.hasQueuedEnemies || this.enemies.length > 0) return;
     this.waveMgr.active = false;
-    this.economy.earn(38);
+    this.economy.earn(Math.round(WAVE_CLEAR_BONUS * this.rewardMult));
     if (this.waveMgr.done) {
       this._onVictory();
     } else {
@@ -455,7 +457,7 @@ export default class GameScene extends Phaser.Scene {
     this.hero.update(dt, this.enemies);
     for (const e of aliveBeforeHero) {
       if (e.dead) {
-        this.economy.earn(Math.round(e.reward * this.killGoldMult));
+        this.economy.earn(this._killReward(e.reward));
         this.kills++;
         this._updateHUD();
       }
@@ -798,7 +800,7 @@ export default class GameScene extends Phaser.Scene {
   _dealDamage(enemy, damage, pierce, opts = {}) {
     enemy.takeDamage(damage, { pierce, ...opts });
     if (enemy.dead) {
-      this.economy.earn(Math.round(enemy.reward * this.killGoldMult));
+      this.economy.earn(this._killReward(enemy.reward));
       this.kills++;
       this._updateHUD();
       // Central flash
@@ -1149,13 +1151,17 @@ export default class GameScene extends Phaser.Scene {
     btn.disabled = false; btn.textContent = `▶ Send Wave ${this.waveMgr.currentWave + 1}`;
   }
 
+  _killReward(reward) {
+    return Math.round(reward * this.killGoldMult * this.rewardMult);
+  }
+
   _computeEarlyBonus() {
     let sum = 0;
     for (const e of this.enemies) {
       if (e.dead) continue;
       sum += (e.def && typeof e.def.reward === 'number') ? e.def.reward : 0;
     }
-    return Math.floor(0.5 * sum);
+    return Math.floor(0.5 * sum * this.rewardMult);
   }
 
   // ─── Game end ──────────────────────────────────────────────────────────────

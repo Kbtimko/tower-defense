@@ -6,6 +6,7 @@ describe('MAPS', () => {
     'id','name','background','pathColor','waypoints','startGold',
     'startLives','unlockCost','waveCount','maxTierAllowed','storyKey','blurb',
     'backgroundImage','pathRenderStyle','blockerVocab','blockerSeed','towerSlots',
+    'rewardMult',
   ];
   const VALID_BLOCKER_VOCAB = ['crater','rocks','metal_bulkhead','asteroid','organic_spire','glowing_pool'];
 
@@ -71,6 +72,12 @@ describe('MAPS', () => {
         expect(x).toBeGreaterThanOrEqual(0); expect(x).toBeLessThanOrEqual(1);
         expect(y).toBeGreaterThanOrEqual(0); expect(y).toBeLessThanOrEqual(1);
       }
+    });
+
+    it(`map ${map.id} rewardMult is a number in (0, 1]`, () => {
+      expect(typeof map.rewardMult).toBe('number');
+      expect(map.rewardMult).toBeGreaterThan(0);
+      expect(map.rewardMult).toBeLessThanOrEqual(1);
     });
   }
 });
