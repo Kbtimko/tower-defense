@@ -77,6 +77,13 @@ Boss-trigger: `GameScene` plays `boss-mid` on `mapId === 4` (Asteroid Belt)
 and `boss-final` on all other titan-boss maps (currently only `mapId === 9`,
 Last Light).
 
+## Pending curation
+
+Backlog #1 (Phase 8b remaining SFX) reserves 16 not-yet-sourced keys — 10
+per-tower-branch fire sounds and 6 per-enemy-type hit sounds. The code falls back
+to the existing base sounds until they are added. See `assets/audio/PROMPTS.md`
+for the checklist.
+
 ## Notes for future contributors
 
 - **License check:** every file must be CC0 / public domain. Kenney.nl is CC0
