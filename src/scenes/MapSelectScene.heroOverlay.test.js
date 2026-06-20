@@ -30,10 +30,10 @@ function setupDom() {
   }
   document.body.appendChild(metaBar);
 
-  // Sidebar + featured (placeholder structure — _populateSidebar/_renderFeatured need the elements)
-  const sidebar = document.createElement('div');
-  sidebar.id = 'map-sidebar';
-  document.body.appendChild(sidebar);
+  // Overworld + featured (placeholder structure — _populateOverworld/_renderFeatured need the elements)
+  const overworld = document.createElement('div');
+  overworld.id = 'map-overworld';
+  document.body.appendChild(overworld);
   for (const id of ['featured-name', 'featured-stars', 'featured-blurb', 'featured-tier', 'featured-play']) {
     const el = document.createElement(id === 'featured-play' ? 'button' : 'div');
     el.id = id;
@@ -101,5 +101,23 @@ describe('MapSelectScene heroes-overlay integration', () => {
     document.getElementById('featured-play').click();
     expect(scene.scene.start).toHaveBeenCalledWith('GameScene',
       expect.objectContaining({ heroId: 'engineer' }));
+  });
+});
+
+describe('MapSelectScene — overworld rendering', () => {
+  beforeEach(setupDom);
+
+  it('renders one node per map with correct states on a fresh save', () => {
+    const scene = new MapSelectScene();
+    scene.create();
+
+    const nodes = document.querySelectorAll('#map-overworld .ow-node');
+    expect(nodes.length).toBe(10);
+
+    const node0 = document.querySelector('.ow-node[data-map-id="0"]');
+    const node9 = document.querySelector('.ow-node[data-map-id="9"]');
+    expect(node0.className).toContain('next');     // map 0 unlocked, 0 stars -> next
+    expect(node9.className).toContain('locked');   // map 9 not yet unlocked
+    expect(node9.className).toContain('final');    // map 9 is the final id
   });
 });

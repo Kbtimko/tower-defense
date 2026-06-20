@@ -108,7 +108,24 @@
     #map-select-title { font-size:34px; color:#ffd700; font-weight:bold; text-align:center;
                         margin-bottom:18px; letter-spacing:4px; }
     #map-select-layout { display:flex; gap:16px; flex:1; min-height:0; overflow:hidden; }
-    #map-sidebar { width:230px; overflow-y:auto; display:flex; flex-direction:column; gap:5px; }
+    #map-overworld { flex:1.6; position:relative; min-height:0; border:1px solid #2a2a4a; border-radius:10px; overflow:hidden;
+      background:radial-gradient(ellipse at 30% 20%, #141436 0%, #08081e 60%, #050510 100%); }
+    #map-overworld .ow-connectors { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+    #map-overworld .ow-path-dim { fill:none; stroke:#2f2f50; stroke-width:0.8; vector-effect:non-scaling-stroke; }
+    #map-overworld .ow-path-lit { stroke:#8b6914; stroke-width:1.2; vector-effect:non-scaling-stroke; }
+    .ow-node { position:absolute; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; gap:2px; }
+    .ow-node.unlocked, .ow-node.next, .ow-node.completed { cursor:pointer; }
+    .ow-node-art { width:46px; height:46px; border-radius:50%; object-fit:cover; border:2px solid #8b6914; background:#11112a; }
+    .ow-node.locked .ow-node-art { filter:grayscale(1) brightness(0.4); border:2px dashed #444; }
+    .ow-node.active .ow-node-art { border-color:#ffd700; box-shadow:0 0 10px #ffd700; }
+    .ow-node.next .ow-node-art { border-color:#7ab8ff; box-shadow:0 0 12px #7ab8ff; }
+    .ow-node.final .ow-node-art { width:54px; height:54px; border-color:#6a2a3a; }
+    /* numbered-circle fallback (when art img errors out) */
+    .ow-node.ow-node-fallback .ow-node-num { width:46px; height:46px; border-radius:50%; background:#1c2c4c;
+      display:flex; align-items:center; justify-content:center; border:2px solid #8b6914; }
+    .ow-node-num { font-size:13px; font-weight:bold; color:#ffd700; line-height:1; }
+    .ow-node.locked .ow-node-num { color:#666; }
+    .ow-node-stars { font-size:10px; color:#ffd700; min-height:12px; line-height:1; }
     #map-featured { flex:1; border:2px solid #8b6914; border-radius:10px; background:#0f0f2e;
                     padding:22px; display:flex; flex-direction:column; }
     #featured-name { font-size:22px; color:#ffd700; font-weight:bold; margin-bottom:6px; }
@@ -308,7 +325,7 @@
         <button id="open-settings" title="Audio settings">♪ Audio</button>
       </div>
       <div id="map-select-layout">
-        <div id="map-sidebar"></div>
+        <div id="map-overworld"></div>
         <div id="map-featured">
           <div id="featured-name"></div>
           <div id="featured-stars"></div>
