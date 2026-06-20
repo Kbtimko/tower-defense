@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { MAPS } from '../data/maps.js';
 import { SaveManager } from '../systems/SaveManager.js';
 import { starsDisplay } from '../utils/display.js';
+import { classifyOverworld } from '../systems/overworldState.js';
 import { UpgradeManager }         from '../systems/UpgradeManager.js';
 import { UpgradeTreeOverlay }     from '../ui/UpgradeTreeOverlay.js';
 import { SettingsOverlay }        from '../ui/SettingsOverlay.js';
@@ -27,7 +28,7 @@ export default class MapSelectScene extends Phaser.Scene {
     }
     this._selectedId = defaultId;
 
-    this._populateSidebar();
+    this._populateOverworld();
     this._renderFeatured(this._selectedId);
     this._bindPlay();
     this._renderMetaBar();
@@ -37,40 +38,81 @@ export default class MapSelectScene extends Phaser.Scene {
     this._bindSettings();
   }
 
-  _populateSidebar() {
-    const sidebar = document.getElementById('map-sidebar');
-    sidebar.replaceChildren();
+  _populateOverworld() {
+    const container = document.getElementById('map-overworld');
+    container.replaceChildren();
 
-    for (const map of MAPS) {
-      const unlocked = this._saveMgr.isUnlocked(map.id);
+    const entries = MAPS.map(m => ({
+      id: m.id,
+      unlocked: this._saveMgr.isUnlocked(m.id),
+      stars: this._saveMgr.getStars(m.id),
+    }));
+    const nodes = classifyOverworld(entries, MAPS.length - 1);
+    const pts = MAPS.map(m => m.overworldPos);
 
-      const row = document.createElement('div');
-      row.className = 'map-row ' + (unlocked ? 'unlocked' : 'locked');
-      if (unlocked && map.id === this._selectedId) row.classList.add('active');
+    // SVG connector layer: dim full path + gold between consecutive unlocked nodes.
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('class', 'ow-connectors');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('preserveAspectRatio', 'none');
 
-      const nameEl = document.createElement('div');
-      nameEl.className   = 'map-row-name';
-      nameEl.textContent = unlocked
-        ? (map.id + 1) + ' · ' + map.name
-        : '🔒 Map ' + (map.id + 1);
+    const dim = document.createElementNS(NS, 'polyline');
+    dim.setAttribute('class', 'ow-path-dim');
+    dim.setAttribute('points', pts.map(([x, y]) => `${x * 100},${y * 100}`).join(' '));
+    svg.appendChild(dim);
+
+    const unlockedById = new Map(nodes.map(n => [n.id, n.unlocked]));
+    for (let i = 0; i < pts.length - 1; i++) {
+      if (unlockedById.get(i) && unlockedById.get(i + 1)) {
+        const seg = document.createElementNS(NS, 'line');
+        seg.setAttribute('class', 'ow-path-lit');
+        seg.setAttribute('x1', pts[i][0] * 100);
+        seg.setAttribute('y1', pts[i][1] * 100);
+        seg.setAttribute('x2', pts[i + 1][0] * 100);
+        seg.setAttribute('y2', pts[i + 1][1] * 100);
+        svg.appendChild(seg);
+      }
+    }
+    container.appendChild(svg);
+
+    // Nodes.
+    for (const node of nodes) {
+      const map = MAPS[node.id];
+      const el = document.createElement('div');
+      el.className = `ow-node ${node.state}` + (node.isFinal ? ' final' : '');
+      if (node.id === this._selectedId && node.state !== 'locked') el.classList.add('active');
+      el.dataset.mapId = String(node.id);
+      el.style.left = `${map.overworldPos[0] * 100}%`;
+      el.style.top  = `${map.overworldPos[1] * 100}%`;
+
+      const art = document.createElement('img');
+      art.className   = 'ow-node-art';
+      art.src         = `assets/overworld/${map.overworldArt}`;
+      art.alt         = map.name;
+      art.onerror     = () => { art.remove(); el.classList.add('ow-node-fallback'); };
+      el.appendChild(art);
+
+      const num = document.createElement('div');
+      num.className   = 'ow-node-num';
+      num.textContent = node.state === 'locked' ? '🔒' : String(node.id + 1);
+      el.appendChild(num);
 
       const starsEl = document.createElement('div');
-      starsEl.className = 'map-row-stars';
-      if (unlocked) {
-        const stars = this._saveMgr.getStars(map.id);
-        starsEl.textContent = stars > 0 ? starsDisplay(stars) : '—';
-      }
+      starsEl.className = 'ow-node-stars';
+      if (node.unlocked) starsEl.textContent = node.stars > 0 ? starsDisplay(node.stars) : '—';
+      el.appendChild(starsEl);
 
-      row.append(nameEl, starsEl);
-      if (unlocked) row.addEventListener('click', () => this._selectMap(map.id));
-      sidebar.appendChild(row);
+      if (node.unlocked) el.addEventListener('click', () => this._selectMap(node.id));
+      container.appendChild(el);
     }
   }
 
   _selectMap(mapId) {
     this._selectedId = mapId;
-    document.querySelectorAll('.map-row.active').forEach(r => r.classList.remove('active'));
-    document.querySelectorAll('.map-row')[mapId].classList.add('active');
+    document.querySelectorAll('.ow-node.active').forEach(n => n.classList.remove('active'));
+    const sel = document.querySelector(`.ow-node[data-map-id="${mapId}"]`);
+    if (sel) sel.classList.add('active');
     this._renderFeatured(mapId);
   }
 
