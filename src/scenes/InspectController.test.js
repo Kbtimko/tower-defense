@@ -488,6 +488,17 @@ describe('InspectController — panel positioning', () => {
     const panel = document.getElementById('enemy-inspector');
     expect(panel.style.left).toBe('224px');
   });
+
+  it('pin converts target game coords through the scale transform', () => {
+    const scene = { enemies: [], hero: null,
+      scale: { canvasBounds: { x: 0, y: 0 }, displayScale: { x: 2, y: 2 } } };
+    const enemy = makeEnemy({ x: 200, y: 300 });
+    const ctrl = new InspectController(scene);
+    ctrl.pin({ kind: 'enemy', target: enemy });
+    const panel = document.getElementById('enemy-inspector');
+    // game (200,300) -> page (400,600); anchor adds +24 to left
+    expect(panel.style.left).toBe('424px');
+  });
 });
 
 // makeFakeHero builds a hero with a custom def (for non-Rael hero tests).

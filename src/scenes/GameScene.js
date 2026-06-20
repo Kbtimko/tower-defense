@@ -18,6 +18,7 @@ import { DamageNumberOverlay } from '../systems/DamageNumberOverlay.js';
 import { ShakeController }    from '../systems/ShakeController.js';
 import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
+import { gameToPageCss } from '../systems/viewport.js';
 import { STORY_PANELS }    from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
 import { soldierSource, heroAbilitySource } from '../data/sourceBuilders.js';
@@ -871,7 +872,9 @@ export default class GameScene extends Phaser.Scene {
       if (Math.hypot(tower.x - mx, tower.y - my) < 22) {
         this.selectedType = null;
         this._deselectButtons();
-        this._openTowerPanel(tower, mx, my);
+        const panelCss = gameToPageCss(this.scale, mx, my);
+        const gRect = document.getElementById('game').getBoundingClientRect();
+        this._openTowerPanel(tower, panelCss.x - gRect.left, panelCss.y - gRect.top);
         return;
       }
     }
