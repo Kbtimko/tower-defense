@@ -72,13 +72,20 @@ export function gameToPageCss(scale, gameX, gameY) {
 
 Apply it at the DOM-positioning sites that currently use game-space coords:
 
-- **Tower panel** — `GameScene._openTowerPanel` and `UIScene` tower-panel positioning
-  (currently `panel.style.left = mx + 10`, with `mx,my` from `pointer.x/y`). Convert
-  the game coords to page CSS, then subtract the `#game` rect origin (the panel is an
-  absolutely-positioned child of `#game`).
-- **Inspect panels** — `InspectController._positionPanel` (uses entity `targetX/targetY`
-  game coords, clamped to `window.innerWidth/Height`). Convert to page CSS before
-  clamping.
+- **Tower panel** — `GameScene._openTowerPanel(tower, mx, my)`. It is called two ways:
+  from the pointer handler (line ~874) with **game coords** (`pointer.x/y`), and on
+  reopen (line ~1098) with already-correct **CSS px** (`parseInt(panel.style.left/top)`).
+  Fix at the pointer call site: convert the game coords to `#game`-relative CSS px
+  before passing, so `_openTowerPanel` always receives CSS px (its body positions the
+  panel, an absolutely-positioned child of `#game`). `gameToPageCss` returns page-absolute
+  px; subtract the `#game` rect origin.
+  *(Note: `UIScene._onPanelOpen` also positions `#tower-panel` but is **dead code** — it
+  listens for `tower:panel-open`, which nothing emits. Do not edit it.)*
+- **Inspect panels** — `InspectController` calls `_positionPanel` with game coords at two
+  sites: the peek panel (line ~253, pointer `mx,my`) and the pinned panel (line ~282,
+  entity `spec.target.x/y`). Convert with `gameToPageCss(this.scene.scale, x, y)` at both
+  call sites; `_positionPanel` keeps its existing `window`-space clamping unchanged
+  (it already has `this.scene`).
 
 Hit-testing and gameplay logic (`getNearestSlot`, `isOnPath`, reposition snapping)
 continue to use game coords unchanged — only DOM placement is converted.
