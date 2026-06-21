@@ -2,6 +2,7 @@ import { describeEnemyMatchups } from '../data/weaknessMatrix.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { HEROES } from '../data/heroes.js';
+import { gameToPageCss } from '../systems/viewport.js';
 
 export class InspectController {
   constructor(scene) {
@@ -250,7 +251,8 @@ export class InspectController {
       stat.textContent = `HP ${Math.ceil(target.hp)} / ${target.maxHp} · Level ${target.level}`;
       peek.appendChild(stat);
     }
-    this._positionPanel(peek, mx, my);
+    const peekCss = gameToPageCss(this.scene?.scale, mx, my);
+    this._positionPanel(peek, peekCss.x, peekCss.y);
     peek.style.display = 'block';
   }
 
@@ -279,6 +281,7 @@ export class InspectController {
     const el = spec.kind === 'enemy'
       ? document.getElementById('enemy-inspector')
       : document.getElementById('hero-inspector');
-    this._positionPanel(el, spec.target.x, spec.target.y);
+    const css = gameToPageCss(this.scene?.scale, spec.target.x, spec.target.y);
+    this._positionPanel(el, css.x, css.y);
   }
 }
