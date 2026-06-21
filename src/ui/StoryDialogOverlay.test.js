@@ -68,4 +68,50 @@ describe('StoryDialogOverlay', () => {
     // name should reflect second sequence's 2nd panel speaker (Sol Command)
     expect(document.getElementById('story-dialog-name').textContent).toContain('Command');
   });
+
+  it('re-entrant play completes the interrupted sequence (fires its onComplete)', () => {
+    const first = vi.fn();
+    const ov = new StoryDialogOverlay();
+    ov.play('campaign_intro', first);     // open, not yet complete
+    expect(first).not.toHaveBeenCalled();
+    ov.play('epilogue_outpost_sigma', () => {}); // interrupts -> first must complete
+    expect(first).toHaveBeenCalledTimes(1);
+  });
+
+  it('Escape closes and fires onComplete', () => {
+    const done = vi.fn();
+    const ov = new StoryDialogOverlay();
+    ov.play('campaign_intro', done);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(done).toHaveBeenCalledTimes(1);
+    expect(document.getElementById('story-dialog').style.display).toBe('none');
+  });
+
+  it('Escape after close does not fire onComplete again (listener removed)', () => {
+    const done = vi.fn();
+    const ov = new StoryDialogOverlay();
+    ov.play('campaign_intro', done);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(done).toHaveBeenCalledTimes(1);
+  });
+
+  it('backdrop click (on the overlay itself) closes and fires onComplete', () => {
+    const done = vi.fn();
+    const ov = new StoryDialogOverlay();
+    ov.play('campaign_intro', done);
+    const overlay = document.getElementById('story-dialog');
+    overlay.dispatchEvent(new MouseEvent('click', { bubbles: true })); // target === overlay
+    expect(done).toHaveBeenCalledTimes(1);
+    expect(overlay.style.display).toBe('none');
+  });
+
+  it('clicking a child button does not trigger a backdrop dismiss', () => {
+    const done = vi.fn();
+    const ov = new StoryDialogOverlay();
+    ov.play('epilogue_outpost_sigma', done); // 2 panels
+    document.getElementById('story-dialog-next').click(); // advance, not dismiss
+    expect(done).not.toHaveBeenCalled();
+    expect(document.getElementById('story-dialog').style.display).toBe('flex');
+  });
 });

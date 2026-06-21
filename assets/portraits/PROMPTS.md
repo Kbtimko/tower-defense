@@ -4,7 +4,8 @@ The campaign story dialog (`src/ui/StoryDialogOverlay.js`) renders a speaker por
 per panel. Until these PNGs exist, `src/systems/portraitFallback.js` draws a colored
 block with the speaker's initial. To enable real art with **zero code change**:
 
-1. Generate the three 256×256 PNGs below and save them to `public/assets/portraits/`.
+1. Generate the three 256×256 PNGs below and save them to `public/assets/portraits/`
+   (the overlay loads them from the site-root path `/assets/portraits/<key>.png`).
 2. In `src/systems/portraitFallback.js`, add their keys to `REGISTERED_PORTRAITS`:
    `new Set(['portrait-command', 'portrait-rael', 'portrait-vorn'])`.
    (Or, preferred: have BootScene load them and populate the set at runtime.)
