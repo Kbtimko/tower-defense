@@ -33,6 +33,8 @@ import { AmbientBackgroundLayer } from '../systems/AmbientBackgroundLayer.js';
 import { computeBlockerPlacements } from '../systems/BlockerPlacement.js';
 import { BLOCKER_TYPES } from '../data/blockerTypes.js';
 import { previewRange } from '../systems/rangePreview.js';
+import { SFX_KEYS } from '../systems/AudioManager.js';
+import { towerFireSfxKey } from '../systems/sfxKeys.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const ENEMY_MELEE_DAMAGE = 20;
@@ -742,7 +744,7 @@ export default class GameScene extends Phaser.Scene {
       }
       if (best) {
         const am = this.game.registry.get('audio');
-        if (am) am.playSfx(`tower-fire-${tower.type}`);
+        if (am) am.playSfx(towerFireSfxKey(tower.type, tower.branch, SFX_KEYS));
         if (this.particleSpawner) this.particleSpawner.spawnMuzzleFlash(tower.x, tower.y, tower.type);
         this.projectiles.push(new Projectile(this, {
           x: tower.x, y: tower.y, target: best,

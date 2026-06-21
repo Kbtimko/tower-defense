@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { getWeaknessMultiplier } from '../data/weaknessMatrix.js';
+import { SFX_KEYS } from '../systems/AudioManager.js';
+import { enemyHitSfxKey } from '../systems/sfxKeys.js';
 
 export class Enemy extends Phaser.GameObjects.Container {
   constructor(scene, { def, scaleFactor = 1, startX, startY }) {
@@ -84,7 +86,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     this._redrawHpBar();
 
     const am = this.scene.game?.registry?.get('audio');
-    if (am) am.playSfx('enemy-hit', { detune: (Math.random() - 0.5) * 100 });
+    if (am) am.playSfx(enemyHitSfxKey(this.def.type, SFX_KEYS), { detune: (Math.random() - 0.5) * 100 });
     this.scene.events.emit('damage-dealt', {
       target: this,
       amount: dmg,
