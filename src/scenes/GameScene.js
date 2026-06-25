@@ -317,9 +317,6 @@ export default class GameScene extends Phaser.Scene {
     this.gfx.clear();
     this._drawPath();
     this._drawZones();
-    this._drawTowers();
-    this._drawEnemies();
-    this._drawProjectiles();
     this._drawParticles();
   }
 
@@ -410,6 +407,8 @@ export default class GameScene extends Phaser.Scene {
           rem = 0;
         }
       }
+      const aheadIdx = Math.min(enemy.waypointIndex + 1, path.length - 1);
+      enemy._sprite?.setFacing(path[aheadIdx].x - enemy.x);
       if (enemy.waypointIndex >= path.length - 1) {
         enemy.dead = true;
         const am = this.game.registry.get('audio');
@@ -764,6 +763,7 @@ export default class GameScene extends Phaser.Scene {
           tier: tower.level, branch: tower.branch,
         }));
         tower.cooldown = 1 / tower.fireRate;
+        tower._sprite?.setState('attack');
       }
     }
   }
@@ -1339,47 +1339,6 @@ export default class GameScene extends Phaser.Scene {
           this.gfx.fillStyle(0x4fc3f7, 0.45);
           this.gfx.fillCircle(pt.x, pt.y, 6);
         }
-      }
-    }
-  }
-
-  _drawTowers() {
-    for (const tower of this.placementManager.getTowers()) {
-      if (this.selectedTower === tower) {
-        this.gfx.lineStyle(1, 0xffd700, 0.25); this.gfx.strokeCircle(tower.x, tower.y, tower.range);
-      }
-      this.gfx.fillStyle(0x2a2a3a, 1); this.gfx.fillCircle(tower.x, tower.y, 18);
-      this.gfx.lineStyle(2.5, TOWER_DEFS[tower.type].color, 1);
-      this.gfx.strokeCircle(tower.x, tower.y, 18);
-    }
-  }
-
-  _drawEnemies() {
-    for (const enemy of this.enemies) {
-      const r = enemy.def.radius;
-      this.gfx.fillStyle(0x000000, 0.25);
-      this.gfx.fillEllipse(enemy.x, enemy.y + r + 2, r * 1.5, 6);
-      this.gfx.fillStyle(enemy.def.color, 1);
-      this.gfx.fillCircle(enemy.x, enemy.y, r);
-      if (enemy.statusEffects.slow.active) {
-        this.gfx.lineStyle(2, 0x00eeff, 1); this.gfx.strokeCircle(enemy.x, enemy.y, r);
-      }
-      // HP bar
-      const bw = r * 2.2, bh = 4, bx = enemy.x - bw / 2, by = enemy.y - r - 8;
-      const pct = enemy.hp / enemy.maxHp;
-      this.gfx.fillStyle(0x222222, 1); this.gfx.fillRect(bx, by, bw, bh);
-      this.gfx.fillStyle(pct > 0.5 ? 0x2ecc40 : pct > 0.25 ? 0xf39c12 : 0xe74c3c, 1);
-      this.gfx.fillRect(bx, by, bw * pct, bh);
-    }
-  }
-
-  _drawProjectiles() {
-    for (const proj of this.projectiles) {
-      this.gfx.fillStyle(proj.color, 1);
-      this.gfx.fillCircle(proj.x, proj.y, proj.splashRadius > 0 ? 5 : 3);
-      if (proj.slowFactor > 0) {
-        this.gfx.lineStyle(1, 0xaaffff, 1);
-        this.gfx.strokeCircle(proj.x, proj.y, proj.slowFactor > 0 ? 5 : 3);
       }
     }
   }

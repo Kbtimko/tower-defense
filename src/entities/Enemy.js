@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { getWeaknessMultiplier } from '../data/weaknessMatrix.js';
 import { SFX_KEYS } from '../systems/AudioManager.js';
 import { enemyHitSfxKey } from '../systems/sfxKeys.js';
+import { EntitySprite } from '../systems/EntitySprite.js';
 
 export class Enemy extends Phaser.GameObjects.Container {
   constructor(scene, { def, scaleFactor = 1, startX, startY }) {
@@ -23,13 +24,20 @@ export class Enemy extends Phaser.GameObjects.Container {
       vulnerable: { active: false, timer: 0, multiplier: 1 },
     };
 
-    this._body  = scene.add.graphics();
-    this._hpBar = scene.add.graphics();
-    this.add([this._body, this._hpBar]);
+    this._body    = scene.add.graphics();
+    this._overlay = scene.add.graphics();  // status rings — always visible
+    this._hpBar   = scene.add.graphics();
+    this.add([this._body, this._overlay, this._hpBar]);
     scene.add.existing(this);
-    this.setDepth(3);
+    this.setDepth(14); // above the static road/build-pad layer (depth 10)
     this._redrawBody();
+    this._redrawStatusOverlay();
     this._redrawHpBar();
+
+    this._sprite = new EntitySprite(this, scene, {
+      category: 'enemy', type: def.type, initialState: 'move',
+    });
+    if (this._sprite.active) this._body.setVisible(false);
   }
 
   get currentSpeed() {
@@ -43,14 +51,14 @@ export class Enemy extends Phaser.GameObjects.Container {
       this.statusEffects.slow.timer -= dt;
       if (this.statusEffects.slow.timer <= 0) {
         this.statusEffects.slow = { active: false, timer: 0, factor: 1 };
-        this._redrawBody();
+        this._redrawStatusOverlay();
       }
     }
     if (this.statusEffects.stun.active) {
       this.statusEffects.stun.timer -= dt;
       if (this.statusEffects.stun.timer <= 0) {
         this.statusEffects.stun = { active: false, timer: 0 };
-        this._redrawBody();
+        this._redrawStatusOverlay();
       }
     }
     if (this.statusEffects.burn.active) {
@@ -106,11 +114,11 @@ export class Enemy extends Phaser.GameObjects.Container {
   applyStatus({ type, duration, factor, dps, multiplier }) {
     if (type === 'slow') {
       this.statusEffects.slow = { active: true, timer: duration, factor };
-      this._redrawBody();
+      this._redrawStatusOverlay();
     }
     if (type === 'stun') {
       this.statusEffects.stun = { active: true, timer: duration };
-      this._redrawBody();
+      this._redrawStatusOverlay();
     }
     if (type === 'burn') {
       const existing = this.statusEffects.burn;
@@ -132,45 +140,34 @@ export class Enemy extends Phaser.GameObjects.Container {
 
     const t = this.def.type;
     if (t === 'drone') {
-      // Glow ring
       this._body.fillStyle(this.def.color, 0.2);
       this._body.fillPoints(this._hexPoints(r * 1.5), true);
-      // Body
       this._body.fillStyle(this.def.color, 1);
       this._body.fillPoints(this._hexPoints(r), true);
     } else if (t === 'skitter') {
-      // Glow oval
       this._body.fillStyle(this.def.color, 0.2);
       this._body.fillEllipse(0, 0, r * 2.8, r * 2.0);
-      // Body
       this._body.fillStyle(this.def.color, 1);
       this._body.fillPoints(this._diamondPoints(r * 1.4, r), true);
-      // Legs — start at 60%/50% of radius from center, extend to 120%/110%
       this._body.lineStyle(1.5, this.def.color, 0.8);
       for (const [lx, ly] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
         this._body.lineBetween(lx * r * 0.6, ly * r * 0.5, lx * r * 1.2, ly * r * 1.1);
       }
     } else if (t === 'brute') {
-      // Glow ring
       this._body.fillStyle(this.def.color, 0.15);
       this._body.fillPoints(this._hexPoints(r * 1.3), true);
-      // Dark armor base
       this._body.fillStyle(0x334433, 1);
       this._body.fillPoints(this._hexPoints(r), true);
-      // Lighter center plate
       this._body.fillStyle(this.def.color, 1);
       this._body.fillPoints(this._hexPoints(r * 0.65), true);
     } else if (t === 'phantom') {
-      // Outer translucent ring — ghostly form
       this._body.fillStyle(this.def.color, 0.15);
       this._body.fillCircle(0, 0, r * 1.8);
       this._body.lineStyle(2, this.def.color, 0.7);
       this._body.strokeCircle(0, 0, r * 1.4);
-      // Solid inner core
       this._body.fillStyle(this.def.color, 0.9);
       this._body.fillCircle(0, 0, r * 0.6);
     } else if (t === 'titan') {
-      // Triple-layer hexagon: dark armor shell, mid layer, bright core
       this._body.fillStyle(0x1a0000, 1);
       this._body.fillPoints(this._hexPoints(r), true);
       this._body.fillStyle(0x660000, 1);
@@ -178,26 +175,28 @@ export class Enemy extends Phaser.GameObjects.Container {
       this._body.fillStyle(this.def.color, 1);
       this._body.fillPoints(this._hexPoints(r * 0.44), true);
     } else {
-      // Fallback for unknown types (colossus)
       this._body.fillStyle(this.def.color, 1);
       this._body.fillCircle(0, 0, r);
     }
+  }
 
+  _redrawStatusOverlay() {
+    const r = this.def.radius;
+    const t = this.def.type;
+    this._overlay.clear();
     if (this.statusEffects.slow.active) {
-      this._body.lineStyle(2, 0x00eeff, 1);
+      this._overlay.lineStyle(2, 0x00eeff, 1);
       if (t === 'drone' || t === 'brute') {
-        this._body.strokePoints(this._hexPoints(r + 2), true);
+        this._overlay.strokePoints(this._hexPoints(r + 2), true);
       } else if (t === 'skitter') {
-        this._body.strokePoints(this._diamondPoints(r * 1.4 + 2, r + 2), true);
+        this._overlay.strokePoints(this._diamondPoints(r * 1.4 + 2, r + 2), true);
       } else {
-        this._body.strokeCircle(0, 0, r + 2);
+        this._overlay.strokeCircle(0, 0, r + 2);
       }
     }
-
-    // White stun ring
     if (this.statusEffects.stun.active) {
-      this._body.lineStyle(2, 0xffffff, 0.85);
-      this._body.strokeCircle(0, 0, this.def.radius + 3);
+      this._overlay.lineStyle(2, 0xffffff, 0.85);
+      this._overlay.strokeCircle(0, 0, r + 3);
     }
   }
 
