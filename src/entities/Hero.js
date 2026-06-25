@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { heroSource } from '../data/sourceBuilders.js';
 import { HEROES } from '../data/heroes.js';
+import { EntitySprite } from '../systems/EntitySprite.js';
 
 export class Hero extends Phaser.GameObjects.Container {
   constructor(scene, { x, y, heroId = 'rael', pathPoints }, modifiers = {}) {
@@ -51,6 +52,10 @@ export class Hero extends Phaser.GameObjects.Container {
     scene.add.existing(this);
     this.setDepth(4);
     this.def.draw(this._body);
+    this._sprite = new EntitySprite(this, scene, {
+      category: 'hero', type: heroId, initialState: 'idle',
+    });
+    if (this._sprite.active) this._body.setVisible(false);
 
     if (this._totalPathLength > 0) this.setPathPosition(0);
   }
@@ -104,6 +109,7 @@ export class Hero extends Phaser.GameObjects.Container {
       this.dead         = true;
       this.respawnTimer = this._respawnTime;
       this._body.setVisible(false);
+      if (this._sprite?.active) this._sprite.sprite.setVisible(false);
       this._hpBar.clear();
       this._attackDamageMult = 1.0;
       if (this._attackDmgRevertEvt) {
@@ -129,7 +135,8 @@ export class Hero extends Phaser.GameObjects.Container {
     this._attackDmgRevertEvt = null;
     this._attackTimer        = 1 / this.def.stats.attackRate;
     this.setPathPosition(0);
-    this._body.setVisible(true);
+    if (this._sprite?.active) this._sprite.sprite.setVisible(true);
+    else this._body.setVisible(true);
     this._redrawHpBar();
     const am = this.scene.game?.registry?.get('audio');
     if (am) am.playSfx('hero-respawn');
@@ -219,7 +226,10 @@ export class Hero extends Phaser.GameObjects.Container {
         this.pathProgress += Math.sign(remaining) * deltaProgress;
       }
       this.setPathPosition(this.pathProgress);
+      this._sprite?.setState('move');
+      this._sprite?.setFacing(this._facingX);
     }
+    if (!this.moving) this._sprite?.setState('idle');
 
     this._attackTimer -= dt;
     if (this._attackTimer <= 0) {
@@ -237,6 +247,7 @@ export class Hero extends Phaser.GameObjects.Container {
         if (nearest.dead) this._registerKill();
         const am = this.scene.game?.registry?.get('audio');
         if (am) am.playSfx('hero-attack');
+        this._sprite?.setState('attack');
         this._attackTimer = 1 / this.def.stats.attackRate;
       }
     }
