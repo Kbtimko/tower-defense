@@ -40,13 +40,4 @@ describe('StoryManager', () => {
     expect(sm.getPanelForWave('unknown_key', 3)).toBeNull();
   });
 
-  it('getUnlockPanel returns correct unlock panel for valid storyKey', () => {
-    const sm = new StoryManager(PANELS);
-    expect(sm.getUnlockPanel('map_a')).toEqual({ headline: 'Unlock headline', body: 'Unlock body' });
-  });
-
-  it('getUnlockPanel returns null for unknown storyKey', () => {
-    const sm = new StoryManager(PANELS);
-    expect(sm.getUnlockPanel('unknown_key')).toBeNull();
-  });
 });

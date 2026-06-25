@@ -50,6 +50,31 @@ function setupDom() {
     ov.style.display = 'none';
     document.body.appendChild(ov);
   }
+
+  // Story dialog elements (needed by StoryDialogOverlay constructor via MapSelectScene.create)
+  const storyDialog = document.createElement('div');
+  storyDialog.id = 'story-dialog';
+  storyDialog.style.display = 'none';
+  for (const [tag, id] of [
+    ['div', 'story-dialog-portrait'], ['div', 'story-dialog-name'],
+    ['div', 'story-dialog-text'], ['button', 'story-dialog-next'], ['button', 'story-dialog-skip'],
+  ]) {
+    const el = document.createElement(tag);
+    el.id = id;
+    storyDialog.appendChild(el);
+  }
+  document.body.appendChild(storyDialog);
+  // Story log overlay elements
+  for (const id of ['story-log-overlay', 'story-log-list']) {
+    const el = document.createElement('div');
+    el.id = id;
+    document.body.appendChild(el);
+  }
+  for (const id of ['open-story-log', 'story-log-close']) {
+    const btn = document.createElement('button');
+    btn.id = id;
+    document.body.appendChild(btn);
+  }
   for (const id of [
     'upgrade-tree', 'upgrade-available', 'upgrade-close',
     'hero-rail', 'hero-tree', 'hero-mgmt-avail', 'hero-mgmt-close',

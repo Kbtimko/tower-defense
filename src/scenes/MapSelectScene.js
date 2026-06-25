@@ -7,6 +7,8 @@ import { UpgradeManager }         from '../systems/UpgradeManager.js';
 import { UpgradeTreeOverlay }     from '../ui/UpgradeTreeOverlay.js';
 import { SettingsOverlay }        from '../ui/SettingsOverlay.js';
 import { HeroManagementOverlay }  from '../ui/HeroManagementOverlay.js';
+import { StoryDialogOverlay }     from '../ui/StoryDialogOverlay.js';
+import { storyLogEntries }        from '../data/story.js';
 
 export default class MapSelectScene extends Phaser.Scene {
   constructor() { super('MapSelectScene'); }
@@ -21,6 +23,7 @@ export default class MapSelectScene extends Phaser.Scene {
     this._upgradeMgr = new UpgradeManager(this._saveMgr);
     this._overlay    = new UpgradeTreeOverlay(this._upgradeMgr);
     this._heroOverlay = new HeroManagementOverlay(this._upgradeMgr, this._saveMgr);
+    this._storyDialog = new StoryDialogOverlay();
 
     let defaultId = 0;
     for (let i = MAPS.length - 1; i >= 0; i--) {
@@ -36,6 +39,10 @@ export default class MapSelectScene extends Phaser.Scene {
     this._bindUpgrades();
     this._bindHeroes();
     this._bindSettings();
+    this._bindStoryLog();
+    if (!this._saveMgr.hasSeenBeat('campaign_intro')) {
+      this._storyDialog.play('campaign_intro', () => this._saveMgr.markBeatSeen('campaign_intro'));
+    }
   }
 
   _populateOverworld() {
@@ -200,10 +207,50 @@ export default class MapSelectScene extends Phaser.Scene {
     });
   }
 
+  _bindStoryLog() {
+    const openBtn  = document.getElementById('open-story-log');
+    const overlay  = document.getElementById('story-log-overlay');
+    const list     = document.getElementById('story-log-list');
+    const closeBtn = document.getElementById('story-log-close');
+    if (!openBtn || !overlay) return;
+
+    this._onOpenStoryLog = () => {
+      list.replaceChildren();
+      const entries = storyLogEntries(this._saveMgr.getSeenBeats());
+      if (entries.length === 0) {
+        const empty = document.createElement('div');
+        empty.id = 'story-log-empty';
+        empty.textContent = 'No story unlocked yet. Play a mission to begin.';
+        list.appendChild(empty);
+      } else {
+        for (const e of entries) {
+          const btn = document.createElement('button');
+          btn.className = 'story-log-entry';
+          btn.textContent = e.label;
+          btn.addEventListener('click', () => {
+            overlay.style.display = 'none';
+            this._storyDialog.play(e.id, () => {});
+          });
+          list.appendChild(btn);
+        }
+      }
+      overlay.style.display = 'flex';
+    };
+    this._onCloseStoryLog = () => { overlay.style.display = 'none'; };
+
+    openBtn.addEventListener('click', this._onOpenStoryLog);
+    closeBtn.addEventListener('click', this._onCloseStoryLog);
+  }
+
   shutdown() {
     // Call close() on overlays so their event listeners are torn down before the
     // DOM persists into the next scene. Direct style mutation would leak listeners.
     if (this._heroOverlay) this._heroOverlay.close();
+    const openBtn  = document.getElementById('open-story-log');
+    const closeBtn = document.getElementById('story-log-close');
+    if (openBtn && this._onOpenStoryLog)   openBtn.removeEventListener('click', this._onOpenStoryLog);
+    if (closeBtn && this._onCloseStoryLog) closeBtn.removeEventListener('click', this._onCloseStoryLog);
+    this._storyDialog?.close();
     document.getElementById('map-select').style.display          = 'none';
     document.getElementById('upgrade-overlay').style.display     = 'none';
     document.getElementById('settings-overlay').style.display    = 'none';

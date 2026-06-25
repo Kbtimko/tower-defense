@@ -14,12 +14,13 @@ import { Hero } from '../entities/Hero.js';
 import { SaveManager } from '../systems/SaveManager.js';
 import { UpgradeManager } from '../systems/UpgradeManager.js';
 import { StoryManager }    from '../systems/StoryManager.js';
+import { StoryDialogOverlay } from '../ui/StoryDialogOverlay.js';
 import { DamageNumberOverlay } from '../systems/DamageNumberOverlay.js';
 import { ShakeController }    from '../systems/ShakeController.js';
 import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
 import { gameToPageCss } from '../systems/viewport.js';
-import { STORY_PANELS }    from '../data/story.js';
+import { STORY_PANELS, briefKey, victorySequenceId, STORY_SEQUENCES } from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
 import { soldierSource, heroAbilitySource } from '../data/sourceBuilders.js';
 import { AreaEffectsManager } from '../systems/AreaEffectsManager.js';
@@ -81,6 +82,7 @@ export default class GameScene extends Phaser.Scene {
     );
     this.waveMgr  = new WaveManager(MAP_WAVES[this.mapId] ?? MAP_WAVES[0], this.events);
     this.storyMgr = new StoryManager(STORY_PANELS);
+    this._storyDialog = new StoryDialogOverlay();
     this.placementManager = new TowerPlacementManager(
       this.pathMgr.buildZones,
       this.economy,
@@ -209,6 +211,12 @@ export default class GameScene extends Phaser.Scene {
     this.game.events.on('ui:ability', this._onAbility, this);
     this.game.events.on('ui:pause-toggle', this._onPauseToggle, this);
 
+    // Pre-battle briefing (once per map). Combat hasn't started; the wave button waits.
+    const briefId = briefKey(map.storyKey);
+    if (STORY_SEQUENCES[briefId] && !this.saveMgr.hasSeenBeat(briefId)) {
+      this._storyDialog.play(briefId, () => this.saveMgr.markBeatSeen(briefId));
+    }
+
     if (import.meta.env.DEV) window.__game = this;
   }
 
@@ -257,6 +265,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown() {
+    this._storyDialog?.close();
     this.inspector?.destroy();
     if (import.meta.env.DEV) window.__game = null;
     this.game.events.off('ui:ability', this._onAbility, this);
@@ -1181,9 +1190,13 @@ export default class GameScene extends Phaser.Scene {
     const pct   = this.economy.lives / map.startLives;
     const stars = pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : 1;
     this.saveMgr.setStars(this.mapId, stars);
-    const panel = this.storyMgr.getUnlockPanel(map.storyKey);
-    if (panel) {
-      this.storyMgr.showBanner(panel, () => this._showVictoryOverlay(stars));
+    const isFinal = this.mapId === MAPS.length - 1;
+    const seqId   = victorySequenceId(map.storyKey, isFinal);
+    if (STORY_SEQUENCES[seqId] && !this.saveMgr.hasSeenBeat(seqId)) {
+      this._storyDialog.play(seqId, () => {
+        this.saveMgr.markBeatSeen(seqId);
+        this._showVictoryOverlay(stars);
+      });
     } else {
       this._showVictoryOverlay(stars);
     }
