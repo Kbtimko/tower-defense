@@ -49,7 +49,7 @@ describe('SaveManager — migration', () => {
     expect(sm.getStars(1)).toBe(2);
     expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
     const env = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    expect(env.version).toBe(3);
+    expect(env.version).toBe(4);
     expect(env.maps).toEqual([3,2,0,0,0,0,0,0,0,0]);
     expect(env.upgrades).toEqual([]);
     expect(env.stats).toEqual({ kills: 0, gamesPlayed: 0, victories: 0, defeats: 0, bestWave: 0 });
@@ -111,7 +111,7 @@ describe('SaveManager — v2 settings', () => {
       ambientMotion: null,
     });
     const env = JSON.parse(localStorage.getItem('lastlight_save'));
-    expect(env.version).toBe(3);
+    expect(env.version).toBe(4);
     expect(env.settings.masterVol).toBe(0.5);
     expect(env.settings.muted).toBe(true);
   });
@@ -128,7 +128,7 @@ describe('SaveManager — v2 settings', () => {
     expect(sm.getPurchasedUpgrades()).toEqual(['command-1']);
     expect(sm.getSettings().musicVol).toBe(0.6);
     const env = JSON.parse(localStorage.getItem('lastlight_save'));
-    expect(env.version).toBe(3);
+    expect(env.version).toBe(4);
     expect(env.settings).toBeDefined();
   });
 
@@ -249,5 +249,63 @@ describe('SaveManager v3 — selectedHeroId + cmd_* rename', () => {
     expect(mgr.isHeroUnlocked('engineer')).toBe(false);
     mgr.setStars(2, 1);
     expect(mgr.isHeroUnlocked('engineer')).toBe(true);
+  });
+});
+
+describe('seenStoryBeats (v4)', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('fresh save starts with empty seenStoryBeats and version 4', () => {
+    const sm = new SaveManager();
+    expect(sm.hasSeenBeat('campaign_intro')).toBe(false);
+    expect(sm.getSeenBeats()).toEqual({});
+    const raw = JSON.parse(localStorage.getItem('lastlight_save'));
+    expect(raw.version).toBe(4);
+  });
+
+  it('markBeatSeen persists and round-trips through a reload', () => {
+    const sm = new SaveManager();
+    sm.markBeatSeen('brief_outpost_sigma');
+    expect(sm.hasSeenBeat('brief_outpost_sigma')).toBe(true);
+    const sm2 = new SaveManager();
+    expect(sm2.hasSeenBeat('brief_outpost_sigma')).toBe(true);
+    expect(sm2.getSeenBeats()).toEqual({ brief_outpost_sigma: true });
+  });
+
+  it('migrates a v3 save to v4 preserving all fields and adding seenStoryBeats', () => {
+    const v3 = {
+      version: 3,
+      maps: [3, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+      upgrades: ['rael_hp'],
+      stats: { kills: 42, gamesPlayed: 5, victories: 3, defeats: 2, bestWave: 9 },
+      settings: { masterVol: 0.5, sfxVol: 0.5, musicVol: 0.5, muted: true, ambientMotion: false },
+      selectedHeroId: 'engineer',
+    };
+    localStorage.setItem('lastlight_save', JSON.stringify(v3));
+    const sm = new SaveManager();
+    expect(sm.getStars(0)).toBe(3);
+    expect(sm.getStars(1)).toBe(1);
+    expect(sm.getPurchasedUpgrades()).toEqual(['rael_hp']);
+    expect(sm.getStats().kills).toBe(42);
+    expect(sm.getSettings().muted).toBe(true);
+    expect(sm.getSelectedHero()).toBe('engineer');
+    expect(sm.getSeenBeats()).toEqual({});
+    const raw = JSON.parse(localStorage.getItem('lastlight_save'));
+    expect(raw.version).toBe(4);
+  });
+
+  it('migrates a v1 save all the way to v4', () => {
+    const v1 = {
+      version: 1,
+      maps: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      upgrades: ['cmd_veteran'],
+      stats: { kills: 1, gamesPlayed: 1, victories: 1, defeats: 0, bestWave: 1 },
+      settings: { masterVol: 0.8, sfxVol: 1, musicVol: 0.6, muted: false, ambientMotion: null },
+    };
+    localStorage.setItem('lastlight_save', JSON.stringify(v1));
+    const sm = new SaveManager();
+    expect(sm.getPurchasedUpgrades()).toEqual(['rael_veteran']); // cmd_*→rael_* still applied
+    expect(sm.getSeenBeats()).toEqual({});
+    expect(JSON.parse(localStorage.getItem('lastlight_save')).version).toBe(4);
   });
 });

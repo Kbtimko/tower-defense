@@ -16,10 +16,6 @@ export class StoryManager {
     return this._panels[storyKey]?.waves?.[waveNum] ?? null;
   }
 
-  getUnlockPanel(storyKey) {
-    return this._panels[storyKey]?.unlock ?? null;
-  }
-
   showBanner(panel, onDismiss) {
     this._onDismiss = onDismiss;
     document.getElementById('story-headline').textContent = panel.headline;

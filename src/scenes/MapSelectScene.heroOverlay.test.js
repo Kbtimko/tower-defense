@@ -30,10 +30,10 @@ function setupDom() {
   }
   document.body.appendChild(metaBar);
 
-  // Sidebar + featured (placeholder structure — _populateSidebar/_renderFeatured need the elements)
-  const sidebar = document.createElement('div');
-  sidebar.id = 'map-sidebar';
-  document.body.appendChild(sidebar);
+  // Overworld + featured (placeholder structure — _populateOverworld/_renderFeatured need the elements)
+  const overworld = document.createElement('div');
+  overworld.id = 'map-overworld';
+  document.body.appendChild(overworld);
   for (const id of ['featured-name', 'featured-stars', 'featured-blurb', 'featured-tier', 'featured-play']) {
     const el = document.createElement(id === 'featured-play' ? 'button' : 'div');
     el.id = id;
@@ -49,6 +49,31 @@ function setupDom() {
     ov.id = ovId;
     ov.style.display = 'none';
     document.body.appendChild(ov);
+  }
+
+  // Story dialog elements (needed by StoryDialogOverlay constructor via MapSelectScene.create)
+  const storyDialog = document.createElement('div');
+  storyDialog.id = 'story-dialog';
+  storyDialog.style.display = 'none';
+  for (const [tag, id] of [
+    ['div', 'story-dialog-portrait'], ['div', 'story-dialog-name'],
+    ['div', 'story-dialog-text'], ['button', 'story-dialog-next'], ['button', 'story-dialog-skip'],
+  ]) {
+    const el = document.createElement(tag);
+    el.id = id;
+    storyDialog.appendChild(el);
+  }
+  document.body.appendChild(storyDialog);
+  // Story log overlay elements
+  for (const id of ['story-log-overlay', 'story-log-list']) {
+    const el = document.createElement('div');
+    el.id = id;
+    document.body.appendChild(el);
+  }
+  for (const id of ['open-story-log', 'story-log-close']) {
+    const btn = document.createElement('button');
+    btn.id = id;
+    document.body.appendChild(btn);
   }
   for (const id of [
     'upgrade-tree', 'upgrade-available', 'upgrade-close',
@@ -101,5 +126,23 @@ describe('MapSelectScene heroes-overlay integration', () => {
     document.getElementById('featured-play').click();
     expect(scene.scene.start).toHaveBeenCalledWith('GameScene',
       expect.objectContaining({ heroId: 'engineer' }));
+  });
+});
+
+describe('MapSelectScene — overworld rendering', () => {
+  beforeEach(setupDom);
+
+  it('renders one node per map with correct states on a fresh save', () => {
+    const scene = new MapSelectScene();
+    scene.create();
+
+    const nodes = document.querySelectorAll('#map-overworld .ow-node');
+    expect(nodes.length).toBe(10);
+
+    const node0 = document.querySelector('.ow-node[data-map-id="0"]');
+    const node9 = document.querySelector('.ow-node[data-map-id="9"]');
+    expect(node0.className).toContain('next');     // map 0 unlocked, 0 stars -> next
+    expect(node9.className).toContain('locked');   // map 9 not yet unlocked
+    expect(node9.className).toContain('final');    // map 9 is the final id
   });
 });

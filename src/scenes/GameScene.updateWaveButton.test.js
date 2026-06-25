@@ -42,11 +42,12 @@ function setupBtn() {
   return btn;
 }
 
-function makeScene({ done = false, active = false, isEarlyEligible = false, currentWave = 0, enemies = [] } = {}) {
+function makeScene({ done = false, active = false, isEarlyEligible = false, currentWave = 0, enemies = [], rewardMult = 1 } = {}) {
   // Use prototype as base so _computeEarlyBonus is available when _updateWaveButton calls this._computeEarlyBonus()
   const scene = Object.create(GameScene.prototype);
   scene.waveMgr = { done, active, isEarlyEligible, currentWave };
   scene.enemies = enemies;
+  scene.rewardMult = rewardMult;
   return scene;
 }
 

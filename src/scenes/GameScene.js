@@ -14,11 +14,13 @@ import { Hero } from '../entities/Hero.js';
 import { SaveManager } from '../systems/SaveManager.js';
 import { UpgradeManager } from '../systems/UpgradeManager.js';
 import { StoryManager }    from '../systems/StoryManager.js';
+import { StoryDialogOverlay } from '../ui/StoryDialogOverlay.js';
 import { DamageNumberOverlay } from '../systems/DamageNumberOverlay.js';
 import { ShakeController }    from '../systems/ShakeController.js';
 import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
-import { STORY_PANELS }    from '../data/story.js';
+import { gameToPageCss } from '../systems/viewport.js';
+import { STORY_PANELS, briefKey, victorySequenceId, STORY_SEQUENCES } from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
 import { soldierSource, heroAbilitySource } from '../data/sourceBuilders.js';
 import { AreaEffectsManager } from '../systems/AreaEffectsManager.js';
@@ -31,10 +33,14 @@ import { renderPlatforms } from '../systems/PlatformRenderer.js';
 import { AmbientBackgroundLayer } from '../systems/AmbientBackgroundLayer.js';
 import { computeBlockerPlacements } from '../systems/BlockerPlacement.js';
 import { BLOCKER_TYPES } from '../data/blockerTypes.js';
+import { previewRange } from '../systems/rangePreview.js';
+import { SFX_KEYS } from '../systems/AudioManager.js';
+import { towerFireSfxKey } from '../systems/sfxKeys.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const ENEMY_MELEE_DAMAGE = 20;
 const MELEE_RANGE        = 30;
+const WAVE_CLEAR_BONUS   = 38;
 
 export default class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
@@ -65,6 +71,8 @@ export default class GameScene extends Phaser.Scene {
     this.upgradeMgr  = new UpgradeManager(this.saveMgr);
     const mods       = this.upgradeMgr.getModifiers(this.heroId);
     this.killGoldMult = mods.killGoldMult;
+    this.rewardMult = map.rewardMult ?? 1;
+    this._towerRangeMult = mods.towerRangeMult ?? 1;
 
     this.pathMgr  = new PathManager(map.waypoints, map.towerSlots, width, height);
     this.economy  = new EconomyManager(
@@ -74,6 +82,7 @@ export default class GameScene extends Phaser.Scene {
     );
     this.waveMgr  = new WaveManager(MAP_WAVES[this.mapId] ?? MAP_WAVES[0], this.events);
     this.storyMgr = new StoryManager(STORY_PANELS);
+    this._storyDialog = new StoryDialogOverlay();
     this.placementManager = new TowerPlacementManager(
       this.pathMgr.buildZones,
       this.economy,
@@ -113,6 +122,10 @@ export default class GameScene extends Phaser.Scene {
     this.selectedTower  = null;
     this._openTowerId   = null;
 
+    // Latest pointer world position, used to draw the build-time range ring.
+    this._buildCursorX  = 0;
+    this._buildCursorY  = 0;
+
     // Reposition mode state
     this.repositionMode        = false;
     this.repositioningBarracks = null;
@@ -146,7 +159,11 @@ export default class GameScene extends Phaser.Scene {
     this.add.text(p[p.length-1].x, p[p.length-1].y, 'OUT', { fontSize: '10px', color: '#fff', fontFamily: 'Georgia', fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
 
     this.inspector = new InspectController(this);
-    this.input.on('pointermove', (p) => this.inspector.onPointerMove(p.worldX, p.worldY));
+    this.input.on('pointermove', (p) => {
+      this._buildCursorX = p.worldX;
+      this._buildCursorY = p.worldY;
+      this.inspector.onPointerMove(p.worldX, p.worldY);
+    });
 
     // Phaser input
     this.input.on('pointerdown', this._onPointerDown, this);
@@ -193,6 +210,12 @@ export default class GameScene extends Phaser.Scene {
     // Wire ability dispatch
     this.game.events.on('ui:ability', this._onAbility, this);
     this.game.events.on('ui:pause-toggle', this._onPauseToggle, this);
+
+    // Pre-battle briefing (once per map). Combat hasn't started; the wave button waits.
+    const briefId = briefKey(map.storyKey);
+    if (STORY_SEQUENCES[briefId] && !this.saveMgr.hasSeenBeat(briefId)) {
+      this._storyDialog.play(briefId, () => this.saveMgr.markBeatSeen(briefId));
+    }
 
     if (import.meta.env.DEV) window.__game = this;
   }
@@ -242,6 +265,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown() {
+    this._storyDialog?.close();
     this.inspector?.destroy();
     if (import.meta.env.DEV) window.__game = null;
     this.game.events.off('ui:ability', this._onAbility, this);
@@ -341,7 +365,7 @@ export default class GameScene extends Phaser.Scene {
     if (!this.waveMgr.active) return;
     if (this.waveMgr.hasQueuedEnemies || this.enemies.length > 0) return;
     this.waveMgr.active = false;
-    this.economy.earn(38);
+    this.economy.earn(Math.round(WAVE_CLEAR_BONUS * this.rewardMult));
     if (this.waveMgr.done) {
       this._onVictory();
     } else {
@@ -445,7 +469,7 @@ export default class GameScene extends Phaser.Scene {
     this.hero.update(dt, this.enemies);
     for (const e of aliveBeforeHero) {
       if (e.dead) {
-        this.economy.earn(Math.round(e.reward * this.killGoldMult));
+        this.economy.earn(this._killReward(e.reward));
         this.kills++;
         this._updateHUD();
       }
@@ -729,7 +753,7 @@ export default class GameScene extends Phaser.Scene {
       }
       if (best) {
         const am = this.game.registry.get('audio');
-        if (am) am.playSfx(`tower-fire-${tower.type}`);
+        if (am) am.playSfx(towerFireSfxKey(tower.type, tower.branch, SFX_KEYS));
         if (this.particleSpawner) this.particleSpawner.spawnMuzzleFlash(tower.x, tower.y, tower.type);
         this.projectiles.push(new Projectile(this, {
           x: tower.x, y: tower.y, target: best,
@@ -788,7 +812,7 @@ export default class GameScene extends Phaser.Scene {
   _dealDamage(enemy, damage, pierce, opts = {}) {
     enemy.takeDamage(damage, { pierce, ...opts });
     if (enemy.dead) {
-      this.economy.earn(Math.round(enemy.reward * this.killGoldMult));
+      this.economy.earn(this._killReward(enemy.reward));
       this.kills++;
       this._updateHUD();
       // Central flash
@@ -859,7 +883,9 @@ export default class GameScene extends Phaser.Scene {
       if (Math.hypot(tower.x - mx, tower.y - my) < 22) {
         this.selectedType = null;
         this._deselectButtons();
-        this._openTowerPanel(tower, mx, my);
+        const panelCss = gameToPageCss(this.scale, mx, my);
+        const gRect = document.getElementById('game').getBoundingClientRect();
+        this._openTowerPanel(tower, panelCss.x - gRect.left, panelCss.y - gRect.top);
         return;
       }
     }
@@ -1139,13 +1165,17 @@ export default class GameScene extends Phaser.Scene {
     btn.disabled = false; btn.textContent = `▶ Send Wave ${this.waveMgr.currentWave + 1}`;
   }
 
+  _killReward(reward) {
+    return Math.round(reward * this.killGoldMult * this.rewardMult);
+  }
+
   _computeEarlyBonus() {
     let sum = 0;
     for (const e of this.enemies) {
       if (e.dead) continue;
       sum += (e.def && typeof e.def.reward === 'number') ? e.def.reward : 0;
     }
-    return Math.floor(0.5 * sum);
+    return Math.floor(0.5 * sum * this.rewardMult);
   }
 
   // ─── Game end ──────────────────────────────────────────────────────────────
@@ -1160,9 +1190,13 @@ export default class GameScene extends Phaser.Scene {
     const pct   = this.economy.lives / map.startLives;
     const stars = pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : 1;
     this.saveMgr.setStars(this.mapId, stars);
-    const panel = this.storyMgr.getUnlockPanel(map.storyKey);
-    if (panel) {
-      this.storyMgr.showBanner(panel, () => this._showVictoryOverlay(stars));
+    const isFinal = this.mapId === MAPS.length - 1;
+    const seqId   = victorySequenceId(map.storyKey, isFinal);
+    if (STORY_SEQUENCES[seqId] && !this.saveMgr.hasSeenBeat(seqId)) {
+      this._storyDialog.play(seqId, () => {
+        this.saveMgr.markBeatSeen(seqId);
+        this._showVictoryOverlay(stars);
+      });
     } else {
       this._showVictoryOverlay(stars);
     }
@@ -1269,6 +1303,30 @@ export default class GameScene extends Phaser.Scene {
       this.gfx.strokeCircle(zone.cx, zone.cy, zone.radius);
       if (this.selectedType && canAfford) {
         this.gfx.fillStyle(0xffd700, 0.07); this.gfx.fillCircle(zone.cx, zone.cy, zone.radius);
+      }
+    }
+
+    // Build-time range preview: a single ring at the cursor (snapping to the
+    // nearest free slot when close) showing the coverage the tower would have.
+    if (this.selectedType && !this.repositionMode) {
+      const def    = TOWER_DEFS[this.selectedType];
+      const radius = previewRange(def.range, this._towerRangeMult);
+      // getNearestSlot returns { slotIndex, x, y } — note x/y, not the slot's cx/cy.
+      const slot   = this.placementManager.getNearestSlot(
+        this._buildCursorX, this._buildCursorY, 60, true,
+      );
+      const cx = slot ? slot.x : this._buildCursorX;
+      const cy = slot ? slot.y : this._buildCursorY;
+      const valid = canAfford && !!slot;
+
+      if (valid) {
+        this.gfx.lineStyle(2, 0xffd700, 0.5);
+        this.gfx.strokeCircle(cx, cy, radius);
+        this.gfx.fillStyle(0xffd700, 0.07);
+        this.gfx.fillCircle(cx, cy, radius);
+      } else {
+        this.gfx.lineStyle(2, 0x884444, 0.4);
+        this.gfx.strokeCircle(cx, cy, radius);
       }
     }
 

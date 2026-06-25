@@ -3,7 +3,7 @@ import { HEROES } from '../data/heroes.js';
 const STORAGE_KEY = 'lastlight_save';
 const LEGACY_KEY  = 'lastlight_progress';
 const MAP_COUNT   = 10;
-const VERSION     = 3;
+const VERSION     = 4;
 
 function defaultSettings() {
   return { masterVol: 0.8, sfxVol: 1.0, musicVol: 0.6, muted: false, ambientMotion: null };
@@ -17,6 +17,7 @@ function freshEnvelope() {
     stats:          { kills: 0, gamesPlayed: 0, victories: 0, defeats: 0, bestWave: 0 },
     settings:       defaultSettings(),
     selectedHeroId: 'rael',
+    seenStoryBeats: {},
   };
 }
 
@@ -36,6 +37,14 @@ function migrateV2toV3(env) {
   };
 }
 
+function migrateV3toV4(env) {
+  return {
+    ...env,
+    version:        4,
+    seenStoryBeats: env.seenStoryBeats ?? {},
+  };
+}
+
 export class SaveManager {
   constructor() {
     this._data = this._load();
@@ -48,13 +57,16 @@ export class SaveManager {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && Array.isArray(parsed.maps) && parsed.maps.length === MAP_COUNT
-            && (parsed.version === 1 || parsed.version === 2 || parsed.version === 3)) {
+            && (parsed.version === 1 || parsed.version === 2 || parsed.version === 3 || parsed.version === 4)) {
           let normalized = this._normalize(parsed);
           if (parsed.version === 1) {
-            normalized = migrateV2toV3({ ...normalized, version: 2 });
+            normalized = migrateV3toV4(migrateV2toV3({ ...normalized, version: 2 }));
             localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
           } else if (parsed.version === 2) {
-            normalized = migrateV2toV3(normalized);
+            normalized = migrateV3toV4(migrateV2toV3(normalized));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+          } else if (parsed.version === 3) {
+            normalized = migrateV3toV4(normalized);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
           }
           return normalized;
@@ -85,7 +97,9 @@ export class SaveManager {
     } catch (_) { /* fall through to fresh */ }
 
     // 3. Fresh
-    return freshEnvelope();
+    const fresh = freshEnvelope();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh));
+    return fresh;
   }
 
   _normalize(parsed) {
@@ -99,6 +113,10 @@ export class SaveManager {
       env.settings = { ...env.settings, ...parsed.settings };
     }
     if (typeof parsed.selectedHeroId === 'string') env.selectedHeroId = parsed.selectedHeroId;
+    if (parsed.seenStoryBeats && typeof parsed.seenStoryBeats === 'object'
+        && !Array.isArray(parsed.seenStoryBeats)) {
+      env.seenStoryBeats = { ...parsed.seenStoryBeats };
+    }
     return env;
   }
 
@@ -174,5 +192,20 @@ export class SaveManager {
     if (!def) return false;
     if (def.unlockMapAfter == null) return true;
     return this.getStars(def.unlockMapAfter) > 0;
+  }
+
+  // ─── Story beats ───
+  hasSeenBeat(id) {
+    return !!this._data.seenStoryBeats[id];
+  }
+
+  markBeatSeen(id) {
+    if (this._data.seenStoryBeats[id]) return;
+    this._data.seenStoryBeats[id] = true;
+    this._save();
+  }
+
+  getSeenBeats() {
+    return { ...this._data.seenStoryBeats };
   }
 }

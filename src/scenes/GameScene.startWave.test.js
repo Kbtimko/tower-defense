@@ -41,7 +41,7 @@ function setupBtn() {
   document.body.appendChild(btn);
 }
 
-function makeScene({ isEarlyEligible = false, active = false, currentWave = 1, enemies = [] } = {}) {
+function makeScene({ isEarlyEligible = false, active = false, currentWave = 1, enemies = [], rewardMult = 1 } = {}) {
   const startWaveSpy = vi.fn();
   const scene = Object.create(GameScene.prototype);
   scene.waveMgr = {
@@ -52,6 +52,7 @@ function makeScene({ isEarlyEligible = false, active = false, currentWave = 1, e
     startWave: startWaveSpy,
   };
   scene.enemies = enemies;
+  scene.rewardMult = rewardMult;
   scene.economy = { earn: vi.fn() };
   scene.game = { registry: { get: () => null } };
   scene._toast = vi.fn();
@@ -114,5 +115,17 @@ describe('GameScene._startWave', () => {
     scene.game.registry.get = () => ({ playSfx });
     GameScene.prototype._startWave.call(scene);
     expect(playSfx).toHaveBeenCalledWith('wave-start');
+  });
+
+  it('scales the early bonus by rewardMult', () => {
+    const enemies = [
+      { def: { reward: 20 }, dead: false },
+      { def: { reward: 55 }, dead: false },
+    ];
+    // sum = 75 -> floor(0.5 * 75 * 0.4) = floor(15) = 15
+    const scene = makeScene({ isEarlyEligible: true, active: true, enemies, rewardMult: 0.4 });
+    GameScene.prototype._startWave.call(scene);
+    expect(scene.economy.earn).toHaveBeenCalledWith(15);
+    expect(scene._toast).toHaveBeenCalledWith('+15g');
   });
 });

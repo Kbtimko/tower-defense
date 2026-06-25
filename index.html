@@ -20,8 +20,9 @@
     #pause-btn.disabled, #exit-btn.disabled {
                  background: #2a2a2a; border-color: #444; color: #666;
                  cursor: not-allowed; pointer-events: none; }
-    #game { flex: 1; position: relative; min-height: 0; overflow: hidden; }
-    #game canvas { display: block; width: 100% !important; height: 100% !important; }
+    #game { flex: 1; position: relative; min-height: 0; overflow: hidden;
+            display: flex; align-items: center; justify-content: center; }
+    #game canvas { display: block; }
     #bottom-bar { display: none; align-items: center; gap: 8px; padding: 8px 14px;
                   background: #0f0f1e; border-top: 2px solid #8b6914; flex-shrink: 0; }
     .tower-btn { background: #1a1a3a; border: 2px solid #444; border-radius: 6px;
@@ -103,12 +104,56 @@
     #story-dismiss { background:transparent; border:1px solid #3a6a4a; color:#7aba8a;
                      padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px; flex-shrink:0; }
     #story-dismiss:hover { background:#1a2a1a; }
+    .story-dialog-overlay { display:none; position:absolute; inset:0; z-index:18;
+      background:rgba(2,4,10,0.78); align-items:center; justify-content:center; }
+    .story-dialog-card { width:90%; max-width:680px; background:linear-gradient(135deg,#0a1426,#0a1a14);
+      border:1px solid #2a4a6a; border-radius:10px; padding:22px; display:flex; gap:18px; }
+    .story-dialog-portrait { width:96px; height:96px; flex:0 0 96px; border-radius:8px;
+      display:flex; align-items:center; justify-content:center; font-size:42px; font-weight:bold;
+      color:#0a0a0a; overflow:hidden; }
+    .story-dialog-portrait img { width:100%; height:100%; object-fit:cover; }
+    .story-dialog-body { flex:1; display:flex; flex-direction:column; }
+    .story-dialog-name { font-size:13px; letter-spacing:1px; text-transform:uppercase; margin-bottom:8px; font-weight:bold; }
+    .story-dialog-text { font-size:15px; color:#e6e6e6; line-height:1.6; flex:1; }
+    .story-dialog-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; }
+    .story-dialog-actions button { background:#16324a; border:1px solid #2a5a7a; color:#cfe;
+      padding:7px 16px; border-radius:6px; cursor:pointer; font-size:13px; }
+    .story-dialog-actions button:hover { background:#1d4360; }
+    #story-dialog-skip { background:transparent; border-color:#3a4a5a; color:#8aa; }
+    #story-log-overlay { display:none; position:absolute; inset:0; z-index:17;
+      background:rgba(2,4,10,0.85); align-items:center; justify-content:center; }
+    #story-log-inner { width:90%; max-width:420px; max-height:70%; overflow:auto;
+      background:#0a1018; border:1px solid #2a4a6a; border-radius:10px; padding:18px; }
+    #story-log-inner h3 { color:#6bf; margin:0 0 12px; font-size:16px; }
+    .story-log-entry { display:block; width:100%; text-align:left; background:#12202e;
+      border:1px solid #24405a; color:#cde; padding:9px 12px; border-radius:6px; margin-bottom:7px; cursor:pointer; }
+    .story-log-entry:hover { background:#1a3145; }
+    #story-log-empty { color:#789; font-size:13px; }
+    #story-log-close { margin-top:8px; background:transparent; border:1px solid #3a4a5a; color:#8aa;
+      padding:6px 14px; border-radius:6px; cursor:pointer; }
     #map-select { display:none; position:absolute; inset:0; background:#08081e; z-index:5;
                   padding:20px; flex-direction:column; font-family:'Georgia',serif; }
     #map-select-title { font-size:34px; color:#ffd700; font-weight:bold; text-align:center;
                         margin-bottom:18px; letter-spacing:4px; }
     #map-select-layout { display:flex; gap:16px; flex:1; min-height:0; overflow:hidden; }
-    #map-sidebar { width:230px; overflow-y:auto; display:flex; flex-direction:column; gap:5px; }
+    #map-overworld { flex:1.6; position:relative; min-height:0; border:1px solid #2a2a4a; border-radius:10px; overflow:hidden;
+      background:radial-gradient(ellipse at 30% 20%, #141436 0%, #08081e 60%, #050510 100%); }
+    #map-overworld .ow-connectors { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+    #map-overworld .ow-path-dim { fill:none; stroke:#2f2f50; stroke-width:0.8; vector-effect:non-scaling-stroke; }
+    #map-overworld .ow-path-lit { stroke:#8b6914; stroke-width:1.2; vector-effect:non-scaling-stroke; }
+    .ow-node { position:absolute; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; gap:2px; }
+    .ow-node.unlocked, .ow-node.next, .ow-node.completed { cursor:pointer; }
+    .ow-node-art { width:46px; height:46px; border-radius:50%; object-fit:cover; border:2px solid #8b6914; background:#11112a; }
+    .ow-node.locked .ow-node-art { filter:grayscale(1) brightness(0.4); border:2px dashed #444; }
+    .ow-node.active .ow-node-art { border-color:#ffd700; box-shadow:0 0 10px #ffd700; }
+    .ow-node.next .ow-node-art { border-color:#7ab8ff; box-shadow:0 0 12px #7ab8ff; }
+    .ow-node.final .ow-node-art { width:54px; height:54px; border-color:#6a2a3a; }
+    /* numbered-circle fallback (when art img errors out) */
+    .ow-node.ow-node-fallback .ow-node-num { width:46px; height:46px; border-radius:50%; background:#1c2c4c;
+      display:flex; align-items:center; justify-content:center; border:2px solid #8b6914; }
+    .ow-node-num { font-size:13px; font-weight:bold; color:#ffd700; line-height:1; }
+    .ow-node.locked .ow-node-num { color:#666; }
+    .ow-node-stars { font-size:10px; color:#ffd700; min-height:12px; line-height:1; }
     #map-featured { flex:1; border:2px solid #8b6914; border-radius:10px; background:#0f0f2e;
                     padding:22px; display:flex; flex-direction:column; }
     #featured-name { font-size:22px; color:#ffd700; font-weight:bold; margin-bottom:6px; }
@@ -299,6 +344,26 @@
       </div>
       <button id="story-dismiss">&#10005;</button>
     </div>
+    <div id="story-dialog" class="story-dialog-overlay">
+      <div class="story-dialog-card">
+        <div id="story-dialog-portrait" class="story-dialog-portrait"></div>
+        <div class="story-dialog-body">
+          <div id="story-dialog-name" class="story-dialog-name"></div>
+          <div id="story-dialog-text" class="story-dialog-text"></div>
+          <div class="story-dialog-actions">
+            <button id="story-dialog-skip">Skip</button>
+            <button id="story-dialog-next">Next ▸</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="story-log-overlay">
+      <div id="story-log-inner">
+        <h3>Story Log</h3>
+        <div id="story-log-list"></div>
+        <button id="story-log-close">Close</button>
+      </div>
+    </div>
     <div id="map-select">
       <div id="map-select-title">LAST LIGHT</div>
       <div id="map-meta-bar">
@@ -306,9 +371,10 @@
         <button id="open-upgrades">⚙ Upgrades</button>
         <button id="open-heroes" title="Hero command">🦸 Heroes</button>
         <button id="open-settings" title="Audio settings">♪ Audio</button>
+        <button id="open-story-log" title="Story log">📖 Story</button>
       </div>
       <div id="map-select-layout">
-        <div id="map-sidebar"></div>
+        <div id="map-overworld"></div>
         <div id="map-featured">
           <div id="featured-name"></div>
           <div id="featured-stars"></div>
