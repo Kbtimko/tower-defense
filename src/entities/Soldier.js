@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { EntitySprite } from '../systems/EntitySprite.js';
 
 export class Soldier extends Phaser.GameObjects.Container {
   constructor(scene, { barracks, pathProgress, pathPoints, soldierStats, modifiers = {} }) {
@@ -24,6 +25,10 @@ export class Soldier extends Phaser.GameObjects.Container {
     this.setDepth(3);
 
     this._drawBody();
+    this._sprite = new EntitySprite(this, scene, {
+      category: 'soldier', type: 'default', initialState: 'idle',
+    });
+    if (this._sprite.active) this._body.setVisible(false);
     this.setPathProgress(pathProgress, pathPoints);
   }
 
@@ -80,6 +85,7 @@ export class Soldier extends Phaser.GameObjects.Container {
       this.dead         = true;
       this.respawnTimer = this.respawnDuration;
       this._body.setVisible(false);
+      if (this._sprite?.active) this._sprite.sprite.setVisible(false);
       this._hpBar.clear();
     }
   }
@@ -88,7 +94,8 @@ export class Soldier extends Phaser.GameObjects.Container {
     this.dead         = false;
     this.hp           = this.maxHp;
     this.respawnTimer = 0;
-    this._body.setVisible(true);
+    if (this._sprite?.active) this._sprite.sprite.setVisible(true);
+    else this._body.setVisible(true);
     this._redrawHpBar();
   }
 
