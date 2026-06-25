@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { TOWER_DEFS } from '../data/towers.js';
+import { EntitySprite } from '../systems/EntitySprite.js';
 
 export class Tower extends Phaser.GameObjects.Container {
   constructor(scene, { type, x, y, def, zoneIndex, modifiers = {} }) {
@@ -29,6 +30,10 @@ export class Tower extends Phaser.GameObjects.Container {
     this.setDepth(2);
     this._rangeRing.setVisible(false);
     this._redraw();
+    this._sprite = new EntitySprite(this, scene, {
+      category: 'tower', type, initialState: 'idle',
+    });
+    if (this._sprite.active) { this._bg.setVisible(false); this._icon.setVisible(false); }
   }
 
   _redraw() {

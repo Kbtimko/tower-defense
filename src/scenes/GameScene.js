@@ -317,7 +317,6 @@ export default class GameScene extends Phaser.Scene {
     this.gfx.clear();
     this._drawPath();
     this._drawZones();
-    this._drawTowers();
     this._drawProjectiles();
     this._drawParticles();
   }
@@ -765,6 +764,7 @@ export default class GameScene extends Phaser.Scene {
           tier: tower.level, branch: tower.branch,
         }));
         tower.cooldown = 1 / tower.fireRate;
+        tower._sprite?.setState('attack');
       }
     }
   }
@@ -1341,17 +1341,6 @@ export default class GameScene extends Phaser.Scene {
           this.gfx.fillCircle(pt.x, pt.y, 6);
         }
       }
-    }
-  }
-
-  _drawTowers() {
-    for (const tower of this.placementManager.getTowers()) {
-      if (this.selectedTower === tower) {
-        this.gfx.lineStyle(1, 0xffd700, 0.25); this.gfx.strokeCircle(tower.x, tower.y, tower.range);
-      }
-      this.gfx.fillStyle(0x2a2a3a, 1); this.gfx.fillCircle(tower.x, tower.y, 18);
-      this.gfx.lineStyle(2.5, TOWER_DEFS[tower.type].color, 1);
-      this.gfx.strokeCircle(tower.x, tower.y, 18);
     }
   }
 
