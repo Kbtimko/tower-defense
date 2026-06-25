@@ -22,7 +22,8 @@ Phases 1–8 + 9a/9b/9c + dead-enemy cleanup + hero path-restriction + hero rost
 - Note: PRs #33/#34/#36/#38/#40 are all stacked on `feature/map0-path-fit` — merge #32 into the integration line first, then they rebase cleanly.
 
 ## Loose ends
-- Pre-existing uncommitted edits to `.claude/sessions.md` + `SESSION_NOTES.md` (from `feature/overworld-mapselect`) are held in `git stash@{0}` — restore via `git checkout feature/overworld-mapselect && git stash pop` when switching back.
+- **`git stash@{0}`** `storyline-prep` (on `feature/phase-8b-remaining-sfx`): pre-existing `SESSION_NOTES.md` edits + untracked root `CLAUDE.md` (the project CLAUDE.md is on disk but NOT git-tracked) — stashed this session so the storyline branch started clean. Restore via `git checkout feature/phase-8b-remaining-sfx && git stash pop`.
+- **`git stash@{1}`** `wip-notes` (on `feature/overworld-mapselect`): pre-existing `.claude/sessions.md` + `SESSION_NOTES.md` edits — restore via `git checkout feature/overworld-mapselect && git stash pop`.
 
 ## Prioritized Backlog
 <!-- Risk tiers: [auto] runner may build→test→PR unattended · [review] needs spec/plan approval · [human] you drive. See ~/projects/CLAUDE.md → Backlog Risk Tiers. Note: this is a static Phaser game (no DB/auth/payments) — items are [review] (features/design) or [auto] (localized fixes/chores). -->
