@@ -318,7 +318,6 @@ export default class GameScene extends Phaser.Scene {
     this._drawPath();
     this._drawZones();
     this._drawTowers();
-    this._drawEnemies();
     this._drawProjectiles();
     this._drawParticles();
   }
@@ -410,6 +409,8 @@ export default class GameScene extends Phaser.Scene {
           rem = 0;
         }
       }
+      const aheadIdx = Math.min(enemy.waypointIndex + 1, path.length - 1);
+      enemy._sprite?.setFacing(path[aheadIdx].x - enemy.x);
       if (enemy.waypointIndex >= path.length - 1) {
         enemy.dead = true;
         const am = this.game.registry.get('audio');
@@ -1351,25 +1352,6 @@ export default class GameScene extends Phaser.Scene {
       this.gfx.fillStyle(0x2a2a3a, 1); this.gfx.fillCircle(tower.x, tower.y, 18);
       this.gfx.lineStyle(2.5, TOWER_DEFS[tower.type].color, 1);
       this.gfx.strokeCircle(tower.x, tower.y, 18);
-    }
-  }
-
-  _drawEnemies() {
-    for (const enemy of this.enemies) {
-      const r = enemy.def.radius;
-      this.gfx.fillStyle(0x000000, 0.25);
-      this.gfx.fillEllipse(enemy.x, enemy.y + r + 2, r * 1.5, 6);
-      this.gfx.fillStyle(enemy.def.color, 1);
-      this.gfx.fillCircle(enemy.x, enemy.y, r);
-      if (enemy.statusEffects.slow.active) {
-        this.gfx.lineStyle(2, 0x00eeff, 1); this.gfx.strokeCircle(enemy.x, enemy.y, r);
-      }
-      // HP bar
-      const bw = r * 2.2, bh = 4, bx = enemy.x - bw / 2, by = enemy.y - r - 8;
-      const pct = enemy.hp / enemy.maxHp;
-      this.gfx.fillStyle(0x222222, 1); this.gfx.fillRect(bx, by, bw, bh);
-      this.gfx.fillStyle(pct > 0.5 ? 0x2ecc40 : pct > 0.25 ? 0xf39c12 : 0xe74c3c, 1);
-      this.gfx.fillRect(bx, by, bw * pct, bh);
     }
   }
 
