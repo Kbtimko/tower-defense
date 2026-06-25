@@ -317,7 +317,6 @@ export default class GameScene extends Phaser.Scene {
     this.gfx.clear();
     this._drawPath();
     this._drawZones();
-    this._drawProjectiles();
     this._drawParticles();
   }
 
@@ -1340,17 +1339,6 @@ export default class GameScene extends Phaser.Scene {
           this.gfx.fillStyle(0x4fc3f7, 0.45);
           this.gfx.fillCircle(pt.x, pt.y, 6);
         }
-      }
-    }
-  }
-
-  _drawProjectiles() {
-    for (const proj of this.projectiles) {
-      this.gfx.fillStyle(proj.color, 1);
-      this.gfx.fillCircle(proj.x, proj.y, proj.splashRadius > 0 ? 5 : 3);
-      if (proj.slowFactor > 0) {
-        this.gfx.lineStyle(1, 0xaaffff, 1);
-        this.gfx.strokeCircle(proj.x, proj.y, proj.slowFactor > 0 ? 5 : 3);
       }
     }
   }
