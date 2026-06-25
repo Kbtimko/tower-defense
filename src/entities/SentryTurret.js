@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { Projectile } from './Projectile.js';
+import { EntitySprite } from '../systems/EntitySprite.js';
 
 const RANGE     = 100;
 const DAMAGE    = 15;
@@ -21,6 +22,10 @@ export class SentryTurret extends Phaser.GameObjects.Container {
     this._drawBody();
     scene.add.existing(this);
     this.setDepth(3);
+    this._sprite = new EntitySprite(this, scene, {
+      category: 'sentry', type: 'default', initialState: 'idle',
+    });
+    if (this._sprite.active) this._body.setVisible(false);
   }
 
   _drawBody() {
@@ -57,6 +62,7 @@ export class SentryTurret extends Phaser.GameObjects.Container {
           color: COLOR, towerType: 'archer', tier: 1, branch: null,
         }));
         this._cooldown += 1 / this.rate;
+        this._sprite?.setState('attack');
       } else {
         // No target this tick — clamp to 0 so a long idle period doesn't accrue
         // negative cooldown debt and burst-fire when an enemy finally appears.
