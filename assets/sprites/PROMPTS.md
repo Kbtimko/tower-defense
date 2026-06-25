@@ -27,6 +27,10 @@ entry lights an entity up with no code change.
    ```
    - `frames: 1` (or omitted) → loaded as a single image (no animation).
    - Looping states: `idle`, `move`. One-shot states: `attack`, `death`.
+   - **One-shot states (`attack`/`death`) MUST be multi-frame (`frames > 1`).**
+     A single-frame one-shot has no `animationcomplete` event, so the renderer
+     would never revert it to the looping default — it would stay stuck on that
+     frame. Use a looping state for any single-frame art.
    - The texture key is derived as `sprite-<category>-<type>-<state>` — never set it.
 
 ## Texture-key / state conventions
