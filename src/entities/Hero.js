@@ -50,7 +50,7 @@ export class Hero extends Phaser.GameObjects.Container {
     this._hpBar = scene.add.graphics();
     this.add([this._body, this._hpBar]);
     scene.add.existing(this);
-    this.setDepth(4);
+    this.setDepth(15); // above the static road/build-pad layer (depth 10)
     this.def.draw(this._body);
     this._sprite = new EntitySprite(this, scene, {
       category: 'hero', type: heroId, initialState: 'idle',

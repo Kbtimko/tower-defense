@@ -27,7 +27,7 @@ export class Projectile extends Phaser.GameObjects.Container {
     }
     this.add(dot);
     scene.add.existing(this);
-    this.setDepth(4);
+    this.setDepth(16); // above the static road/build-pad layer (depth 10)
 
     this.towerType = towerType;
     this._trail = null;

@@ -22,7 +22,7 @@ export class Soldier extends Phaser.GameObjects.Container {
     this._hpBar = scene.add.graphics();
     this.add([this._body, this._hpBar]);
     scene.add.existing(this);
-    this.setDepth(3);
+    this.setDepth(13); // above the static road/build-pad layer (depth 10)
 
     this._drawBody();
     this._sprite = new EntitySprite(this, scene, {

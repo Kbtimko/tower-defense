@@ -29,7 +29,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     this._hpBar   = scene.add.graphics();
     this.add([this._body, this._overlay, this._hpBar]);
     scene.add.existing(this);
-    this.setDepth(3);
+    this.setDepth(14); // above the static road/build-pad layer (depth 10)
     this._redrawBody();
     this._redrawStatusOverlay();
     this._redrawHpBar();

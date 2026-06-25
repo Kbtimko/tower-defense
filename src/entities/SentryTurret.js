@@ -21,7 +21,7 @@ export class SentryTurret extends Phaser.GameObjects.Container {
     this.add(this._body);
     this._drawBody();
     scene.add.existing(this);
-    this.setDepth(3);
+    this.setDepth(13); // above the static road/build-pad layer (depth 10)
     this._sprite = new EntitySprite(this, scene, {
       category: 'sentry', type: 'default', initialState: 'idle',
     });

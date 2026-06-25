@@ -27,7 +27,7 @@ export class Tower extends Phaser.GameObjects.Container {
 
     this.add([this._bg, this._rangeRing, this._icon]);
     scene.add.existing(this);
-    this.setDepth(2);
+    this.setDepth(12); // above the static road/build-pad layer (depth 10)
     this._rangeRing.setVisible(false);
     this._redraw();
     this._sprite = new EntitySprite(this, scene, {
