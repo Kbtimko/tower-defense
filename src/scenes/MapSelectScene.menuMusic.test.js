@@ -25,9 +25,10 @@ function setupDom() {
   }
   document.body.appendChild(metaBar);
 
-  const sidebar = document.createElement('div');
-  sidebar.id = 'map-sidebar';
-  document.body.appendChild(sidebar);
+  // Overworld container replaced the old sidebar list (PR #37)
+  const overworld = document.createElement('div');
+  overworld.id = 'map-overworld';
+  document.body.appendChild(overworld);
   for (const id of ['featured-name', 'featured-stars', 'featured-blurb', 'featured-tier', 'featured-play']) {
     const el = document.createElement(id === 'featured-play' ? 'button' : 'div');
     el.id = id;
@@ -51,6 +52,30 @@ function setupDom() {
     const el = document.createElement('div');
     el.id = id;
     document.body.appendChild(el);
+  }
+
+  // Story dialog + story log (PR #40) — StoryDialogOverlay caches refs in create()
+  const storyDialog = document.createElement('div');
+  storyDialog.id = 'story-dialog';
+  storyDialog.style.display = 'none';
+  for (const [tag, id] of [
+    ['div', 'story-dialog-portrait'], ['div', 'story-dialog-name'],
+    ['div', 'story-dialog-text'], ['button', 'story-dialog-next'], ['button', 'story-dialog-skip'],
+  ]) {
+    const el = document.createElement(tag);
+    el.id = id;
+    storyDialog.appendChild(el);
+  }
+  document.body.appendChild(storyDialog);
+  for (const id of ['story-log-overlay', 'story-log-list']) {
+    const el = document.createElement('div');
+    el.id = id;
+    document.body.appendChild(el);
+  }
+  for (const id of ['open-story-log', 'story-log-close']) {
+    const btn = document.createElement('button');
+    btn.id = id;
+    document.body.appendChild(btn);
   }
 }
 

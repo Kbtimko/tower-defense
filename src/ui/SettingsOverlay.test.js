@@ -30,7 +30,23 @@ function setupDom() {
   mute.type = 'checkbox';
   overlay.appendChild(mute);
 
+  const ambient = document.createElement('input');
+  ambient.id = 'ambient-motion';
+  ambient.type = 'checkbox';
+  overlay.appendChild(ambient);
+
   document.body.appendChild(overlay);
+}
+
+function makeGame(initial = true) {
+  const store = { ambientMotion: initial, save: { setSettings: vi.fn() } };
+  return {
+    _store: store,
+    registry: {
+      get: (k) => store[k],
+      set: (k, v) => { store[k] = v; },
+    },
+  };
 }
 
 function makeAm() {
@@ -142,5 +158,25 @@ describe('SettingsOverlay', () => {
     ov.open();
     document.getElementById('vol-master').dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(document.getElementById('settings-overlay').style.display).toBe('flex');
+  });
+
+  it('ambient-motion checkbox reflects the registry flag on open', () => {
+    const am = makeAm();
+    const game = makeGame(false);
+    const ov = new SettingsOverlay(am, game);
+    ov.open();
+    expect(document.getElementById('ambient-motion').checked).toBe(false);
+  });
+
+  it('toggling ambient-motion updates the registry and persists', () => {
+    const am = makeAm();
+    const game = makeGame(true);
+    const ov = new SettingsOverlay(am, game);
+    ov.open();
+    const cb = document.getElementById('ambient-motion');
+    cb.checked = false;
+    cb.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(game.registry.get('ambientMotion')).toBe(false);
+    expect(game._store.save.setSettings).toHaveBeenCalledWith({ ambientMotion: false });
   });
 });

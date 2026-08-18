@@ -1,6 +1,13 @@
+import { samplePath, clampToBounds } from './pathGeometry.js';
+
 export class PathManager {
   constructor(waypoints, towerSlots, canvasWidth, canvasHeight) {
-    this.path = waypoints.map(([nx, ny]) => ({ x: nx * canvasWidth, y: ny * canvasHeight }));
+    // Raw control points in pixel space — used by the renderer and blocker
+    // placement (which key off path bends, not the dense samples).
+    this.waypoints = waypoints.map(([nx, ny]) => ({ x: nx * canvasWidth, y: ny * canvasHeight }));
+    // Dense sampled curve — what enemies, soldiers, targeting, and hover all
+    // walk. Clamped so Catmull-Rom edge overshoot can't push enemies off-canvas.
+    this.path = clampToBounds(samplePath(this.waypoints), canvasWidth, canvasHeight);
     this.buildZones = (towerSlots ?? []).map(([nx, ny]) => ({
       cx: nx * canvasWidth,
       cy: ny * canvasHeight,
