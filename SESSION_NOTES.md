@@ -256,3 +256,19 @@ Phase 4 brainstorm — post-launch features TBD (ability mechanics, new enemy ty
 - 5dd4df6 feat(hero): add path-progress infrastructure (pathProgress, setPathPosition)
 - 3fb28a7 docs: hero path-restriction implementation plan
 - 78a1143 docs: hero path-restriction design spec
+
+## 2026-06-21 (auto-generated)
+**Commits this session:**
+- 7aaed6e docs(spec): campaign storyline + per-level mini-stories design (backlog #4)
+- 1bdca1f Merge pull request #38 from Kbtimko/feature/phase-8b-remaining-sfx
+- f21d3b7 Merge pull request #36 from Kbtimko/feature/responsive-canvas
+
+## 2026-06-24 (auto-generated)
+**Commits this session:**
+- 5dec866 docs(notes): session wrap-up — backlog #4 storyline done (PR #40)
+
+## 2026-06-24 (auto-generated)
+**Commits this session:**
+- 2a31f41 docs(notes): PR #41 merged — deploy line current; next is backlog #8
+- 642e78a docs(notes): correct PR status (all merged) + open release PR #41 (propagate to deploy line)
+- 5dec866 docs(notes): session wrap-up — backlog #4 storyline done (PR #40)
