@@ -16,7 +16,7 @@ describe('AudioManager volume & mute', () => {
     const sm = new SaveManager();
     const am = new AudioManager(makeGame(), sm);
     expect(am.getSettings()).toEqual({
-      masterVol: 0.8, sfxVol: 1.0, musicVol: 0.6, muted: false,
+      masterVol: 0.8, sfxVol: 1.0, musicVol: 0.6, muted: false, ambientMotion: null,
     });
   });
 

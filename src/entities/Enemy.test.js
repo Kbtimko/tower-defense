@@ -206,3 +206,16 @@ describe('Enemy vulnerable status', () => {
     expect(start - enemy.hp).toBe(10);
   });
 });
+
+describe('Enemy status overlay', () => {
+  it('creates a separate overlay graphic distinct from the body', () => {
+    const e = makeEnemy();
+    expect(e._overlay).toBeDefined();
+    expect(e._overlay).not.toBe(e._body);
+  });
+  it('redraws the overlay without throwing when slow is applied', () => {
+    const e = makeEnemy();
+    expect(() => e.applyStatus({ type: 'slow', duration: 2, factor: 0.5 })).not.toThrow();
+    expect(e.statusEffects.slow.active).toBe(true);
+  });
+});

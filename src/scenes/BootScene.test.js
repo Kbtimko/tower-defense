@@ -4,8 +4,11 @@ import { MAPS } from '../data/maps.js';
 vi.mock('phaser', () => ({
   default: { Scene: class { constructor() {} } },
 }));
-vi.mock('../systems/SaveManager.js', () => ({ SaveManager: class {} }));
+vi.mock('../systems/SaveManager.js', () => ({
+  SaveManager: class { getSettings() { return { ambientMotion: null }; } },
+}));
 vi.mock('../systems/AudioManager.js', () => ({ getOrCreateAudioManager: () => ({ loadAssets() {} }) }));
+vi.mock('../systems/AmbientBackgroundLayer.js', () => ({ resolveAmbientMotion: (saved, _) => saved ?? true }));
 
 describe('BootScene', () => {
   it('preloads one image per map in MAPS', () => {

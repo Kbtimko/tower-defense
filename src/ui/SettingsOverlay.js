@@ -5,8 +5,9 @@ const CHANNELS = [
 ];
 
 export class SettingsOverlay {
-  constructor(audioManager) {
+  constructor(audioManager, game = null) {
     this._am        = audioManager;
+    this._game      = game;
     this._overlay   = document.getElementById('settings-overlay');
     this._closeBtn  = document.getElementById('settings-close');
     this._mute      = document.getElementById('mute-all');
@@ -37,6 +38,17 @@ export class SettingsOverlay {
     const muteHandler = (e) => this._am.setMuted(e.target.checked);
     this._mute.addEventListener('change', muteHandler);
     this._listeners.push({ el: this._mute, evt: 'change', fn: muteHandler });
+    const ambientCb = document.getElementById('ambient-motion');
+    if (this._game && ambientCb) {
+      ambientCb.checked = this._game.registry.get('ambientMotion') !== false;
+      const ambientHandler = (e) => {
+        const v = e.target.checked;
+        this._game.registry.set('ambientMotion', v);
+        this._game.registry.get('save')?.setSettings({ ambientMotion: v });
+      };
+      ambientCb.addEventListener('change', ambientHandler);
+      this._listeners.push({ el: ambientCb, evt: 'change', fn: ambientHandler });
+    }
     this._closeBtn.addEventListener('click', this._onClose);
     this._overlay.addEventListener('click', this._onBackdrop);
     document.addEventListener('keydown', this._onEsc);

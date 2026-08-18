@@ -1,4 +1,6 @@
-export const PATH_STYLES = ['planet-dust', 'station-strip', 'space-nav', 'organic-glow'];
+import { samplePath, offsetPolyline } from './pathGeometry.js';
+
+export const PATH_STYLES = ['planet-dust', 'station-strip', 'space-nav', 'organic-glow', 'planet-road', 'lunar-road', 'station-road', 'space-lane', 'organic-road', 'scorched-road'];
 
 // Style colors: { haloColor, haloAlpha, haloWidth, mainColor, mainWidth, dashColor, dashWidth, dashAlpha, dashOn, dashOff }
 const STYLE_SPEC = {
@@ -22,13 +24,68 @@ const STYLE_SPEC = {
     mainColor: 0x4affd0, mainAlpha: 0.65, mainWidth: 8,
     dashColor: 0xffffff, dashAlpha: 0.6,  dashWidth: 1.5, dashOn: 5, dashOff: 7,
   },
+  'planet-road': {
+    // Road layers (drawn first, bottom→top)
+    bermWidth: 34, bermColor: 0x9a8362, bermAlpha: 0.30,
+    roadbedWidth: 26, roadbedColor: 0x6b5740, roadbedAlpha: 0.78,
+    rutOffset: 6, rutWidth: 2, rutColor: 0x4a3c2c, rutAlpha: 0.55,
+    // Accents
+    haloColor: 0x000000, haloAlpha: 0, haloWidth: 0,
+    mainColor: 0x000000, mainAlpha: 0, mainWidth: 0,
+    dashColor: 0x3a2e20, dashAlpha: 0.45, dashWidth: 2, dashOn: 5, dashOff: 9,
+  },
+  // Grey regolith road for the lunar maps (1, 2).
+  'lunar-road': {
+    bermWidth: 34, bermColor: 0xb8bcc4, bermAlpha: 0.26,
+    roadbedWidth: 26, roadbedColor: 0x6e7178, roadbedAlpha: 0.80,
+    rutOffset: 6, rutWidth: 2, rutColor: 0x44474e, rutAlpha: 0.55,
+    haloColor: 0x000000, haloAlpha: 0, haloWidth: 0,
+    mainColor: 0x000000, mainAlpha: 0, mainWidth: 0,
+    dashColor: 0x2e3138, dashAlpha: 0.40, dashWidth: 2, dashOn: 5, dashOff: 9,
+  },
+  // Metal deck walkway for the station maps (3, 6) — steel roadbed + cyan lane dashes.
+  'station-road': {
+    bermWidth: 30, bermColor: 0x33414e, bermAlpha: 0.28,
+    roadbedWidth: 24, roadbedColor: 0x49555f, roadbedAlpha: 0.82,
+    rutOffset: 8, rutWidth: 2, rutColor: 0x252c33, rutAlpha: 0.60,
+    haloColor: 0x000000, haloAlpha: 0, haloWidth: 0,
+    mainColor: 0x000000, mainAlpha: 0, mainWidth: 0,
+    dashColor: 0x66ccff, dashAlpha: 0.55, dashWidth: 2, dashOn: 6, dashOff: 10,
+  },
+  // Glowing nav-lane for the open-space maps (4, 7) — soft glow + bright dashed line, no roadbed.
+  'space-lane': {
+    bermWidth: 22, bermColor: 0x2a5a8a, bermAlpha: 0.30,
+    roadbedWidth: 0, roadbedColor: 0x000000, roadbedAlpha: 0,
+    rutOffset: 0, rutWidth: 0, rutColor: 0x000000, rutAlpha: 0,
+    haloColor: 0x000000, haloAlpha: 0, haloWidth: 0,
+    mainColor: 0x000000, mainAlpha: 0, mainWidth: 0,
+    dashColor: 0x9fe0ff, dashAlpha: 0.85, dashWidth: 3, dashOn: 6, dashOff: 7,
+  },
+  // Veined organic path for the homeworld (8) — membrane roadbed + glowing teal ruts.
+  'organic-road': {
+    bermWidth: 30, bermColor: 0x0e3a34, bermAlpha: 0.35,
+    roadbedWidth: 24, roadbedColor: 0x1f5048, roadbedAlpha: 0.72,
+    rutOffset: 7, rutWidth: 2, rutColor: 0x00ffc8, rutAlpha: 0.50,
+    haloColor: 0x000000, haloAlpha: 0, haloWidth: 0,
+    mainColor: 0x000000, mainAlpha: 0, mainWidth: 0,
+    dashColor: 0x66ffd0, dashAlpha: 0.50, dashWidth: 2, dashOn: 5, dashOff: 7,
+  },
+  // Charred road with ember edges for the volcanic finale (9).
+  'scorched-road': {
+    bermWidth: 32, bermColor: 0xff7a30, bermAlpha: 0.22,
+    roadbedWidth: 26, roadbedColor: 0x2a1a16, roadbedAlpha: 0.82,
+    rutOffset: 6, rutWidth: 2, rutColor: 0xff5522, rutAlpha: 0.50,
+    haloColor: 0x000000, haloAlpha: 0, haloWidth: 0,
+    mainColor: 0x000000, mainAlpha: 0, mainWidth: 0,
+    dashColor: 0x884422, dashAlpha: 0.40, dashWidth: 2, dashOn: 5, dashOff: 9,
+  },
 };
 
 /**
  * Render a curved path through `points` using one of PATH_STYLES.
  * Draws up to 3 stacked strokes: halo (soft underlay), main, dashed overlay.
- * Curves are approximated with quadratic Bezier segments interpolated
- * at every waypoint (smooth corners through real waypoint positions).
+ * Curves are sampled from a centripetal Catmull-Rom spline that passes
+ * through every waypoint (see pathGeometry.samplePath).
  *
  * @param {Phaser.GameObjects.Graphics} gfx
  * @param {{x:number,y:number}[]} points
@@ -39,6 +96,23 @@ export function renderPath(gfx, points, style) {
   const spec = STYLE_SPEC[style];
   if (!spec) throw new Error(`PathRenderer: unknown style "${style}"`);
 
+  // ── Road layers (optional; drawn first so accents sit on top) ──
+  // Dust berms: soft, wide, light edge underlay.
+  if (spec.bermWidth > 0 && spec.bermAlpha > 0) {
+    drawSmoothStroke(gfx, points, spec.bermColor, spec.bermAlpha, spec.bermWidth);
+  }
+  // Packed-earth roadbed.
+  if (spec.roadbedWidth > 0 && spec.roadbedAlpha > 0) {
+    drawSmoothStroke(gfx, points, spec.roadbedColor, spec.roadbedAlpha, spec.roadbedWidth);
+  }
+  // Worn wheel ruts: two thin lines offset ± along the curve normals.
+  if (spec.rutOffset > 0 && spec.rutWidth > 0 && spec.rutAlpha > 0) {
+    const curve = samplePath(points, CURVE_SAMPLES);
+    drawPolylineStroke(gfx, offsetPolyline(curve, spec.rutOffset), spec.rutColor, spec.rutAlpha, spec.rutWidth);
+    drawPolylineStroke(gfx, offsetPolyline(curve, -spec.rutOffset), spec.rutColor, spec.rutAlpha, spec.rutWidth);
+  }
+
+  // ── Themed accents ──
   // Halo layer
   if (spec.haloWidth > 0 && spec.haloAlpha > 0) {
     drawSmoothStroke(gfx, points, spec.haloColor, spec.haloAlpha, spec.haloWidth);
@@ -53,31 +127,35 @@ export function renderPath(gfx, points, style) {
   }
 }
 
-function drawSmoothStroke(gfx, points, color, alpha, width) {
+// Samples per Catmull-Rom segment. 12 gives visually-smooth corners at the
+// path widths we draw without overspending on Graphics commands.
+const CURVE_SAMPLES = 12;
+
+function drawPolylineStroke(gfx, pts, color, alpha, width) {
+  if (pts.length < 2) return;
   gfx.lineStyle(width, color, alpha);
   gfx.beginPath();
-  gfx.moveTo(points[0].x, points[0].y);
-  // Quadratic-curve through midpoints: control = current waypoint,
-  // endpoint = midpoint to next. Smooths the corners.
-  for (let i = 1; i < points.length - 1; i++) {
-    const mid = { x: (points[i].x + points[i + 1].x) / 2, y: (points[i].y + points[i + 1].y) / 2 };
-    gfx.quadraticCurveTo(points[i].x, points[i].y, mid.x, mid.y);
+  gfx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) {
+    gfx.lineTo(pts[i].x, pts[i].y);
   }
-  const last = points[points.length - 1];
-  gfx.lineTo(last.x, last.y);
   gfx.strokePath();
 }
 
+function drawSmoothStroke(gfx, points, color, alpha, width) {
+  if (points.length < 2) return;
+  drawPolylineStroke(gfx, samplePath(points, CURVE_SAMPLES), color, alpha, width);
+}
+
 function drawDashedStroke(gfx, points, color, alpha, width, dashOn, dashOff) {
-  // Approximate dashes by walking segments and laying short line segments.
-  // Phaser's Graphics doesn't expose dash arrays natively; this is the
-  // standard workaround used throughout this codebase.
+  if (points.length < 2) return;
+  const curve = samplePath(points, CURVE_SAMPLES);
   gfx.lineStyle(width, color, alpha);
-  let phase = 0; // 0 = drawing on-segment, 1 = drawing off-segment
+  let phase = 0;
   let remaining = dashOn;
-  for (let i = 0; i < points.length - 1; i++) {
-    let x = points[i].x, y = points[i].y;
-    const tx = points[i + 1].x, ty = points[i + 1].y;
+  for (let i = 0; i < curve.length - 1; i++) {
+    let x = curve[i].x, y = curve[i].y;
+    const tx = curve[i + 1].x, ty = curve[i + 1].y;
     let dx = tx - x, dy = ty - y;
     let segLen = Math.hypot(dx, dy);
     if (segLen === 0) continue;
