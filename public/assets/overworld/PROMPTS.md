@@ -2,7 +2,7 @@
 
 Each level shows an iconic node image on the MapSelect overworld. Generate one
 square (1:1) image per level and save it with the exact filename below into this
-folder (`assets/overworld/`). Until a file exists the overworld renders a
+folder (`public/assets/overworld/`). Until a file exists the overworld renders a
 numbered-circle fallback, so these can be dropped in any time.
 
 > **Model:** **FLUX.1 [schnell]** (Apache-2.0 — commercial-OK), run locally via
@@ -56,3 +56,14 @@ should warm/darken from cool blue-greens toward ominous reds as the numbers clim
 - `overworld_9_last_light.png` — *Last Light:* the final battleground beneath a
   dying red star, a lone bastion silhouetted against a swollen crimson sun,
   dramatic do-or-die mood, the campaign's emotional peak.
+
+---
+
+## Why these live under `public/`
+
+Vite copies **only** `publicDir` (`public/`) into the production build. Art kept in a
+repo-root `assets/` directory is served by the dev server but is silently **absent from
+`dist/`**, so it 404s on the deployed site while working perfectly on localhost. That is
+exactly what happened to the map backdrops between 2026-06 and 2026-08. Save real asset
+files under `public/assets/...`; the URLs the code requests (`assets/...` /
+`/assets/...`) are unchanged.

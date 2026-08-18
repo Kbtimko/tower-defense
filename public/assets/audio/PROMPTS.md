@@ -40,3 +40,13 @@ No call-site changes are needed — the helpers pick the key up automatically.
 | `enemy-hit-colossus.mp3` | colossus | massive armored clang |
 | `enemy-hit-phantom.mp3`  | phantom  | ethereal warped impact |
 | `enemy-hit-titan.mp3`    | titan    | deep resonant boss hit |
+
+---
+
+## Why these live under `public/`
+
+Vite copies **only** `publicDir` (`public/`) into the production build. Files kept in a
+repo-root `assets/` directory are served by the dev server but are silently **absent
+from `dist/`**, so they 404 on the deployed site while working perfectly on localhost.
+(Audio already lived in `public/audio/`, so it was never affected — but keep new assets
+under `public/`.)

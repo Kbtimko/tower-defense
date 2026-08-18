@@ -1,8 +1,8 @@
 # Entity Sprite Art — Prompts & Pipeline (SDXL)
 
 Deferred-asset pipeline for backlog #8 sub-projects (b) enemies, (c) towers,
-(d) heroes/soldiers/sentries. Mirrors `assets/overworld/PROMPTS.md` and
-`assets/audio/PROMPTS.md`: the rendering infrastructure (sub-project (a)) is
+(d) heroes/soldiers/sentries. Mirrors `public/assets/overworld/PROMPTS.md` and
+`public/assets/audio/PROMPTS.md`: the rendering infrastructure (sub-project (a)) is
 already wired with a Graphics fallback, so dropping a PNG + adding one manifest
 entry lights an entity up with no code change.
 
@@ -44,8 +44,11 @@ extra limbs, deformed, side view, front portrait view
 
 1. Produce a transparent PNG. For an animation, lay frames out left-to-right in
    a single row (a spritesheet); for a static look, a single frame is fine.
-2. Save it under `assets/sprites/<category>/<type>_<state>.png`, e.g.
-   `assets/sprites/enemies/drone_move.png`.
+2. Save it under `public/assets/sprites/<category>/<type>_<state>.png`, e.g.
+   `public/assets/sprites/enemies/drone_move.png`. **It must live under `public/`**
+   or Vite will not copy it into the production build (see the note at the end).
+   The `path` in the manifest stays the site-root-relative URL
+   (`assets/sprites/...`), not the on-disk path.
 3. Add an entry to `src/data/sprites.js` `SPRITE_MANIFEST`:
    ```js
    {
@@ -110,7 +113,7 @@ Append the **shared style anchor** + **negative prompt** to each. Colors are the
 in-game tints — keep the art tonally consistent so sprites match the procedural
 fallback they replace.
 
-### (b) Enemies — `assets/sprites/enemies/`  (faction: the Veth hive — alien biomech / chitin)
+### (b) Enemies — `public/assets/sprites/enemies/`  (faction: the Veth hive — alien biomech / chitin)
 
 `move` (looping, ~6 frames) required; `death` (one-shot, ~5 frames, dissolve/
 shatter) optional. Author facing right, moving right.
@@ -204,3 +207,14 @@ The `death` state is supported by the manifest + `EntitySprite.playOnce`, but
 sub-project (a) does NOT delay entity destruction to play it (that is a
 combat-timing change). Wire the destroy-delay in the per-entity cycle that adds
 death frames.
+
+---
+
+## Why these live under `public/`
+
+Vite copies **only** `publicDir` (`public/`) into the production build. Art kept in a
+repo-root `assets/` directory is served by the dev server but is silently **absent from
+`dist/`**, so it 404s on the deployed site while working perfectly on localhost. That is
+exactly what happened to the map backdrops between 2026-06 and 2026-08. Save real asset
+files under `public/assets/...`; the URLs the code requests (`assets/...` /
+`/assets/...`) are unchanged.

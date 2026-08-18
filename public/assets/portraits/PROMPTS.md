@@ -40,4 +40,15 @@ seamless.
 
 > Note: in-game enemy units are the "Veth"; the antagonist speaker here is "The
 > Vorn" hive-mind. Keep the violet chitin language shared between this portrait
-> and the enemy sprites (`assets/sprites/PROMPTS.md`) so the faction reads as one.
+> and the enemy sprites (`public/assets/sprites/PROMPTS.md`) so the faction reads as one.
+
+---
+
+## Why these live under `public/`
+
+Vite copies **only** `publicDir` (`public/`) into the production build. Art kept in a
+repo-root `assets/` directory is served by the dev server but is silently **absent from
+`dist/`**, so it 404s on the deployed site while working perfectly on localhost. That is
+exactly what happened to the map backdrops between 2026-06 and 2026-08. Save real asset
+files under `public/assets/...`; the URLs the code requests (`assets/...` /
+`/assets/...`) are unchanged.

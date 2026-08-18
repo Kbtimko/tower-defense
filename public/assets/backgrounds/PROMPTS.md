@@ -120,7 +120,7 @@ Filename must match exactly the heading above (e.g. `map_0_outpost_sigma.png`).
 Once you have all 10 (or any subset), commit them:
 
 ```bash
-git add assets/backgrounds/*.png
+git add public/assets/backgrounds/*.png
 git commit -m "feat(assets): add N AI-generated map background PNGs"
 git push
 ```
@@ -216,3 +216,14 @@ blocks regenerate maps 1–9 to match.
 3. Planet maps (1, 2, 5) reuse `planet-road` + sandbag-emplacement pads; the station,
    space, organic, and lava themes each get their own road + pad style, tuned to the
    actual art.
+
+---
+
+## Why these live under `public/`
+
+Vite copies **only** `publicDir` (`public/`) into the production build. Art kept in a
+repo-root `assets/` directory is served by the dev server but is silently **absent from
+`dist/`**, so it 404s on the deployed site while working perfectly on localhost. That is
+exactly what happened to the map backdrops between 2026-06 and 2026-08. Save real asset
+files under `public/assets/...`; the URLs the code requests (`assets/...` /
+`/assets/...`) are unchanged.
