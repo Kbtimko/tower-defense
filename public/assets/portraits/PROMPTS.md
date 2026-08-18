@@ -2,14 +2,20 @@
 
 The campaign story dialog (`src/ui/StoryDialogOverlay.js`) renders a speaker
 portrait per panel. Until these PNGs exist, `src/systems/portraitFallback.js`
-draws a colored block with the speaker's initial. To enable real art with **zero
-code change**:
+draws a colored block with the speaker's initial. Enabling real art is now a
+**pure asset drop — no code change at all**:
 
 1. Generate the three 256×256 PNGs below and save them to `public/assets/portraits/`
-   (the overlay loads them from the site-root path `/assets/portraits/<key>.png`).
-2. In `src/systems/portraitFallback.js`, add their keys to `REGISTERED_PORTRAITS`:
-   `new Set(['portrait-command', 'portrait-rael', 'portrait-vorn'])`.
-   (Or, preferred: have BootScene load them and populate the set at runtime.)
+   using the exact `<key>.png` filenames listed. That's it.
+
+`BootScene` derives the key list from `STORY_SPEAKERS` and probes each file on
+boot (404-tolerant, exactly like the map backdrops and entity sprites), then
+calls `registerPortraits()` with whichever ones actually loaded. Drop one file
+and only that speaker switches to real art; the others keep their initial
+block. Delete a file and it reverts on the next boot.
+
+The old instruction to hand-edit `REGISTERED_PORTRAITS` no longer applies —
+that set is populated at runtime.
 
 > **Model:** **FLUX.1 [schnell]** (Apache-2.0 — commercial-OK), run locally via
 > **Draw Things** on Apple Silicon. Portraits are single static images where
