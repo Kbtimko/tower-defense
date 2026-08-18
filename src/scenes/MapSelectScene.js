@@ -249,6 +249,7 @@ export default class MapSelectScene extends Phaser.Scene {
   shutdown() {
     // Call close() on overlays so their event listeners are torn down before the
     // DOM persists into the next scene. Direct style mutation would leak listeners.
+    if (this._overlay)     this._overlay.close();
     if (this._heroOverlay) this._heroOverlay.close();
     const openBtn  = document.getElementById('open-story-log');
     const closeBtn = document.getElementById('story-log-close');
@@ -256,7 +257,6 @@ export default class MapSelectScene extends Phaser.Scene {
     if (closeBtn && this._onCloseStoryLog) closeBtn.removeEventListener('click', this._onCloseStoryLog);
     this._storyDialog?.close();
     document.getElementById('map-select').style.display          = 'none';
-    document.getElementById('upgrade-overlay').style.display     = 'none';
     document.getElementById('settings-overlay').style.display    = 'none';
   }
 }

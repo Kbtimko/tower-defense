@@ -272,3 +272,10 @@ Phase 4 brainstorm — post-launch features TBD (ability mechanics, new enemy ty
 - 2a31f41 docs(notes): PR #41 merged — deploy line current; next is backlog #8
 - 642e78a docs(notes): correct PR status (all merged) + open release PR #41 (propagate to deploy line)
 - 5dec866 docs(notes): session wrap-up — backlog #4 storyline done (PR #40)
+
+## 2026-08-17 (auto-generated)
+**Commits this session:**
+- 44e1398 fix(assets): ship assets/ in the production build (move under public/)
+- 89a0866 docs: correct the deploy-line record; reconcile CLAUDE.md
+- 29b0ca1 Merge deploy line into main: reconcile 141 commits + menu music
+- da793c4 Merge pull request #44 from Kbtimko/feature/entity-sprite-infra
