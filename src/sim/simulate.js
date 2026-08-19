@@ -15,7 +15,10 @@
 //
 // Stated simplifications (all make the model PESSIMISTIC, so a map the
 // simulator wins is winnable in practice):
-//   * No hero, soldiers, sentries or abilities — towers only.
+//   * The hero auto-attacks but never uses abilities (Overcharge, Airstrike,
+//     EMP are all real damage/utility this model leaves on the table), and it
+//     stays put rather than being repositioned by a player.
+//   * No soldiers or sentries (barracks are not modelled as spawners).
 //   * No send-wave-early bonus, so gold income is the floor, not the ceiling.
 //   * Tower tiers are honoured up to the map's maxTierAllowed, but Tier-4
 //     branch choice is not modelled (branch A is assumed).
@@ -26,6 +29,9 @@ import { PathManager } from '../systems/PathManager.js';
 import { WaveManager } from '../systems/WaveManager.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { computeDamage } from '../systems/damage.js';
+import { pointAtProgress } from '../systems/pathGeometry.js';
+import { HEROES } from '../data/heroes.js';
+import { heroSource } from '../data/sourceBuilders.js';
 
 const PROJECTILE_SPEED = 280;   // Projectile.js
 const WAVE_CLEAR_BONUS = 38;    // GameScene.js
@@ -64,6 +70,16 @@ export function simulateMap({
   width = DESIGN_WIDTH,
   height = DESIGN_HEIGHT,
   killGoldMult = 1,
+  // The hero is always present in a real run and, unlike towers, costs no gold.
+  // Nothing in GameScene damages it (it is a non-blocking ranged attacker), so
+  // it never dies here either. Position is a player choice; total exposure is
+  // roughly position-independent for a stationary hero, so mid-path is a fair
+  // default. Pass hero: null to model a tower-only defence.
+  hero = { id: 'rael', progress: 0.5 },
+  // Uniform scaling on all outgoing damage. Not a game mechanic — a probe. By
+  // solving for the smallest value that wins a map, we turn "this model loses"
+  // into "the systems this model omits must be worth about this much".
+  damageMult = 1,
 }) {
   const pathMgr = new PathManager(map.waypoints, map.towerSlots, width, height);
   const path = pathMgr.path;
@@ -97,6 +113,12 @@ export function simulateMap({
   });
 
   const killReward = reward => Math.round(reward * killGoldMult * rewardMult);
+
+  // Hero setup (mirrors Hero.update's auto-attack: nearest enemy in range).
+  const heroDef = hero ? HEROES[hero.id] : null;
+  const heroPos = heroDef ? pointAtProgress(path, hero.progress ?? 0.5) : null;
+  const heroSrc = heroDef ? heroSource(hero.id) : null;
+  let heroAttackTimer = 0;
 
   const waveLog = [];
 
@@ -202,7 +224,7 @@ export function simulateMap({
             : (p.target && !p.target.dead ? [p.target] : []);
           for (const e of hits) {
             e.hp -= computeDamage({
-              amount: p.damage, armor: e.armor, pierce: p.pierce,
+              amount: p.damage * damageMult, armor: e.armor, pierce: p.pierce,
               source, enemyType: e.def.type,
             });
             if (e.hp <= 0 && !e.dead) {
@@ -218,6 +240,33 @@ export function simulateMap({
         }
       }
       projectiles = projectiles.filter(p => !p.dead);
+
+      // Hero auto-attack (GameScene._updateHero -> Hero.update)
+      if (heroDef) {
+        heroAttackTimer -= dt;
+        if (heroAttackTimer <= 0) {
+          const range = heroDef.stats.attackRange;
+          let nearest = null, nearestDist = Infinity;
+          for (const e of enemies) {
+            if (e.dead) continue;
+            const d = Math.hypot(e.x - heroPos.x, e.y - heroPos.y);
+            if (d <= range && d < nearestDist) { nearest = e; nearestDist = d; }
+          }
+          if (nearest) {
+            nearest.hp -= computeDamage({
+              amount: heroDef.stats.attackDamage * damageMult,
+              armor: nearest.armor,
+              source: heroSrc,
+              enemyType: nearest.def.type,
+            });
+            if (nearest.hp <= 0 && !nearest.dead) {
+              nearest.dead = true; kills++; gold += killReward(nearest.reward);
+            }
+            heroAttackTimer = 1 / heroDef.stats.attackRate;
+          }
+        }
+      }
+
       enemies = enemies.filter(e => !e.dead);
 
       elapsed += dt;
