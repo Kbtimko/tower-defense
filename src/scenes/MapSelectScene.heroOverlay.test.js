@@ -118,6 +118,31 @@ describe('MapSelectScene heroes-overlay integration', () => {
     expect(document.getElementById('settings-overlay').style.display).toBe('none');
   });
 
+  it('shutdown() closes UpgradeTreeOverlay so its listener does not leak across re-entries', () => {
+    // MapSelectScene builds a NEW UpgradeTreeOverlay every create(), each with its
+    // own _onClose closure, and open() attaches it to the shared #upgrade-close
+    // node. If shutdown() only hides the overlay via style mutation instead of
+    // calling close(), every scene re-entry leaves another distinct listener
+    // attached. _bindUpgrades clones #open-upgrades, not #upgrade-close, so it
+    // does not paper over this one.
+    const closeBtn = document.getElementById('upgrade-close');
+    let live = 0;
+    const origAdd    = closeBtn.addEventListener.bind(closeBtn);
+    const origRemove = closeBtn.removeEventListener.bind(closeBtn);
+    closeBtn.addEventListener    = (...a) => { live++; return origAdd(...a); };
+    closeBtn.removeEventListener = (...a) => { live--; return origRemove(...a); };
+
+    for (let i = 0; i < 3; i++) {
+      const scene = new MapSelectScene();
+      scene.game = { registry: new Map() };
+      scene.create();
+      document.getElementById('open-upgrades').click();  // open() -> addEventListener
+      scene.shutdown();
+    }
+
+    expect(live).toBe(0);
+  });
+
   it('PLAY button still reads selectedHero from SaveManager', () => {
     const save = new SaveManager();
     save.setStars(2, 1);            // unlock Engineer
