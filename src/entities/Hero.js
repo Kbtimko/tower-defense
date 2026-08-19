@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { heroSource } from '../data/sourceBuilders.js';
 import { HEROES } from '../data/heroes.js';
 import { EntitySprite } from '../systems/EntitySprite.js';
+import { pointAtProgress } from '../systems/pathGeometry.js';
 
 export class Hero extends Phaser.GameObjects.Container {
   constructor(scene, { x, y, heroId = 'rael', pathPoints }, modifiers = {}) {
@@ -73,25 +74,11 @@ export class Hero extends Phaser.GameObjects.Container {
   setPathPosition(progress) {
     this.pathProgress = progress;
     if (this._totalPathLength <= 0) return;
-    let target = progress * this._totalPathLength;
-    const pts = this._pathPoints;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const dx  = pts[i + 1].x - pts[i].x;
-      const dy  = pts[i + 1].y - pts[i].y;
-      const len = Math.hypot(dx, dy);
-      if (target <= len || i === pts.length - 2) {
-        const t = len > 0 ? Math.min(1, target / len) : 0;
-        this.x = pts[i].x + t * dx;
-        this.y = pts[i].y + t * dy;
-        return;
-      }
-      target -= len;
-    }
-    // Backstop (matches Soldier.setPathProgress) — the guard above should always
-    // catch the last segment, but if the loop ever exits without returning,
-    // pin to the path end.
-    this.x = pts[pts.length - 1].x;
-    this.y = pts[pts.length - 1].y;
+    // Shared with the headless balance simulator so both place along the path
+    // by identical arithmetic (see systems/pathGeometry.js).
+    const { x, y } = pointAtProgress(this._pathPoints, progress);
+    this.x = x;
+    this.y = y;
   }
 
   moveToProgress(progress) {

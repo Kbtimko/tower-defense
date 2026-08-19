@@ -108,3 +108,38 @@ export function offsetPolyline(points, dist) {
   }
   return out;
 }
+
+// Total arc length of a polyline.
+export function pathLength(points) {
+  let total = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    total += Math.hypot(points[i + 1].x - points[i].x, points[i + 1].y - points[i].y);
+  }
+  return total;
+}
+
+// The point a fraction `progress` (0..1) of the way along a polyline, measured
+// by arc length rather than by index so evenly-spaced progress means evenly-
+// spaced travel. Extracted from Hero.setPathPosition so the hero and the
+// headless simulator position along the path by the same arithmetic.
+export function pointAtProgress(points, progress) {
+  if (points.length === 0) return { x: 0, y: 0 };
+  const last = points[points.length - 1];
+  if (points.length === 1) return { x: points[0].x, y: points[0].y };
+
+  const total = pathLength(points);
+  if (total <= 0) return { x: points[0].x, y: points[0].y };
+
+  let target = Math.min(Math.max(progress, 0), 1) * total;
+  for (let i = 0; i < points.length - 1; i++) {
+    const dx = points[i + 1].x - points[i].x;
+    const dy = points[i + 1].y - points[i].y;
+    const len = Math.hypot(dx, dy);
+    if (target <= len || i === points.length - 2) {
+      const t = len > 0 ? Math.min(1, target / len) : 0;
+      return { x: points[i].x + t * dx, y: points[i].y + t * dy };
+    }
+    target -= len;
+  }
+  return { x: last.x, y: last.y };
+}

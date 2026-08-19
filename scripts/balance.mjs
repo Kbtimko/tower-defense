@@ -8,6 +8,7 @@ import { MAP_WAVES } from '../src/data/waves.js';
 import { simulateMap } from '../src/sim/simulate.js';
 import { greedyBuildPlan } from '../src/sim/buildPolicy.js';
 import { goldCeiling, cheapestFullBoardCost, goldPerHp } from '../src/sim/economy.js';
+import { findWinMultiplier } from '../src/sim/deficit.js';
 
 const args = process.argv.slice(2);
 const verbose = args.includes('--verbose');
@@ -50,16 +51,18 @@ for (const map of targets) {
   const waves = MAP_WAVES[map.id];
   if (!waves) { console.error(`map ${map.id} (${map.name}) has no waves — skipped`); continue; }
   const r = simulateMap({ map, waves, buildPlan: greedyBuildPlan });
-  rows.push({ map, r, v: verdict(r, map.startLives) });
+  const deficit = findWinMultiplier(map, waves, { buildPlan: greedyBuildPlan });
+  rows.push({ map, r, v: { ...verdict(r, map.startLives), deficit } });
 }
 
 const pad = (s, n) => String(s).padEnd(n);
 const padL = (s, n) => String(s).padStart(n);
 
-console.log('\nSimulated combat — towers + tier upgrades only. No hero, soldiers, sentries,');
-console.log('abilities, meta upgrades or send-wave-early bonus, so this model is PESSIMISTIC.\n');
+console.log('\nSimulated combat — towers + tier upgrades + hero auto-attack. Omits barracks');
+console.log('soldiers (and their blocking), hero abilities, meta upgrades, matchup-aware tower');
+console.log('choice and the send-wave-early bonus, so this model is PESSIMISTIC.\n');
 console.log(pad('#', 3) + pad('Map', 22) + padL('waves', 7) + padL('lives', 8)
-          + padL('gold', 7) + padL('towers', 8) + padL('leaked', 8) + '  ' + pad('verdict', 12) + 'suggestion');
+          + padL('gold', 7) + padL('towers', 8) + padL('leaked', 8) + '  ' + pad('verdict', 12) + 'needs');
 console.log('-'.repeat(120));
 
 for (const { map, r, v } of rows) {
@@ -72,7 +75,7 @@ for (const { map, r, v } of rows) {
     + padL(`${r.towersBuilt}/${map.towerSlots.length}`, 8)
     + padL(r.leaked, 8)
     + '  ' + pad(v.tag, 12)
-    + (v.tag === 'OK' ? v.note : suggest(r, map)),
+    + (v.deficit === null ? '>8x damage' : v.deficit === 1 ? v.note : `${v.deficit}x damage`),
   );
 }
 
@@ -110,6 +113,9 @@ for (const { map } of rows) {
     + padL(goldPerHp(map, waves).toFixed(4), 9),
   );
 }
+console.log('  needs  = uniform damage multiplier at which the modelled defence clears the map;');
+console.log('           i.e. how much everything this model omits (soldier blocking, hero');
+console.log('           abilities, meta upgrades, matchup-aware building) has to be worth.\n');
 console.log('\n  board  = cheapest tower x every slot on the map');
 console.log('  boards = how many times over the map\'s whole gold ceiling could fill that board');
 console.log('           (< 1.00 means a full cheap board is NEVER affordable, even with flawless play)\n');
