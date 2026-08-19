@@ -15,6 +15,7 @@
 // script probes for a reachable server first and tells you exactly what to
 // switch on if it finds none, so a --dry-run is useful before any setup.
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { dirname } from 'node:path';
 import {
   parseStyleAnchor, parseOverworldPrompts, parsePortraitPrompts, buildPrompt,
@@ -33,7 +34,14 @@ const force    = flag('force');
 const kind     = value('kind');
 const only     = value('only');
 const endpoint = value('endpoint', '/sdapi/v1/txt2img');
-const CANDIDATE_PORTS = [Number(value('port')) || null, 7860, 7859, 3080, 8080].filter(Boolean);
+// Draw Things shows the port when you enable the API Server, but the default is
+// not documented anywhere we can read, so scan the plausible range rather than
+// making the user hunt for it. An explicit --port short-circuits the scan.
+const explicitPort = Number(value('port')) || null;
+const CANDIDATE_PORTS = explicitPort
+  ? [explicitPort]
+  : [7860, 7859, 3080, 8080, ...Array.from({ length: 21 }, (_, i) => 7850 + i)]
+      .filter((p, i, a) => a.indexOf(p) === i);
 
 // FLUX.1 [schnell] is distilled: 4 steps, CFG 0. Matches the PROMPTS.md guidance.
 const FLUX = { steps: 4, cfg_scale: 0, sampler_name: 'Euler a', width: 1024, height: 1024 };
@@ -90,41 +98,39 @@ if (dryRun) {
 }
 
 // ── Find the server ────────────────────────────────────────────────────────
+async function probe(port) {
+  // A live HTTP server answers *something* on the root; a closed port rejects
+  // immediately. Short timeout keeps a 25-port scan near-instant on loopback.
+  const res = await fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(400) })
+    .catch(() => null);
+  return Boolean(res);
+}
+
 async function discoverPort() {
-  for (const port of CANDIDATE_PORTS) {
-    try {
-      const ctl = AbortSignal.timeout(1500);
-      const res = await fetch(`http://127.0.0.1:${port}${endpoint}`, {
-        method: 'OPTIONS', signal: ctl,
-      }).catch(() => null);
-      if (res) return port;
-      // Some servers reject OPTIONS but answer a GET on the root.
-      const root = await fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(1500) })
-        .catch(() => null);
-      if (root) return port;
-    } catch { /* keep probing */ }
-  }
-  return null;
+  const hits = await Promise.all(CANDIDATE_PORTS.map(async p => (await probe(p)) ? p : null));
+  return hits.find(Boolean) ?? null;
 }
 
 const port = await discoverPort();
 if (!port) {
   console.error(`
-No local image-generation server answered on ${CANDIDATE_PORTS.join(', ')}.
+No local server answered on any of ${CANDIDATE_PORTS.length} scanned ports.
 
-Draw Things is installed and already has FLUX.1 [schnell] downloaded, but its
-API server is not listening. To switch it on:
+Draw Things already has FLUX.1 [schnell] downloaded; its API Server is just
+switched off. To turn it on:
 
   1. Open Draw Things
-  2. Settings -> look for "API Server" / "gRPC Server" and enable it
-  3. Note the port it reports, then re-run:
-       npm run art -- --port <port>
+  2. Open Settings and find "API Server"
+  3. Set it to "HTTP"  (per the app's own description, HTTP "runs a compatible
+     HTTP API server, allowing extensions that use the txt2img or img2img APIs
+     to connect locally" — that is what this script speaks. "gRPC" will NOT
+     work here.)
+  4. Leave Draw Things running and re-run:  npm run art
 
-If this build exposes no HTTP server, tell me and I will switch the script to
-the gRPC transport or to mflux instead.
+The port is auto-discovered. If Draw Things shows a port outside the scanned
+range, pass it explicitly:  npm run art -- --port <port>
 
-Meanwhile, this works right now and needs no server:
-  npm run art -- --dry-run
+Works right now with no server:  npm run art -- --dry-run
 `);
   process.exit(1);
 }
@@ -156,13 +162,21 @@ for (const j of selected) {
     if (!b64) { console.log('FAILED (no image in response)'); continue; }
     mkdirSync(dirname(j.path), { recursive: true });
     writeFileSync(j.path, Buffer.from(b64.replace(/^data:image\/\w+;base64,/, ''), 'base64'));
-    console.log(`ok -> ${j.path}`);
+    // Generated at 1024x1024; the game wants 512 (nodes) / 256 (portraits).
+    // sips ships with macOS, so this needs no dependency.
+    try {
+      execFileSync('sips', ['-z', String(j.size.height), String(j.size.width), j.path],
+        { stdio: 'ignore' });
+      console.log(`ok -> ${j.path}  (${j.size.width}x${j.size.height})`);
+    } catch {
+      console.log(`ok -> ${j.path}  (WARNING: downscale to ${j.size.width}x${j.size.height} failed; run npm run assets)`);
+    }
   } catch (err) {
     console.log(`FAILED (${err.message})`);
   }
 }
 
 console.log(`
-Generated at ${FLUX.width}x${FLUX.height}. These still need downscaling to their
-target sizes; run "npm run assets" to see which are flagged size?.
+Done. Verify with:  npm run assets
+Then check them in the running game:  npm run dev
 `);
