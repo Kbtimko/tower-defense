@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { getWeaknessMultiplier } from '../data/weaknessMatrix.js';
+import { computeDamage } from '../systems/damage.js';
 import { SFX_KEYS } from '../systems/AudioManager.js';
 import { enemyHitSfxKey } from '../systems/sfxKeys.js';
 import { EntitySprite } from '../systems/EntitySprite.js';
@@ -83,11 +83,15 @@ export class Enemy extends Phaser.GameObjects.Container {
   takeDamage(amount, opts = false) {
     // Back-compat: callers used to pass `pierce` as a bare boolean.
     const optsObj = (opts && typeof opts === 'object') ? opts : { pierce: Boolean(opts) };
-    const armor = optsObj.pierce ? 0 : this.armor;
-    const afterArmor = Math.max(1, amount - armor);
-    const mult = getWeaknessMultiplier(optsObj.source, this.def.type);
     const vulnMult = this.statusEffects.vulnerable.active ? this.statusEffects.vulnerable.multiplier : 1;
-    const dmg = Math.max(1, Math.floor(afterArmor * mult * vulnMult));
+    const dmg = computeDamage({
+      amount,
+      armor: this.armor,
+      pierce: optsObj.pierce,
+      source: optsObj.source,
+      enemyType: this.def.type,
+      vulnerableMult: vulnMult,
+    });
     this.hp -= dmg;
     const justDied = this.hp <= 0 && !this.dead;
     if (this.hp <= 0) { this.hp = 0; this.dead = true; }
