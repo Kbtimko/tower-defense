@@ -1,6 +1,6 @@
 import { STORY_SEQUENCES, STORY_SPEAKERS } from '../data/story.js';
 import { createSequence, currentPanel, advance, atEnd, isComplete } from '../systems/storySequence.js';
-import { resolvePortrait } from '../systems/portraitFallback.js';
+import { resolvePortrait, portraitPath } from '../systems/portraitFallback.js';
 
 function hexColor(n) {
   // Mask to 24 bits so a stray high value can't break the padded 6-digit hex.
@@ -68,7 +68,7 @@ export class StoryDialogOverlay {
     this._portrait.replaceChildren();
     if (p.kind === 'image') {
       const img = document.createElement('img');
-      img.src = `/assets/portraits/${p.key}.png`;
+      img.src = `/${portraitPath(p.key)}`;
       img.alt = speaker?.name ?? '';
       this._portrait.appendChild(img);
       this._portrait.style.background = 'transparent';
