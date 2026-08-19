@@ -8,7 +8,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "balance": "node scripts/balance.mjs"
+    "balance": "node scripts/balance.mjs",
+    "assets": "node scripts/assets.mjs",
+    "art": "node scripts/generate-art.mjs"
   },
   "dependencies": {
     "phaser": "^3.88.0"

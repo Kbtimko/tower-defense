@@ -279,3 +279,11 @@ Phase 4 brainstorm — post-launch features TBD (ability mechanics, new enemy ty
 - 89a0866 docs: correct the deploy-line record; reconcile CLAUDE.md
 - 29b0ca1 Merge deploy line into main: reconcile 141 commits + menu music
 - da793c4 Merge pull request #44 from Kbtimko/feature/entity-sprite-infra
+
+## 2026-08-18 (auto-generated)
+**Commits this session:**
+- 99d2531 feat(sim): model the hero; solve for each map's damage deficit (backlog #11)
+- dd516ea Merge pull request #48 from Kbtimko/feature/headless-balance-sim
+- 5fc1b25 Merge pull request #47 from Kbtimko/feature/portrait-boot-loader
+- 28837c3 Merge pull request #46 from Kbtimko/fix/mapselect-upgrade-overlay-leak
+- 21e3984 feat(sim): headless balance simulator + economy diagnostics (backlog #7)
