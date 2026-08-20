@@ -287,3 +287,7 @@ Phase 4 brainstorm — post-launch features TBD (ability mechanics, new enemy ty
 - 5fc1b25 Merge pull request #47 from Kbtimko/feature/portrait-boot-loader
 - 28837c3 Merge pull request #46 from Kbtimko/fix/mapselect-upgrade-overlay-leak
 - 21e3984 feat(sim): headless balance simulator + economy diagnostics (backlog #7)
+
+## 2026-08-19 (auto-generated)
+**Commits this session:**
+- 7199503 fix(art): stop FLUX rendering the game title into the artwork

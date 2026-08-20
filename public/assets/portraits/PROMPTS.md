@@ -29,7 +29,7 @@ Open every prompt with the **same style sentence** and reuse one **seed** so the
 three portraits read as one set:
 
 > *"A semi-realistic painterly character portrait, head-and-shoulders bust facing
-> the viewer, cohesive 'Last Light' sci-fi tower-defense art style, cinematic key
+> the viewer, cohesive sci-fi tower-defense character art style, cinematic key
 > lighting, clean simple background, square framing, no text, no watermark."*
 
 Then append the per-speaker subject. Keep each tonally consistent with the

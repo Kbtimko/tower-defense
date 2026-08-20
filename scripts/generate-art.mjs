@@ -77,7 +77,12 @@ for (const p of parsePortraitPrompts(portraitMd)) {
 
 let selected = jobs;
 if (kind) selected = selected.filter(j => j.kind === kind);
-if (only) selected = selected.filter(j => j.id.includes(only));
+if (only) {
+  // Comma-separated so a partial re-run (e.g. the nodes that came back with
+  // text baked in) is one command rather than one invocation per asset.
+  const wanted = only.split(',').map(t => t.trim()).filter(Boolean);
+  selected = selected.filter(j => wanted.some(t => j.id.includes(t)));
+}
 if (!force) selected = selected.filter(j => !existsSync(j.path));
 
 if (selected.length === 0) {

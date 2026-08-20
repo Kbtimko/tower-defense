@@ -39,6 +39,28 @@ describe('parseStyleAnchor', () => {
     expect(parseStyleAnchor('# Heading\n\nSome prose.\n')).toBeNull();
   });
 
+  it('no real style anchor quotes a proper noun the model would render as text', () => {
+    // FLUX runs at CFG 0, so negative prompts are inert and a quoted title in
+    // the positive prompt gets drawn as poster lettering. This bit four of the
+    // ten overworld nodes once; the anchors must stay free of quoted names.
+    for (const [name, md] of [['overworld', overworldMd], ['portraits', portraitMd]]) {
+      const style = parseStyleAnchor(md);
+      expect(style, `${name} anchor missing`).toBeTruthy();
+      expect(style, `${name} anchor quotes a proper noun`).not.toMatch(/['"“][A-Z][\w ]+['"”]/);
+      expect(style.toLowerCase(), `${name} anchor names the game`).not.toContain('last light');
+    }
+  });
+
+  it('the anchor is not polluted by an adjacent explanatory blockquote', () => {
+    // Notes in these files must be plain prose; adjacent > lines merge into one
+    // block and would otherwise be sent to the model as part of the style.
+    for (const md of [overworldMd, portraitMd]) {
+      const style = parseStyleAnchor(md);
+      expect(style).not.toMatch(/\*\*/);          // markdown bold leaking in
+      expect(style.length).toBeLessThan(400);
+    }
+  });
+
   it('finds a style anchor in both real PROMPTS.md files', () => {
     expect(parseStyleAnchor(overworldMd)).toMatch(/campaign-map icon/i);
     expect(parseStyleAnchor(portraitMd)).toMatch(/character portrait/i);

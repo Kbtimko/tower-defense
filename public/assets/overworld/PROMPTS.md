@@ -18,9 +18,21 @@ Open every prompt with the **same style sentence** so the whole map graph reads
 as a single illustrated campaign trail:
 
 > *"A painted sci-fi campaign-map icon, centered single subject on a dark deep-
-> space background, cohesive 'Last Light' tower-defense art style, semi-realistic
+> space background, cohesive tower-defense campaign art style, semi-realistic
 > painterly rendering, dramatic rim lighting, readable at small size, square
-> composition, no text, no UI."*
+> composition, completely free of any lettering, words, title text, captions,
+> signatures or watermarks."*
+**Why the game title is not quoted in the anchor.** FLUX.1 [schnell] is
+distilled and runs at CFG 0, which makes negative prompts inert — the positive
+prompt is the only lever you have. An earlier anchor named the game in quotes,
+and the model dutifully rendered that title as poster lettering across four of
+the ten nodes (one of them misspelled). Never put a quoted proper noun in these
+prompts unless you want it drawn.
+
+Keep explanatory notes like this one as plain prose, **not** as a `>` blockquote:
+the generator treats the first quoted blockquote as the style anchor, and
+adjacent blockquote lines merge into a single block.
+
 
 Then append the per-node subject below. Lock one **seed** and reuse it across all
 ten so palette and lighting stay consistent. The nodes run a journey arc — Earth
