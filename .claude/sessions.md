@@ -1,6 +1,37 @@
 # Session Log: Last Light (Tower Defense)
 
 ---
+## 2026-08-17 → 2026-08-20 — Repo reconciliation, production 404 fix, balance simulator, complete art set (PRs #44–#52)
+
+**Accomplished:** Nine PRs merged across a session that began as "revisit the backlog" and turned into unblocking a stale, partly-broken production deploy.
+
+*Repo/deploy reconciliation:* Landed a doc commit stranded on a dead branch (#44). Discovered `main` — not the branch the notes named — is the Vercel production branch, and the live site was **141 commits stale since 2026-06-13**, missing 8 features. Reconciled it (#45), resolving a `MapSelectScene.create()` conflict by keeping both menu music and the story-log/campaign-intro. Pruned 24 remote + 21 local branches; repointed `origin/HEAD`.
+
+*Production bug found during verification:* every map backdrop was **404ing in production** — Vite copies only `publicDir`, so repo-root `assets/` was served by the dev server and silently dropped from the build. Broken since PR #26. Fixed with `git mv assets public/assets`, zero source change.
+
+*Orphaned fix recovered (#46):* branch cleanup surfaced commit 806b098, stranded since 2026-06-05 and in no integration line — `MapSelectScene.shutdown()` leaked an `UpgradeTreeOverlay` listener per scene re-entry. Reproduced with a test (3 leaked → 0).
+
+*Deferred-asset completion (#47):* portraits became a pure asset drop via a `BootScene` 404-tolerant probe.
+
+*Balance work (#48, #49):* extracted the damage formula out of `Enemy.takeDamage` into shared `src/systems/damage.js` so game and simulator cannot drift; built a headless time-stepped simulator reusing the real PathManager/WaveManager/stat tables, plus model-free economy diagnostics. Modelled the hero and added a `findWinMultiplier` probe.
+
+*Art pipeline + assets (#50, #51, #52):* `npm run assets` (inventory derived from the code that requests each file; detects misplaced/malformed/wrong-size) and `npm run art` (batch generation parsing the PROMPTS.md prose). Generated all 10 overworld nodes + 3 portraits locally with FLUX-schnell via the Draw Things HTTP API. **23/23 assets now serve 200 in production.**
+
+**Decisions made:**
+- `main` is the production branch; never infer the deploy target from `origin/HEAD`.
+- All runtime art lives under `public/assets/` — one location, so the build-omission mistake cannot recur.
+- Shared-formula extraction over duplication: `computeDamage`, `pointAtProgress`/`pathLength`, and `portraitPath` are each imported by both the game and its tooling, chosen specifically so a model cannot drift from the thing it models.
+- The balance simulator reports only; it never edits `maps.js`. Retuning is the user's call.
+- Reported the uncomfortable balance result honestly (all maps unwinnable tower-only) rather than tuning thresholds until it looked healthy — then converted it into an actionable deficit number.
+- PROMPTS.md stays the single source of truth for art direction; the generator parses the prose so retuning needs no code change.
+
+**Key finding — difficulty cliff:** the damage multiplier a modelled defence needs ramps smoothly 1.25x→1.96x across maps 0–6, then jumps to **3.63x at map 7 and ~4.3x at maps 8–9**. Corroborated independently by the model-free economy table (gold-per-enemy-HP falls ~4x across the campaign). The last three maps pay less and demand more.
+
+**Where we left off:** Working tree clean, no open PRs, all branches pruned, 891 tests passing, production live and current with all art. Next candidates: **backlog #12** (act on the balance cliff — recommend modelling soldier *blocking* first, the largest unmodelled factor, before retuning any numbers), **#8 b/c/d** (entity sprite art — the genuinely hard one: multi-frame character consistency, needs SDXL + ControlNet, and no SDXL model is downloaded), **#13** (low-priority contrast polish on two dark overworld nodes), **#9** (iOS/Capacitor port).
+
+**Watch out:** generating on this 24 GB machine wedged Draw Things twice via swap exhaustion (12.3 GB model + ~6.5 GB Chrome). Close Chrome and batch small, or use a smaller quantization.
+
+---
 ## 2026-06-20 — Backlog #1 (Phase 8b Remaining SFX): full pipeline → PR #38
 
 **Accomplished:** Shipped backlog #1 end-to-end through the standard pipeline: session-summary → brainstorm (2 AskUserQuestion decisions) → spec → plan → review-plan (PASS) → 4-task subagent-driven execution (Sonnet implementers) → consolidated review → browser-verify → PR. New pure `src/systems/sfxKeys.js` (`towerFireSfxKey(type, branch, registeredKeys)`, `enemyHitSfxKey(type, registeredKeys)`) derives branch/enemy-specific SFX keys with a graceful fallback to the existing base key, mirroring the PR #37 overworld-art deferred-asset pattern. Wired at the GameScene tower-fire call site (now `tower.branch`-aware) and the Enemy hit call site (`def.type`-aware, random detune preserved). `SFX_KEYS` left unchanged so every call falls back to the base sound today (0 audio decode errors); the 16 future assets (10 tower-branch + 6 enemy-hit) are documented in new `assets/audio/PROMPTS.md` + a pointer in `public/audio/ATTRIBUTIONS.md`. 9 helper unit tests; 750/750 full suite; clean build. Branched `feature/phase-8b-remaining-sfx` off `origin/feature/map0-path-fit`; opened **PR #38** against `feature/map0-path-fit`. Also observed PR #37 (overworld) had merged.
