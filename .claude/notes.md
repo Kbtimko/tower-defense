@@ -19,7 +19,21 @@ Phases 1–8 + 9a/9b/9c, hero roster, audio, terrain-only maps, natural-fit path
 - None active. _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug — the hero is a ranged auto-attacker by design; non-blocking is documented as a deliberate out-of-scope decision in the hero-path-restriction spec. See backlog #2.)_
 
 ## In Progress
-- **Nothing in flight.** Working tree clean, no open PRs, all branches pruned.
+- **PR #53 — barracks soldiers in the balance simulator (backlog #12, step 1).** Open, not merged.
+  Soldiers now block, trade melee and respawn in the headless model, sharing
+  `src/systems/soldierCombat.js` with `Soldier.js`/`GameScene`. 920 tests, build clean,
+  production build browser-verified.
+  - **Finding: blocking made the deficits WORSE, not better.** Maps 0-6 went
+    1.25/1.25/1.46/1.52/1.60/1.82/1.96 -> 1.52/1.30/1.57/1.55/1.79/1.98/2.53; map 7 stayed
+    at 3.63x. `barracksTarget: 0` reproduces the old curve exactly, so tower-only behaviour
+    is unchanged — the whole move is the barracks' cost.
+  - Given the barracks for free (gold refunded + spare slot) maps fall to 1.08-1.68 and map 7
+    to 3.21, so blocking has real value but does not pay for 100 gold and a slot: a tier-1
+    soldier has 15 hp against 20 dps melee (0.75s alive) and a 3-soldier squad deals 60
+    damage to a 70 hp drone.
+  - **Decision pending (maintainer's call): whether to retune `maps.js`, reprice/buff the
+    barracks, or both.** The map-7 cliff survives every variant, so it looks like a real
+    design issue rather than a modelling gap.
 
 ### Hard-won facts worth not re-deriving
 - **`main` IS the Vercel production branch.** Verified via the deployments API: only `main` produces `target: "production"`; every other branch is `target: null` (a preview). Do NOT infer the deploy target from `origin/HEAD` — that pointed at an integration branch and is what let the live site sit 141 commits stale for two months (fixed in PR #45).
