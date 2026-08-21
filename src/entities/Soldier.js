@@ -1,19 +1,23 @@
 import Phaser from 'phaser';
 import { EntitySprite } from '../systems/EntitySprite.js';
+import { pointAtProgress } from '../systems/pathGeometry.js';
+import {
+  SOLDIER_ATTACK_RATE, soldierMaxHp, soldierRespawnDuration, damageSoldier, tickSoldier,
+} from '../systems/soldierCombat.js';
 
 export class Soldier extends Phaser.GameObjects.Container {
   constructor(scene, { barracks, pathProgress, pathPoints, soldierStats, modifiers = {} }) {
     super(scene, 0, 0);
 
-    const maxHp = soldierStats.hp + (modifiers.soldierMaxHpBonus ?? 0);
+    const maxHp = soldierMaxHp(soldierStats, modifiers);
     this.barracks        = barracks;
     this.pathProgress    = pathProgress;
     this.hp              = maxHp;
     this.maxHp           = maxHp;
     this.damage          = soldierStats.damage;
-    this.respawnDuration = soldierStats.respawnDuration * (modifiers.soldierRespawnMult ?? 1);
+    this.respawnDuration = soldierRespawnDuration(soldierStats, modifiers);
     this.canBlockFlyers  = soldierStats.canBlockFlyers;
-    this.attackRate      = 1;
+    this.attackRate      = SOLDIER_ATTACK_RATE;
     this.attackTimer     = 0;
     this.dead            = false;
     this.respawnTimer    = 0;
@@ -53,41 +57,20 @@ export class Soldier extends Phaser.GameObjects.Container {
 
   setPathProgress(progress, pathPoints) {
     this.pathProgress = progress;
-    let totalLen = 0;
-    for (let i = 0; i < pathPoints.length - 1; i++) {
-      totalLen += Math.hypot(
-        pathPoints[i + 1].x - pathPoints[i].x,
-        pathPoints[i + 1].y - pathPoints[i].y
-      );
-    }
-    let target = progress * totalLen;
-    for (let i = 0; i < pathPoints.length - 1; i++) {
-      const dx  = pathPoints[i + 1].x - pathPoints[i].x;
-      const dy  = pathPoints[i + 1].y - pathPoints[i].y;
-      const len = Math.hypot(dx, dy);
-      if (target <= len || i === pathPoints.length - 2) {
-        const t = len > 0 ? Math.min(1, target / len) : 0;
-        this.x = pathPoints[i].x + t * dx;
-        this.y = pathPoints[i].y + t * dy;
-        return;
-      }
-      target -= len;
-    }
-    this.x = pathPoints[pathPoints.length - 1].x;
-    this.y = pathPoints[pathPoints.length - 1].y;
+    const { x, y } = pointAtProgress(pathPoints, progress);
+    this.x = x;
+    this.y = y;
   }
 
   takeDamage(amount) {
     if (this.dead) return;
-    this.hp -= amount;
-    this._redrawHpBar();
-    if (this.hp <= 0) {
-      this.dead         = true;
-      this.respawnTimer = this.respawnDuration;
+    if (damageSoldier(this, amount)) {
       this._body.setVisible(false);
       if (this._sprite?.active) this._sprite.sprite.setVisible(false);
       this._hpBar.clear();
+      return;
     }
+    this._redrawHpBar();
   }
 
   respawn() {
@@ -106,9 +89,6 @@ export class Soldier extends Phaser.GameObjects.Container {
   }
 
   update(dt) {
-    if (this.attackTimer > 0) this.attackTimer -= dt;
-    if (!this.dead) return;
-    this.respawnTimer -= dt;
-    if (this.respawnTimer <= 0) this.respawn();
+    if (tickSoldier(this, dt)) this.respawn();
   }
 }

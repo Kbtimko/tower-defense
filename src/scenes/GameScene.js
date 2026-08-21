@@ -23,6 +23,7 @@ import { gameToPageCss } from '../systems/viewport.js';
 import { STORY_PANELS, briefKey, victorySequenceId, STORY_SEQUENCES } from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
 import { soldierSource, heroAbilitySource } from '../data/sourceBuilders.js';
+import { ENEMY_MELEE_DAMAGE, findBlockingSoldier } from '../systems/soldierCombat.js';
 import { AreaEffectsManager } from '../systems/AreaEffectsManager.js';
 import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
@@ -38,8 +39,6 @@ import { SFX_KEYS } from '../systems/AudioManager.js';
 import { towerFireSfxKey } from '../systems/sfxKeys.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
-const ENEMY_MELEE_DAMAGE = 20;
-const MELEE_RANGE        = 30;
 const WAVE_CLEAR_BONUS   = 38;
 
 export default class GameScene extends Phaser.Scene {
@@ -447,11 +446,8 @@ export default class GameScene extends Phaser.Scene {
   _checkSoldierBlock(enemy) {
     for (const tower of this.placementManager.getTowers()) {
       if (tower.type !== 'barracks') continue;
-      for (const soldier of tower.soldiers) {
-        if (soldier.dead) continue;
-        if (enemy.def.flying && !soldier.canBlockFlyers) continue;
-        if (Math.hypot(enemy.x - soldier.x, enemy.y - soldier.y) < MELEE_RANGE) return soldier;
-      }
+      const blocker = findBlockingSoldier(enemy, tower.soldiers);
+      if (blocker) return blocker;
     }
     return null;
   }
