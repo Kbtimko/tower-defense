@@ -7,6 +7,7 @@ import { MAPS } from '../src/data/maps.js';
 import { MAP_WAVES } from '../src/data/waves.js';
 import { simulateMap } from '../src/sim/simulate.js';
 import { greedyBuildPlan } from '../src/sim/buildPolicy.js';
+import { TOWER_DEFS } from '../src/data/towers.js';
 import { goldCeiling, cheapestFullBoardCost, goldPerHp } from '../src/sim/economy.js';
 import { findWinMultiplier } from '../src/sim/deficit.js';
 
@@ -58,11 +59,13 @@ for (const map of targets) {
 const pad = (s, n) => String(s).padEnd(n);
 const padL = (s, n) => String(s).padStart(n);
 
-console.log('\nSimulated combat — towers + tier upgrades + hero auto-attack. Omits barracks');
-console.log('soldiers (and their blocking), hero abilities, meta upgrades, matchup-aware tower');
-console.log('choice and the send-wave-early bonus, so this model is PESSIMISTIC.\n');
+console.log('\nSimulated combat — towers + tier upgrades + hero auto-attack + barracks soldiers');
+console.log('(blocking, melee and respawn). Omits hero abilities, meta upgrades, matchup-aware');
+console.log('tower choice, soldier repositioning and the send-wave-early bonus, so this model');
+console.log('is PESSIMISTIC.\n');
 console.log(pad('#', 3) + pad('Map', 22) + padL('waves', 7) + padL('lives', 8)
-          + padL('gold', 7) + padL('towers', 8) + padL('leaked', 8) + '  ' + pad('verdict', 12) + 'needs');
+          + padL('gold', 7) + padL('towers', 8) + padL('leaked', 8) + padL('blocked', 9)
+          + '  ' + pad('verdict', 12) + 'needs');
 console.log('-'.repeat(120));
 
 for (const { map, r, v } of rows) {
@@ -74,6 +77,7 @@ for (const { map, r, v } of rows) {
     + padL(r.goldFinal, 7)
     + padL(`${r.towersBuilt}/${map.towerSlots.length}`, 8)
     + padL(r.leaked, 8)
+    + padL(`${r.blockedSeconds}s`, 9)
     + '  ' + pad(v.tag, 12)
     + (v.deficit === null ? '>8x damage' : v.deficit === 1 ? v.note : `${v.deficit}x damage`),
   );
@@ -91,6 +95,35 @@ if (verbose) {
     }
   }
 }
+
+// ── Blocking sensitivity ───────────────────────────────────────────────────
+// The default policy opens with one barracks, which costs 100 gold and a slot.
+// Those two columns separate what blocking is WORTH from what it COSTS: "free"
+// refunds the gold and hands the map a spare slot at the same spot, so nothing
+// is displaced. If "free" is much better than "bought", blocking is priced
+// wrong rather than weak.
+const barracksPlan = n => ctx => greedyBuildPlan({ ...ctx, barracksTarget: n });
+
+console.log('\nBlocking sensitivity — damage multiplier needed, by how the barracks is paid for.\n');
+console.log(pad('#', 3) + pad('Map', 22) + padL('no barracks', 13) + padL('bought', 9) + padL('free', 9));
+console.log('-'.repeat(120));
+
+for (const { map } of rows) {
+  const waves = MAP_WAVES[map.id];
+  const free = {
+    ...map,
+    startGold: map.startGold + TOWER_DEFS.barracks.cost,
+    towerSlots: [...map.towerSlots, map.towerSlots[0]],
+  };
+  const show = v => (v === null ? '>8x' : `${v}x`);
+  console.log(
+    pad(map.id, 3) + pad(map.name, 22)
+    + padL(show(findWinMultiplier(map, waves, { buildPlan: barracksPlan(0) })), 13)
+    + padL(show(findWinMultiplier(map, waves, { buildPlan: barracksPlan(1) })), 9)
+    + padL(show(findWinMultiplier(free, waves, { buildPlan: barracksPlan(1) })), 9),
+  );
+}
+console.log('');
 
 // ── Economy diagnostic ─────────────────────────────────────────────────────
 // Exact, not modelled: derived only from map data + wave tables. Independent of
@@ -114,8 +147,8 @@ for (const { map } of rows) {
   );
 }
 console.log('  needs  = uniform damage multiplier at which the modelled defence clears the map;');
-console.log('           i.e. how much everything this model omits (soldier blocking, hero');
-console.log('           abilities, meta upgrades, matchup-aware building) has to be worth.\n');
+console.log('           i.e. how much everything this model omits (hero abilities, meta upgrades,');
+console.log('           matchup-aware building, soldier repositioning) has to be worth.\n');
 console.log('\n  board  = cheapest tower x every slot on the map');
 console.log('  boards = how many times over the map\'s whole gold ceiling could fill that board');
 console.log('           (< 1.00 means a full cheap board is NEVER affordable, even with flawless play)\n');

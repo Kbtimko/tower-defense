@@ -34,6 +34,13 @@ export function towerValue(type) {
 
 const BUYABLE = Object.keys(TOWER_DEFS).filter(t => TOWER_DEFS[t].fireRate > 0);
 
+// Barracks are bought by an explicit rule rather than by towerValue, which is
+// damage-per-gold and scores a fireRate-0 tower at zero. Blocking is not DPS:
+// a halted enemy stops advancing altogether, so no damage metric can price it.
+// One barracks is the standard opening a real player makes; it is a parameter
+// so the report can show what the defence looks like with more or none.
+const DEFAULT_BARRACKS_TARGET = 1;
+
 // Cost of taking a tower from its current level to the next one, or null if it
 // is already at the map's ceiling.
 export function upgradeCost(tower, maxTier) {
@@ -47,7 +54,10 @@ export function upgradeCost(tower, maxTier) {
 // then spend whatever is left upgrading the towers already down. Models a
 // player who widens the board first and deepens it once out of room — which is
 // what the tower slots and per-map maxTierAllowed are designed around.
-export function greedyBuildPlan({ gold, slotsUsed, buildZones, path, towers = [], map = {} }) {
+export function greedyBuildPlan({
+  gold, slotsUsed, buildZones, path, towers = [], map = {},
+  barracksTarget = DEFAULT_BARRACKS_TARGET,
+}) {
   const ranked = rankSlots(buildZones, path);
   const byValue = [...BUYABLE].sort((a, b) => towerValue(b) - towerValue(a));
   const maxTier = map.maxTierAllowed ?? 4;
@@ -56,10 +66,17 @@ export function greedyBuildPlan({ gold, slotsUsed, buildZones, path, towers = []
   let budget = gold;
   const taken = new Set(slotsUsed);
 
+  let barracks = towers.filter(t => t.type === 'barracks').length;
+
   for (const slotIndex of ranked) {
     if (taken.has(slotIndex)) continue;
-    const pick = byValue.find(t => TOWER_DEFS[t].cost <= budget);
-    if (!pick) break;
+    // Below target, hold the gold for a barracks rather than spending it on a
+    // cheaper tower — otherwise a greedy pass buys archers forever and the
+    // opening barracks never happens on a poor map.
+    const wantBarracks = barracks < barracksTarget;
+    const pick = wantBarracks ? 'barracks' : byValue.find(t => TOWER_DEFS[t].cost <= budget);
+    if (!pick || TOWER_DEFS[pick].cost > budget) break;
+    if (wantBarracks) barracks++;
     budget -= TOWER_DEFS[pick].cost;
     taken.add(slotIndex);
     purchases.push({ type: pick, slotIndex });

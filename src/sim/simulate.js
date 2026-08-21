@@ -10,20 +10,29 @@
 //   * WaveManager       — the same spawn queue, intervals and per-wave HP scaling
 //   * ENEMY_DEFS/TOWER_DEFS — the same stat tables
 //   * computeDamage     — the same armour/weakness/vulnerable arithmetic
-// The update order below mirrors GameScene.update: enemies move, then towers
-// fire, then projectiles travel.
+//   * soldierCombat     — the same block test, melee trade and respawn timers
+// The update order below mirrors GameScene.update: enemies move (or, if a
+// soldier blocks them, trade melee and stay put), then towers fire, then
+// projectiles travel, then soldiers tick.
 //
 // Stated simplifications (all make the model PESSIMISTIC, so a map the
 // simulator wins is winnable in practice):
 //   * The hero auto-attacks but never uses abilities (Overcharge, Airstrike,
 //     EMP are all real damage/utility this model leaves on the table), and it
-//     stays put rather than being repositioned by a player.
-//   * No soldiers or sentries (barracks are not modelled as spawners).
+//     stays put rather than being repositioned by a player. Rally Point, which
+//     heals soldiers, is part of what is left out.
+//   * Soldiers block, trade melee and respawn, but the player never repositions
+//     them: they stand where GameScene puts them on placement, on the path point
+//     nearest the barracks. A player who walks a squad onto a chokepoint gets
+//     more out of a barracks than this model does.
+//   * No sentries.
 //   * No send-wave-early bonus, so gold income is the floor, not the ceiling.
 //   * Tower tiers are honoured up to the map's maxTierAllowed, but Tier-4
-//     branch choice is not modelled (branch A is assumed).
+//     branch choice is not modelled (branch A is assumed) — so Rapid Response
+//     (4 soldiers, half respawn) never appears.
+//   * No meta upgrades, so soldierMaxHpBonus / soldierRespawnMult are absent.
 // A map the simulator LOSES is therefore not automatically broken; it means a
-// plain tower-only defence is not sufficient, which is the signal worth
+// defence built to this policy is not sufficient, which is the signal worth
 // looking at.
 import { PathManager } from '../systems/PathManager.js';
 import { WaveManager } from '../systems/WaveManager.js';
@@ -31,7 +40,12 @@ import { TOWER_DEFS } from '../data/towers.js';
 import { computeDamage } from '../systems/damage.js';
 import { pointAtProgress } from '../systems/pathGeometry.js';
 import { HEROES } from '../data/heroes.js';
-import { heroSource } from '../data/sourceBuilders.js';
+import { heroSource, soldierSource } from '../data/sourceBuilders.js';
+import {
+  ENEMY_MELEE_DAMAGE, SOLDIER_ATTACK_RATE,
+  findBlockingSoldier, damageSoldier, tickSoldier,
+  soldierMaxHp, soldierRespawnDuration,
+} from '../systems/soldierCombat.js';
 
 const PROJECTILE_SPEED = 280;   // Projectile.js
 const WAVE_CLEAR_BONUS = 38;    // GameScene.js
@@ -49,6 +63,9 @@ function makeTower(type, x, y) {
   const def = TOWER_DEFS[type];
   return {
     type, x, y,
+    soldierStats: def.soldierStats?.tier1 ?? null,
+    soldiers: [],
+    soldierPathProgress: 0,
     range: def.range,
     damage: def.damage,
     fireRate: def.fireRate,
@@ -59,6 +76,29 @@ function makeTower(type, x, y) {
     branch: null,
     cooldown: 0,
   };
+}
+
+// Mirrors Barracks.spawnSoldiers: every soldier in a squad stands on the same
+// spot — the path point nearest the barracks, as GameScene assigns on placement
+// — so only one blocks at a time and the rest are queued replacements.
+function spawnSoldiers(tower, path) {
+  const stats = tower.soldierStats;
+  const { x, y } = pointAtProgress(path, tower.soldierPathProgress);
+  tower.soldiers = [];
+  for (let i = 0; i < stats.count; i++) {
+    const maxHp = soldierMaxHp(stats);
+    tower.soldiers.push({
+      x, y,
+      hp: maxHp, maxHp,
+      damage: stats.damage,
+      respawnDuration: soldierRespawnDuration(stats),
+      canBlockFlyers: stats.canBlockFlyers,
+      attackTimer: 0,
+      respawnTimer: 0,
+      dead: false,
+      barracks: tower,          // soldierSource() reads its tier and branch
+    });
+  }
 }
 
 export function simulateMap({
@@ -97,6 +137,8 @@ export function simulateMap({
   let projectiles = [];
   let kills = 0;
   let leaked = 0;
+  let blockedSeconds = 0;   // enemy-seconds spent halted by a soldier
+  let soldierDeaths = 0;
 
   emitter.on('enemy:spawn', ({ def, scaleFactor }) => {
     enemies.push({
@@ -145,6 +187,13 @@ export function simulateMap({
         if (tierDef.fireRate     !== undefined) t.fireRate     = tierDef.fireRate;
         if (tierDef.pierce       !== undefined) t.pierce       = tierDef.pierce;
         if (nextTier === 4)                     t.branch       = 'A';
+        // Barracks gain nothing from the tier stat block; their upgrade lands on
+        // the soldiers (Barracks.upgrade + _rebuildSoldiers, which respawns the
+        // squad at full strength with the new stats).
+        if (t.type === 'barracks') {
+          t.soldierStats = TOWER_DEFS.barracks.soldierStats[key] ?? t.soldierStats;
+          spawnSoldiers(t, path);
+        }
         continue;
       }
       const cost = TOWER_DEFS[p.type].cost;
@@ -152,8 +201,16 @@ export function simulateMap({
       if (cost > gold || !zone || slotsUsed.has(p.slotIndex)) continue;
       gold -= cost;
       slotsUsed.add(p.slotIndex);
-      towers.push(makeTower(p.type, zone.cx, zone.cy));
+      const tower = makeTower(p.type, zone.cx, zone.cy);
+      if (tower.soldierStats) {
+        tower.soldierPathProgress = pathMgr.getNearestPathProgress(zone.cx, zone.cy);
+        spawnSoldiers(tower, path);
+      }
+      towers.push(tower);
     }
+
+    // Towers only change between waves, so the roster is fixed for this one.
+    const soldiers = towers.flatMap(t => t.soldiers);
 
     const goldAtWaveStart = gold;
     const livesAtWaveStart = lives;
@@ -170,6 +227,26 @@ export function simulateMap({
           e.slow.timer -= dt;
           if (e.slow.timer <= 0) e.slow = { active: false, timer: 0, factor: 1 };
         }
+        // Blocking (GameScene._updateEnemies): a blocked enemy skips the whole
+        // movement loop and trades melee instead, so it sits inside tower range
+        // for as long as a soldier survives in front of it.
+        const blocker = soldiers.length > 0 ? findBlockingSoldier(e, soldiers) : null;
+        if (blocker) {
+          blockedSeconds += dt;
+          if (damageSoldier(blocker, ENEMY_MELEE_DAMAGE * dt)) soldierDeaths++;
+          if (blocker.attackTimer <= 0) {
+            e.hp -= computeDamage({
+              amount: blocker.damage * damageMult, armor: e.armor,
+              source: soldierSource(blocker), enemyType: e.def.type,
+            });
+            blocker.attackTimer = 1 / SOLDIER_ATTACK_RATE;
+            if (e.hp <= 0 && !e.dead) {
+              e.dead = true; kills++; gold += killReward(e.reward);
+            }
+          }
+          continue;
+        }
+
         const speed = e.slow.active ? e.def.speed * e.slow.factor : e.def.speed;
         let rem = speed * dt;
         while (rem > 0 && e.waypointIndex < path.length - 1) {
@@ -241,6 +318,9 @@ export function simulateMap({
       }
       projectiles = projectiles.filter(p => !p.dead);
 
+      // Soldier cooldowns and respawns (GameScene._updateSoldiers)
+      for (const s of soldiers) tickSoldier(s, dt);
+
       // Hero auto-attack (GameScene._updateHero -> Hero.update)
       if (heroDef) {
         heroAttackTimer -= dt;
@@ -291,7 +371,8 @@ export function simulateMap({
         map: map.id, name: map.name, won: false,
         wavesSurvived: w, totalWaves: waves.length,
         livesRemaining: 0, livesLost: map.startLives,
-        goldFinal: gold, towersBuilt: towers.length, kills, leaked, waveLog,
+        goldFinal: gold, towersBuilt: towers.length, kills, leaked,
+        blockedSeconds: Number(blockedSeconds.toFixed(2)), soldierDeaths, waveLog,
       };
     }
   }
@@ -300,6 +381,7 @@ export function simulateMap({
     map: map.id, name: map.name, won: true,
     wavesSurvived: waves.length, totalWaves: waves.length,
     livesRemaining: lives, livesLost: map.startLives - lives,
-    goldFinal: gold, towersBuilt: towers.length, kills, leaked, waveLog,
+    goldFinal: gold, towersBuilt: towers.length, kills, leaked,
+        blockedSeconds: Number(blockedSeconds.toFixed(2)), soldierDeaths, waveLog,
   };
 }

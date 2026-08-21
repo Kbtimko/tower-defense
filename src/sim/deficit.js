@@ -1,8 +1,8 @@
 // How much more effective damage a map needs before a modelled defence clears it.
 //
-// The simulator deliberately omits several real systems (barracks soldiers and
-// their blocking, hero abilities, meta upgrades, matchup-aware tower choice,
-// the send-wave-early bonus). Rather than pretend those don't exist, this
+// The simulator deliberately omits several real systems (hero abilities, meta
+// upgrades, matchup-aware tower choice, soldier repositioning, the
+// send-wave-early bonus). Rather than pretend those don't exist, this
 // solves for the uniform damage multiplier at which the map becomes winnable.
 // The result reads as: "everything this model leaves out has to be worth about
 // Nx before map M clears." A figure near 1.0 means the map is on the edge; a
