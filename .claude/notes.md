@@ -31,9 +31,19 @@ Phases 1–8 + 9a/9b/9c, hero roster, audio, terrain-only maps, natural-fit path
     to 3.21, so blocking has real value but does not pay for 100 gold and a slot: a tier-1
     soldier has 15 hp against 20 dps melee (0.75s alive) and a 3-soldier squad deals 60
     damage to a 70 hp drone.
-  - **Decision pending (maintainer's call): whether to retune `maps.js`, reprice/buff the
-    barracks, or both.** The map-7 cliff survives every variant, so it looks like a real
-    design issue rather than a modelling gap.
+  - **Decision pending (maintainer's call): whether to retune `maps.js`.** The map-7 cliff
+    survives every variant, so it looks like a real design issue rather than a modelling gap.
+- **PR #54 — barracks fix (stacked on #53, merge #53 first).** Open, not merged.
+  Root cause was a duty cycle, not a weak stat: squad uptime (`count x hp / ENEMY_MELEE_DAMAGE`)
+  was 2.25s against a 3s respawn, so the lane was open longer than it was held. Sweeping the
+  levers showed the respawn gap dominates and soldier hp barely matters (uptime divides by the
+  number of attackers in a stream).
+  - Changed: `respawnDuration` 3 -> 2 (tier1/2/3/4A), 1.5 -> 1 (tier4B, keeps "halved" literal);
+    `ENEMY_MELEE_DAMAGE` 20 -> 12 and moved to `src/data/enemies.js`.
+  - A bought barracks now helps on all ten maps (was: hurt on nine). Deficits
+    1.22/1.08/1.38/1.38/1.55/1.71/1.88/3.08/4.25/4.23. 938 tests. `maps.js` untouched.
+  - `src/data/barracksBalance.test.js` guards the invariants (uptime >= respawn, tier ramp,
+    branch identities) rather than the specific numbers.
 
 ### Hard-won facts worth not re-deriving
 - **`main` IS the Vercel production branch.** Verified via the deployments API: only `main` produces `target: "production"`; every other branch is `target: null` (a preview). Do NOT infer the deploy target from `origin/HEAD` — that pointed at an integration branch and is what let the live site sit 141 commits stale for two months (fixed in PR #45).
