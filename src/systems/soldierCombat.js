@@ -6,9 +6,15 @@
 // exists to predict. Everything here is pure arithmetic over a soldier-shaped
 // record ({ x, y, hp, maxHp, dead, respawnTimer, attackTimer, canBlockFlyers }),
 // so both callers share one source of truth.
+//
+// The damage a blocked enemy deals back is a balance dial and lives with the
+// enemy stats; it is re-exported here so callers of this module get the whole
+// melee exchange from one import.
+import { ENEMY_MELEE_DAMAGE } from '../data/enemies.js';
+
+export { ENEMY_MELEE_DAMAGE };
 
 export const MELEE_RANGE         = 30;  // px — an enemy this close stops walking
-export const ENEMY_MELEE_DAMAGE  = 20;  // damage/second a blocked enemy deals back
 export const SOLDIER_ATTACK_RATE = 1;   // soldier attacks per second
 
 // Max hp after meta upgrades.
