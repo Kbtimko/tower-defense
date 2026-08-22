@@ -2,6 +2,8 @@ import BootScene from './BootScene.js';
 import { MAPS } from '../data/maps.js';
 import { STORY_SPEAKERS } from '../data/story.js';
 import { portraitPath, REGISTERED_PORTRAITS, registerPortraits } from '../systems/portraitFallback.js';
+import { SPRITE_MANIFEST } from '../data/sprites.js';
+import { spriteTextureKey } from '../systems/spriteKeys.js';
 
 vi.mock('phaser', () => ({
   default: { Scene: class { constructor() {} } },
@@ -19,6 +21,7 @@ describe('BootScene', () => {
     scene.game = { registry: { set() {} }, events: { on() {} } };
     scene.load = {
       image: (key, path) => loaded.push({ key, path }),
+      spritesheet() {},
     };
     scene.preload();
 
@@ -35,9 +38,35 @@ describe('BootScene', () => {
     const scene = new BootScene();
     const loaded = [];
     scene.game = { registry: { set() {} }, events: { on() {} } };
-    scene.load = { image: (key, path) => loaded.push({ key, path }) };
+    scene.load = { image: (key, path) => loaded.push({ key, path }), spritesheet() {} };
     scene.preload();
     expect(loaded.find(l => l.key === 'spark')).toBeDefined();
+  });
+
+  it('loads each manifest sprite state by frame count: spritesheet when animated, image when static', () => {
+    const scene = new BootScene();
+    const sheets = [];
+    const images = [];
+    scene.game = { registry: { set() {} }, events: { on() {} } };
+    scene.load = {
+      image: (key, path) => images.push({ key, path }),
+      spritesheet: (key, path, cfg) => sheets.push({ key, path, cfg }),
+    };
+    scene.preload();
+
+    for (const entry of SPRITE_MANIFEST) {
+      for (const [state, def] of Object.entries(entry.states ?? {})) {
+        const key = spriteTextureKey(entry.category, entry.type, state);
+        if (def.frames && def.frames > 1) {
+          const found = sheets.find(s => s.key === key);
+          expect(found, `${key} should load as a spritesheet`).toBeDefined();
+          expect(found.path).toBe(def.path);
+          expect(found.cfg).toEqual({ frameWidth: def.frameWidth, frameHeight: def.frameHeight });
+        } else {
+          expect(images.find(i => i.key === key), `${key} should load as an image`).toBeDefined();
+        }
+      }
+    }
   });
 
   it('preloads one image per story speaker portrait', () => {

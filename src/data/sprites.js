@@ -22,7 +22,20 @@
 //                frameWidth: 48, frameHeight: 48, frames: 5, frameRate: 12 },
 //     },
 //   },
-export const SPRITE_MANIFEST = [];
+export const SPRITE_MANIFEST = [
+  // Veth Drone — ground, def.radius 9. The 64px cell renders at ~27px with
+  // scale 0.42, matching the Graphics circle it replaces plus a little overhang
+  // for legs. Move frames are one reference cutout under a bob/rock transform,
+  // so the creature is pixel-identical across the loop (see PROMPTS.md).
+  {
+    category: 'enemy', type: 'drone',
+    scale: 0.42, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    states: {
+      move: { path: 'assets/sprites/enemies/drone_move.png',
+              frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 12 },
+    },
+  },
+];
 
 // Look up the manifest entry for an entity, or null if none is registered.
 export function getSpriteConfig(category, type) {
