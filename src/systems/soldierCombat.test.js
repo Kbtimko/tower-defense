@@ -4,6 +4,7 @@ import {
   findBlockingSoldier, damageSoldier, tickSoldier,
   soldierMaxHp, soldierRespawnDuration,
 } from './soldierCombat.js';
+import { ENEMY_MELEE_DAMAGE as MELEE_DAMAGE_FROM_DATA } from '../data/enemies.js';
 
 const soldier = (over = {}) => ({
   x: 0, y: 0, hp: 40, maxHp: 40, damage: 20,
@@ -109,9 +110,15 @@ describe('stat derivation', () => {
 });
 
 describe('shared melee constants', () => {
-  it('exposes the numbers both the game and the simulator trade on', () => {
-    expect(ENEMY_MELEE_DAMAGE).toBe(20);
+  it('exposes the mechanics both the game and the simulator trade on', () => {
     expect(MELEE_RANGE).toBe(30);
     expect(SOLDIER_ATTACK_RATE).toBe(1);
+  });
+
+  it('re-exports melee damage from the data layer rather than owning a copy', () => {
+    // Balance dials live in src/data; a second copy here is how the game and
+    // the model drift apart. Asserted by identity, not by value, so retuning
+    // the number does not break this test.
+    expect(ENEMY_MELEE_DAMAGE).toBe(MELEE_DAMAGE_FROM_DATA);
   });
 });

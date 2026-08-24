@@ -48,12 +48,16 @@ export const TOWER_DEFS = {
     name: 'Barracks', icon: '⚔️', cost: 100, color: 0x4caf50,
     range: 130,
     damage: 0, fireRate: 0, splashRadius: 0, pierce: false, slow: 0,
+    // Respawn is the dial that decides whether a barracks is worth 100 gold: a
+    // squad wiped for longer than it can hold leaves the lane open, and enemies
+    // that walk past the soldiers' fixed spot are gone for good. At 3s the gap
+    // outlasted the hold and the balance model priced a barracks as a net loss.
     soldierStats: {
-      tier1:  { count: 3, hp: 15, damage: 20, respawnDuration: 3,   canBlockFlyers: false },
-      tier2:  { count: 3, hp: 25, damage: 35, respawnDuration: 3,   canBlockFlyers: false },
-      tier3:  { count: 3, hp: 40, damage: 55, respawnDuration: 3,   canBlockFlyers: false },
-      tier4A: { count: 3, hp: 80, damage: 80, respawnDuration: 3,   canBlockFlyers: true  },
-      tier4B: { count: 4, hp: 40, damage: 55, respawnDuration: 1.5, canBlockFlyers: false },
+      tier1:  { count: 3, hp: 15, damage: 20, respawnDuration: 2, canBlockFlyers: false },
+      tier2:  { count: 3, hp: 25, damage: 35, respawnDuration: 2, canBlockFlyers: false },
+      tier3:  { count: 3, hp: 40, damage: 55, respawnDuration: 2, canBlockFlyers: false },
+      tier4A: { count: 3, hp: 80, damage: 80, respawnDuration: 2, canBlockFlyers: true  },
+      tier4B: { count: 4, hp: 40, damage: 55, respawnDuration: 1, canBlockFlyers: false },
     },
     tier2: { cost: 65,  label: 'Drill Sergeant' },
     tier3: { cost: 95,  label: 'Elite Guard' },

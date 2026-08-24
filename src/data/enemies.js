@@ -1,3 +1,9 @@
+// Damage per second an enemy deals to the soldier blocking it. A balance dial,
+// not a per-enemy stat: every enemy melees at this rate, so it sets how long any
+// squad can hold a lane (count x hp / this) and is what the barracks table is
+// tuned against. See src/data/barracksBalance.test.js for the rules it feeds.
+export const ENEMY_MELEE_DAMAGE = 12;
+
 export const ENEMY_DEFS = {
   drone:    { type: 'drone',    name: 'Veth Drone',    icon: '🤖', hp: 70,  speed: 50,  reward: 14, armor: 0,  color: 0x33ff66, radius: 9,  flying: false },
   skitter:  { type: 'skitter',  name: 'Veth Skitter',  icon: '🪲', hp: 40,  speed: 90,  reward: 15, armor: 0,  color: 0xff6600, radius: 7,  flying: false },

@@ -38,7 +38,9 @@ describe('soldier blocking in the simulator', () => {
   it('halts enemies that a tower-only defence would let walk past', () => {
     const r = run({ buildPlan: buildBarracks });
     expect(r.blockedSeconds).toBeGreaterThan(0);
-    expect(r.leaked).toBe(6);   // a tier-1 squad only delays a pack of drones
+    // A lone tier-1 squad stops some of a pack of six and is overrun by the rest.
+    expect(r.leaked).toBeGreaterThan(0);
+    expect(r.leaked).toBeLessThan(6);
   });
 
   it('takes melee damage from what it blocks, and respawns to block again', () => {
