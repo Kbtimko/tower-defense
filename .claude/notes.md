@@ -3,14 +3,14 @@
 ## Goal
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
-## Current Status (2026-08-20)
-**All 11 numbered backlog items except entity sprite art (#8 b/c/d) and the iOS port (#9) are DONE and merged to `main`.** `main` is the Vercel production branch and the live site is current. 891 tests, build clean.
+## Current Status (2026-09-19)
+**Every numbered backlog item is DONE except entity sprite art for towers/heroes (#8 c/d), the iOS port (#9) and a low-priority contrast polish (#13).** `main` is the Vercel production branch and is current. **968 tests, build clean.**
 
-**All 23 image assets now ship and serve 200 in production** — 10 map backdrops, 10 overworld nodes (512×512), 3 story portraits (256×256). Verified against the live site, not just localhost.
+**Backlog #8(b) — enemy sprite art — is COMPLETE and awaiting review in PR #56 (open, not merged).** All six Veth enemies render as sprites with a looping `move` and a one-shot `death`. **35/35 assets** (10 backdrops, 10 overworld nodes, 3 portraits, 12 enemy sheets). The Graphics fallback is untouched and still carries towers, heroes, soldiers and sentries.
 
-Phases 1–8 + 9a/9b/9c, hero roster, audio, terrain-only maps, natural-fit paths, show-range, economy calibration, responsive canvas, overworld MapSelect, storyline, entity sprite infra, balance simulator and the art pipeline are all merged (PRs #26–#52).
+Phases 1–8 + 9a/9b/9c, hero roster, audio, terrain-only maps, natural-fit paths, show-range, economy calibration, responsive canvas, overworld MapSelect, storyline, entity sprite infra, balance simulator, the art pipeline and the barracks fix are all merged (PRs #26–#55).
 
-**Remaining work is (a) entity sprite art — the one genuinely hard art problem, needing multi-frame character consistency; (b) acting on the balance finding; (c) the optional iOS port.**
+**Remaining work is (a) tower + hero/soldier/sentry sprite art (#8 c/d) — now unblocked, the pipeline exists and parses all 18 entities; (b) the optional iOS port; (c) overworld node contrast polish.**
 
 ## Blockers
 - None active
@@ -19,31 +19,12 @@ Phases 1–8 + 9a/9b/9c, hero roster, audio, terrain-only maps, natural-fit path
 - None active. _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug — the hero is a ranged auto-attacker by design; non-blocking is documented as a deliberate out-of-scope decision in the hero-path-restriction spec. See backlog #2.)_
 
 ## In Progress
-- **PR #53 — barracks soldiers in the balance simulator (backlog #12, step 1).** Open, not merged.
-  Soldiers now block, trade melee and respawn in the headless model, sharing
-  `src/systems/soldierCombat.js` with `Soldier.js`/`GameScene`. 920 tests, build clean,
-  production build browser-verified.
-  - **Finding: blocking made the deficits WORSE, not better.** Maps 0-6 went
-    1.25/1.25/1.46/1.52/1.60/1.82/1.96 -> 1.52/1.30/1.57/1.55/1.79/1.98/2.53; map 7 stayed
-    at 3.63x. `barracksTarget: 0` reproduces the old curve exactly, so tower-only behaviour
-    is unchanged — the whole move is the barracks' cost.
-  - Given the barracks for free (gold refunded + spare slot) maps fall to 1.08-1.68 and map 7
-    to 3.21, so blocking has real value but does not pay for 100 gold and a slot: a tier-1
-    soldier has 15 hp against 20 dps melee (0.75s alive) and a 3-soldier squad deals 60
-    damage to a 70 hp drone.
-  - **Decision pending (maintainer's call): whether to retune `maps.js`.** The map-7 cliff
-    survives every variant, so it looks like a real design issue rather than a modelling gap.
-- **PR #54 — barracks fix (stacked on #53, merge #53 first).** Open, not merged.
-  Root cause was a duty cycle, not a weak stat: squad uptime (`count x hp / ENEMY_MELEE_DAMAGE`)
-  was 2.25s against a 3s respawn, so the lane was open longer than it was held. Sweeping the
-  levers showed the respawn gap dominates and soldier hp barely matters (uptime divides by the
-  number of attackers in a stream).
-  - Changed: `respawnDuration` 3 -> 2 (tier1/2/3/4A), 1.5 -> 1 (tier4B, keeps "halved" literal);
-    `ENEMY_MELEE_DAMAGE` 20 -> 12 and moved to `src/data/enemies.js`.
-  - A bought barracks now helps on all ten maps (was: hurt on nine). Deficits
-    1.22/1.08/1.38/1.38/1.55/1.71/1.88/3.08/4.25/4.23. 938 tests. `maps.js` untouched.
-  - `src/data/barracksBalance.test.js` guards the invariants (uptime >= respawn, tier ramp,
-    branch identities) rather than the specific numbers.
+- **PR #56 — enemy sprite art (backlog #8b).** OPEN against `main`, not merged. 7 commits, 29 files, 968 tests, build clean.
+  - All six enemies get `move` + `death`. 35/35 assets. Browser-verified on the PRODUCTION build across map 0 (red rock) and map 3 (blue station, phantoms).
+  - **Two maintainer decisions are called out in the PR body and are still open:**
+    1. **`colossus` is spawned by NO wave in any map** — `MAP_WAVES` has zero entries for it. Its art ships and is correct but is unreachable in normal play. Dead content; needs a design call, not a code fix.
+    2. **Phantom is the weakest read** — translucent wings washed out at the 0.43 its radius implies, so it ships at 0.58. Legible, but the one to re-roll if any.
+  - Two code fixes rode along, both invisible until real art existed: the facing deadzone (`src/systems/facing.js`) and the death destroy-delay in `_fadeOutDeadEnemy`.
 
 ### Hard-won facts worth not re-deriving
 - **`main` IS the Vercel production branch.** Verified via the deployments API: only `main` produces `target: "production"`; every other branch is `target: null` (a preview). Do NOT infer the deploy target from `origin/HEAD` — that pointed at an integration branch and is what let the live site sit 141 commits stale for two months (fixed in PR #45).
@@ -51,10 +32,22 @@ Phases 1–8 + 9a/9b/9c, hero roster, audio, terrain-only maps, natural-fit path
 - **Browser-verify the production build (`npm run build && npm run preview`), not just `npm run dev`.** The dev server serves files the build omits; every prior "browser-verified" note was localhost-only, which is why the 404s survived so long.
 - **FLUX.1 [schnell] runs at CFG 0, so negative prompts are inert.** The positive prompt is the only lever. A quoted proper noun in a prompt gets *drawn*: `cohesive 'Last Light' art style` put "LAST LIGHT" poster text on 6 of 10 nodes (one misspelled "LAST LIGNT"). Regression-tested in `promptParser.test.js`.
 - **Machine limits:** Apple M4 / 24 GB. FLUX-schnell q8p is 12.3 GB resident. Generating while Chrome holds ~6.5 GB exhausted swap (33.7/34.8 GB) and wedged Draw Things in an uninterruptible I/O wait — twice. Close Chrome and generate in small batches, or drop to a q5p/q6p quantization.
+- **Sprite animation: derive frames from ONE reference, do not generate N frames.** Character consistency across an animation is the hard problem, and the cheapest win is to never have more than one creature — every frame is the same pixels under a transform, so drift is *impossible by construction*. The trade is that limbs do not articulate; at 27–66px a leg is 1–2px, so a walk cycle is sub-pixel noise while identity drift reads as obvious flicker. Pipeline: `npm run art -- --kind sprite` → `scripts/build-sprite-sheets.py --all` → manifest entry → `npm run assets`.
+- **The SDXL + IP-Adapter/ControlNet route in PROMPTS.md is NOT installed and is a poor fit anyway.** Draw Things has only FLUX.1 schnell — no SDXL checkpoint, no ControlNet, no IP-Adapter, no ComfyUI (~15GB + an install to change that). More to the point **ControlNet-OpenPose is trained on human skeletons**, so it is meaningless for a four-legged chitin drone or a hovering wraith. Revisit only if entity art ever renders much larger.
+- **rembg model matters: use `isnet-general-use`, not `u2net`.** isnet excludes the ground shadow the generator draws despite being told not to; u2net keeps it as a translucent grey blob welded to the subject's feet.
+- **The generator scatters debris and secondary subjects, and the negative prompt cannot stop it** (FLUX at CFG 0 ignores `negative_prompt` outright — same root cause as the baked-in title text). The compositor runs a largest-connected-component pass: the titan arrived standing in a field of rocks and cropped 667x971 with the debris vs 392x874 without, which shrank the creature inside its cell.
+- **The generator renders these creatures facing LEFT whatever the prompt says** — the compositor mirrors by default, since all sprites must be authored facing right.
+- **The shared style anchor's "sci-fi tower-defense _unit_" biases toward emplacements.** Skitter came back a turret and phantom a monolith until their prompts said "living creature" explicitly. Towers want that phrasing; creatures do not. Relevant to #8(c)/(d).
+- **Enemy facing: `setFacing` takes a PIXEL delta from enemies but a ±1 UNIT from Hero.** A deadzone belongs at the enemy call site, never inside `EntitySprite.setFacing` — an 8px deadzone there stops heroes turning at all. The bends that caused mirror-flipping are *real* 13–26px backtracks in the dense Catmull-Rom path, not sampling noise, which is why a longer look-ahead does nothing (measured: unchanged at 8/16/24px) and only ignoring small deltas works.
+- **A one-shot state needs `frames > 1` AND a fully-transparent last frame.** No `animationcomplete` fires for a single-frame one-shot, so the entity is never destroyed; and a final frame with pixels still in it pops out of existence. `_fadeOutDeadEnemy` now waits for the animation — measured live at 3001/3016/3017/3017/3000 ms for a 6-frame 2fps sheet.
+- **Cell size should scale with the creature, not be fixed at 64px.** A 64px cell left the titan 24px wide inside it, needing `scale: 2.2` and looking soft. Colossus ships at 96, titan at 128. Set `scale` from the measured silhouette width (~1.2x the `def.radius` footprint), not by eye.
 - **Draw Things API:** Settings → "API Server" → **HTTP** (not gRPC — gRPC needs a protobuf client, which `npm run art` does not speak). It listened on 7860 in HTTP mode, 7859 in gRPC mode. Draw Things' own weights are in its proprietary format, NOT safetensors, so mflux/ComfyUI cannot reuse them.
 
 ## Loose ends
-- Pre-existing uncommitted edits to `.claude/sessions.md` + `SESSION_NOTES.md` (from `feature/overworld-mapselect`) are held in `git stash@{0}` — restore via `git checkout feature/overworld-mapselect && git stash pop` when switching back.
+- **PR #56 is open and unmerged** — two maintainer decisions inside it (unused `colossus`, phantom scale). Merging auto-deploys to production.
+- **Generated references live in a gitignored `.art-cache/sprites/`** and are NOT committed, so they will not survive a clean checkout. Re-running `npm run art -- --kind sprite` produces *different* creatures (different seed/prompt), which would not match the committed sheets. Treat the committed PNGs as the source of truth; only regenerate an enemy you intend to replace wholesale.
+- The drone's reference predates `.art-cache` and was never written there — harmless, since no references are committed for any enemy.
+- Pre-existing uncommitted edits to `SESSION_NOTES.md` (auto-generated commit log) and an untracked `.claude/prompts/` are on the branch; both are session bookkeeping, not user data.
 
 ## Prioritized Backlog
 <!-- Risk tiers: [auto] runner may build→test→PR unattended · [review] needs spec/plan approval · [human] you drive. See ~/projects/CLAUDE.md → Backlog Risk Tiers. Note: this is a static Phaser game (no DB/auth/payments) — items are [review] (features/design) or [auto] (localized fixes/chores). -->
@@ -67,7 +60,11 @@ Phases 1–8 + 9a/9b/9c, hero roster, audio, terrain-only maps, natural-fit path
 7. `[review]` ✅ **Calibrate per-level economy** — DONE, **PR #34 merged** (2026-06-17). Retuned per-map `startGold` to a ~2-tower opening hand + new per-map `rewardMult` scalar (in `maps.js`) that uniformly scales kill payouts (via new `_killReward` helper), wave-clear bonus (`WAVE_CLEAR_BONUS` const), and early-send bonus in `GameScene`. Full cheap board now first affordable ~75% through a level vs. wave 3 today. **Calibration values are model-derived starting points — needs human playtest-tuning for winnability per map.** _Follow-up 2026-08-18 (PR #48): built a headless balance simulator + model-free economy diagnostics (`npm run balance`). **Exact finding (no modelling involved): every map's total gold ceiling is only 1.32–1.75x the cost of filling its slots with the cheapest tower**, and gold-per-enemy-HP falls ~4x from map 0 (0.0549) to map 9 (0.0139). The simulated tower-only defence loses every map, which most likely means the campaign currently DEPENDS on the hero rather than that the maps are broken — the sim excludes hero/soldiers/sentries/abilities/meta-upgrades. **Next step to make the sim a tuning instrument: model the hero** (see #11)._
 8. `[review]` **Production-quality entity art** — decomposed into (a) infrastructure → (b) enemies → (c) towers → (d) heroes/soldiers/sentries.
    - **(a) sprite-rendering infrastructure — ✅ DONE, PR #42 MERGED** → `feature/phase-3-tower-system` (branch `feature/entity-sprite-infra`, 2026-06-24). Deferred-asset infra behind a Graphics fallback (mirrors sfxKeys/portraitFallback/overworld): pure `src/systems/spriteKeys.js`, declarative empty `src/data/sprites.js` manifest + `getSpriteConfig`, `src/systems/EntitySprite.js` (Phaser Sprite when art registered else Graphics fallback; idle/move/attack/death state machine + flipX facing), `BootScene` 404-tolerant loader → `registry.spriteKeys`. All 5 entities own an EntitySprite; **removed the redundant double-render** (`GameScene._drawTowers/_drawEnemies/_drawProjectiles` deleted — entity Containers are the single source; `gfx` keeps path/zones/particles). Enemy status rings split `_body`→`_overlay`. **Entity depths raised to a 12–16 band** (browser-verify caught: entities sat below the depth-10 static build-pad layer once the depth-30 gfx copies were gone → towers hid behind pads). 806 tests; build clean; browser-verified (map 0 + map 5) + light-up proof. Art lights up via 1 manifest entry + PNG (`assets/sprites/PROMPTS.md`).
-   - **(b) enemy sprite art** — `[review]` produce + register enemy spritesheets (drone/skitter/brute/phantom/titan/colossus, `move` + optional `death`); pure art-drop + per-entity tuning on the (a) infra. _(added 2026-06-24)_
+   - **(b) enemy sprite art — ✅ DONE 2026-09-19, PR OPEN** (branch `feat/enemy-sprite-art`). All six enemies now ship a looping `move` + one-shot `death` sheet; **35/35 assets**, 968 tests, build clean. **Pipeline is NOT the SDXL + IP-Adapter/ControlNet route PROMPTS.md described** — none of it is installed (only FLUX.1 schnell), and OpenPose is trained on human skeletons so it is meaningless for a four-legged chitin drone. Instead: one generated reference per enemy → `rembg` (`isnet-general-use`, the model that drops the generator's ground shadow) → largest-connected-component isolation → mirror to face right → frames derived by transform (bob/rock for move; collapse + eased value-noise dissolve for death). **Character consistency is by construction — every frame is the same pixels**, so drift is impossible. **The trade: limbs do not articulate**; at 27–66px a leg is 1–2px, so a walk cycle is sub-pixel noise while identity drift would read as flicker. New: `scripts/build-sprite-sheets.py`, `npm run art -- --kind sprite`, `parseSpritePrompts`. Two code fixes fell out (see below). _(added 2026-06-24)_
+     - **Facing deadzone** (`src/systems/facing.js`): the dense path genuinely backtracks 13–26px at hairpins, so sprites mirrored mid-stride (map 6: 11 flips per crossing → 1). A longer look-ahead does **not** fix it — only ignoring small deltas does. Deadzone lives at the enemy call site because Hero passes ±1 units to the same `setFacing`.
+     - **Death destroy-delay** wired in `_fadeOutDeadEnemy` — enemies with death art play the one-shot and destroy on `animationcomplete`; everything else keeps the alpha fade. Measured live at 3001/3016/3017/3017/3000 ms for a 6-frame 2fps animation.
+     - **Found: `colossus` is spawned by NO wave in any map** (`MAP_WAVES` has zero entries). Its art ships and is correct, but it is unreachable in normal play — dead content, worth a design decision. Verified only via a temporary local wave patch.
+     - **Prompt gotcha:** the shared style anchor says "sci-fi tower-defense **unit**", which biases the generator toward emplacements — skitter came back a turret and phantom a monolith until their prompts said "living creature" explicitly.
    - **(c) tower sprite art** — `[review]` produce + register tower spritesheets (archer/mage/cannon/ice/sniper/barracks, `idle` + `attack`). _(added 2026-06-24)_
    - **(d) hero/soldier/sentry sprite art** — `[review]` produce + register hero (rael/dax/vex/mira: idle/move/attack), soldier, sentry art; wire the reserved `death`-state destroy-delay when death frames land. _(added 2026-06-24)_
 11. `[auto]` ✅ **Balance simulator — model the hero** — DONE 2026-08-18 (PR #49). Hero auto-attack modelled (nearest-in-range, reusing `HEROES` + shared `computeDamage`); `pointAtProgress`/`pathLength` extracted to `pathGeometry.js` and `Hero.setPathPosition` now uses them, so hero and sim position identically. Hero is worth ~2-3 extra waves but does NOT make any map winnable alone. **New `findWinMultiplier` probe converts "unwinnable" into a number: the uniform damage multiplier at which each map clears.** Result: maps 0-6 ramp smoothly 1.25x -> 1.96x, then **map 7 jumps to 3.63x and maps 8-9 sit at ~4.3x — a difficulty cliff between map 6 and map 7**. Cross-confirmed by the independent economy table (gold-per-HP falls ~4x across the campaign): the last three maps give less gold AND demand more damage. _Original entry:_ `src/sim/` currently simulates towers + tier upgrades only, and reports every map as unwinnable. The hero is an always-present auto-attacker, so the model is missing a first-order damage source; until it is included the sim can't produce trustworthy `startGold`/`rewardMult` numbers. The economy diagnostics in `src/sim/economy.js` are exact and usable today regardless. Extend `simulateMap` with a hero walking the path and auto-attacking, reusing `HEROES` + the shared `computeDamage`.

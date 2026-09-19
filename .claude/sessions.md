@@ -1,6 +1,27 @@
 # Session Log: Last Light (Tower Defense)
 
 ---
+## 2026-09-19 — Enemy sprite art: all six Veth enemies (PR #56, open)
+
+**Accomplished:** Closed backlog **#8(b)**. All six enemies (drone, skitter, brute, colossus, phantom, titan) now render as sprites with a looping `move` and a one-shot `death`. **35/35 assets, 968 tests, build clean.** PR #56 open against `main`, 7 commits, 29 files.
+
+Run as a spike first per the brief: drone end-to-end, gated on approval, before the other five. The gate held — the drone shipped, and the approach generalised without rework.
+
+*Pipeline (not the one PROMPTS.md specified):* that document assumed SDXL + IP-Adapter/ControlNet in ComfyUI; none of it is installed (only FLUX.1 schnell), and OpenPose is human-skeleton-trained so it is meaningless for a four-legged chitin drone. Instead: **one generated reference per enemy, every frame derived from it by transform** — consistency by construction rather than constraint. `rembg` (`isnet-general-use`) → largest-connected-component isolation → mirror → bob/rock for move, collapse + eased value-noise dissolve for death. New `scripts/build-sprite-sheets.py`, `npm run art -- --kind sprite`, and `parseSpritePrompts` (all 18 entities parse, so #8 c/d has a path).
+
+*Two code fixes that only became visible once art existed:* the **facing deadzone** (`src/systems/facing.js`) and the **death destroy-delay** in `_fadeOutDeadEnemy`.
+
+**Decisions made:**
+- **Derive frames from one reference rather than generate them.** Accepts non-articulating limbs; at 27–66px a leg is 1–2px so a walk cycle is sub-pixel noise, while identity drift reads as flicker. Documented as the explicit trade in PROMPTS.md, with the IP-Adapter route kept as the option if sprites ever render much larger.
+- **Death animations included** (maintainer overrode the recommendation to skip). They cost no extra generation — the dissolve derives from the same reference, so it is a transform, not a new image. The initial "doubles the art" estimate was wrong.
+- **Facing deadzone at the enemy call site, not in `setFacing`** — Hero passes ±1 units to the same method, so a deadzone there would have stopped heroes turning entirely. Caught before shipping.
+- **Cell size scales with the creature** (colossus 96, titan 128) rather than a fixed 64; `scale` set from measured silhouette width, not by eye.
+
+**Corrections worth remembering:** two confident claims were wrong and measurement caught both. (1) The facing flips were called "sub-pixel spline noise" — they are **real 13–26px backtracks**, which falsified the proposed longer-look-ahead fix (measured unchanged at 8/16/24px; only a deadzone works). (2) A first visual check of the death animation looked like a failure and was nearly reported as one; it was **inconclusive** — a corpse mid-dissolve looks like a live drone. Instrumenting destroy latency settled it: 3001/3016/3017/3017/3000 ms for a 6-frame 2fps sheet.
+
+**Where we left off:** **PR #56 is open and unmerged** — merging auto-deploys to production. Two maintainer decisions sit inside it: (1) **`colossus` is spawned by no wave in any map** — its art ships and is correct but is unreachable in normal play, verified only via a temporary local wave patch (reverted); (2) **phantom is the weakest read** — translucent wings washed out at the 0.43 its radius implies, shipped at 0.58, and is the one to re-roll if any. Next up is **#8(c) towers and #8(d) heroes/soldiers/sentries**, now unblocked: the pipeline exists and parses all 18 entities. Note for those: the shared style anchor's "sci-fi tower-defense *unit*" biases the generator toward emplacements — right for towers, wrong for creatures.
+
+---
 ## 2026-08-17 → 2026-08-20 — Repo reconciliation, production 404 fix, balance simulator, complete art set (PRs #44–#52)
 
 **Accomplished:** Nine PRs merged across a session that began as "revisit the backlog" and turned into unblocking a stale, partly-broken production deploy.

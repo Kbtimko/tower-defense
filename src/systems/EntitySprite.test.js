@@ -85,6 +85,12 @@ describe('EntitySprite (active)', () => {
   it('plays the initial looping state', () => {
     expect(scene.sprite.played).toContain('sprite-enemy-drone-move');
   });
+  it('hasState reports only states with registered art', () => {
+    expect(es.hasState('move')).toBe(true);
+    expect(es.hasState('attack')).toBe(true);
+    expect(es.hasState('death')).toBe(false);   // no death art in the fixture
+  });
+
   it('setFacing flips relative to baseFacing right', () => {
     es.setFacing(-1);
     expect(scene.sprite.setFlipX).toHaveBeenCalledWith(true);

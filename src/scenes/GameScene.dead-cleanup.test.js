@@ -45,6 +45,52 @@ describe('GameScene._fadeOutDeadEnemy', () => {
   });
 });
 
+describe('GameScene._fadeOutDeadEnemy with a death animation', () => {
+  const makeCtx = () => ({ tweens: { add: vi.fn() } });
+
+  it('plays the death animation instead of the alpha tween', () => {
+    const enemy = {
+      destroy: vi.fn(),
+      hasDeathAnimation: () => true,
+      playDeathAnimation: vi.fn(),
+    };
+    const ctx = makeCtx();
+
+    GameScene.prototype._fadeOutDeadEnemy.call(ctx, enemy);
+
+    expect(enemy.playDeathAnimation).toHaveBeenCalledOnce();
+    expect(ctx.tweens.add).not.toHaveBeenCalled();
+  });
+
+  it('destroys the enemy only once the death animation finishes', () => {
+    const enemy = {
+      destroy: vi.fn(),
+      hasDeathAnimation: () => true,
+      playDeathAnimation: vi.fn(),
+    };
+
+    GameScene.prototype._fadeOutDeadEnemy.call(makeCtx(), enemy);
+    expect(enemy.destroy).not.toHaveBeenCalled();   // the whole point of the delay
+
+    enemy.playDeathAnimation.mock.calls[0][0]();    // fire the completion callback
+    expect(enemy.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('falls back to the alpha tween when the enemy reports no death art', () => {
+    const enemy = {
+      destroy: vi.fn(),
+      hasDeathAnimation: () => false,
+      playDeathAnimation: vi.fn(),
+    };
+    const ctx = makeCtx();
+
+    GameScene.prototype._fadeOutDeadEnemy.call(ctx, enemy);
+
+    expect(enemy.playDeathAnimation).not.toHaveBeenCalled();
+    expect(ctx.tweens.add).toHaveBeenCalledOnce();
+  });
+});
+
 describe('GameScene._destroyDeadProjectile', () => {
   it('destroys the trail and the projectile container', () => {
     const projectile = { destroyTrail: vi.fn(), destroy: vi.fn() };

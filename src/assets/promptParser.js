@@ -94,6 +94,84 @@ export function parsePortraitPrompts(md) {
   return out;
 }
 
+// The sprite file keeps its shared style anchor and shared negative prompt in
+// fenced code blocks under named headings, rather than the blockquote the
+// overworld/portrait files use — those blockquotes carry model notes here.
+export function parseFencedSection(md, heading) {
+  const lines = md.split('\n');
+  const at = lines.findIndex(l => /^#{1,6}\s/.test(l) && l.includes(heading));
+  if (at === -1) return null;
+  for (let i = at + 1; i < lines.length; i++) {
+    if (/^#{1,6}\s/.test(lines[i])) return null;      // next heading, no block
+    if (!/^\s*```/.test(lines[i])) continue;
+    const body = [];
+    for (let j = i + 1; j < lines.length && !/^\s*```/.test(lines[j]); j++) body.push(lines[j]);
+    return joinWrapped(body);
+  }
+  return null;
+}
+
+// Per-entity sprite prompts:  - **type** — <metadata>: followed by a fenced
+// block (or an inline `backtick` prompt). The category comes from the enclosing
+// "### (x) Enemies / Towers / Heroes" heading; soldier and sentry live under
+// the heroes heading but are their own categories.
+const SECTION_CATEGORY = [
+  [/enem/i, 'enemy'], [/tower/i, 'tower'], [/hero/i, 'hero'],
+];
+
+export function parseSpritePrompts(md) {
+  const lines = md.split('\n');
+  const out = [];
+  let category = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^#{1,6}\s/.test(line)) {
+      const hit = SECTION_CATEGORY.find(([re]) => re.test(line));
+      category = hit ? hit[1] : null;
+      continue;
+    }
+    if (!category) continue;
+
+    const bullet = line.match(/^-\s+\*\*([a-z0-9_]+)\*\*\s*[—-]\s*(.*)$/i);
+    if (!bullet) continue;
+    const type = bullet[1];
+
+    // Inline form:  - **archer** — `#8B4513` brown: `crossbow turret`
+    // Split on backticks so odd segments are exactly the quoted spans; a regex
+    // here backtracks across a PAIR of spans and captures the text between
+    // them. Take the last long span: barracks ends with a "(no `attack`)" aside.
+    const spans = bullet[2].split('`').filter((_, k) => k % 2 === 1);
+    const inline = spans.filter(x => x.length >= 15).pop() ?? null;
+    let subject = null;
+    if (inline) {
+      subject = inline;
+    } else {
+      // Fenced form: the block on the following lines. The bullet's metadata
+      // may wrap onto continuation lines before the fence opens.
+      let j = i + 1;
+      while (j < lines.length && !/^\s*```/.test(lines[j])
+             && (lines[j].trim() === '' || /^\s+\S/.test(lines[j]))) j++;
+      if (j < lines.length && /^\s*```/.test(lines[j])) {
+        const body = [];
+        for (let k = j + 1; k < lines.length && !/^\s*```/.test(lines[k]); k++) body.push(lines[k]);
+        subject = joinWrapped(body);
+        i = j + body.length + 1;
+      }
+    }
+    if (!subject) continue;
+
+    out.push({
+      // soldier/sentry are their own manifest categories despite sharing the
+      // heroes heading.
+      category: category === 'hero' && (type === 'soldier' || type === 'sentry') ? type : category,
+      type,
+      subject: cleanSubject(subject),
+    });
+  }
+  return out;
+}
+
 // Strip the leading "*Name:*" label and markdown emphasis, leaving the prose a
 // diffusion model should actually receive.
 function cleanSubject(raw) {

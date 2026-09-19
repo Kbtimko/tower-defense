@@ -40,6 +40,20 @@ export class Enemy extends Phaser.GameObjects.Container {
     if (this._sprite.active) this._body.setVisible(false);
   }
 
+  // A death animation only exists once death art is registered; otherwise the
+  // scene keeps the alpha-fade fallback.
+  hasDeathAnimation() {
+    return Boolean(this._sprite?.hasState('death'));
+  }
+
+  // Plays the one-shot death frames, dropping the HP bar and status rings so
+  // only the corpse animates.
+  playDeathAnimation(onComplete) {
+    this._hpBar.setVisible(false);
+    this._overlay.setVisible(false);
+    this._sprite.playOnce('death', onComplete);
+  }
+
   get currentSpeed() {
     return this.statusEffects.slow.active
       ? this.def.speed * this.statusEffects.slow.factor

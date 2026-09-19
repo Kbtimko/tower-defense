@@ -2,12 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
   parseStyleAnchor, parseOverworldPrompts, parsePortraitPrompts, buildPrompt,
+  parseFencedSection, parseSpritePrompts,
 } from './promptParser.js';
 import { MAPS } from '../data/maps.js';
 import { STORY_SPEAKERS } from '../data/story.js';
 
 const overworldMd = readFileSync('public/assets/overworld/PROMPTS.md', 'utf8');
 const portraitMd  = readFileSync('public/assets/portraits/PROMPTS.md', 'utf8');
+const spriteMd    = readFileSync('public/assets/sprites/PROMPTS.md', 'utf8');
 
 describe('parseStyleAnchor', () => {
   it('picks the quoted style sentence, not a neighbouring model note', () => {
@@ -163,5 +165,97 @@ describe('buildPrompt', () => {
 
   it('does not double up punctuation or whitespace', () => {
     expect(buildPrompt('Style.  ', '  subject.')).toBe('Style. subject.');
+  });
+});
+
+
+describe('parseFencedSection', () => {
+  it('returns the fenced block under the named heading, unwrapped', () => {
+    const md = [
+      '## Shared style anchor (paste into EVERY sprite prompt)',
+      '',
+      '```',
+      '(top-down 3/4 game sprite:1.2), sci-fi unit,',
+      'bold readable silhouette',
+      '```',
+      '',
+      '## Shared negative prompt',
+      '',
+      '```',
+      'photo, text, watermark',
+      '```',
+    ].join('\n');
+    expect(parseFencedSection(md, 'Shared style anchor'))
+      .toBe('(top-down 3/4 game sprite:1.2), sci-fi unit, bold readable silhouette');
+    expect(parseFencedSection(md, 'Shared negative prompt')).toBe('photo, text, watermark');
+  });
+
+  it('returns null when the heading is absent', () => {
+    expect(parseFencedSection('## Other\n\n```\nx\n```', 'Shared style anchor')).toBeNull();
+  });
+});
+
+describe('parseSpritePrompts', () => {
+  it('pairs each entity bullet with the fenced prompt beneath it', () => {
+    const md = [
+      '### (b) Enemies — `public/assets/sprites/enemies/`',
+      '',
+      '- **drone** — `Veth Drone`, hp 70, ground, tint `#33ff66`:',
+      '  ```',
+      '  small alien recon drone, hexagonal chitin carapace, single glowing green',
+      '  optic, four skittering biomech legs',
+      '  ```',
+      '- **skitter** — `Veth Skitter`, fast, ground, tint `#ff6600`:',
+      '  ```',
+      '  fast insectoid skirmisher, sharp diamond-shaped body',
+      '  ```',
+    ].join('\n');
+    expect(parseSpritePrompts(md)).toEqual([
+      { category: 'enemy', type: 'drone',
+        subject: 'small alien recon drone, hexagonal chitin carapace, single glowing green optic, four skittering biomech legs' },
+      { category: 'enemy', type: 'skitter',
+        subject: 'fast insectoid skirmisher, sharp diamond-shaped body' },
+    ]);
+  });
+
+  it('derives the category from the section heading', () => {
+    const md = [
+      '### (c) Towers — `assets/sprites/towers/`',
+      '',
+      '- **archer** — `#8B4513` brown: `crossbow turret`',
+      '',
+      '### (d) Heroes / Soldiers / Sentries',
+      '',
+      '- **rael** — `Commander Rael`:',
+      '  ```',
+      '  human Vanguard commander',
+      '  ```',
+      '- **soldier** — barracks green:',
+      '  ```',
+      '  small infantry trooper',
+      '  ```',
+      '- **sentry** — engineer copper:',
+      '  ```',
+      '  small deployable auto-turret',
+      '  ```',
+    ].join('\n');
+    const got = parseSpritePrompts(md);
+    expect(got.map(e => [e.category, e.type])).toEqual([
+      ['tower', 'archer'], ['hero', 'rael'], ['soldier', 'soldier'], ['sentry', 'sentry'],
+    ]);
+  });
+});
+
+describe('the real sprites PROMPTS.md', () => {
+  it('yields a prompt for every enemy in ENEMY_DEFS', async () => {
+    const { ENEMY_DEFS } = await import('../data/enemies.js');
+    const enemies = parseSpritePrompts(spriteMd).filter(e => e.category === 'enemy');
+    expect(enemies.map(e => e.type).sort()).toEqual(Object.keys(ENEMY_DEFS).sort());
+    for (const e of enemies) expect(e.subject.length).toBeGreaterThan(20);
+  });
+
+  it('exposes the shared style anchor and negative prompt', () => {
+    expect(parseFencedSection(spriteMd, 'Shared style anchor')).toMatch(/game sprite/);
+    expect(parseFencedSection(spriteMd, 'Shared negative prompt')).toMatch(/watermark/);
   });
 });
