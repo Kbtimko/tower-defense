@@ -208,7 +208,7 @@ end facing right.
 - **cannon** — `#666666` grey: `heavy artillery cannon turret, stubby thick grey barrel, riveted armor plating, recoil mount, base disc`
 - **ice** — `#4a8fa8` teal: `cryo frost turret, glowing teal ice-crystal emitter, frosted condenser coils, pale-blue vapor, base disc`
 - **sniper** — `#556b2f` olive: `long-barreled railgun sniper turret, slim olive-drab rail, targeting scope, sleek precise build, base disc`
-- **barracks** — `#4caf50` green: `military barracks structure, small reinforced bunker with a rally flag, green field markings, sandbag perimeter, deployment doorway` (static building, no `attack`)
+- **barracks** — `#4caf50` green: `military barracks bunker, small reinforced green-walled structure with a rally flag on top, sandbag perimeter, deployment doorway, blank unmarked walls, no signage and no lettering anywhere, compact footprint on a round base disc` (static building, no `attack`)
 
 ### (d) Heroes / Soldiers / Sentries
 
@@ -234,13 +234,13 @@ glance; keep them clearly heroic vs. the enemy chitin.
 - **pyro** — `Pyromancer Mira`, AoE burn:
   ```
   pyromancer soldier, dark-red armor with glowing ember trim, flamethrower
-  gauntlet, small flame above shoulder, intense fiery presence, one single standing human character, full body, not a turret, not a building, not an emplacement
+  gauntlet, intense fiery presence, one single standing human character, full body, standing on plain empty ground with nothing beneath him, no platform, no pedestal, no floating objects above the head, not a turret, not a building, not an emplacement
   ```
 - **soldier** — `assets/sprites/soldiers/default_*.png`, `idle` (+ `attack`),
   barracks green `#4caf50`:
   ```
   small infantry trooper, green combat fatigues and helmet, compact rifle,
-  guard stance, one single standing human character, full body, not a turret, not a building, not an emplacement
+  guard stance, one single standing human character, full body, standing on plain empty ground with nothing beneath him, no platform, no pedestal, no bunker, not a turret, not a building, not an emplacement
   ```
 - **sentry** — `assets/sprites/sentry/default_*.png`, `idle` + `attack`,
   engineer copper `#ff9933`:

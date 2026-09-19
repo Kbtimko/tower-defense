@@ -61,7 +61,11 @@ STATE_OVERRIDES = {('tower', 'barracks'): ('idle',)}
 
 # A bigger creature needs more source pixels than a 64px cell leaves it: a 64px
 # cell left the titan 24px wide inside it. Set from the measured silhouette.
-CELL_OVERRIDES = {('enemy', 'colossus'): 96, ('enemy', 'titan'): 128}
+CELL_OVERRIDES = {('enemy', 'colossus'): 96, ('enemy', 'titan'): 128,
+                  # The mage spire is the narrowest tower (aspect 0.48), so a
+                  # 64px cell leaves it 25px wide and needs a 1.44x upscale to
+                  # reach the 36px tower footprint. 96 brings that back to 0.95.
+                  ('tower', 'mage'): 96}
 
 # Flyers bob without footfalls, so their gait drops the rock.
 HOVER = {('enemy', 'phantom')}
