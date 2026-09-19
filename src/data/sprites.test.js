@@ -1,28 +1,40 @@
 import { describe, it, expect } from 'vitest';
 import { SPRITE_MANIFEST, getSpriteConfig } from './sprites.js';
+import { TOWER_DEFS } from './towers.js';
+import { HEROES } from './heroes.js';
 
 describe('SPRITE_MANIFEST', () => {
-  it('is an array', () => {
-    expect(Array.isArray(SPRITE_MANIFEST)).toBe(true);
+  it('registers every tower and hero under its runtime id', () => {
+    for (const t of Object.keys(TOWER_DEFS)) expect(getSpriteConfig('tower', t)).not.toBeNull();
+    for (const h of Object.keys(HEROES))     expect(getSpriteConfig('hero', h)).not.toBeNull();
+    expect(getSpriteConfig('soldier', 'default')).not.toBeNull();
+    expect(getSpriteConfig('sentry',  'default')).not.toBeNull();
   });
-  it('every entry is well-formed', () => {
-    for (const entry of SPRITE_MANIFEST) {
-      expect(typeof entry.category).toBe('string');
-      expect(typeof entry.type).toBe('string');
-      expect(typeof entry.states).toBe('object');
-      for (const def of Object.values(entry.states)) {
-        expect(typeof def.path).toBe('string');
-        if (def.frames && def.frames > 1) {
-          expect(typeof def.frameWidth).toBe('number');
-          expect(typeof def.frameHeight).toBe('number');
-        }
+
+  it('gives every one-shot state more than one frame', () => {
+    // A single-frame one-shot never fires animationcomplete, so the entity
+    // would stay stuck on that frame forever (and a dead enemy never destroys).
+    for (const e of SPRITE_MANIFEST) {
+      for (const st of ['attack', 'death']) {
+        if (!e.states[st]) continue;
+        expect(e.states[st].frames, `${e.category}/${e.type} ${st}`).toBeGreaterThan(1);
       }
     }
   });
-});
 
-describe('getSpriteConfig', () => {
-  it('returns null for an unknown entity', () => {
-    expect(getSpriteConfig('enemy', 'does-not-exist')).toBeNull();
+  it('has a looping state to revert to after every one-shot', () => {
+    for (const e of SPRITE_MANIFEST) {
+      if (!e.states.attack) continue;
+      expect(Boolean(e.states.idle || e.states.move),
+             `${e.category}/${e.type}`).toBe(true);
+    }
+  });
+
+  it('declares a square frame for every state', () => {
+    for (const e of SPRITE_MANIFEST) {
+      for (const [st, def] of Object.entries(e.states)) {
+        expect(def.frameWidth, `${e.category}/${e.type} ${st}`).toBe(def.frameHeight);
+      }
+    }
   });
 });
