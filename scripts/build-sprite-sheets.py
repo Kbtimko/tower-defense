@@ -66,6 +66,14 @@ CELL_OVERRIDES = {('enemy', 'colossus'): 96, ('enemy', 'titan'): 128}
 # Flyers bob without footfalls, so their gait drops the rock.
 HOVER = {('enemy', 'phantom')}
 
+# The firing beat, one entry per frame: (x offset as a fraction of the cell,
+# flash strength 0-1). Art faces right, so a negative offset is a pull back and
+# a positive one a lunge. The LAST entry must equal the first: EntitySprite
+# reverts to the idle loop on animationcomplete, and a final frame that is not
+# the rest pose makes that revert visibly jump.
+ATTACK_BEAT = [(0.0, 0.0), (-0.085, 0.15), (0.098, 1.0), (0.030, 0.35), (0.0, 0.0)]
+FLASH_MIX = 0.55        # how far the flash pushes a pixel toward the tint
+
 SS = 4          # supersample: transform at 4x the cell, downscale once at the end
 FILL = 0.82     # fraction of the cell the creature spans, leaving room for bob
 
@@ -194,6 +202,51 @@ def build_death(ref, out_path, tint, cell=64, frames=6, seed=7, ease=2.4,
         cellim = Image.new('RGBA', (big, big), (0, 0, 0, 0))
         cellim.paste(f, (round((big - f.width) / 2),
                          round((big - f.height) / 2 + sink * big * t)), f)
+        sheet.paste(cellim.resize((cell, cell), Image.LANCZOS), (i * cell, 0))
+    sheet.save(out_path)
+    return sheet
+
+
+def build_idle_static(ref, out_path, cell=64):
+    """A single centred cell. Towers are emplacements and do not breathe.
+
+    `frames: 1` is handled by EntitySprite.setState via setTexture rather than
+    an animation, and a static state is a legal default to revert to after a
+    one-shot — only a single-frame ONE-SHOT is broken (no animationcomplete)."""
+    big = cell * SS
+    ref = _fit(ref, big)
+    cellim = Image.new('RGBA', (big, big), (0, 0, 0, 0))
+    cellim.paste(ref, (round((big - ref.width) / 2), round((big - ref.height) / 2)), ref)
+    sheet = cellim.resize((cell, cell), Image.LANCZOS)
+    sheet.save(out_path)
+    return sheet
+
+
+def build_idle_breathe(ref, out_path, cell=64, frames=6):
+    """A living unit standing still: the gait with the stride taken out.
+    Same code path as build_move so the two cannot drift apart."""
+    return build_move(ref, out_path, cell=cell, frames=frames,
+                      bob=0.012, rock=0.0, squash=0.018, hover=True)
+
+
+def build_attack(ref, out_path, tint, cell=64):
+    """One-shot firing beat: pull back, lunge with a flash in the entity's
+    tint, settle back to rest. Frame count comes from ATTACK_BEAT."""
+    frames = len(ATTACK_BEAT)
+    big = cell * SS
+    ref = _fit(ref, big)
+    sheet = Image.new('RGBA', (cell * frames, cell), (0, 0, 0, 0))
+    for i, (off, flash) in enumerate(ATTACK_BEAT):
+        f = ref
+        if flash > 0:
+            a = np.array(ref).astype(np.float32)
+            m = FLASH_MIX * flash
+            for c in range(3):
+                a[..., c] = a[..., c] * (1 - m) + tint[c] * m
+            f = Image.fromarray(np.clip(a, 0, 255).astype(np.uint8), 'RGBA')
+        cellim = Image.new('RGBA', (big, big), (0, 0, 0, 0))
+        cellim.paste(f, (round((big - f.width) / 2 + off * big),
+                         round((big - f.height) / 2)), f)
         sheet.paste(cellim.resize((cell, cell), Image.LANCZOS), (i * cell, 0))
     sheet.save(out_path)
     return sheet
