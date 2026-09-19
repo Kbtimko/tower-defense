@@ -31,8 +31,10 @@ export const SPRITE_MANIFEST = [
     category: 'enemy', type: 'drone',
     scale: 0.42, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
     states: {
-      move: { path: 'assets/sprites/enemies/drone_move.png',
-              frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 12 },
+      move:  { path: 'assets/sprites/enemies/drone_move.png',
+               frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 12 },
+      death: { path: 'assets/sprites/enemies/drone_death.png',
+               frameWidth: 64, frameHeight: 64, frames: 6, frameRate: 14 },
     },
   },
 ];
