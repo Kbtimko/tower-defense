@@ -3,6 +3,7 @@
 // API server.
 //
 //   npm run art -- --dry-run              print every resolved prompt, generate nothing
+//   npm run art -- --kind sprite          generate the entity REFERENCE frames
 //   npm run art -- --kind overworld       generate the 10 campaign-map nodes
 //   npm run art -- --kind portrait        generate the 3 speaker portraits
 //   npm run art -- --only overworld_5     generate one asset
@@ -19,6 +20,7 @@ import { execFileSync } from 'node:child_process';
 import { dirname } from 'node:path';
 import {
   parseStyleAnchor, parseOverworldPrompts, parsePortraitPrompts, buildPrompt,
+  parseFencedSection, parseSpritePrompts,
 } from '../src/assets/promptParser.js';
 import { requiredAssets } from '../src/assets/assetManifest.js';
 
@@ -75,6 +77,22 @@ for (const p of parsePortraitPrompts(portraitMd)) {
   });
 }
 
+// Sprite REFERENCE frames. Unlike the other kinds these are not shippable
+// assets: one reference per entity is the input to the frame compositor
+// (scripts/build-sprite-sheets.py), which cuts alpha and derives the animation
+// frames from it. They land in a gitignored cache, never under public/.
+const SPRITE_REF_DIR = '.art-cache/sprites';
+const spriteMd = readFileSync('public/assets/sprites/PROMPTS.md', 'utf8');
+const spriteStyle = parseFencedSection(spriteMd, 'Shared style anchor');
+for (const p of parseSpritePrompts(spriteMd)) {
+  jobs.push({
+    kind: 'sprite', id: `${p.category}_${p.type}`,
+    path: `${SPRITE_REF_DIR}/${p.category}_${p.type}.png`,
+    prompt: buildPrompt(spriteStyle, p.subject),
+    size: null,                 // references stay at generation resolution
+  });
+}
+
 let selected = jobs;
 if (kind) selected = selected.filter(j => j.kind === kind);
 if (only) {
@@ -95,7 +113,7 @@ if (dryRun) {
   console.log(`\n${selected.length} prompt(s), seed ${SEED}, ${FLUX.steps} steps, CFG ${FLUX.cfg_scale}\n`);
   for (const j of selected) {
     console.log(`── ${j.kind}: ${j.id}`);
-    console.log(`   -> ${j.path}  (downscale to ${j.size.width}x${j.size.height})`);
+    console.log(`   -> ${j.path}  ${j.size ? `(downscale to ${j.size.width}x${j.size.height})` : '(reference, full size)'}`);
     console.log(`   ${j.prompt}\n`);
   }
   console.log('Dry run — nothing generated.\n');
@@ -167,6 +185,10 @@ for (const j of selected) {
     if (!b64) { console.log('FAILED (no image in response)'); continue; }
     mkdirSync(dirname(j.path), { recursive: true });
     writeFileSync(j.path, Buffer.from(b64.replace(/^data:image\/\w+;base64,/, ''), 'base64'));
+    if (!j.size) {                 // reference frames keep full resolution
+      console.log(`ok -> ${j.path}  (${FLUX.width}x${FLUX.height} reference)`);
+      continue;
+    }
     // Generated at 1024x1024; the game wants 512 (nodes) / 256 (portraits).
     // sips ships with macOS, so this needs no dependency.
     try {
