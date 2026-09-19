@@ -219,28 +219,28 @@ glance; keep them clearly heroic vs. the enemy chitin.
 - **rael** — `Commander Rael`, generalist bruiser — `assets/sprites/heroes/`:
   ```
   human Vanguard commander, navy-blue powered armor with cyan energy trim and
-  gold accents, sidearm rifle, confident heroic stance
+  gold accents, sidearm rifle, confident heroic stance, one single standing human character, full body, not a turret, not a building, not an emplacement
   ```
 - **engineer** — `Engineer Dax`, support/builder:
   ```
   combat engineer, brown utility armor with copper-orange trim, hexagonal
-  hardhat helmet, tool-rig backpack, wrench-rifle
+  hardhat helmet, tool-rig backpack, wrench-rifle, one single standing human character, full body, not a turret, not a building, not an emplacement
   ```
 - **scout** — `Scout Vex`, ranged anti-air:
   ```
   agile scout-ranger, dark-green hooded cloak with bright-green trim, light
-  recon armor, energy longbow, nimble crouched-ready stance
+  recon armor, energy longbow, nimble crouched-ready stance, one single standing human character, full body, not a turret, not a building, not an emplacement
   ```
 - **pyro** — `Pyromancer Mira`, AoE burn:
   ```
   pyromancer soldier, dark-red armor with glowing ember trim, flamethrower
-  gauntlet, small flame above shoulder, intense fiery presence
+  gauntlet, small flame above shoulder, intense fiery presence, one single standing human character, full body, not a turret, not a building, not an emplacement
   ```
 - **soldier** — `assets/sprites/soldiers/default_*.png`, `idle` (+ `attack`),
   barracks green `#4caf50`:
   ```
   small infantry trooper, green combat fatigues and helmet, compact rifle,
-  guard stance
+  guard stance, one single standing human character, full body, not a turret, not a building, not an emplacement
   ```
 - **sentry** — `assets/sprites/sentry/default_*.png`, `idle` + `attack`,
   engineer copper `#ff9933`:
