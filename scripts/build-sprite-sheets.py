@@ -65,7 +65,9 @@ CELL_OVERRIDES = {('enemy', 'colossus'): 96, ('enemy', 'titan'): 128,
                   # The mage spire is the narrowest tower (aspect 0.48), so a
                   # 64px cell leaves it 25px wide and needs a 1.44x upscale to
                   # reach the 36px tower footprint. 96 brings that back to 0.95.
-                  ('tower', 'mage'): 96}
+                  # The archer is the other tall, narrow tower (aspect 0.44):
+                  # 64 leaves it 23px wide and needs 1.57x.
+                  ('tower', 'mage'): 96, ('tower', 'archer'): 96}
 
 # Flyers bob without footfalls, so their gait drops the rock.
 HOVER = {('enemy', 'phantom')}

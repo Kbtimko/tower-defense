@@ -203,7 +203,7 @@ shatter) optional. Author facing right, moving right.
 Towers are static emplacements viewed top-down 3/4 — author the muzzle/business
 end facing right.
 
-- **archer** — `#8B4513` brown: `automated crossbow / ballista turret emplacement, weathered brown metal and wood, taut bowstring, swivel mount on a base disc`
+- **archer** — `#8B4513` brown: `automated crossbow ballista turret emplacement, tall upright swivel mount, dark weathered iron and deep brown wood, taut bowstring, high contrast against pale ground, compact dark base disc`
 - **mage** — `#6a0dad` purple: `arcane energy spire turret, floating violet crystal orb, glowing runic rings, purple magic emissive, metal base disc`
 - **cannon** — `#666666` grey: `heavy artillery cannon turret, stubby thick grey barrel, riveted armor plating, recoil mount, base disc`
 - **ice** — `#4a8fa8` teal: `cryo frost turret, glowing teal ice-crystal emitter, frosted condenser coils, pale-blue vapor, base disc`

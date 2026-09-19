@@ -103,12 +103,12 @@ export const SPRITE_MANIFEST = [
   // correct). Attack is the firing beat.
   {
     category: 'tower', type: 'archer',
-    scale: 0.71, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    scale: 1.03, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
     states: {
       idle:   { path: 'assets/sprites/towers/archer_idle.png',
-                frameWidth: 64, frameHeight: 64, frames: 1 },
+                frameWidth: 96, frameHeight: 96, frames: 1 },
       attack: { path: 'assets/sprites/towers/archer_attack.png',
-                frameWidth: 64, frameHeight: 64, frames: 5, frameRate: 14 },
+                frameWidth: 96, frameHeight: 96, frames: 5, frameRate: 14 },
     },
   },
   // Mage — the narrowest tower (silhouette aspect 0.48). At a 64px cell it
