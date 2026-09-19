@@ -86,24 +86,69 @@ extra limbs, deformed, side view, front portrait view
 
 ## Consistency pipeline (the hard part — read before doing animations)
 
-A raw txt2img run gives you N different creatures across N frames. To hold a
-character identical across an animation, build this once per character in
-**ComfyUI**:
+A raw txt2img run gives you N different creatures across N frames. Two ways to
+stop that; **this repo uses the second.**
 
-1. **Lock a reference.** Generate single frames until one is on-model; save it +
-   its seed.
-2. **Pin identity.** Either feed the reference through **IP-Adapter
-   (reference-only)** on every frame, **or** train a tiny **per-character LoRA**
-   on 8–15 crops of the reference (most reliable for a commercial bar).
-3. **Drive the motion.** Use **ControlNet OpenPose / depth** to pose each frame
-   (walk cycle, attack swing) while IP-Adapter/LoRA keeps the look fixed.
-4. **Cut out the background.** Run each frame through `rembg` (or Draw Things'
-   subject-extract) for clean alpha.
-5. **Assemble the sheet.** Composite frames left-to-right at a fixed cell size
-   into one PNG; the cell size is your `frameWidth`/`frameHeight`.
+### What we actually do (implemented, reproducible)
 
-Static, single-frame entities (a tower `idle`) skip steps 2–3 entirely — they're
-the easy wins. Do those first.
+Never have more than one creature. Generate a single on-model reference per
+entity, then derive every frame from it by transform, so identity drift is
+impossible **by construction** rather than merely constrained.
+
+```
+npm run art -- --kind sprite                  # 1 reference per entity -> .art-cache/
+python3 scripts/build-sprite-sheets.py --all  # cutout -> mirror -> move + death sheets
+npm run assets                                # confirm sizes match the manifest
+```
+
+1. **Reference.** `--kind sprite` reads the per-entity prompts below and writes
+   one 1024×1024 frame per entity into a gitignored `.art-cache/sprites/`.
+   Re-roll with `--seed` until one is on-model; only the reference is judged.
+2. **Cut alpha.** `rembg` with **`isnet-general-use`** — that model excludes the
+   ground shadow the generator draws despite being told not to. `u2net` keeps
+   it as a translucent grey blob welded to the feet.
+3. **Mirror.** The generator renders these creatures facing **left** whatever
+   the prompt says, so the compositor flips to face right by default.
+4. **Derive frames.** `move` is a squash-and-stretch bob with a counter-phased
+   rock (flyers hover, no rock). `death` collapses — sink, flatten, tip — then
+   crumbles under an eased coherent value-noise dissolve with a burning rim in
+   the entity's emissive tint.
+5. **Register.** One `SPRITE_MANIFEST` entry per entity; the texture key is
+   derived, never set.
+
+**The trade, stated plainly: limbs do not articulate.** At the footprint these
+sprites occupy (drone 27px, titan 66px) a leg is 1–2px and a walk cycle is
+sub-pixel noise, while frame-to-frame identity drift reads as obvious flicker.
+Bob and dissolve are what carry at that size. If these ever render much larger,
+revisit this.
+
+### The IP-Adapter / ControlNet route (not used here)
+
+The textbook answer is a reference → **IP-Adapter** or a per-character **LoRA**
+→ **ControlNet** for the pose, in ComfyUI. We did not take it, for two reasons:
+
+- **Nothing for it is installed.** Draw Things has only FLUX.1 [schnell]; there
+  is no SDXL checkpoint, no ControlNet, no IP-Adapter and no ComfyUI. That is
+  ~15GB of downloads plus an install.
+- **ControlNet-OpenPose is trained on human skeletons** and is meaningless for
+  a four-legged chitin drone or a hovering wraith. The motion-driving step of
+  that pipeline does not apply to these creatures; depth ControlNet would need
+  a per-frame depth source we do not have.
+
+If entity art ever needs true articulation, this is the route — but budget the
+downloads and expect to hand-author poses rather than lean on OpenPose.
+
+### Model settings
+
+The prompts below are written as SDXL-style comma-separated weighted tags. The
+**installed** model is FLUX.1 [schnell], which is what `npm run art` drives:
+4 steps, CFG 0, Euler a, 1024×1024. FLUX ignores `negative_prompt` at CFG 0, so
+the shared negative prompt is advisory here — fold exclusions into the positive
+prose instead. The SDXL settings above (DPM++ 2M Karras, 30–35 steps, CFG 6–7)
+apply only if an SDXL checkpoint is installed later.
+
+Check every generated frame for stray lettering before compositing; the
+generator has a habit of rendering the game title into artwork.
 
 ---
 
@@ -201,14 +246,19 @@ glance; keep them clearly heroic vs. the enemy chitin.
   blaster barrel, tripod base, blinking sensor
   ```
 
-## Death animations (reserved)
+## Death animations
 
-The `death` state is supported by the manifest + `EntitySprite.playOnce`, but
-sub-project (a) does NOT delay entity destruction to play it (that is a
-combat-timing change). Wire the destroy-delay in the per-entity cycle that adds
-death frames.
+**Wired.** `GameScene._fadeOutDeadEnemy` checks `enemy.hasDeathAnimation()`: an
+entity with registered `death` art plays the one-shot and is destroyed on
+`animationcomplete`; everything else keeps the 300ms alpha fade. So dropping
+death frames in is still just art plus a manifest entry.
 
----
+Two rules that bite:
+
+- A one-shot **must** have `frames > 1`. A single-frame one-shot never fires
+  `animationcomplete`, so the entity would never be destroyed.
+- Make the **last frame fully dissolved**. The sprite is visible until the
+  animation ends, so a final frame with pixels left in it pops out of existence.
 
 ## Why these live under `public/`
 
