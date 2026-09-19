@@ -389,6 +389,7 @@ export default class GameScene extends Phaser.Scene {
         if (blocker.attackTimer <= 0) {
           this._dealDamage(enemy, blocker.damage, false, { source: soldierSource(blocker) });
           blocker.attackTimer = 1 / blocker.attackRate;
+          blocker._sprite?.setState('attack');
         }
         if (enemy.dead) continue;
         continue;
