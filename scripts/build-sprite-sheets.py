@@ -17,7 +17,7 @@ cycle is sub-pixel noise, while frame-to-frame identity drift reads as obvious
 flicker. Bob/rock for movement and collapse/dissolve for death are what carry
 at that size.
 
-Requires: pip3 install 'rembg[cli]' onnxruntime pillow numpy
+Requires: pip3 install 'rembg[cli]' onnxruntime pillow numpy scipy
 """
 import argparse
 import math
@@ -46,7 +46,25 @@ TINTS = {
 }
 
 
-def cutout(path):
+def largest_component(rgba, min_alpha=24):
+    """Keep only the biggest connected blob of opaque pixels.
+
+    The generator scatters loose debris and secondary props around the subject
+    (the titan came back standing in a field of rocks), and the shared negative
+    prompt cannot stop it: FLUX at CFG 0 ignores negative_prompt entirely. Left
+    in, that junk inflates the bounding box and shrinks the creature inside its
+    cell."""
+    from scipy import ndimage
+    a = np.array(rgba)
+    labels, n = ndimage.label(a[..., 3] > min_alpha)
+    if n <= 1:
+        return rgba
+    biggest = np.argmax(ndimage.sum(np.ones_like(labels), labels, range(1, n + 1))) + 1
+    a[..., 3] *= (labels == biggest)
+    return Image.fromarray(a, 'RGBA')
+
+
+def cutout(path, keep_largest=True):
     """Alpha-cut the reference. isnet-general-use is the model that excludes
     the ground shadow FLUX renders despite being told not to; u2net keeps it as
     a translucent grey blob welded to the feet."""
@@ -56,6 +74,8 @@ def cutout(path):
                  alpha_matting_foreground_threshold=250,
                  alpha_matting_background_threshold=15,
                  alpha_matting_erode_size=6)
+    if keep_largest:
+        out = largest_component(out)
     return out.crop(out.getbbox())
 
 
@@ -138,6 +158,8 @@ def main():
     ap.add_argument('--cell', type=int, default=64)
     ap.add_argument('--no-mirror', action='store_true',
                     help='reference already faces right')
+    ap.add_argument('--keep-debris', action='store_true',
+                    help='skip largest-component isolation (subject is several blobs)')
     args = ap.parse_args()
 
     types = sorted(p.stem.replace('enemy_', '') for p in REF_DIR.glob('enemy_*.png')) \
@@ -152,7 +174,7 @@ def main():
         if not ref_path.exists():
             print(f'  {t}: SKIP (no reference at {ref_path})')
             continue
-        ref = cutout(ref_path)
+        ref = cutout(ref_path, keep_largest=not args.keep_debris)
         # Author facing RIGHT; the renderer mirrors via flipX. FLUX ignores the
         # instruction and draws these creatures facing left, so flip by default.
         if not args.no_mirror:

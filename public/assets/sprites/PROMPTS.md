@@ -170,8 +170,9 @@ shatter) optional. Author facing right, moving right.
   ```
 - **skitter** — `Veth Skitter`, fast, ground, tint `#ff6600`:
   ```
-  fast insectoid skirmisher, sharp diamond-shaped body, orange chitin plating,
-  many thin scuttling legs, aggressive lean-forward stance, ember-orange glow
+  one single living insectoid alien creature, lean wedge-shaped body of orange
+  chitin plating, six thin scuttling spider legs, low forward charging stance,
+  ember-orange emissive glow, an organic bug, not a turret or a machine
   ```
 - **brute** — `Veth Brute`, armored, ground, tint `#667766`:
   ```
@@ -185,8 +186,10 @@ shatter) optional. Author facing right, moving right.
   ```
 - **phantom** — `Veth Phantom`, flying, fast, tint `#9b59b6`:
   ```
-  ghostly flying alien wraith, translucent violet body, trailing wisp tendrils,
-  faint glowing core, ethereal semi-transparent edges, hovering, weightless
+  one single ghostly flying alien creature, translucent violet organic body with
+  long trailing wisp tendrils, faint glowing core, ethereal semi-transparent
+  edges, airborne in mid-air with nothing touching the ground, a floating
+  living wraith, not a monolith, not a tower, not a structure
   ```
 - **titan** — `Veth Titan` (boss), huge & armored, tint `#e74c3c`:
   ```
