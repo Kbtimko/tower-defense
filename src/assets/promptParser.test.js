@@ -296,3 +296,54 @@ describe('parseSpritePrompts entity-id agreement', () => {
     expect(got).toContain('sentry/default');
   });
 });
+
+describe('parseSpritePrompts prefers the fenced block over an inline span', () => {
+  // A bullet that documents its output path puts a >15-char backtick span on
+  // the bullet line. The inline heuristic cannot tell that path from a prompt,
+  // so a fenced block — when there is one — must win.
+  const md = [
+    '### (d) Heroes / Soldiers / Sentries',
+    '',
+    '- **rael** — `Commander Rael`, bruiser — `assets/sprites/heroes/`:',
+    '  ```',
+    '  human Vanguard commander, navy-blue powered armor',
+    '  ```',
+    '- **sentry** — `assets/sprites/sentry/default_*.png`, `idle` + `attack`:',
+    '  ```',
+    '  small deployable auto-turret, copper-orange armored dome',
+    '  ```',
+  ].join('\n');
+
+  it('reads the fenced prompt, not the documented output path', () => {
+    const got = parseSpritePrompts(md);
+    const rael = got.find(p => p.type === 'rael');
+    expect(rael.subject).toContain('Vanguard commander');
+    expect(rael.subject).not.toContain('assets/sprites');
+
+    const sentry = got.find(p => p.category === 'sentry');
+    expect(sentry.subject).toContain('auto-turret');
+    expect(sentry.subject).not.toContain('assets/sprites');
+  });
+
+  it('still uses the inline span for a bullet with no fenced block', () => {
+    const towers = [
+      '### (c) Towers',
+      '',
+      '- **archer** — `#8B4513` brown: `automated crossbow ballista turret emplacement, weathered brown metal`',
+      '- **mage** — `#6a0dad` purple: `arcane energy spire turret, floating violet crystal orb, glowing runic rings`',
+    ].join('\n');
+    const got = parseSpritePrompts(towers);
+    expect(got.find(p => p.type === 'archer').subject).toContain('crossbow');
+    expect(got.find(p => p.type === 'mage').subject).toContain('arcane energy spire');
+  });
+});
+
+describe('the real PROMPTS.md yields a usable subject for every entity', () => {
+  it('never hands a file path to the image model', () => {
+    const md = readFileSync('public/assets/sprites/PROMPTS.md', 'utf8');
+    for (const p of parseSpritePrompts(md)) {
+      expect(p.subject, `${p.category}/${p.type}`).not.toMatch(/assets\/sprites/);
+      expect(p.subject.length, `${p.category}/${p.type}`).toBeGreaterThan(30);
+    }
+  });
+});

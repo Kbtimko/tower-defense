@@ -137,27 +137,27 @@ export function parseSpritePrompts(md) {
     if (!bullet) continue;
     const type = bullet[1];
 
-    // Inline form:  - **archer** — `#8B4513` brown: `crossbow turret`
-    // Split on backticks so odd segments are exactly the quoted spans; a regex
-    // here backtracks across a PAIR of spans and captures the text between
-    // them. Take the last long span: barracks ends with a "(no `attack`)" aside.
-    const spans = bullet[2].split('`').filter((_, k) => k % 2 === 1);
-    const inline = spans.filter(x => x.length >= 15).pop() ?? null;
+    // Fenced form wins whenever there is a fence. The bullet's metadata may
+    // wrap onto continuation lines before it opens. The scan stops at any
+    // unindented line, so it cannot run into the next bullet's fence.
     let subject = null;
-    if (inline) {
-      subject = inline;
+    let j = i + 1;
+    while (j < lines.length && !/^\s*```/.test(lines[j])
+           && (lines[j].trim() === '' || /^\s+\S/.test(lines[j]))) j++;
+    if (j < lines.length && /^\s*```/.test(lines[j])) {
+      const body = [];
+      for (let k = j + 1; k < lines.length && !/^\s*```/.test(lines[k]); k++) body.push(lines[k]);
+      subject = joinWrapped(body);
+      i = j + body.length + 1;
     } else {
-      // Fenced form: the block on the following lines. The bullet's metadata
-      // may wrap onto continuation lines before the fence opens.
-      let j = i + 1;
-      while (j < lines.length && !/^\s*```/.test(lines[j])
-             && (lines[j].trim() === '' || /^\s+\S/.test(lines[j]))) j++;
-      if (j < lines.length && /^\s*```/.test(lines[j])) {
-        const body = [];
-        for (let k = j + 1; k < lines.length && !/^\s*```/.test(lines[k]); k++) body.push(lines[k]);
-        subject = joinWrapped(body);
-        i = j + body.length + 1;
-      }
+      // Inline form:  - **archer** — `#8B4513` brown: `crossbow turret`
+      // Split on backticks so odd segments are exactly the quoted spans; a
+      // regex here backtracks across a PAIR of spans and captures the text
+      // between them. Take the last long span: barracks ends with a
+      // "(no `attack`)" aside. This heuristic cannot distinguish a prompt from
+      // a documented output path, which is why a fence takes precedence.
+      const spans = bullet[2].split('`').filter((_, k) => k % 2 === 1);
+      subject = spans.filter(x => x.length >= 15).pop() ?? null;
     }
     if (!subject) continue;
 
