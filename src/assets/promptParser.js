@@ -161,11 +161,13 @@ export function parseSpritePrompts(md) {
     }
     if (!subject) continue;
 
+    // soldier/sentry are their own manifest categories despite sharing the
+    // heroes heading, and both entities construct with type 'default' — the
+    // type must be the runtime one or getSpriteConfig never matches.
+    const isUnit = category === 'hero' && (type === 'soldier' || type === 'sentry');
     out.push({
-      // soldier/sentry are their own manifest categories despite sharing the
-      // heroes heading.
-      category: category === 'hero' && (type === 'soldier' || type === 'sentry') ? type : category,
-      type,
+      category: isUnit ? type : category,
+      type: isUnit ? 'default' : type,
       subject: cleanSubject(subject),
     });
   }

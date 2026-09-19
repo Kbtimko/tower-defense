@@ -221,17 +221,17 @@ glance; keep them clearly heroic vs. the enemy chitin.
   human Vanguard commander, navy-blue powered armor with cyan energy trim and
   gold accents, sidearm rifle, confident heroic stance
   ```
-- **dax** — `Engineer Dax`, support/builder:
+- **engineer** — `Engineer Dax`, support/builder:
   ```
   combat engineer, brown utility armor with copper-orange trim, hexagonal
   hardhat helmet, tool-rig backpack, wrench-rifle
   ```
-- **vex** — `Scout Vex`, ranged anti-air:
+- **scout** — `Scout Vex`, ranged anti-air:
   ```
   agile scout-ranger, dark-green hooded cloak with bright-green trim, light
   recon armor, energy longbow, nimble crouched-ready stance
   ```
-- **mira** — `Pyromancer Mira`, AoE burn:
+- **pyro** — `Pyromancer Mira`, AoE burn:
   ```
   pyromancer soldier, dark-red armor with glowing ember trim, flamethrower
   gauntlet, small flame above shoulder, intense fiery presence

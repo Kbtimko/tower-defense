@@ -6,6 +6,9 @@ import {
 } from './promptParser.js';
 import { MAPS } from '../data/maps.js';
 import { STORY_SPEAKERS } from '../data/story.js';
+import { HEROES } from '../data/heroes.js';
+import { TOWER_DEFS } from '../data/towers.js';
+import { ENEMY_DEFS } from '../data/enemies.js';
 
 const overworldMd = readFileSync('public/assets/overworld/PROMPTS.md', 'utf8');
 const portraitMd  = readFileSync('public/assets/portraits/PROMPTS.md', 'utf8');
@@ -240,8 +243,10 @@ describe('parseSpritePrompts', () => {
       '  ```',
     ].join('\n');
     const got = parseSpritePrompts(md);
+    // soldier/sentry both construct with runtime type 'default', regardless
+    // of the bullet name that labels the category.
     expect(got.map(e => [e.category, e.type])).toEqual([
-      ['tower', 'archer'], ['hero', 'rael'], ['soldier', 'soldier'], ['sentry', 'sentry'],
+      ['tower', 'archer'], ['hero', 'rael'], ['soldier', 'default'], ['sentry', 'default'],
     ]);
   });
 });
@@ -257,5 +262,37 @@ describe('the real sprites PROMPTS.md', () => {
   it('exposes the shared style anchor and negative prompt', () => {
     expect(parseFencedSection(spriteMd, 'Shared style anchor')).toMatch(/game sprite/);
     expect(parseFencedSection(spriteMd, 'Shared negative prompt')).toMatch(/watermark/);
+  });
+});
+
+describe('parseSpritePrompts entity-id agreement', () => {
+  // A prompt bullet whose name is not the entity's runtime `type` produces art
+  // that parses, composites and registers but never renders, because
+  // getSpriteConfig(category, type) matches on the runtime type. Soldier and
+  // sentry both construct with type 'default'.
+  const VALID = {
+    enemy:   Object.keys(ENEMY_DEFS),
+    tower:   Object.keys(TOWER_DEFS),
+    hero:    Object.keys(HEROES),
+    soldier: ['default'],
+    sentry:  ['default'],
+  };
+
+  it('emits only types that some entity actually constructs', () => {
+    const md = readFileSync('public/assets/sprites/PROMPTS.md', 'utf8');
+    const offenders = parseSpritePrompts(md)
+      .filter(p => !(VALID[p.category] ?? []).includes(p.type))
+      .map(p => `${p.category}/${p.type}`);
+    expect(offenders).toEqual([]);
+  });
+
+  it('covers every hero, tower and enemy exactly once', () => {
+    const md = readFileSync('public/assets/sprites/PROMPTS.md', 'utf8');
+    const got = parseSpritePrompts(md).map(p => `${p.category}/${p.type}`);
+    expect(new Set(got).size).toBe(got.length);            // no duplicates
+    for (const t of Object.keys(TOWER_DEFS)) expect(got).toContain(`tower/${t}`);
+    for (const h of Object.keys(HEROES))     expect(got).toContain(`hero/${h}`);
+    expect(got).toContain('soldier/default');
+    expect(got).toContain('sentry/default');
   });
 });
