@@ -55,6 +55,12 @@ export class EntitySprite {
     this.setState(start);
   }
 
+  // Does this entity have registered art for `name`? Lets callers branch on
+  // real art without reaching into the private state set.
+  hasState(name) {
+    return this.active && this._states.has(name);
+  }
+
   setState(name) {
     if (!this.active || !this._states.has(name)) return;
     const oneShot = !LOOPING.has(name);

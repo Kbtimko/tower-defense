@@ -3,6 +3,7 @@ import { TOWER_DEFS } from '../data/towers.js';
 import { MAPS } from '../data/maps.js';
 import { MAP_WAVES } from '../data/waves.js';
 import { PathManager } from '../systems/PathManager.js';
+import { facingDirX } from '../systems/facing.js';
 import { WaveManager } from '../systems/WaveManager.js';
 import { EconomyManager } from '../systems/EconomyManager.js';
 import { TowerPlacementManager } from '../systems/TowerPlacementManager.js';
@@ -407,7 +408,9 @@ export default class GameScene extends Phaser.Scene {
         }
       }
       const aheadIdx = Math.min(enemy.waypointIndex + 1, path.length - 1);
-      enemy._sprite?.setFacing(path[aheadIdx].x - enemy.x);
+      // Deadzoned: tight bends backtrack far enough in x to read as a real
+      // leftward delta and would mirror the sprite mid-stride (see facing.js).
+      enemy._sprite?.setFacing(facingDirX(path[aheadIdx].x - enemy.x));
       if (enemy.waypointIndex >= path.length - 1) {
         enemy.dead = true;
         const am = this.game.registry.get('audio');
@@ -430,6 +433,12 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _fadeOutDeadEnemy(enemy) {
+    // Death art, when present, replaces the fade entirely: the entity has to
+    // survive until animationcomplete or the one-shot never finishes.
+    if (enemy.hasDeathAnimation?.()) {
+      enemy.playDeathAnimation(() => enemy.destroy());
+      return;
+    }
     this.tweens.add({
       targets: enemy,
       alpha: 0,

@@ -219,3 +219,29 @@ describe('Enemy status overlay', () => {
     expect(e.statusEffects.slow.active).toBe(true);
   });
 });
+
+describe('Enemy death presentation', () => {
+  it('reports no death animation while no death art is registered', () => {
+    const e = new Enemy(makeScene(), { def: makeDef(), startX: 0, startY: 0 });
+    expect(e.hasDeathAnimation()).toBe(false);
+  });
+
+  it('reports a death animation once the sprite has death art', () => {
+    const e = new Enemy(makeScene(), { def: makeDef(), startX: 0, startY: 0 });
+    e._sprite = { hasState: (n) => n === 'death', playOnce: vi.fn() };
+    expect(e.hasDeathAnimation()).toBe(true);
+  });
+
+  it('hides the HP bar and status rings, then plays the one-shot', () => {
+    const e = new Enemy(makeScene(), { def: makeDef(), startX: 0, startY: 0 });
+    const playOnce = vi.fn();
+    e._sprite = { hasState: () => true, playOnce };
+    const done = vi.fn();
+
+    e.playDeathAnimation(done);
+
+    expect(e._hpBar.visible).toBe(false);
+    expect(e._overlay.visible).toBe(false);
+    expect(playOnce).toHaveBeenCalledWith('death', done);
+  });
+});
