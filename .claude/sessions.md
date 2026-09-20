@@ -1,6 +1,19 @@
 # Session Log: Last Light (Tower Defense)
 
 ---
+## 2026-09-20 — Session Summary
+**Accomplished:** Settled the one question blocking PR #58 and shipped it. Measured the titan→colossus swap across three full balance states and found the notes' reading of it was wrong in two ways: the swap is uniform (−1 titan / +2 colossus on one wave of each of maps 5–9, only the starting titan count differs), and it is *not* a uniform easing — maps 4, 5, 6 got **harder**, maps 8, 9 did not move in the no-barracks column, and **map 7 was the only map whose no-barracks number moved at all** (3.63x → 3.35x). Held map 7 out of the swap (one line, `src/data/waves.js:122`), restoring 3.63x / 3.08x / 2.80x — identical to baseline in all three columns — at zero cost to the colossus, which still recurs on maps 4, 5, 6, 8, 9. Two regression tests encode the decision. Then resolved PR #58's `.claude/notes.md` conflict after #57 merged, and verified production live.
+
+**Decisions made:**
+- **Map 7 is held out of the colossus swap** (option (a)), preserving backlog #12's frozen cliff rather than reversing it. Reverting costs one of five recurrences; accepting would have cost a 17% narrower cliff.
+- **Root cause named:** armour is *flat subtraction* (`max(1, dmg - armor)`), so armour 20→15 multiplies tower throughput by `(d-15)/(d-20)` — 2x at 25 damage, up to 5x at or under 20. Against it, `lives--` is per *leaked enemy*, so a swap that leaks costs 2 lives instead of 1. Those two opposed mechanisms are why the swap's direction flips across the campaign.
+- **Accepted a known residual:** reverting map 7 restores map 7 exactly but not the *step*, which has two ends — map 6 still carries its own swap (1.96x→2.01x), so the step is +1.62, not +1.67. A slightly harder map 6 sharpens the ramp into the cliff, the direction #12 wanted.
+
+**Where we left off:** **Everything is shipped; nothing is in flight.** PRs #57 (`d9772a9`) and #58 (`27341d1`) are merged and live. Production verified against the canonical host, not just a local build: served bundle hash matches a local build of `main`, **62/62 image assets 200**, 39 sprite sheets serve, and the live bundle's `MAP_WAVES` confirms map 7 ships 17 titans / zero colossus. 983 tests green, build clean.
+
+Only two optional items remain: **#13 overworld node contrast polish** (small, art-only, needs the local Draw Things pipeline) and **#9 the iOS port** (large). Loose ends: seven local / five remote merged branches want a sweep, and the long-standing uncommitted `SESSION_NOTES.md` edit plus untracked `.claude/prompts/` are still in the working tree.
+
+---
 ## 2026-09-19 — Session Summary
 **Accomplished:** Closed backlog **#8 entirely** — all 18 entities now render as real sprite art. **PR #57** (`feat/tower-hero-sprite-art`, 14 commits, 983 tests) ships 27 sheets from 12 generated references: 6 towers (static idle + firing beat; barracks never fires), 4 heroes (idle + gait + attack), soldier and sentry. **PR #58** (`feat/colossus-waves`, 966 tests) gives the colossus a place in the campaign, closing both decisions PR #56 had left open. Also found and fixed four defects the backlog never mentioned: two silent parser failures (a prompt bullet's name must be the runtime entity `type`; a fenced prompt must beat an inline backtick span — three entities were about to be generated from the literal string `assets/sprites/heroes/`), and two wiring gaps (towers never called `setFacing`; the soldier never entered its `attack` state). The sprite compositor became category-aware, proven behaviour-preserving by rebuilding the cached enemies **byte-identical**.
 
