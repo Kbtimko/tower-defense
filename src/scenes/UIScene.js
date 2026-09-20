@@ -380,9 +380,31 @@ export default class UIScene extends Phaser.Scene {
     }
   }
 
-  _onHeroUpdate({ hp, maxHp }) {
+  _onHeroUpdate({ hp, maxHp, xp }) {
     const fill = document.getElementById('hero-hp-fill');
     if (fill) fill.style.width = ((hp / maxHp) * 100).toFixed(1) + '%';
+    this._renderHeroXp(xp);
+  }
+
+  // The bar moves every frame; the tooltip string only changes when the whole
+  // percent does, so it is rebuilt on that boundary rather than 60 times a second.
+  _renderHeroXp(xp) {
+    if (!xp) return;
+    const fill = document.getElementById('hero-xp-fill');
+    if (fill) fill.style.width = (xp.progress * 100).toFixed(1) + '%';
+
+    const pct = Math.floor(xp.progress * 100);
+    if (pct === this._heroXpPct && xp.atMax === this._heroXpAtMax) return;
+    this._heroXpPct   = pct;
+    this._heroXpAtMax = xp.atMax;
+
+    const section = document.getElementById('hero-section');
+    if (!section) return;
+    section.title = xp.atMax
+      ? `Level ${xp.level} — MAX`
+      : `Level ${xp.level} — ${pct}% to Level ${xp.level + 1}`
+        + ` · damage dealt ${Math.round(xp.current).toLocaleString('en-US')}`
+        + ` / ${Math.round(xp.needed).toLocaleString('en-US')}`;
   }
 
   _onHeroLevelUp({ level }) {
