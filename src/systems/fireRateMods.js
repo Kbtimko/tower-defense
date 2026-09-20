@@ -20,6 +20,16 @@ export function clearFireRateMod(tower, id) {
   recomputeFireRate(tower);
 }
 
+// An upgrade changes the tower's TRUE rate underneath whatever buffs are up.
+// Assigning `tower.fireRate` directly would leave `_baseFireRate` holding the
+// stale pre-upgrade value, and clearing the buff would then revert the tower to
+// that old rate for good. Route tier changes through here instead.
+export function setBaseFireRate(tower, rate) {
+  if (tower._baseFireRate === undefined) { tower.fireRate = rate; return; }
+  tower._baseFireRate = rate;
+  recomputeFireRate(tower);
+}
+
 function recomputeFireRate(tower) {
   let mult = 1;
   for (const m of tower._fireRateMods.values()) mult *= m;

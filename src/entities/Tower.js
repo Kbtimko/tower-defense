@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { TOWER_DEFS } from '../data/towers.js';
 import { EntitySprite } from '../systems/EntitySprite.js';
+import { setBaseFireRate } from '../systems/fireRateMods.js';
 
 export class Tower extends Phaser.GameObjects.Container {
   constructor(scene, { type, x, y, def, zoneIndex, modifiers = {} }) {
@@ -66,7 +67,7 @@ export class Tower extends Phaser.GameObjects.Container {
     if (tierDef.range        !== undefined) this.range        = Math.round(tierDef.range  * this._rangeMult);
     if (tierDef.splashRadius !== undefined) this.splashRadius = tierDef.splashRadius;
     if (tierDef.slow         !== undefined) this.slow         = tierDef.slow;
-    if (tierDef.fireRate     !== undefined) this.fireRate     = tierDef.fireRate;
+    if (tierDef.fireRate     !== undefined) setBaseFireRate(this, tierDef.fireRate);
     if (tierDef.pierce       !== undefined) this.pierce       = tierDef.pierce;
     this._redraw();
   }
