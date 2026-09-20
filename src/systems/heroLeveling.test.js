@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   heroXpThresholds, heroLevelForDamage, heroLevelMult, heroAttackDamage, heroMaxHp,
+  heroXpProgress,
 } from './heroLeveling.js';
 import { HERO_LEVEL_DAMAGE_FRACTIONS, HERO_LEVEL_STAT_STEP, HEROES } from '../data/heroes.js';
 
@@ -113,4 +114,94 @@ describe('every shipped hero levels to 5', () => {
       expect(def.stats.abilityUnlockLevels).toEqual({ q: 1, w: 2, e: 3 });
     });
   }
+});
+
+describe('heroXpProgress', () => {
+  const T = TOTAL;                       // 10000, defined at the top of this file
+  const [t2, t3, t4, t5] = HERO_LEVEL_DAMAGE_FRACTIONS.map(f => f * T);
+
+  it('is empty at the very start of the run', () => {
+    const p = heroXpProgress(0, T, { startLevel: 1, maxLevel: 5 });
+    expect(p.level).toBe(1);
+    expect(p.progress).toBe(0);
+    expect(p.atMax).toBe(false);
+  });
+
+  it('is half full halfway through the first level window', () => {
+    const p = heroXpProgress(t2 / 2, T, { startLevel: 1, maxLevel: 5 });
+    expect(p.level).toBe(1);
+    expect(p.progress).toBeCloseTo(0.5);
+  });
+
+  it('reports the window, not the running total, as current/needed', () => {
+    const p = heroXpProgress(t2 + (t3 - t2) * 0.25, T, { startLevel: 1, maxLevel: 5 });
+    expect(p.level).toBe(2);
+    expect(p.needed).toBeCloseTo(t3 - t2);
+    expect(p.current).toBeCloseTo((t3 - t2) * 0.25);
+    expect(p.progress).toBeCloseTo(0.25);
+  });
+
+  it('resets to empty the instant a level is earned', () => {
+    // exactly ON the threshold counts as the higher level (heroLevelForDamage uses >=)
+    const p = heroXpProgress(t3, T, { startLevel: 1, maxLevel: 5 });
+    expect(p.level).toBe(3);
+    expect(p.progress).toBe(0);
+  });
+
+  it('sits full and flags atMax at the top level', () => {
+    const p = heroXpProgress(t5 * 3, T, { startLevel: 1, maxLevel: 5 });
+    expect(p.level).toBe(5);
+    expect(p.atMax).toBe(true);
+    expect(p.progress).toBe(1);
+  });
+
+  it('honours a maxLevel below 5 rather than the constant', () => {
+    const p = heroXpProgress(t5, T, { startLevel: 1, maxLevel: 3 });
+    expect(p.level).toBe(3);
+    expect(p.atMax).toBe(true);
+  });
+
+  // The <hero>_veteran / <hero>_elite meta upgrades set heroStartLevel 2 or 3,
+  // so the hero starts mid-ladder with damageDealt 0. The naive formula gives
+  // (0 - 0.13T) / 0.08T = -1.6 here.
+  it('never goes negative for a hero that started above level 1', () => {
+    const p = heroXpProgress(0, T, { startLevel: 3, maxLevel: 5 });
+    expect(p.level).toBe(3);
+    expect(p.progress).toBe(0);
+    expect(p.current).toBe(0);
+  });
+
+  it('advances normally once a head-start hero passes its own floor', () => {
+    const p = heroXpProgress(t3 + (t4 - t3) * 0.5, T, { startLevel: 3, maxLevel: 5 });
+    expect(p.level).toBe(3);
+    expect(p.progress).toBeCloseTo(0.5);
+  });
+
+  it('yields 0 rather than NaN on a map with no HP budget', () => {
+    const p = heroXpProgress(500, 0, { startLevel: 1, maxLevel: 5 });
+    expect(Number.isFinite(p.progress)).toBe(true);
+    expect(p.progress).toBe(0);
+  });
+
+  it('never leaves the 0..1 range for any damage total', () => {
+    for (const dealt of [-100, 0, 1, t2 - 1, t2, t4, t5, t5 * 10]) {
+      const p = heroXpProgress(dealt, T, { startLevel: 1, maxLevel: 5 });
+      expect(p.progress).toBeGreaterThanOrEqual(0);
+      expect(p.progress).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('never decreases as damage accumulates, except when a level is earned', () => {
+    let prev = { level: 1, progress: 0 };
+    for (let dealt = 0; dealt <= t5; dealt += T / 500) {
+      const p = heroXpProgress(dealt, T, { startLevel: 1, maxLevel: 5 });
+      if (p.level === prev.level) expect(p.progress).toBeGreaterThanOrEqual(prev.progress - 1e-9);
+      prev = p;
+    }
+  });
+
+  it('defaults startLevel and maxLevel when the options are omitted', () => {
+    expect(heroXpProgress(0, T).level).toBe(1);
+    expect(heroXpProgress(0, T).progress).toBe(0);
+  });
 });
