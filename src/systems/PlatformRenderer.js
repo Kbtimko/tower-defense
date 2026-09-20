@@ -31,13 +31,20 @@ const PALETTES = {
 
 const TWO_PI = Math.PI * 2;
 
+// Rim alpha once a tower is seated. The pad keeps a shadow and a disc so the
+// tower reads as standing on something, but the rim drops back so it stops
+// competing with the sprite for attention.
+const OCCUPIED_EDGE_ALPHA = 0.35;
+const EMPTY_EDGE_ALPHA = 0.8;
+
 export function PLATFORM_STYLE_FOR_MAP(mapId) {
   return STYLE_BY_MAP[mapId] ?? 'rocky_outcrop';
 }
 
 /**
- * Render every tower slot as a themed ringed emplacement. Empty slots get a
- * centered "+" build marker; occupied slots omit it (the tower renders on top).
+ * Render every tower slot as a themed ringed emplacement. Empty slots get the
+ * full treatment — stud ring and a centered "+" build marker; occupied slots
+ * get shadow + disc + a faint rim only, so the tower reads clearly on top.
  *
  * @param {Phaser.GameObjects.Graphics} gfx
  * @param {{cx:number,cy:number,radius:number,occupied:boolean}[]} slots
@@ -52,16 +59,20 @@ export function renderPlatforms(gfx, slots, mapId) {
 }
 
 // Ringed emplacement: a cleared platform ringed by themed studs + build marker.
+// Occupied slots drop the studs and the marker — both are build affordances
+// with nothing left to afford once a tower sits there.
 function drawEmplacementPad(gfx, slot, pal) {
   const { cx, cy, radius: r } = slot;
+  const occupied = !!slot.occupied;
   // Drop shadow
   gfx.fillStyle(0x000000, 0.40);
   gfx.fillCircle(cx + 1, cy + 2, r + 2);
   // Cleared platform
   gfx.fillStyle(pal.pad, 1);
   gfx.fillCircle(cx, cy, r * 0.82);
-  gfx.lineStyle(1.5, pal.padEdge, 0.8);
+  gfx.lineStyle(1.5, pal.padEdge, occupied ? OCCUPIED_EDGE_ALPHA : EMPTY_EDGE_ALPHA);
   gfx.strokeCircle(cx, cy, r * 0.80);
+  if (occupied) return;
   // Stud ring around the rim
   const studs = 11;
   const sr = r * 0.30;
@@ -74,10 +85,8 @@ function drawEmplacementPad(gfx, slot, pal) {
     gfx.fillStyle(pal.stud, 1);
     gfx.fillCircle(bx, by, sr);
   }
-  // Build marker (empty slots only)
-  if (!slot.occupied) {
-    gfx.lineStyle(3, pal.marker, 1);
-    gfx.lineBetween(cx - r * 0.32, cy, cx + r * 0.32, cy);
-    gfx.lineBetween(cx, cy - r * 0.32, cx, cy + r * 0.32);
-  }
+  // Build marker
+  gfx.lineStyle(3, pal.marker, 1);
+  gfx.lineBetween(cx - r * 0.32, cy, cx + r * 0.32, cy);
+  gfx.lineBetween(cx, cy - r * 0.32, cx, cy + r * 0.32);
 }

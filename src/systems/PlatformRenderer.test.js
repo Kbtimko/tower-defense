@@ -55,3 +55,52 @@ describe('PlatformRenderer', () => {
     expect(gfx._calls()).toHaveLength(0);
   });
 });
+
+// A tower seated on a pad should read as seated on something, not floating —
+// but the studs and the "+" build affordance are noise once the slot is taken.
+describe('occupied pads', () => {
+  const STUD_COUNT = 11;
+  const slotAt = (occupied) => ({ cx: 100, cy: 100, radius: 22, occupied });
+
+  it('an occupied slot draws no stud ring', () => {
+    const gfx = makeGfx();
+    renderPlatforms(gfx, [slotAt(true)], 0);
+    const fills = gfx._calls().filter(c => c.method === 'fillCircle');
+    // Shadow + platform disc only: the 22 stud fills (seam + cap each) are gone.
+    expect(fills).toHaveLength(2);
+  });
+
+  it('an occupied slot draws no build marker', () => {
+    const gfx = makeGfx();
+    renderPlatforms(gfx, [slotAt(true)], 0);
+    expect(gfx._calls().filter(c => c.method === 'lineBetween')).toHaveLength(0);
+  });
+
+  it('an occupied slot still draws a drop shadow, a platform disc and a rim', () => {
+    const gfx = makeGfx();
+    renderPlatforms(gfx, [slotAt(true)], 0);
+    const calls = gfx._calls();
+    const fills = calls.filter(c => c.method === 'fillCircle');
+    expect(fills[0].args).toEqual([101, 102, 24]);           // shadow, offset + 2px
+    expect(fills[1].args).toEqual([100, 100, 22 * 0.82]);    // cleared platform
+    expect(calls.filter(c => c.method === 'strokeCircle')).toHaveLength(1);
+  });
+
+  it('an occupied slot rim is fainter than an empty slot rim', () => {
+    const occupied = makeGfx();
+    const empty = makeGfx();
+    renderPlatforms(occupied, [slotAt(true)], 0);
+    renderPlatforms(empty, [slotAt(false)], 0);
+    const alphaOf = (gfx) => gfx._calls().filter(c => c.method === 'lineStyle')[0].args[2];
+    expect(alphaOf(occupied)).toBeLessThan(alphaOf(empty));
+  });
+
+  it('an empty slot is unchanged — full stud ring and build marker', () => {
+    const gfx = makeGfx();
+    renderPlatforms(gfx, [slotAt(false)], 0);
+    const calls = gfx._calls();
+    // shadow + disc + 2 fills per stud
+    expect(calls.filter(c => c.method === 'fillCircle')).toHaveLength(2 + STUD_COUNT * 2);
+    expect(calls.filter(c => c.method === 'lineBetween')).toHaveLength(2);
+  });
+});

@@ -883,6 +883,7 @@ export default class GameScene extends Phaser.Scene {
       zones[slot.slotIndex].occupied = true;
       barracks.zoneIndex = slot.slotIndex;
       barracks.setPosition(slot.x, slot.y);
+      this._repaintStaticLayers();
       this.repositionMode = false;
       this.repositioningBarracks = null;
       return;
@@ -922,6 +923,7 @@ export default class GameScene extends Phaser.Scene {
       }
       const tower = this.placementManager.placeTower(slot.slotIndex, this.selectedType, this);
       if (!tower) { this._toast('Not enough gold!'); return; }
+      this._repaintStaticLayers();
       if (this.selectedType === 'barracks') {
         tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(slot.x, slot.y);
         tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
@@ -1135,6 +1137,7 @@ export default class GameScene extends Phaser.Scene {
   _sellSelectedTower() {
     if (!this.selectedTower) return;
     this.placementManager.sellTower(this.selectedTower);
+    this._repaintStaticLayers();
     this.selectedTower = null;
     this._closeTowerPanel();
   }
@@ -1302,6 +1305,14 @@ export default class GameScene extends Phaser.Scene {
 
     // Path on top so it sits above platforms/blockers per spec §4.
     renderPath(g, this.pathMgr.waypoints, map.pathRenderStyle);
+  }
+
+  // The pads are baked into the one-shot static layer, so an occupancy change
+  // is invisible until the layer is repainted. _renderStaticLayers clears
+  // first, so repeated calls do not accumulate draws.
+  _repaintStaticLayers() {
+    if (!this._staticLayers) return;
+    this._renderStaticLayers(MAPS[this.mapId]);
   }
 
   _drawPath() {
