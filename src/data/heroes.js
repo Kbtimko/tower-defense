@@ -2,6 +2,12 @@ import { raelOvercharge, raelAirstrike, raelEmp, engRepair, engDeployTurret, eng
 
 export const HERO_ORDER = ['rael', 'engineer', 'scout', 'pyro'];
 
+// Out-of-combat regeneration, shared by all four heroes. Pulling the hero back
+// out of melee is meant to be a real decision, so the delay is long enough that
+// a hero cannot tank through a wave by standing still.
+export const HERO_REGEN_DELAY = 5;  // seconds without taking damage before regen starts
+export const HERO_REGEN_RATE  = 4;  // hp per second once regenerating
+
 export const HEROES = {
   rael: {
     id:              'rael',

@@ -17,10 +17,12 @@
 //
 // Stated simplifications (all make the model PESSIMISTIC, so a map the
 // simulator wins is winnable in practice):
-//   * The hero auto-attacks but never uses abilities (Overcharge, Airstrike,
-//     EMP are all real damage/utility this model leaves on the table), and it
-//     stays put rather than being repositioned by a player. Rally Point, which
-//     heals soldiers, is part of what is left out.
+//   * The hero auto-attacks and melee-blocks, but never uses abilities
+//     (Overcharge, Airstrike, EMP are all real damage/utility this model leaves
+//     on the table). Rally Point, which heals soldiers, is part of what is left
+//     out. It also never repositions: a player pulls a hurt hero out of melee to
+//     regenerate and walks it back after a death, where this model leaves it
+//     standing in the enemy's way at path progress 0 until the wave ends.
 //   * Soldiers block, trade melee and respawn, but the player never repositions
 //     them: they stand where GameScene puts them on placement, on the path point
 //     nearest the barracks. A player who walks a squad onto a chokepoint gets
@@ -43,9 +45,10 @@ import { HEROES } from '../data/heroes.js';
 import { heroSource, soldierSource } from '../data/sourceBuilders.js';
 import {
   ENEMY_MELEE_DAMAGE, SOLDIER_ATTACK_RATE,
-  findBlockingSoldier, damageSoldier, tickSoldier,
+  findBlockingSoldier, damageSoldier, tickSoldier, heroBlocksEnemy,
   soldierMaxHp, soldierRespawnDuration,
 } from '../systems/soldierCombat.js';
+import { makeHeroUnit, damageHeroUnit, tickHeroUnit } from './heroUnit.js';
 
 const PROJECTILE_SPEED = 280;   // Projectile.js
 const WAVE_CLEAR_BONUS = 38;    // GameScene.js
@@ -111,8 +114,8 @@ export function simulateMap({
   height = DESIGN_HEIGHT,
   killGoldMult = 1,
   // The hero is always present in a real run and, unlike towers, costs no gold.
-  // Nothing in GameScene damages it (it is a non-blocking ranged attacker), so
-  // it never dies here either. Position is a player choice; total exposure is
+  // It blocks ground enemies and takes melee for it, so it can die and respawn
+  // here exactly as in GameScene. Position is a player choice; total exposure is
   // roughly position-independent for a stationary hero, so mid-path is a fair
   // default. Pass hero: null to model a tower-only defence.
   hero = { id: 'rael', progress: 0.5 },
@@ -139,6 +142,8 @@ export function simulateMap({
   let leaked = 0;
   let blockedSeconds = 0;   // enemy-seconds spent halted by a soldier
   let soldierDeaths = 0;
+  let heroBlockedSeconds = 0;  // enemy-seconds spent halted by the hero
+  let heroDeaths = 0;
 
   emitter.on('enemy:spawn', ({ def, scaleFactor }) => {
     enemies.push({
@@ -156,10 +161,15 @@ export function simulateMap({
 
   const killReward = reward => Math.round(reward * killGoldMult * rewardMult);
 
-  // Hero setup (mirrors Hero.update's auto-attack: nearest enemy in range).
-  const heroDef = hero ? HEROES[hero.id] : null;
-  const heroPos = heroDef ? pointAtProgress(path, hero.progress ?? 0.5) : null;
+  // Hero setup (mirrors Hero.update's auto-attack: nearest enemy in range) plus
+  // the melee state it needs to be blocked-and-hit rather than invulnerable.
+  const heroDef  = hero ? HEROES[hero.id] : null;
+  const heroUnit = heroDef
+    ? makeHeroUnit(heroDef, pointAtProgress(path, hero.progress ?? 0.5))
+    : null;
   const heroSrc = heroDef ? heroSource(hero.id) : null;
+  // Hero.respawn puts the hero back at path progress 0, not where it fell.
+  const heroRespawnPoint = pointAtProgress(path, 0);
   let heroAttackTimer = 0;
 
   const waveLog = [];
@@ -222,6 +232,10 @@ export function simulateMap({
       waveMgr.update(dt * 1000);
 
       // Enemies move (GameScene._updateEnemies)
+      // One hero, one held enemy per tick — the same frame-local flag
+      // GameScene._updateEnemies carries, so the model bills the hero for at
+      // most dt per tick instead of dt per enemy standing on it.
+      let heroHolding = false;
       for (const e of enemies) {
         if (e.slow.active) {
           e.slow.timer -= dt;
@@ -244,6 +258,16 @@ export function simulateMap({
               e.dead = true; kills++; gold += killReward(e.reward);
             }
           }
+          continue;
+        }
+        // Hero blocking, checked after soldiers exactly as GameScene does: a
+        // soldier already holding this enemy wins, so the hero is not charged
+        // for it as well. The hero does not strike back from here — its
+        // auto-attack below already covers everything inside MELEE_RANGE.
+        if (!heroHolding && heroBlocksEnemy(heroUnit, e)) {
+          heroHolding = true;
+          heroBlockedSeconds += dt;
+          if (damageHeroUnit(heroUnit, ENEMY_MELEE_DAMAGE * dt)) heroDeaths++;
           continue;
         }
 
@@ -321,28 +345,35 @@ export function simulateMap({
       // Soldier cooldowns and respawns (GameScene._updateSoldiers)
       for (const s of soldiers) tickSoldier(s, dt);
 
-      // Hero auto-attack (GameScene._updateHero -> Hero.update)
+      // Hero regen / respawn, then auto-attack (GameScene._updateHero ->
+      // Hero.update, which returns early while dead so neither the regen nor
+      // the attack cooldown advances).
       if (heroDef) {
-        heroAttackTimer -= dt;
-        if (heroAttackTimer <= 0) {
-          const range = heroDef.stats.attackRange;
-          let nearest = null, nearestDist = Infinity;
-          for (const e of enemies) {
-            if (e.dead) continue;
-            const d = Math.hypot(e.x - heroPos.x, e.y - heroPos.y);
-            if (d <= range && d < nearestDist) { nearest = e; nearestDist = d; }
-          }
-          if (nearest) {
-            nearest.hp -= computeDamage({
-              amount: heroDef.stats.attackDamage * damageMult,
-              armor: nearest.armor,
-              source: heroSrc,
-              enemyType: nearest.def.type,
-            });
-            if (nearest.hp <= 0 && !nearest.dead) {
-              nearest.dead = true; kills++; gold += killReward(nearest.reward);
+        if (tickHeroUnit(heroUnit, dt, heroRespawnPoint)) {
+          heroAttackTimer = 1 / heroDef.stats.attackRate;  // Hero.respawn
+        }
+        if (!heroUnit.dead) {
+          heroAttackTimer -= dt;
+          if (heroAttackTimer <= 0) {
+            const range = heroDef.stats.attackRange;
+            let nearest = null, nearestDist = Infinity;
+            for (const e of enemies) {
+              if (e.dead) continue;
+              const d = Math.hypot(e.x - heroUnit.x, e.y - heroUnit.y);
+              if (d <= range && d < nearestDist) { nearest = e; nearestDist = d; }
             }
-            heroAttackTimer = 1 / heroDef.stats.attackRate;
+            if (nearest) {
+              nearest.hp -= computeDamage({
+                amount: heroDef.stats.attackDamage * damageMult,
+                armor: nearest.armor,
+                source: heroSrc,
+                enemyType: nearest.def.type,
+              });
+              if (nearest.hp <= 0 && !nearest.dead) {
+                nearest.dead = true; kills++; gold += killReward(nearest.reward);
+              }
+              heroAttackTimer = 1 / heroDef.stats.attackRate;
+            }
           }
         }
       }
@@ -372,7 +403,8 @@ export function simulateMap({
         wavesSurvived: w, totalWaves: waves.length,
         livesRemaining: 0, livesLost: map.startLives,
         goldFinal: gold, towersBuilt: towers.length, kills, leaked,
-        blockedSeconds: Number(blockedSeconds.toFixed(2)), soldierDeaths, waveLog,
+        blockedSeconds: Number(blockedSeconds.toFixed(2)), soldierDeaths,
+        heroBlockedSeconds: Number(heroBlockedSeconds.toFixed(2)), heroDeaths, waveLog,
       };
     }
   }
@@ -382,6 +414,7 @@ export function simulateMap({
     wavesSurvived: waves.length, totalWaves: waves.length,
     livesRemaining: lives, livesLost: map.startLives - lives,
     goldFinal: gold, towersBuilt: towers.length, kills, leaked,
-        blockedSeconds: Number(blockedSeconds.toFixed(2)), soldierDeaths, waveLog,
+    blockedSeconds: Number(blockedSeconds.toFixed(2)), soldierDeaths,
+    heroBlockedSeconds: Number(heroBlockedSeconds.toFixed(2)), heroDeaths, waveLog,
   };
 }

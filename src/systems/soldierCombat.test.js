@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   MELEE_RANGE, ENEMY_MELEE_DAMAGE, SOLDIER_ATTACK_RATE,
   findBlockingSoldier, damageSoldier, tickSoldier,
-  soldierMaxHp, soldierRespawnDuration,
+  soldierMaxHp, soldierRespawnDuration, heroBlocksEnemy,
 } from './soldierCombat.js';
 import { ENEMY_MELEE_DAMAGE as MELEE_DAMAGE_FROM_DATA } from '../data/enemies.js';
 
@@ -120,5 +120,29 @@ describe('shared melee constants', () => {
     // the model drift apart. Asserted by identity, not by value, so retuning
     // the number does not break this test.
     expect(ENEMY_MELEE_DAMAGE).toBe(MELEE_DAMAGE_FROM_DATA);
+  });
+});
+
+describe('heroBlocksEnemy', () => {
+  const hero = (over = {}) => ({ x: 0, y: 0, dead: false, ...over });
+
+  it('blocks a ground enemy inside melee range', () => {
+    expect(heroBlocksEnemy(hero(), ground(MELEE_RANGE - 1, 0))).toBe(true);
+  });
+
+  it('does not block at or beyond melee range', () => {
+    expect(heroBlocksEnemy(hero(), ground(MELEE_RANGE, 0))).toBe(false);
+  });
+
+  it('does not block while the hero is dead', () => {
+    expect(heroBlocksEnemy(hero({ dead: true }), ground(0, 0))).toBe(false);
+  });
+
+  it('does not block when there is no hero', () => {
+    expect(heroBlocksEnemy(null, ground(0, 0))).toBe(false);
+  });
+
+  it('lets flyers pass over the hero, matching ground soldiers', () => {
+    expect(heroBlocksEnemy(hero(), flyer(0, 0))).toBe(false);
   });
 });

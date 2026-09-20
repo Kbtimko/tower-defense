@@ -15,6 +15,7 @@ vi.mock('phaser', () => ({
 }));
 
 import { Hero } from './Hero.js';
+import { HERO_REGEN_DELAY, HERO_REGEN_RATE } from '../data/heroes.js';
 
 const makeGraphics = () => ({
   clear() {}, fillStyle() {}, fillCircle() {}, fillRect() {},
@@ -388,5 +389,57 @@ describe('Hero data-driven refactor — new surface', () => {
     hero._attackTimer = 0;
     hero.update(0.01, [enemy]);
     expect(onHitCalled).toBe(1);
+  });
+});
+
+describe('Hero — out-of-combat regeneration', () => {
+  it('does not regenerate while the hero is still in combat', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.takeDamage(50);
+    hero.update(HERO_REGEN_DELAY - 0.1, []);
+    expect(hero.hp).toBe(100);
+  });
+
+  it('heals HERO_REGEN_RATE hp per second once the delay has elapsed', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.takeDamage(50);
+    hero.update(HERO_REGEN_DELAY - 0.1, []);
+    hero.update(0.2, []);
+    expect(hero.hp).toBeCloseTo(100 + HERO_REGEN_RATE * 0.2, 5);
+  });
+
+  it('a fresh hit restarts the out-of-combat delay', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.takeDamage(50);
+    hero.update(HERO_REGEN_DELAY - 0.1, []);
+    hero.takeDamage(10);
+    hero.update(0.2, []);
+    expect(hero.hp).toBe(90);
+  });
+
+  it('clamps regeneration at maxHp', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.takeDamage(1);
+    hero.update(HERO_REGEN_DELAY, []);
+    hero.update(HERO_REGEN_DELAY, []);
+    expect(hero.hp).toBe(hero.maxHp);
+  });
+
+  it('does not regenerate while dead', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.takeDamage(200);
+    hero.update(10, []);                 // respawnTime is 20s — still dead
+    expect(hero.dead).toBe(true);
+    expect(hero.hp).toBe(0);
+  });
+
+  it('redraws the hp bar on the tick regen changes hp, so the bar cannot lie', () => {
+    const hero = new Hero(makeScene(), { x: 0, y: 0 });
+    hero.takeDamage(50);
+    const redraw = vi.spyOn(hero, '_redrawHpBar');
+    hero.update(HERO_REGEN_DELAY - 0.1, []);
+    expect(redraw).not.toHaveBeenCalled();
+    hero.update(0.2, []);
+    expect(redraw).toHaveBeenCalled();
   });
 });
