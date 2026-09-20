@@ -245,3 +245,101 @@ describe('Enemy death presentation', () => {
     expect(playOnce).toHaveBeenCalledWith('death', done);
   });
 });
+
+// Regression: a tier-1 archer is floored to 1 damage against a wave-5 colossus
+// (660 HP), which moved the HP bar by 0.05px and printed no damage number, so
+// twenty consecutive landed hits rendered pixel-identically. Damage was always
+// applying — nothing on screen said so.
+describe('Enemy hit feedback for chip damage', () => {
+  const armouredDef = () => ({
+    hp: 660, speed: 28, armor: 15, reward: 55,
+    radius: 16, color: 0x880044, type: 'colossus', flying: false,
+  });
+  const archer = { kind: 'tower', type: 'archer', tier: 1, branch: null };
+
+  const recordingScene = () => {
+    const rects = [];
+    const gfx = () => {
+      const g = makeGraphics();
+      g.fillRect = (x, y, w, h) => { rects.push({ x, y, w, h }); };
+      return g;
+    };
+    return {
+      rects,
+      add: { graphics: gfx, existing() {} },
+      events: { emit() {} },
+      game: { registry: { get: () => null } },
+    };
+  };
+
+  it('flashes on a hit that only chips one point off a 660 HP enemy', () => {
+    const e = new Enemy(recordingScene(), { def: armouredDef(), startX: 0, startY: 0 });
+
+    e.takeDamage(15, { source: archer });
+
+    expect(e.maxHp - e.hp).toBe(1);  // the armour floor, not a rounding accident
+    expect(e.hitFlash.active).toBe(true);
+  });
+
+  it('clears the flash once its timer runs out', () => {
+    const e = makeEnemy();
+    e.takeDamage(5);
+    expect(e.hitFlash.active).toBe(true);
+    e.update(1);
+    expect(e.hitFlash.active).toBe(false);
+  });
+
+  it('restarts the flash on a second hit instead of letting it expire early', () => {
+    const e = makeEnemy();
+    e.takeDamage(5);
+    e.update(0.05);
+    const partly = e.hitFlash.timer;
+    e.takeDamage(5);
+    expect(e.hitFlash.timer).toBeGreaterThan(partly);
+  });
+
+  it('flashes for burn ticks too, not just direct hits', () => {
+    const e = makeEnemy();
+    e.applyStatus({ type: 'burn', duration: 3, dps: 4 });
+    e.update(1);
+    expect(e.hitFlash.active).toBe(true);
+  });
+
+  it('leaves no flash on a corpse when the killing blow lands', () => {
+    const e = new Enemy(recordingScene(), { def: armouredDef(), startX: 0, startY: 0 });
+    e.takeDamage(15, { source: archer });     // light the flash
+    expect(e.hitFlash.active).toBe(true);
+
+    e.takeDamage(99999, { source: archer });  // and now kill it
+    expect(e.dead).toBe(true);
+    expect(e.hitFlash.active).toBe(false);
+  });
+
+  it('drops the flash when the death animation takes over', () => {
+    const e = makeEnemy();
+    e._sprite = { hasState: () => true, playOnce: vi.fn(), setFlash: vi.fn() };
+    e.takeDamage(5);
+    e.playDeathAnimation(vi.fn());
+    expect(e.hitFlash.active).toBe(false);
+    expect(e._flash.visible).toBe(false);
+  });
+
+  it('draws a visibly shorter HP bar after a single 1-damage chip hit', () => {
+    const scene = recordingScene();
+    const e = new Enemy(scene, { def: armouredDef(), startX: 0, startY: 0 });
+    // Last fillRect of each _redrawHpBar pass is the coloured fill.
+    const fillWidth = () => scene.rects[scene.rects.length - 1].w;
+    const full = fillWidth();
+
+    e.takeDamage(15, { source: archer });
+
+    expect(full - fillWidth()).toBeGreaterThanOrEqual(1);
+  });
+
+  it('still draws a full bar on an undamaged enemy', () => {
+    const scene = recordingScene();
+    const e = new Enemy(scene, { def: armouredDef(), startX: 0, startY: 0 });
+    const last = scene.rects[scene.rects.length - 1];
+    expect(last.w).toBeCloseTo(armouredDef().radius * 2.2);
+  });
+});

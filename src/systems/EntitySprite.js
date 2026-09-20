@@ -16,6 +16,7 @@ export class EntitySprite {
     this.active   = false;
     this.sprite   = null;
     this._busy    = false; // true while a one-shot (attack/death) anim is playing
+    this._flashed = false;
 
     const config = getSpriteConfig(category, type);
     if (!config) return;
@@ -77,6 +78,16 @@ export class EntitySprite {
     const key = spriteTextureKey(this.category, this.type, name);
     this.sprite.once('animationcomplete', () => onComplete?.());
     this.sprite.play({ key, repeat: 0 }, true);
+  }
+
+  // Solid-white silhouette for a hit flash. The sprite is this component's to
+  // own, so callers only say on or off; guarded so a per-frame call while the
+  // flash holds does not re-tint every frame.
+  setFlash(on) {
+    if (!this.active || this._flashed === on) return;
+    this._flashed = on;
+    if (on) this.sprite.setTintFill(0xffffff);
+    else    this.sprite.clearTint();
   }
 
   setFacing(dirX) {
