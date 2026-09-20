@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hpBarFillWidth } from './hpBar.js';
+import { hpBarFillWidth, hpBarGeometry } from './hpBar.js';
 
 // A wave-5 colossus is the case that prompted this: 660 HP, armour 15, and a
 // tier-1 archer floored to 1 damage a hit.
@@ -49,5 +49,52 @@ describe('hpBarFillWidth', () => {
     expect(hpBarFillWidth(-5, 100, 40)).toBe(0);
     expect(hpBarFillWidth(99, 100, 0.5)).toBeGreaterThanOrEqual(0);
     expect(hpBarFillWidth(99, 100, 0)).toBe(0);
+  });
+});
+
+// Regression: the bar's geometry came from `def.radius` — the old Graphics
+// fallback body — while the sprite scale-up made the rendered art 2-6x larger.
+// Every enemy ended up with its HP bar drawn ON its own sprite (a titan's sat
+// in the middle of a 138px chest), narrow and low-contrast, so the player could
+// not read width changes and only registered damage when the bar changed COLOUR
+// at 50% and 25%. For a 70 HP drone taking 15 a shot that is the third or
+// fourth hit — "it takes 3-4 shots for an archer to damage a drone".
+describe('hpBarGeometry', () => {
+  // radius, then the real rendered sprite sizes measured in the running game.
+  const DRONE = { radius: 9,  sprite: 37.8 };
+  const TITAN = { radius: 22, sprite: 138.2 };
+
+  it('lifts the bar clear of the rendered sprite, not just the radius', () => {
+    const g = hpBarGeometry(DRONE.radius, DRONE.sprite, DRONE.sprite);
+    expect(g.top).toBeLessThan(-DRONE.sprite / 2);
+  });
+
+  it('clears even a sprite many times the radius', () => {
+    const g = hpBarGeometry(TITAN.radius, TITAN.sprite, TITAN.sprite);
+    expect(g.top).toBeLessThan(-TITAN.sprite / 2);
+  });
+
+  it('widens the bar toward the body so a hit moves a readable number of pixels', () => {
+    const before = DRONE.radius * 2.2;                     // 19.8px, the old bar
+    const g = hpBarGeometry(DRONE.radius, DRONE.sprite, DRONE.sprite);
+    expect(g.width).toBeGreaterThan(before);
+    expect(g.width).toBeLessThanOrEqual(DRONE.sprite);     // never wider than the enemy
+  });
+
+  it('falls back to the radius geometry when no sprite is rendered', () => {
+    const g = hpBarGeometry(9, null, null);
+    expect(g.width).toBeCloseTo(9 * 2.2);
+    expect(g.top).toBe(-9 - 8);
+  });
+
+  it('never returns a bar narrower than the radius-derived one', () => {
+    for (const r of [7, 9, 11, 16, 22]) {
+      expect(hpBarGeometry(r, 10, 10).width).toBeGreaterThanOrEqual(r * 2.2);
+    }
+  });
+
+  it('keeps the bar centred, so x is half the width left of centre', () => {
+    const g = hpBarGeometry(16, 53.8, 53.8);
+    expect(g.x).toBeCloseTo(-g.width / 2);
   });
 });

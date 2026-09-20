@@ -90,6 +90,13 @@ export class EntitySprite {
     else    this.sprite.clearTint();
   }
 
+  // Rendered size of the art, for callers that must lay out around the body
+  // rather than around the entity's nominal radius. Null while inactive.
+  getDisplaySize() {
+    if (!this.active) return null;
+    return { width: this.sprite.displayWidth, height: this.sprite.displayHeight };
+  }
+
   setFacing(dirX) {
     if (!this.active || dirX === 0) return;
     const facesRight = (this._config.baseFacing ?? 'right') === 'right';
