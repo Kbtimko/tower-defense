@@ -56,12 +56,16 @@ should warm/darken from cool blue-greens toward ominous reds as the numbers clim
 - `overworld_5_titans_reach.png` — *Titan's Reach:* a colossal rocky spire /
   alien megastructure stabbing up into space — the campaign turning point — tense
   amber-to-violet light, monumental scale.
-- `overworld_6_deep_space_corridor.png` — *Deep Space Corridor:* a narrow
-  star-lane threading between two dark nebula walls, faint guide-lights receding
-  into distance, deep indigo.
-- `overworld_7_the_void_frontier.png` — *The Void Frontier:* an ominous deep-
-  purple void with sparse cold stars and a faint unseen threat, isolating and
-  quiet, violet darkness.
+- `overworld_6_deep_space_corridor.png` — *Deep Space Corridor:* a line of tall
+  derelict comm-relay pylons receding down a narrow star-lane between two indigo
+  nebula walls; the nearest relay looms large in frame with its dish catching a
+  bright cold cyan beacon light, the ones behind it dead and dark. Strong rim
+  light on the near relay's structure against the deep indigo lane.
+- `overworld_7_the_void_frontier.png` — *The Void Frontier:* a pack of colossal
+  armoured alien leviathans rising together out of the violet dark, their ridged
+  carapaces catching hard cold rim light from behind; the nearest one fills much
+  of the frame in silhouette, the rest receding. Menacing, monumental, the moment
+  the unseen threat becomes visible. Deep violet field, bright rim highlights.
 - `overworld_8_enemy_homeworld.png` — *Enemy Homeworld:* a hostile alien
   homeworld, glowing red-violet chitinous surface and hive spires, menacing
   crimson atmosphere — the Veth hive seat.
