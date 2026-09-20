@@ -1,20 +1,30 @@
 import Phaser from 'phaser';
 import { heroSource } from '../data/sourceBuilders.js';
 import { HEROES, HERO_REGEN_DELAY, HERO_REGEN_RATE } from '../data/heroes.js';
+import { totalEnemyHpForMap } from '../data/waves.js';
+import { heroLevelForDamage, heroAttackDamage, heroMaxHp } from '../systems/heroLeveling.js';
 import { EntitySprite } from '../systems/EntitySprite.js';
 import { pointAtProgress } from '../systems/pathGeometry.js';
 
 export class Hero extends Phaser.GameObjects.Container {
-  constructor(scene, { x, y, heroId = 'rael', pathPoints }, modifiers = {}) {
+  constructor(scene, { x, y, heroId = 'rael', pathPoints, mapId = 0 }, modifiers = {}) {
     super(scene, x, y);
     this.heroId = heroId;
     this.def    = HEROES[heroId];
     if (!this.def) throw new Error(`Hero: unknown heroId "${heroId}"`);
     const s = this.def.stats;
 
-    this.maxHp        = s.maxHp + (modifiers.heroMaxHpBonus ?? 0);
+    // Levelling is per-map and per-run: damage and level both reset with the
+    // Hero, and the thresholds are scaled to THIS map's HP budget so map 0 and
+    // map 9 pace alike.
+    this._modifiers  = modifiers;
+    this._startLevel = Math.min(modifiers.heroStartLevel ?? 1, s.maxLevel);
+    this._mapTotalHp = totalEnemyHpForMap(mapId);
+    this.damageDealt = 0;
+    this.level       = this._startLevel;
+
+    this.maxHp        = heroMaxHp(s, this.level, modifiers);
     this.hp           = this.maxHp;
-    this.level        = modifiers.heroStartLevel ?? 1;
     this._respawnTime = s.respawnTime + (modifiers.heroRespawnDelta ?? 0);
     this.killCount    = 0;
     this.dead         = false;
@@ -133,12 +143,31 @@ export class Hero extends Phaser.GameObjects.Container {
     if (am) am.playSfx('hero-respawn');
   }
 
+  // Kills are still displayed by the inspect panel; they no longer drive levels.
+  // Kill-count was the wrong metric once the hero started blocking: it can hold
+  // a titan from full to 10% and score nothing because a tower lands the blow.
   _registerKill() {
     this.killCount++;
-    const prev = this.level;
-    if (this.level < 2 && this.killCount >= 25) this.level = 2;
-    if (this.level < 3 && this.killCount >= 75) this.level = 3;
-    if (this.level !== prev) this.scene.events.emit('hero:level-up', { level: this.level });
+  }
+
+  // `dealt` must be the POST-armour damage (Enemy.takeDamage's return value),
+  // not the hero's raw attackDamage stat.
+  _registerDamage(dealt) {
+    if (!(dealt > 0)) return;
+    this.damageDealt += dealt;
+    const next = heroLevelForDamage(this.damageDealt, this._mapTotalHp, {
+      startLevel: this._startLevel,
+      maxLevel:   this.def.stats.maxLevel,
+    });
+    if (next === this.level) return;
+    this.level = next;
+    // A level-up must not leave the hero proportionally more wounded than it
+    // was, so current hp rises by exactly the max-hp gained — never a full heal.
+    const grownMaxHp = heroMaxHp(this.def.stats, this.level, this._modifiers);
+    this.hp    = Math.min(grownMaxHp, this.hp + (grownMaxHp - this.maxHp));
+    this.maxHp = grownMaxHp;
+    this._redrawHpBar();
+    this.scene.events.emit('hero:level-up', { level: this.level });
   }
 
   /**
@@ -238,10 +267,11 @@ export class Hero extends Phaser.GameObjects.Container {
         if (d <= range && d < nearestDist) { nearest = e; nearestDist = d; }
       }
       if (nearest) {
-        const dmg = this.def.stats.attackDamage * this._attackDamageMult;
-        nearest.takeDamage(dmg, { source: heroSource(this.heroId) });
+        const dmg = heroAttackDamage(this.def.stats, this.level) * this._attackDamageMult;
+        const dealt = nearest.takeDamage(dmg, { source: heroSource(this.heroId) });
         if (this.def.onHit) this.def.onHit(this, nearest);
         if (nearest.dead) this._registerKill();
+        this._registerDamage(dealt);
         const am = this.scene.game?.registry?.get('audio');
         if (am) am.playSfx('hero-attack');
         this._sprite?.setState('attack');

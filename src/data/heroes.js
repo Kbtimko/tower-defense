@@ -8,6 +8,35 @@ export const HERO_ORDER = ['rael', 'engineer', 'scout', 'pyro'];
 export const HERO_REGEN_DELAY = 5;  // seconds without taking damage before regen starts
 export const HERO_REGEN_RATE  = 4;  // hp per second once regenerating
 
+// ── Levelling ──────────────────────────────────────────────────────────────
+// XP is post-armour damage dealt, and the thresholds are fractions of the
+// map's total base enemy HP so map 0 (8,800 HP) and map 9 (59,780) pace alike.
+//
+// The fractions are measured, not guessed: armour is flat subtraction, so the
+// hero's share of a map's HP is not derivable on paper.
+//
+// Measured with `npm run balance`, over each map's win multiplier (the runs the
+// modelled defence actually survives, since at 1x it loses nine of ten maps):
+//   * without levelling, the hero's post-armour output over a full run was
+//     26-55% of the map's total base HP, and 20-43% at the 80%-of-waves mark.
+//   * with levelling on these fractions, a full run is 41-87% (min 0.41 on map
+//     9), and the 80%-of-waves mark is 26-62% (min 0.26 on map 0).
+// Levelling feeds itself — more damage buys levels which buy more damage — so
+// the curve had to be re-measured after it was switched on, not derived from
+// the flat-hero numbers. 0.30 is under every map's full-run total (so level 5
+// is reachable everywhere, with the tightest margin on maps 9 and 0) while
+// landing in the last third of a run, median ~70% of the waves in.
+export const HERO_LEVEL_DAMAGE_FRACTIONS = [0.07, 0.13, 0.21, 0.30];  // -> levels 2, 3, 4, 5
+
+// A level adds a flat 20% of the BASE stat, not 20% of the previous level, so
+// the cap is a predictable 1.8x rather than a compounding 2.07x.
+export const HERO_LEVEL_STAT_STEP = 0.20;
+
+// The heroMaxHpBonus meta upgrade is added AFTER the level multiplier. It is
+// bought once at a fixed price, so it should be worth the same flat pool of HP
+// at level 1 as at level 5; scaling it would compound an already-bought
+// advantage with an in-map one.
+
 export const HEROES = {
   rael: {
     id:              'rael',
@@ -22,7 +51,7 @@ export const HEROES = {
     stats: {
       maxHp: 150, moveSpeed: 130, attackRange: 40,
       attackRate: 1.5, attackDamage: 18, respawnTime: 20,
-      maxLevel: 3, abilityUnlockLevels: { q: 1, w: 2, e: 3 },
+      maxLevel: 5, abilityUnlockLevels: { q: 1, w: 2, e: 3 },
     },
     abilities: {
       q: { id:'overcharge', label:'Overcharge', icon:'⚡', cooldown:30, aim:false, run: raelOvercharge,
@@ -53,7 +82,7 @@ export const HEROES = {
     stats: {
       maxHp: 95, moveSpeed: 110, attackRange: 60,
       attackRate: 1.2, attackDamage: 12, respawnTime: 20,
-      maxLevel: 3, abilityUnlockLevels: { q: 1, w: 2, e: 3 },
+      maxLevel: 5, abilityUnlockLevels: { q: 1, w: 2, e: 3 },
     },
     abilities: {
       q: { id:'repair',        label:'Repair',        icon:'🔧', cooldown:20, aim:false, run: engRepair,
@@ -102,7 +131,7 @@ export const HEROES = {
     stats: {
       maxHp: 80, moveSpeed: 150, attackRange: 140,
       attackRate: 2.0, attackDamage: 14, respawnTime: 18,
-      maxLevel: 3, abilityUnlockLevels: { q: 1, w: 2, e: 3 },
+      maxLevel: 5, abilityUnlockLevels: { q: 1, w: 2, e: 3 },
     },
     abilities: {
       q: { id:'mark',         label:'Mark Target',  icon:'🎯', cooldown:20, aim:true,  run: scoutMark,
@@ -139,7 +168,7 @@ export const HEROES = {
     stats: {
       maxHp: 130, moveSpeed: 115, attackRange: 45,
       attackRate: 1.0, attackDamage: 14, respawnTime: 22,
-      maxLevel: 3, abilityUnlockLevels: { q: 1, w: 2, e: 3 },
+      maxLevel: 5, abilityUnlockLevels: { q: 1, w: 2, e: 3 },
     },
     abilities: {
       q: { id:'flame_wave', label:'Flame Wave', icon:'🔥', cooldown:20, aim:false, run: pyroFlameWave,

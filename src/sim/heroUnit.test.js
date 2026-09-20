@@ -2,8 +2,9 @@
 // out-of-combat regen. These mirror Hero.js (takeDamage / respawn / update) so
 // the balance model and the live game agree on how long a hero survives melee.
 import { describe, it, expect } from 'vitest';
-import { makeHeroUnit, damageHeroUnit, tickHeroUnit } from './heroUnit.js';
+import { makeHeroUnit, damageHeroUnit, tickHeroUnit, registerHeroUnitDamage } from './heroUnit.js';
 import { HEROES, HERO_REGEN_DELAY, HERO_REGEN_RATE } from '../data/heroes.js';
+import { heroXpThresholds } from '../systems/heroLeveling.js';
 
 const rael = HEROES.rael;
 const unit = () => makeHeroUnit(rael, { x: 100, y: 100 });
@@ -120,5 +121,56 @@ describe('tickHeroUnit — death and respawn', () => {
       if (tickHeroUnit(h, 0.5, origin)) comebacks++;
     }
     expect(comebacks).toBe(1);
+  });
+});
+
+describe('hero levelling in the simulator record', () => {
+  const stats = HEROES.rael.stats;
+  const TOTAL = 10000;
+  const make = () => makeHeroUnit(HEROES.rael, { x: 0, y: 0 }, TOTAL);
+  const thresholds = heroXpThresholds(TOTAL);
+
+  it('starts at level 1 on base stats', () => {
+    const u = make();
+    expect(u.level).toBe(1);
+    expect(u.damageDealt).toBe(0);
+    expect(u.maxHp).toBe(stats.maxHp);
+  });
+
+  it('levels on the same thresholds the game uses', () => {
+    const u = make();
+    expect(registerHeroUnitDamage(u, thresholds[0] - 1)).toBe(false);
+    expect(u.level).toBe(1);
+    expect(registerHeroUnitDamage(u, 1)).toBe(true);
+    expect(u.level).toBe(2);
+  });
+
+  it('gains the same 1.8x max hp at level 5 the game hero does', () => {
+    const u = make();
+    registerHeroUnitDamage(u, thresholds[3]);
+    expect(u.level).toBe(5);
+    expect(u.maxHp).toBeCloseTo(stats.maxHp * 1.8);
+  });
+
+  it('raises current hp by exactly the max hp gained, not to full', () => {
+    const u = make();
+    damageHeroUnit(u, 100);
+    const before = u.hp, beforeMax = u.maxHp;
+    registerHeroUnitDamage(u, thresholds[0]);
+    expect(u.hp - before).toBeCloseTo(u.maxHp - beforeMax);
+    expect(u.hp).toBeLessThan(u.maxHp);
+  });
+
+  it('banks nothing for a zero or missing damage report', () => {
+    const u = make();
+    expect(registerHeroUnitDamage(u, 0)).toBe(false);
+    expect(registerHeroUnitDamage(u, undefined)).toBe(false);
+    expect(u.damageDealt).toBe(0);
+  });
+
+  it('never levels when the wave table has no HP budget', () => {
+    const u = makeHeroUnit(HEROES.rael, { x: 0, y: 0 }, 0);
+    registerHeroUnitDamage(u, 1e9);
+    expect(u.level).toBe(1);
   });
 });

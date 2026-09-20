@@ -1,3 +1,5 @@
+import { ENEMY_DEFS } from './enemies.js';
+
 export const MAP_WAVES = {
   0: [
     [{ type: 'drone',   count: 7,  interval: 1200 }],
@@ -165,3 +167,23 @@ export const MAP_WAVES = {
     [{ type: 'titan',   count: 6,  interval: 5500 }, { type: 'phantom', count: 24, interval: 620 }, { type: 'brute', count: 12, interval: 880 }],
   ],
 };
+
+// Total enemy HP a wave table ships, at BASE stats — WaveManager's per-wave
+// `1 + waveIndex * 0.13` ramp is deliberately excluded, so this is a fixed
+// property of the table rather than a number that moves with how far in the run
+// you are. Hero levelling paces its thresholds against it, which is why it
+// lives here with the wave data instead of inside Hero.
+//
+// Two entry points because the two callers hold different things: GameScene
+// knows only a map id, while the balance simulator is handed a wave table
+// directly (its fixtures are synthetic and not in MAP_WAVES at all).
+export function totalEnemyHp(waves) {
+  if (!waves) return 0;
+  return waves.reduce(
+    (total, wave) => total + wave.reduce(
+      (sum, g) => sum + (ENEMY_DEFS[g.type]?.hp ?? 0) * g.count, 0), 0);
+}
+
+export function totalEnemyHpForMap(mapId) {
+  return totalEnemyHp(MAP_WAVES[mapId]);
+}

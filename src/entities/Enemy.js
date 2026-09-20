@@ -127,6 +127,11 @@ export class Enemy extends Phaser.GameObjects.Container {
       if (am) am.playSfx(isLarge ? 'enemy-death-large' : 'enemy-death-small');
       if (t === 'titan') this.scene.events.emit('boss-died', { bossType: t });
     }
+
+    // The POST-armour number. `amount` is the attacker's raw stat, and flat
+    // armour subtraction makes the two differ by an order of magnitude on a
+    // titan — so anything scoring damage (hero XP) must read this, not `amount`.
+    return dmg;
   }
 
   applyStatus({ type, duration, factor, dps, multiplier }) {

@@ -9,19 +9,46 @@
 // / the regen block in Hero.update change, this must change with them or the
 // model over-credits a hero that would be dead.
 import { HERO_REGEN_DELAY, HERO_REGEN_RATE } from '../data/heroes.js';
+import { heroLevelForDamage, heroMaxHp } from '../systems/heroLeveling.js';
 
 // A record shaped for soldierCombat.heroBlocksEnemy ({ x, y, dead }).
-export function makeHeroUnit(def, { x, y }) {
+//
+// `mapTotalHp` paces levelling: the thresholds are fractions of it. The
+// simulator models no meta upgrades, so there is no heroStartLevel head start
+// and no heroMaxHpBonus here — the hero starts at level 1 on base stats.
+export function makeHeroUnit(def, { x, y }, mapTotalHp = 0) {
+  const maxHp = heroMaxHp(def.stats, 1);
   return {
     x, y,
-    hp: def.stats.maxHp,
-    maxHp: def.stats.maxHp,
+    hp: maxHp,
+    maxHp,
     dead: false,
     respawnTimer: 0,
     respawnTime: def.stats.respawnTime,
     // Hero.js: a hero that has never been hit counts as already out of combat.
     timeSinceDamage: HERO_REGEN_DELAY,
+    stats: def.stats,
+    mapTotalHp,
+    level: 1,
+    damageDealt: 0,
   };
+}
+
+// Bank post-armour damage and level up on it, mirroring Hero._registerDamage —
+// same shared maths, same "raise current hp by the max-hp gained, never a full
+// heal" rule. Returns true on the tick the hero levels.
+export function registerHeroUnitDamage(unit, dealt) {
+  if (!(dealt > 0)) return false;
+  unit.damageDealt += dealt;
+  const next = heroLevelForDamage(unit.damageDealt, unit.mapTotalHp, {
+    maxLevel: unit.stats.maxLevel,
+  });
+  if (next === unit.level) return false;
+  unit.level = next;
+  const grownMaxHp = heroMaxHp(unit.stats, unit.level);
+  unit.hp    = Math.min(grownMaxHp, unit.hp + (grownMaxHp - unit.maxHp));
+  unit.maxHp = grownMaxHp;
+  return true;
 }
 
 // Apply melee damage. Returns true only on the blow that kills, so a caller can

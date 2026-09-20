@@ -11,6 +11,7 @@
 //   * ENEMY_DEFS/TOWER_DEFS — the same stat tables
 //   * computeDamage     — the same armour/weakness/vulnerable arithmetic
 //   * soldierCombat     — the same block test, melee trade and respawn timers
+//   * heroLeveling      — the same XP thresholds and per-level stat scaling
 // The update order below mirrors GameScene.update: enemies move (or, if a
 // soldier blocks them, trade melee and stay put), then towers fire, then
 // projectiles travel, then soldiers tick.
@@ -48,7 +49,9 @@ import {
   findBlockingSoldier, damageSoldier, tickSoldier, heroBlocksEnemy,
   soldierMaxHp, soldierRespawnDuration,
 } from '../systems/soldierCombat.js';
-import { makeHeroUnit, damageHeroUnit, tickHeroUnit } from './heroUnit.js';
+import { makeHeroUnit, damageHeroUnit, tickHeroUnit, registerHeroUnitDamage } from './heroUnit.js';
+import { heroAttackDamage } from '../systems/heroLeveling.js';
+import { totalEnemyHp } from '../data/waves.js';
 
 const PROJECTILE_SPEED = 280;   // Projectile.js
 const WAVE_CLEAR_BONUS = 38;    // GameScene.js
@@ -144,6 +147,10 @@ export function simulateMap({
   let soldierDeaths = 0;
   let heroBlockedSeconds = 0;  // enemy-seconds spent halted by the hero
   let heroDeaths = 0;
+  // Post-armour damage the hero's auto-attack actually landed. Armour is flat
+  // subtraction, so this is nothing like attackDamage x swings on an armoured
+  // enemy — and it is the quantity hero levelling is paced against.
+  let heroDamageDealt = 0;
 
   emitter.on('enemy:spawn', ({ def, scaleFactor }) => {
     enemies.push({
@@ -165,7 +172,7 @@ export function simulateMap({
   // the melee state it needs to be blocked-and-hit rather than invulnerable.
   const heroDef  = hero ? HEROES[hero.id] : null;
   const heroUnit = heroDef
-    ? makeHeroUnit(heroDef, pointAtProgress(path, hero.progress ?? 0.5))
+    ? makeHeroUnit(heroDef, pointAtProgress(path, hero.progress ?? 0.5), totalEnemyHp(waves))
     : null;
   const heroSrc = heroDef ? heroSource(hero.id) : null;
   // Hero.respawn puts the hero back at path progress 0, not where it fell.
@@ -363,12 +370,15 @@ export function simulateMap({
               if (d <= range && d < nearestDist) { nearest = e; nearestDist = d; }
             }
             if (nearest) {
-              nearest.hp -= computeDamage({
-                amount: heroDef.stats.attackDamage * damageMult,
+              const dealt = computeDamage({
+                amount: heroAttackDamage(heroDef.stats, heroUnit.level) * damageMult,
                 armor: nearest.armor,
                 source: heroSrc,
                 enemyType: nearest.def.type,
               });
+              nearest.hp -= dealt;
+              heroDamageDealt += dealt;
+              registerHeroUnitDamage(heroUnit, dealt);
               if (nearest.hp <= 0 && !nearest.dead) {
                 nearest.dead = true; kills++; gold += killReward(nearest.reward);
               }
@@ -394,6 +404,8 @@ export function simulateMap({
       towersBuilt: towers.length,
       livesLost: livesAtWaveStart - lives,
       livesRemaining: lives,
+      heroDamageDealt,          // cumulative, so the levelling curve can be paced
+      heroLevel: heroUnit?.level ?? 0,
       timedOut: elapsed >= maxSecondsPerWave,
     });
 
@@ -404,7 +416,8 @@ export function simulateMap({
         livesRemaining: 0, livesLost: map.startLives,
         goldFinal: gold, towersBuilt: towers.length, kills, leaked,
         blockedSeconds: Number(blockedSeconds.toFixed(2)), soldierDeaths,
-        heroBlockedSeconds: Number(heroBlockedSeconds.toFixed(2)), heroDeaths, waveLog,
+        heroBlockedSeconds: Number(heroBlockedSeconds.toFixed(2)), heroDeaths,
+        heroDamageDealt, heroLevel: heroUnit?.level ?? 0, waveLog,
       };
     }
   }
@@ -415,6 +428,7 @@ export function simulateMap({
     livesRemaining: lives, livesLost: map.startLives - lives,
     goldFinal: gold, towersBuilt: towers.length, kills, leaked,
     blockedSeconds: Number(blockedSeconds.toFixed(2)), soldierDeaths,
-    heroBlockedSeconds: Number(heroBlockedSeconds.toFixed(2)), heroDeaths, waveLog,
+    heroBlockedSeconds: Number(heroBlockedSeconds.toFixed(2)), heroDeaths,
+    heroDamageDealt, heroLevel: heroUnit?.level ?? 0, waveLog,
   };
 }
