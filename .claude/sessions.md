@@ -1,6 +1,14 @@
 # Session Log: Last Light (Tower Defense)
 
 ---
+## 2026-09-19 — Session Summary
+**Accomplished:** Closed backlog **#8 entirely** — all 18 entities now render as real sprite art. **PR #57** (`feat/tower-hero-sprite-art`, 14 commits, 983 tests) ships 27 sheets from 12 generated references: 6 towers (static idle + firing beat; barracks never fires), 4 heroes (idle + gait + attack), soldier and sentry. **PR #58** (`feat/colossus-waves`, 966 tests) gives the colossus a place in the campaign, closing both decisions PR #56 had left open. Also found and fixed four defects the backlog never mentioned: two silent parser failures (a prompt bullet's name must be the runtime entity `type`; a fenced prompt must beat an inline backtick span — three entities were about to be generated from the literal string `assets/sprites/heroes/`), and two wiring gaps (towers never called `setFacing`; the soldier never entered its `attack` state). The sprite compositor became category-aware, proven behaviour-preserving by rebuilding the cached enemies **byte-identical**.
+
+**Decisions made:** Tower facing uses `flipX`, not rotation — the 3/4 base disc tilts badly. Tower tier keeps `_bg` as a ring without its fill disc, because tier is encoded *only* in that stroke width. No `death` art for heroes/soldiers/sentries; the reserved destroy-delay wiring stays untouched. Colossus is **not a boss** — at 400hp/armour 15 it is exactly half a titan and fills a 6.7x gap; it debuts on map 4 (the only map between two introductions that taught nothing new) and recurs on 5-9 via an HP-neutral titan swap. Phantom's sprite scale **stays at 0.58** despite rendering at 1.77x its hitbox where the other five sit at 1.28-1.35x — its bbox is mostly tendril and wisp, and it is the plurality enemy on maps 7-9.
+
+**Where we left off:** Nothing mid-flight. **PRs #57 and #58 are both open, MERGEABLE and unreviewed**; merging either auto-deploys to production, so neither was merged. One open question on #58: the titan swap narrows the map-7 cliff (no-barracks 3.63x → 3.35x) that backlog #12 decided should stay — reverting just the map-7 substitution restores it. Both PRs touch `.claude/notes.md`, so expect a small conflict in whichever merges second (keep #57's header plus #58's backlog item 14). Remaining backlog is only **#13** (overworld node contrast polish on nodes 6 and 7 — a prompt tweak plus regeneration, no code) and **#9** (iOS/Capacitor port). `SESSION_NOTES.md` and `.claude/prompts/` remain uncommitted — pre-existing session bookkeeping, deliberately left alone.
+
+---
 ## 2026-09-19 — Enemy sprite art: all six Veth enemies (PR #56, open)
 
 **Accomplished:** Closed backlog **#8(b)**. All six enemies (drone, skitter, brute, colossus, phantom, titan) now render as sprites with a looping `move` and a one-shot `death`. **35/35 assets, 968 tests, build clean.** PR #56 open against `main`, 7 commits, 29 files.

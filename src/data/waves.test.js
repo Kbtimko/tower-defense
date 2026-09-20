@@ -1,4 +1,5 @@
 import { MAP_WAVES } from './waves.js';
+import { ENEMY_DEFS } from './enemies.js';
 
 describe('MAP_WAVES[0] (Outpost Sigma)', () => {
   const waves = MAP_WAVES[0];
@@ -37,7 +38,10 @@ describe('MAP_WAVES[0] (Outpost Sigma)', () => {
   });
 });
 
-const VALID_TYPES = new Set(['drone', 'skitter', 'brute', 'phantom', 'titan']);
+// Derived, never hardcoded. The hardcoded list that used to live here omitted
+// `colossus` — so the suite actively asserted that a defined, art-complete
+// enemy must never be spawned, which is how it stayed dead content.
+const VALID_TYPES = new Set(Object.keys(ENEMY_DEFS));
 const WAVE_COUNTS = { 1: 10, 2: 12, 3: 12, 4: 14, 5: 14, 6: 15, 7: 15, 8: 16, 9: 18 };
 
 for (const [mapId, count] of Object.entries(WAVE_COUNTS)) {
@@ -46,14 +50,6 @@ for (const [mapId, count] of Object.entries(WAVE_COUNTS)) {
 
     it(`has exactly ${count} waves`, () => {
       expect(waves).toHaveLength(count);
-    });
-
-    it('contains no colossus enemies', () => {
-      for (const wave of waves) {
-        for (const group of wave) {
-          expect(group.type).not.toBe('colossus');
-        }
-      }
     });
 
     it('all groups have a valid type, positive count, and positive interval', () => {
@@ -67,3 +63,77 @@ for (const [mapId, count] of Object.entries(WAVE_COUNTS)) {
     });
   });
 }
+
+describe('every defined enemy is reachable in play', () => {
+  // The regression this guards: `colossus` was defined in ENEMY_DEFS, had art
+  // generated and shipped, and was spawned by NO wave in any map — dead content
+  // that nothing in the suite noticed. Any new enemy must reach a wave table.
+  const spawned = new Set();
+  for (const waves of Object.values(MAP_WAVES)) {
+    for (const wave of waves) for (const g of wave) spawned.add(g.type);
+  }
+
+  it('spawns every type declared in ENEMY_DEFS', () => {
+    const unreachable = Object.keys(ENEMY_DEFS).filter(t => !spawned.has(t));
+    expect(unreachable).toEqual([]);
+  });
+
+  it('spawns nothing that ENEMY_DEFS does not define', () => {
+    const undefined_ = [...spawned].filter(t => !(t in ENEMY_DEFS));
+    expect(undefined_).toEqual([]);
+  });
+});
+
+describe('colossus placement', () => {
+  const firstMapWith = (type) =>
+    Object.keys(MAP_WAVES)
+      .map(Number).sort((a, b) => a - b)
+      .find(mi => MAP_WAVES[mi].some(w => w.some(g => g.type === type)));
+
+  it('debuts on map 4, the one map that previously taught nothing new', () => {
+    expect(firstMapWith('colossus')).toBe(4);
+  });
+
+  it('debuts one map before the titan, as the intermediate armour rung', () => {
+    expect(firstMapWith('colossus')).toBeLessThan(firstMapWith('titan'));
+  });
+
+  it('is absent from maps 0-3, which have their own introduction beats', () => {
+    for (const mi of [0, 1, 2, 3]) {
+      const found = MAP_WAVES[mi].flat().filter(g => g.type === 'colossus');
+      expect(found, `map ${mi}`).toEqual([]);
+    }
+  });
+
+  it('recurs across the back half rather than appearing on one map only', () => {
+    const maps = [4, 5, 6, 7, 8, 9].filter(mi =>
+      MAP_WAVES[mi].some(w => w.some(g => g.type === 'colossus')));
+    expect(maps.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('is worth exactly half a titan, which is what makes the swap HP-neutral', () => {
+    expect(ENEMY_DEFS.colossus.hp * 2).toBe(ENEMY_DEFS.titan.hp);
+  });
+
+  // Backlog #12 decided on 2026-08-21 that the map-7 difficulty cliff STAYS, and
+  // that `maps.js` would not be retuned. The titan -> colossus swap is HP-neutral
+  // but NOT difficulty-neutral: armour is flat subtraction (`max(1, dmg - armor)`),
+  // so trading armour 20 for armour 15 multiplies a tower's throughput by
+  // (d - 15) / (d - 20) -- 2x for a tower hitting for 25, and up to 5x for one
+  // hitting at or under 20. That ratio is steepest exactly where per-hit damage is
+  // lowest, which is map 7's tight economy. Measured: applying the swap to map 7
+  // drops it from 3.63x to 3.35x no-barracks and 3.08x to 2.94x bought, narrowing
+  // the map6 -> map7 step from +1.67 to +1.34. Map 7 is the ONLY map whose
+  // no-barracks number the swap moves at all. So map 7 is held out by design.
+  it('leaves map 7 alone, because backlog #12 froze that map\'s difficulty', () => {
+    const found = MAP_WAVES[7].flat().filter(g => g.type === 'colossus');
+    expect(found).toEqual([]);
+  });
+
+  it('still keeps map 7 titan budget at the pre-colossus baseline', () => {
+    const titans = MAP_WAVES[7].flat()
+      .filter(g => g.type === 'titan')
+      .reduce((n, g) => n + g.count, 0);
+    expect(titans).toBe(17);
+  });
+});
