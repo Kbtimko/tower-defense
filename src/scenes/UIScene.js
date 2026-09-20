@@ -409,7 +409,9 @@ export default class UIScene extends Phaser.Scene {
 
   _onHeroLevelUp({ level }) {
     const name = this._heroDef?.shortName ?? 'Rael';
-    document.getElementById('hero-level').textContent = `${name} L${level}`;
+    const cap  = this._heroDef?.stats?.maxLevel ?? 5;
+    document.getElementById('hero-level').textContent =
+      level >= cap ? `${name} L${level} · MAX` : `${name} L${level}`;
     if (level >= 1) {
       const q = document.getElementById('ability-q');
       if (q) { q.classList.remove('locked'); q.disabled = false; }

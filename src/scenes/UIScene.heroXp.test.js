@@ -89,3 +89,35 @@ describe('UIScene hero XP bar', () => {
     expect(() => makeScene()._onHeroUpdate({ hp: 50, maxHp: 100 })).not.toThrow();
   });
 });
+
+describe('UIScene hero level label', () => {
+  beforeEach(() => {
+    setupHeroDOM();
+    for (const id of ['hero-level', 'ability-q', 'ability-w', 'ability-e']) {
+      const el = document.createElement(id === 'hero-level' ? 'div' : 'button');
+      el.id = id;
+      document.body.appendChild(el);
+    }
+  });
+
+  const sceneWithHero = () => {
+    const s = Object.create(UIScene.prototype);
+    s._heroDef = { shortName: 'Rael', stats: { maxLevel: 5 } };
+    return s;
+  };
+
+  it('shows a plain level below the cap', () => {
+    sceneWithHero()._onHeroLevelUp({ level: 3 });
+    expect(document.getElementById('hero-level').textContent).toBe('Rael L3');
+  });
+
+  it('marks the label MAX at the cap', () => {
+    sceneWithHero()._onHeroLevelUp({ level: 5 });
+    expect(document.getElementById('hero-level').textContent).toBe('Rael L5 · MAX');
+  });
+
+  it('still unlocks abilities by level (no regression)', () => {
+    sceneWithHero()._onHeroLevelUp({ level: 3 });
+    expect(document.getElementById('ability-e').disabled).toBe(false);
+  });
+});
