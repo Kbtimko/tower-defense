@@ -3,7 +3,7 @@ import { computeDamage } from '../systems/damage.js';
 import { SFX_KEYS } from '../systems/AudioManager.js';
 import { enemyHitSfxKey } from '../systems/sfxKeys.js';
 import { EntitySprite } from '../systems/EntitySprite.js';
-import { hpBarFillWidth } from '../systems/hpBar.js';
+import { hpBarFillWidth, hpBarGeometry } from '../systems/hpBar.js';
 
 // Long enough to read at 1x, short enough not to smear at 2x (update() is fed
 // speed-scaled dt, so the flash keeps pace with the rest of the sim).
@@ -269,10 +269,13 @@ export class Enemy extends Phaser.GameObjects.Container {
   }
 
   _redrawHpBar() {
-    const r   = this.def.radius;
-    const bw  = r * 2.2, bh = 4, bx = -bw / 2, by = -r - 8;
+    const size = this._sprite?.getDisplaySize?.() ?? null;
+    const { width: bw, x: bx, top: by } = hpBarGeometry(this.def.radius, size?.width, size?.height);
+    const bh  = 4;
     const pct = this.hp / this.maxHp;
     this._hpBar.clear();
+    this._hpBar.fillStyle(0x000000, 0.55);
+    this._hpBar.fillRect(bx - 1, by - 1, bw + 2, bh + 2); // outline: terrain varies, the bar must not
     this._hpBar.fillStyle(0x222222, 1);
     this._hpBar.fillRect(bx, by, bw, bh);
     this._hpBar.fillStyle(pct > 0.5 ? 0x2ecc40 : pct > 0.25 ? 0xf39c12 : 0xe74c3c, 1);
