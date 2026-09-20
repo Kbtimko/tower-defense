@@ -4,9 +4,11 @@
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
 ## Current Status (2026-09-19)
-**Every numbered backlog item is DONE except entity sprite art for towers/heroes (#8 c/d), the iOS port (#9) and a low-priority contrast polish (#13).** `main` is the Vercel production branch and is current. **968 tests, build clean.**
+**Every numbered backlog item is DONE except the iOS port (#9) and a low-priority contrast polish (#13).** `main` is the Vercel production branch. **Two PRs are open against it and neither is merged — merging either auto-deploys.**
 
-**Backlog #8(b) — enemy sprite art — is COMPLETE and awaiting review in PR #56 (open, not merged).** All six Veth enemies render as sprites with a looping `move` and a one-shot `death`. **35/35 assets** (10 backdrops, 10 overworld nodes, 3 portraits, 12 enemy sheets). The Graphics fallback is untouched and still carries towers, heroes, soldiers and sentries.
+**Backlog #8 — production-quality entity art — is COMPLETE.** (b) enemies merged as **PR #56** (`1ae069a`); (c) towers and (d) heroes/soldiers/sentries are in **PR #57**. **All 18 entities now render as real sprite art** — 39 sheets, **62/62 assets**: 6 enemies (move + death), 6 towers (static idle + firing beat; the barracks never fires), 4 heroes (idle + gait + attack), the barracks soldier and the engineer sentry (idle + attack). The Graphics fallback is untouched but is now dead in practice for every entity.
+
+**Backlog #14 — the colossus reaches the campaign — is DONE** in **PR #58**, closing both decisions PR #56 left open (colossus placement, phantom scale).
 
 Phases 1–8 + 9a/9b/9c, hero roster, audio, terrain-only maps, natural-fit paths, show-range, economy calibration, responsive canvas, overworld MapSelect, storyline, entity sprite infra, balance simulator, the art pipeline and the barracks fix are all merged (PRs #26–#55).
 
@@ -19,12 +21,15 @@ Phases 1–8 + 9a/9b/9c, hero roster, audio, terrain-only maps, natural-fit path
 - None active. _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug — the hero is a ranged auto-attacker by design; non-blocking is documented as a deliberate out-of-scope decision in the hero-path-restriction spec. See backlog #2.)_
 
 ## In Progress
-- **PR #56 — enemy sprite art (backlog #8b).** OPEN against `main`, not merged. 7 commits, 29 files, 968 tests, build clean.
-  - All six enemies get `move` + `death`. 35/35 assets. Browser-verified on the PRODUCTION build across map 0 (red rock) and map 3 (blue station, phantoms).
-  - **Two maintainer decisions are called out in the PR body and are still open:**
-    1. **`colossus` is spawned by NO wave in any map** — `MAP_WAVES` has zero entries for it. Its art ships and is correct but is unreachable in normal play. Dead content; needs a design call, not a code fix.
-    2. **Phantom is the weakest read** — translucent wings washed out at the 0.43 its radius implies, so it ships at 0.58. Legible, but the one to re-roll if any.
-  - Two code fixes rode along, both invisible until real art existed: the facing deadzone (`src/systems/facing.js`) and the death destroy-delay in `_fadeOutDeadEnemy`.
+Nothing is mid-flight. Two finished PRs are awaiting review; both are MERGEABLE and independent of each other.
+
+- **PR #57 — tower + hero/soldier/sentry sprite art (backlog #8c/#8d).** Branch `feat/tower-hero-sprite-art`, 14 commits, 41 files, **983 tests**, build clean. Closes backlog #8 entirely. Browser-verified against the PRODUCTION build.
+  - Two silent-failure parser bugs fixed: prompt bullet names must be the runtime entity `type`, and a fenced prompt must beat an inline backtick span. Either would have shipped art that parses, composites, registers and never renders.
+  - Two wiring gaps closed: towers never called `setFacing`; the soldier never entered its `attack` state.
+  - Tier readability preserved — `_bg` now draws the tier ring without its fill disc instead of being hidden.
+- **PR #58 — colossus waves (backlog #14).** Branch `feat/colossus-waves`, 2 commits, **966 tests** (it is branched off `main`, so it lacks #57's 17 new tests). Debut on map 4 + recurring on 5-9 via a titan-neutral swap.
+  - **⚠️ One thing to decide before merging:** the swap measurably narrows the map-7 cliff (no-barracks **3.63x → 3.35x**) that backlog #12 decided should stay. `maps.js` was not retuned and the cliff is still clearly there. Reverting just the map-7 substitution restores it exactly.
+- **Merge-order note:** both edit `.claude/notes.md`. #58 only *inserts* a backlog item, but #57 rewrites the Current Status / In Progress blocks, so expect a small conflict in whichever merges second — resolve by keeping #57's header plus #58's item 14.
 
 ### Hard-won facts worth not re-deriving
 - **`main` IS the Vercel production branch.** Verified via the deployments API: only `main` produces `target: "production"`; every other branch is `target: null` (a preview). Do NOT infer the deploy target from `origin/HEAD` — that pointed at an integration branch and is what let the live site sit 141 commits stale for two months (fixed in PR #45).
@@ -44,7 +49,8 @@ Phases 1–8 + 9a/9b/9c, hero roster, audio, terrain-only maps, natural-fit path
 - **Draw Things API:** Settings → "API Server" → **HTTP** (not gRPC — gRPC needs a protobuf client, which `npm run art` does not speak). It listened on 7860 in HTTP mode, 7859 in gRPC mode. Draw Things' own weights are in its proprietary format, NOT safetensors, so mflux/ComfyUI cannot reuse them.
 
 ## Loose ends
-- **PR #56 is open and unmerged** — two maintainer decisions inside it (unused `colossus`, phantom scale). Merging auto-deploys to production.
+- **PR #56 merged 2026-09-19** as `1ae069a`. Both decisions it raised are now CLOSED — see backlog #14. Note the original phantom rationale was right: 0.43 washed the translucent wings out, and an independent measurement this session arrived at that same 0.43 as the "match the other five enemies" value. It stays at **0.58** deliberately.
+- **PRs #57 and #58 are open and unmerged.** Merging either auto-deploys to production.
 - **Generated references live in a gitignored `.art-cache/sprites/`** and are NOT committed, so they will not survive a clean checkout. Re-running `npm run art -- --kind sprite` produces *different* creatures (different seed/prompt), which would not match the committed sheets. Treat the committed PNGs as the source of truth; only regenerate an enemy you intend to replace wholesale.
 - The drone's reference predates `.art-cache` and was never written there — harmless, since no references are committed for any enemy.
 - Pre-existing uncommitted edits to `SESSION_NOTES.md` (auto-generated commit log) and an untracked `.claude/prompts/` are on the branch; both are session bookkeeping, not user data.
