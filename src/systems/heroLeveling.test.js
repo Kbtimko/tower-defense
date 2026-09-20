@@ -171,6 +171,14 @@ describe('heroXpProgress', () => {
     expect(p.current).toBe(0);
   });
 
+  it('clamps to empty for a veteran hero starting at level 2', () => {
+    const p = heroXpProgress(0, T, { startLevel: 2, maxLevel: 5 });
+    expect(p.level).toBe(2);
+    expect(p.progress).toBe(0);
+    expect(p.current).toBe(0);
+    expect(p.needed).toBeCloseTo(t3 - t2);   // its window is the level-2 one, not level-1's
+  });
+
   it('advances normally once a head-start hero passes its own floor', () => {
     const p = heroXpProgress(t3 + (t4 - t3) * 0.5, T, { startLevel: 3, maxLevel: 5 });
     expect(p.level).toBe(3);
