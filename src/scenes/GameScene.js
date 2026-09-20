@@ -908,13 +908,23 @@ export default class GameScene extends Phaser.Scene {
     // 5. Tower placement — snap to the nearest free slot within disc radius
     if (this.selectedType) {
       const slot = this.placementManager.getNearestSlot(mx, my, 22, true);
-      if (slot) {
-        const tower = this.placementManager.placeTower(slot.slotIndex, this.selectedType, this);
-        if (!tower) { this._toast('Not enough gold!'); return; }
-        if (this.selectedType === 'barracks') {
-          tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(slot.x, slot.y);
-          tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
-        }
+      if (!slot) {
+        // Nothing to build on here. Cancel the armed selection instead of
+        // swallowing the click: leaving it armed made every subsequent click a
+        // silent no-op too, because this branch returns before the hero-move
+        // case below. A player who clicked a tower button to see what it did
+        // could then never move the hero again, with nothing on screen saying
+        // why.
+        this.selectedType = null;
+        this._deselectButtons();
+        this._toast('No build slot there — build cancelled');
+        return;
+      }
+      const tower = this.placementManager.placeTower(slot.slotIndex, this.selectedType, this);
+      if (!tower) { this._toast('Not enough gold!'); return; }
+      if (this.selectedType === 'barracks') {
+        tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(slot.x, slot.y);
+        tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
       }
       return;
     }
