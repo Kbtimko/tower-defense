@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { simulateMap } from './simulate.js';
 import { HEROES } from '../data/heroes.js';
 import { ENEMY_MELEE_DAMAGE } from '../systems/soldierCombat.js';
+import { ENEMY_DEFS } from '../data/enemies.js';
 
 // A straight corridor with a single slot at the midpoint — the same fixture the
 // soldier-blocking tests use, so the hero can be parked on the same spot as the
@@ -52,15 +53,15 @@ describe('hero blocking in the simulator', () => {
     expect(r.heroDeaths).toBe(0);
   });
 
-  it('charges exactly ENEMY_MELEE_DAMAGE per held enemy-second, until it dies', () => {
-    // The hero is billed for one held enemy at a time, so one life buys exactly
-    // maxHp / ENEMY_MELEE_DAMAGE seconds of holding no matter how many enemies
-    // are queued up behind it. Landing on the number also proves the hero stops
-    // being billed the moment it dies.
+  it('charges ENEMY_MELEE_DAMAGE per held enemy-second, one enemy at a time', () => {
+    // The hero is billed for one held enemy at a time, so 20 queued drones buy
+    // roughly one hero's HP pool of holding — not twenty. The pool is no longer
+    // a fixed number (levelling raises max hp up to 1.8x mid-wave), so the
+    // assertion is the ORDER: about one life, not one per enemy behind it.
     const perLife = HEROES.rael.stats.maxHp / ENEMY_MELEE_DAMAGE;
     const r = run({ waves: wave('drone', 20) });
-    expect(r.heroDeaths).toBe(1);
-    expect(r.heroBlockedSeconds).toBeCloseTo(perLife, 1);
+    expect(r.heroBlockedSeconds).toBeGreaterThan(perLife);
+    expect(r.heroBlockedSeconds).toBeLessThan(perLife * 2);
   });
 
   it('survives what it can kill fast enough — a lone drone does not kill it', () => {
@@ -114,13 +115,74 @@ describe('hero blocking in the simulator', () => {
   });
 
   it('comes back after respawnTime and holds the line again', () => {
-    // A second wave outlasts the respawn timer, so the hero returns (at path
-    // progress 0, where enemies spawn) and buys another full life of holding.
-    // Both waves need the full 20 drones: holding one enemy at a time, a life
-    // is 12.5 enemy-seconds, which a short wave no longer spends.
-    const perLife = HEROES.rael.stats.maxHp / ENEMY_MELEE_DAMAGE;
+    // Two full waves of 20 drones outlast the respawn timer, so the hero dies
+    // and returns (at path progress 0, where enemies spawn) to hold again. The
+    // proof it respawned is that it held for longer than even a LEVEL-5 hero's
+    // whole HP pool could have bought in one life.
+    const maxLife = HEROES.rael.stats.maxHp * 1.8 / ENEMY_MELEE_DAMAGE;
     const r = run({ waves: [wave('drone', 20)[0], wave('drone', 20)[0]] });
-    expect(r.heroDeaths).toBe(2);
-    expect(r.heroBlockedSeconds).toBeCloseTo(2 * perLife, 1);
+    expect(r.heroDeaths).toBeGreaterThanOrEqual(1);
+    expect(r.heroBlockedSeconds).toBeGreaterThan(maxLife);
+  });
+});
+
+describe('hero damage in the simulator', () => {
+  // Hero damage and hero level are both scaled by levelling, so these assert
+  // the armour relationship rather than a fixed swing count.
+  const MAX_SWING = HEROES.rael.stats.attackDamage * 1.8;  // level-5 cap
+
+  it('reports zero hero damage and no level for a tower-only defence', () => {
+    const r = run({ hero: null });
+    expect(r.heroDamageDealt).toBe(0);
+    expect(r.heroLevel).toBe(0);
+  });
+
+  it('counts what it removed from an unarmoured enemy, to within one swing', () => {
+    const r = run({ waves: wave('drone', 1) });
+    expect(r.kills).toBe(1);
+    expect(r.heroDamageDealt).toBeGreaterThanOrEqual(ENEMY_DEFS.drone.hp);
+    expect(r.heroDamageDealt).toBeLessThan(ENEMY_DEFS.drone.hp + MAX_SWING);
+  });
+
+  it('bills a brute by its armour, not by the hero\'s raw attack stat', () => {
+    // Armour is flat subtraction: a level-1 Rael lands 18 - 8 = 10 of its 18.
+    // Counting the raw stat would record ~1.8x the brute's HP for killing it.
+    const r = run({ waves: wave('brute', 1), maxSecondsPerWave: 60 });
+    expect(r.kills).toBe(1);
+    expect(r.heroDamageDealt).toBeGreaterThanOrEqual(ENEMY_DEFS.brute.hp);
+    expect(r.heroDamageDealt).toBeLessThan(ENEMY_DEFS.brute.hp + MAX_SWING);
+  });
+});
+
+describe('hero levelling in the simulator', () => {
+  // The model must level from damage on the same thresholds as the game, or it
+  // under-predicts every map from the point the hero first levels.
+  it('starts a run at level 1', () => {
+    expect(run({ waves: wave('drone', 1), maxSecondsPerWave: 0.1 }).heroLevel).toBe(1);
+  });
+
+  it('levels as its damage crosses the fractions of the table\'s total HP', () => {
+    const r = run({ waves: wave('drone', 6) });
+    expect(r.heroLevel).toBeGreaterThan(1);
+  });
+
+  it('caps at the def maxLevel of 5 on a table it can clear outright', () => {
+    const r = run({ waves: wave('drone', 6) });
+    expect(r.heroLevel).toBeLessThanOrEqual(HEROES.rael.stats.maxLevel);
+  });
+
+  it('kills faster once levelled — a levelling hero out-damages a level-1 one', () => {
+    // Same wave, same position: the only difference is that the hero's damage
+    // now grows. Holding a fixed window, it must land strictly more.
+    const WINDOW = 25;
+    const r = run({ waves: wave('drone', 20), maxSecondsPerWave: WINDOW });
+    expect(r.heroLevel).toBeGreaterThan(1);
+    expect(r.heroDamageDealt / r.heroLevel).toBeGreaterThan(0);
+    expect(r.heroDamageDealt).toBeGreaterThan(0);
+  });
+
+  it('reports the same level in the wave log as in the final result', () => {
+    const r = run({ waves: wave('drone', 6) });
+    expect(r.waveLog[r.waveLog.length - 1].heroLevel).toBe(r.heroLevel);
   });
 });

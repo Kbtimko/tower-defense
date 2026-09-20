@@ -4,7 +4,7 @@
 // Reports only — it never edits src/data/maps.js. Treat the suggestions as a
 // starting point for a playtest, not as authoritative numbers.
 import { MAPS } from '../src/data/maps.js';
-import { MAP_WAVES } from '../src/data/waves.js';
+import { MAP_WAVES, totalEnemyHpForMap } from '../src/data/waves.js';
 import { simulateMap } from '../src/sim/simulate.js';
 import { greedyBuildPlan } from '../src/sim/buildPolicy.js';
 import { TOWER_DEFS } from '../src/data/towers.js';
@@ -65,6 +65,7 @@ console.log('tower choice, soldier repositioning and the send-wave-early bonus, 
 console.log('is PESSIMISTIC.\n');
 console.log(pad('#', 3) + pad('Map', 22) + padL('waves', 7) + padL('lives', 8)
           + padL('gold', 7) + padL('towers', 8) + padL('leaked', 8) + padL('blocked', 9)
+          + padL('heroDmg', 9) + padL('/mapHP', 8) + padL('heroLv', 8)
           + '  ' + pad('verdict', 12) + 'needs');
 console.log('-'.repeat(120));
 
@@ -78,6 +79,9 @@ for (const { map, r, v } of rows) {
     + padL(`${r.towersBuilt}/${map.towerSlots.length}`, 8)
     + padL(r.leaked, 8)
     + padL(`${r.blockedSeconds}s`, 9)
+    + padL(r.heroDamageDealt, 9)
+    + padL((r.heroDamageDealt / totalEnemyHpForMap(map.id)).toFixed(3), 8)
+    + padL(`L${r.heroLevel}`, 8)
     + '  ' + pad(v.tag, 12)
     + (v.deficit === null ? '>8x damage' : v.deficit === 1 ? v.note : `${v.deficit}x damage`),
   );
@@ -87,10 +91,12 @@ if (verbose) {
   for (const { map, r } of rows) {
     console.log(`\n── map ${map.id} · ${map.name} — per-wave detail`);
     console.log('  ' + pad('wave', 6) + padL('gold in', 9) + padL('gold out', 10)
-              + padL('towers', 8) + padL('lives lost', 12) + padL('lives left', 12));
+              + padL('towers', 8) + padL('lives lost', 12) + padL('lives left', 12)
+              + padL('heroDmg', 9) + padL('heroLv', 8));
     for (const e of r.waveLog) {
       console.log('  ' + pad(e.wave, 6) + padL(e.goldAtWaveStart, 9) + padL(e.goldAfter, 10)
                 + padL(e.towersBuilt, 8) + padL(e.livesLost, 12) + padL(e.livesRemaining, 12)
+                + padL(e.heroDamageDealt, 9) + padL(`L${e.heroLevel}`, 8)
                 + (e.timedOut ? '  (wave timed out)' : ''));
     }
   }
@@ -146,6 +152,8 @@ for (const { map } of rows) {
     + padL(goldPerHp(map, waves).toFixed(4), 9),
   );
 }
+console.log('  heroDmg = post-armour damage the hero landed; /mapHP its share of the map\'s');
+console.log('            total base enemy HP — the quantity hero levelling is paced against.');
 console.log('  needs  = uniform damage multiplier at which the modelled defence clears the map;');
 console.log('           i.e. how much everything this model omits (hero abilities, meta upgrades,');
 console.log('           matchup-aware building, soldier repositioning) has to be worth.\n');

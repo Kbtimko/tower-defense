@@ -1,4 +1,4 @@
-import { MAP_WAVES } from './waves.js';
+import { MAP_WAVES, totalEnemyHpForMap } from './waves.js';
 import { ENEMY_DEFS } from './enemies.js';
 
 describe('MAP_WAVES[0] (Outpost Sigma)', () => {
@@ -135,5 +135,38 @@ describe('colossus placement', () => {
       .filter(g => g.type === 'titan')
       .reduce((n, g) => n + g.count, 0);
     expect(titans).toBe(17);
+  });
+});
+
+describe('totalEnemyHpForMap', () => {
+  // These are the campaign's HP budget per map. Hero levelling thresholds are
+  // fractions of them, so a wave-table edit that moves one of these numbers
+  // moves the levelling curve with it — which is exactly what should happen,
+  // but it should not happen unnoticed.
+  const EXPECTED = {
+    0:  8800, 1:  8120, 2: 12330, 3: 10770, 4: 18500,
+    5: 18080, 6: 24440, 7: 31430, 8: 40970, 9: 59780,
+  };
+
+  for (const [mapId, hp] of Object.entries(EXPECTED)) {
+    it(`map ${mapId} ships ${hp} base enemy HP`, () => {
+      expect(totalEnemyHpForMap(Number(mapId))).toBe(hp);
+    });
+  }
+
+  it('sums count x base hp across every group of every wave', () => {
+    const byHand = MAP_WAVES[0].reduce((t, wave) =>
+      t + wave.reduce((s, g) => s + ENEMY_DEFS[g.type].hp * g.count, 0), 0);
+    expect(totalEnemyHpForMap(0)).toBe(byHand);
+  });
+
+  it('ignores the per-wave HP ramp, so it is a fixed property of the table', () => {
+    // WaveManager scales spawned HP by 1 + waveIndex * 0.13; if that leaked in
+    // here every map's total would be roughly 1.7-2.5x these numbers.
+    expect(totalEnemyHpForMap(0)).toBeLessThan(15000);
+  });
+
+  it('returns 0 for a map with no wave table rather than throwing', () => {
+    expect(totalEnemyHpForMap(999)).toBe(0);
   });
 });

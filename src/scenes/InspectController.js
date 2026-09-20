@@ -3,6 +3,7 @@ import { ENEMY_DEFS } from '../data/enemies.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { HEROES } from '../data/heroes.js';
 import { gameToPageCss } from '../systems/viewport.js';
+import { heroAttackDamage } from '../systems/heroLeveling.js';
 
 export class InspectController {
   constructor(scene) {
@@ -155,7 +156,10 @@ export class InspectController {
     document.getElementById('hi-hp-label').textContent = `${Math.ceil(hero.hp)} / ${hero.maxHp}`;
 
     document.getElementById('hi-level').textContent = `Level: ${hero.level} / ${hero.def.stats.maxLevel} · Kills: ${hero.killCount}`;
-    document.getElementById('hi-attack').textContent = `Attack: ${hero.def.stats.attackDamage} dmg @ ${hero.def.stats.attackRange} range`;
+    // The CURRENT figure, not the level-1 base: levelling scales attack damage,
+    // and a panel showing the base would understate a level-5 hero by 80%.
+    const attack = Math.round(heroAttackDamage(hero.def.stats, hero.level));
+    document.getElementById('hi-attack').textContent = `Attack: ${attack} dmg @ ${hero.def.stats.attackRange} range`;
 
     this._renderHeroAbilities(hero);
     this._renderHeroMatchups(hero);

@@ -101,6 +101,7 @@ export default class GameScene extends Phaser.Scene {
         y:          heroSpawn.y,
         heroId:     this.heroId,
         pathPoints: this.pathMgr.getPathPoints(),
+        mapId:      this.mapId,
       },
       mods,
     );
