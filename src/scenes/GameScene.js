@@ -389,6 +389,7 @@ export default class GameScene extends Phaser.Scene {
         if (blocker.attackTimer <= 0) {
           this._dealDamage(enemy, blocker.damage, false, { source: soldierSource(blocker) });
           blocker.attackTimer = 1 / blocker.attackRate;
+          blocker._sprite?.setState('attack');
         }
         if (enemy.dead) continue;
         continue;
@@ -768,6 +769,10 @@ export default class GameScene extends Phaser.Scene {
           tier: tower.level, branch: tower.branch,
         }));
         tower.cooldown = 1 / tower.fireRate;
+        // No deadzone, unlike the enemy path (systems/facing.js): a tower's
+        // target jumps between discrete enemies rather than tracking a dense
+        // path, so there is no hairpin backtrack to filter out.
+        tower._sprite?.setFacing(best.x - tower.x);
         tower._sprite?.setState('attack');
       }
     }
