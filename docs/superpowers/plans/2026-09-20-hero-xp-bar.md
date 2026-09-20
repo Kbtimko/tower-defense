@@ -221,8 +221,11 @@ git commit -m "feat(hero): add heroXpProgress for progress within the current le
 `new Hero(makeScene(), { x, y })`, with `makeScene()` already defined near the
 top of that file. The constructor is
 `Hero(scene, { x, y, heroId = 'rael', pathPoints, mapId = 0 }, modifiers = {})`.
-Map 0 has **8800** total enemy HP, so the level thresholds are
-`[616, 1144, 1848, 2640]`.
+Map 0 has **8800** total enemy HP. Derive thresholds with
+`heroXpThresholds(8800)` — do NOT write them as literals. `0.07 * 8800` is
+`616.0000000000001`, not `616`, so a hardcoded `616` never satisfies
+`heroLevelForDamage`'s `>=` and the hero stays on level 1. The test file needs
+`import { heroXpThresholds } from '../systems/heroLeveling.js';`.
 
 Note `_registerDamage` starts with `if (!(dealt > 0)) return;` — every call below
 passes a positive number deliberately.
@@ -252,7 +255,8 @@ describe('Hero.xpProgress', () => {
 
   it('empties again once a level is earned', () => {
     const h = new Hero(makeScene(), { x: 0, y: 0 });
-    h._registerDamage(616);                    // exactly the level-2 threshold
+    const [toLevel2] = heroXpThresholds(MAP0_TOTAL_HP);   // exact float, not a rounded literal
+    h._registerDamage(toLevel2);
     expect(h.level).toBe(2);
     expect(h.xpProgress().progress).toBe(0);
   });
