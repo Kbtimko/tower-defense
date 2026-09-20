@@ -548,3 +548,66 @@ describe('Hero — out-of-combat regeneration', () => {
     expect(redraw).toHaveBeenCalled();
   });
 });
+
+describe('Hero.xpProgress', () => {
+  // Exact integer, unlike the thresholds derived from it: heroXpThresholds
+  // multiplies by fractions like 0.07, which loses precision (0.07 * 8800 ===
+  // 616.0000000000001). Always derive a threshold via heroXpThresholds(...)
+  // rather than writing its rounded decimal as a literal.
+  const MAP0_TOTAL_HP = 8800;   // totalEnemyHpForMap(0); thresholds ~616/1144/1848/2640
+
+  it('reports an empty bar for a hero that has dealt no damage', () => {
+    const h = new Hero(makeScene(), { x: 0, y: 0 });
+    const p = h.xpProgress();
+    expect(p.level).toBe(1);
+    expect(p.progress).toBe(0);
+    expect(p.atMax).toBe(false);
+  });
+
+  it('advances as the hero registers damage', () => {
+    const h = new Hero(makeScene(), { x: 0, y: 0 });
+    const before = h.xpProgress().progress;
+    h._registerDamage(MAP0_TOTAL_HP * 0.03);   // inside the level-1 window (0 -> 616)
+    const after = h.xpProgress().progress;
+    expect(after).toBeGreaterThan(before);
+    expect(after).toBeLessThan(1);
+  });
+
+  it('empties again once a level is earned', () => {
+    const h = new Hero(makeScene(), { x: 0, y: 0 });
+    const [toLevel2] = heroXpThresholds(MAP0_TOTAL_HP);   // exact float, not a rounded literal
+    h._registerDamage(toLevel2);
+    expect(h.level).toBe(2);
+    expect(h.xpProgress().progress).toBe(0);
+  });
+
+  it('flags atMax once the hero tops out', () => {
+    const h = new Hero(makeScene(), { x: 0, y: 0 });
+    h._registerDamage(MAP0_TOTAL_HP);
+    expect(h.xpProgress().atMax).toBe(true);
+    expect(h.xpProgress().progress).toBe(1);
+  });
+
+  // The <hero>_veteran / <hero>_elite meta upgrades start a hero above level 1
+  // with damageDealt still 0, which is below its own window's floor.
+  it('clamps to empty for a hero given a head-start level', () => {
+    const h = new Hero(makeScene(), { x: 0, y: 0 }, { heroStartLevel: 3 });
+    expect(h.level).toBe(3);
+    const p = h.xpProgress();
+    expect(p.progress).toBe(0);
+    expect(p.current).toBe(0);
+  });
+
+  // damageDealt is run-scoped, not life-scoped.
+  it('keeps its progress across a death and respawn', () => {
+    const h = new Hero(makeScene(), { x: 0, y: 0 });
+    h._registerDamage(300);                    // partway into the level-1 window
+    const before = h.xpProgress();
+    h.hp = 0;
+    h.dead = true;
+    h.respawn();
+    const after = h.xpProgress();
+    expect(after.progress).toBeCloseTo(before.progress);
+    expect(after.level).toBe(before.level);
+  });
+});
