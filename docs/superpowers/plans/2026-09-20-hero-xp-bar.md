@@ -196,7 +196,7 @@ Expected: PASS, all tests in the file.
 - [ ] **Step 5: Run the whole suite**
 
 Run: `npm run test`
-Expected: PASS. Note the totals — the baseline before this plan is **82 files, 1129 tests**.
+Expected: PASS. Note the totals — the baseline before this plan is **82 files, 1134 tests**.
 
 - [ ] **Step 6: Commit**
 
@@ -715,7 +715,7 @@ Expected: PASS.
 - [ ] **Step 5: Run the whole suite**
 
 Run: `npm run test`
-Expected: PASS. Expect roughly **84 files, ~1158 tests** (baseline 82/1129 plus this plan's additions).
+Expected: PASS. Expect roughly **84 files, ~1165 tests** (baseline 82/1134 plus this plan's additions).
 
 - [ ] **Step 6: Commit**
 
