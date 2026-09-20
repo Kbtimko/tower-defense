@@ -3,6 +3,11 @@ import { computeDamage } from '../systems/damage.js';
 import { SFX_KEYS } from '../systems/AudioManager.js';
 import { enemyHitSfxKey } from '../systems/sfxKeys.js';
 import { EntitySprite } from '../systems/EntitySprite.js';
+import { hpBarFillWidth } from '../systems/hpBar.js';
+
+// Long enough to read at 1x, short enough not to smear at 2x (update() is fed
+// speed-scaled dt, so the flash keeps pace with the rest of the sim).
+const HIT_FLASH_DURATION = 0.12;
 
 export class Enemy extends Phaser.GameObjects.Container {
   constructor(scene, { def, scaleFactor = 1, startX, startY }) {
@@ -23,11 +28,14 @@ export class Enemy extends Phaser.GameObjects.Container {
       burn:       { active: false, timer: 0, dps: 0, tickAccum: 0 },
       vulnerable: { active: false, timer: 0, multiplier: 1 },
     };
+    // The only hit feedback that does not depend on how big the hit was.
+    this.hitFlash = { active: false, timer: 0 };
 
     this._body    = scene.add.graphics();
+    this._flash   = scene.add.graphics();  // hit flash — over the body, under the rings
     this._overlay = scene.add.graphics();  // status rings — always visible
     this._hpBar   = scene.add.graphics();
-    this.add([this._body, this._overlay, this._hpBar]);
+    this.add([this._body, this._flash, this._overlay, this._hpBar]);
     scene.add.existing(this);
     this.setDepth(14); // above the static road/build-pad layer (depth 10)
     this._redrawBody();
@@ -51,6 +59,8 @@ export class Enemy extends Phaser.GameObjects.Container {
   playDeathAnimation(onComplete) {
     this._hpBar.setVisible(false);
     this._overlay.setVisible(false);
+    this._clearHitFlash();
+    this._flash.setVisible(false);
     this._sprite.playOnce('death', onComplete);
   }
 
@@ -61,6 +71,11 @@ export class Enemy extends Phaser.GameObjects.Container {
   }
 
   update(dt) {
+    if (this.hitFlash.active) {
+      this.hitFlash.timer -= dt;
+      if (this.hitFlash.timer <= 0) this.hitFlash = { active: false, timer: 0 };
+      this._applyHitFlash(); // the run-out pass is what clears the tint
+    }
     if (this.statusEffects.slow.active) {
       this.statusEffects.slow.timer -= dt;
       if (this.statusEffects.slow.timer <= 0) {
@@ -110,6 +125,11 @@ export class Enemy extends Phaser.GameObjects.Container {
     const justDied = this.hp <= 0 && !this.dead;
     if (this.hp <= 0) { this.hp = 0; this.dead = true; }
     this._redrawHpBar();
+    // A corpse keeps whatever tint it had: once dead it leaves `enemies` and
+    // stops being updated, so a flash lit here would ride out the death fade.
+    // The kill has its own particles, sfx and death anim to sell the hit.
+    if (this.dead) this._clearHitFlash();
+    else           this._triggerHitFlash();
 
     const am = this.scene.game?.registry?.get('audio');
     if (am) am.playSfx(enemyHitSfxKey(this.def.type, SFX_KEYS), { detune: (Math.random() - 0.5) * 100 });
@@ -146,6 +166,31 @@ export class Enemy extends Phaser.GameObjects.Container {
     if (type === 'vulnerable') {
       this.statusEffects.vulnerable = { active: true, timer: duration, multiplier };
     }
+  }
+
+  // Restarted rather than extended, so a burst of hits reads as one bright
+  // flash instead of a slowly-brightening one.
+  _triggerHitFlash() {
+    this.hitFlash = { active: true, timer: HIT_FLASH_DURATION };
+    this._applyHitFlash();
+  }
+
+  _clearHitFlash() {
+    this.hitFlash = { active: false, timer: 0 };
+    this._applyHitFlash();
+  }
+
+  // A sprite flashes as a solid silhouette; the Graphics fallback has no
+  // silhouette to tint, so it gets a fading disc over the body it draws.
+  _applyHitFlash() {
+    this._flash.clear();
+    if (this._sprite?.active) {
+      this._sprite.setFlash(this.hitFlash.active);
+      return;
+    }
+    if (!this.hitFlash.active) return;
+    this._flash.fillStyle(0xffffff, 0.7 * (this.hitFlash.timer / HIT_FLASH_DURATION));
+    this._flash.fillCircle(0, 0, this.def.radius * 1.05);
   }
 
   _redrawBody() {
@@ -226,7 +271,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     this._hpBar.fillStyle(0x222222, 1);
     this._hpBar.fillRect(bx, by, bw, bh);
     this._hpBar.fillStyle(pct > 0.5 ? 0x2ecc40 : pct > 0.25 ? 0xf39c12 : 0xe74c3c, 1);
-    this._hpBar.fillRect(bx, by, bw * pct, bh);
+    this._hpBar.fillRect(bx, by, hpBarFillWidth(this.hp, this.maxHp, bw), bh);
   }
 
   _hexPoints(r) {

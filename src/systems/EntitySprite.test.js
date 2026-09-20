@@ -26,6 +26,9 @@ function makeSpriteStub() {
     setFlipX: vi.fn((v) => { s.flipX = v; return s; }),
     play: vi.fn((cfg) => { s.played.push(cfg.key ?? cfg); return s; }),
     on: vi.fn(() => s), once: vi.fn(() => s), destroy: vi.fn(),
+    tint: null,
+    setTintFill: vi.fn((c) => { s.tint = c; return s; }),
+    clearTint: vi.fn(() => { s.tint = null; return s; }),
   };
   return s;
 }
@@ -104,5 +107,41 @@ describe('EntitySprite (active)', () => {
   it('setState ignores an unregistered state', () => {
     es.setState('death');
     expect(scene.sprite.played).not.toContain('sprite-enemy-drone-death');
+  });
+});
+
+describe('EntitySprite.setFlash', () => {
+  const activeSprite = () => {
+    const scene = makeScene(['sprite-enemy-drone-move', 'sprite-enemy-drone-attack']);
+    const es = new EntitySprite(makeContainer(), scene, { category: 'enemy', type: 'drone', initialState: 'move' });
+    return { scene, es };
+  };
+
+  it('tints the sprite solid white while the flash holds', () => {
+    const { scene, es } = activeSprite();
+    es.setFlash(true);
+    expect(scene.sprite.setTintFill).toHaveBeenCalledWith(0xffffff);
+  });
+
+  it('clears the tint when the flash ends', () => {
+    const { scene, es } = activeSprite();
+    es.setFlash(true);
+    es.setFlash(false);
+    expect(scene.sprite.clearTint).toHaveBeenCalled();
+    expect(scene.sprite.tint).toBe(null);
+  });
+
+  it('does not re-tint on repeated calls while the flash holds', () => {
+    const { scene, es } = activeSprite();
+    es.setFlash(true);
+    es.setFlash(true);
+    es.setFlash(true);
+    expect(scene.sprite.setTintFill).toHaveBeenCalledTimes(1);
+  });
+
+  it('is a no-op when the component is inactive', () => {
+    const scene = makeScene([]);
+    const es = new EntitySprite(makeContainer(), scene, { category: 'enemy', type: 'drone' });
+    expect(() => es.setFlash(true)).not.toThrow();
   });
 });
