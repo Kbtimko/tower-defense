@@ -6,6 +6,9 @@ import {
 } from './promptParser.js';
 import { MAPS } from '../data/maps.js';
 import { STORY_SPEAKERS } from '../data/story.js';
+import { HEROES } from '../data/heroes.js';
+import { TOWER_DEFS } from '../data/towers.js';
+import { ENEMY_DEFS } from '../data/enemies.js';
 
 const overworldMd = readFileSync('public/assets/overworld/PROMPTS.md', 'utf8');
 const portraitMd  = readFileSync('public/assets/portraits/PROMPTS.md', 'utf8');
@@ -240,8 +243,10 @@ describe('parseSpritePrompts', () => {
       '  ```',
     ].join('\n');
     const got = parseSpritePrompts(md);
+    // soldier/sentry both construct with runtime type 'default', regardless
+    // of the bullet name that labels the category.
     expect(got.map(e => [e.category, e.type])).toEqual([
-      ['tower', 'archer'], ['hero', 'rael'], ['soldier', 'soldier'], ['sentry', 'sentry'],
+      ['tower', 'archer'], ['hero', 'rael'], ['soldier', 'default'], ['sentry', 'default'],
     ]);
   });
 });
@@ -257,5 +262,88 @@ describe('the real sprites PROMPTS.md', () => {
   it('exposes the shared style anchor and negative prompt', () => {
     expect(parseFencedSection(spriteMd, 'Shared style anchor')).toMatch(/game sprite/);
     expect(parseFencedSection(spriteMd, 'Shared negative prompt')).toMatch(/watermark/);
+  });
+});
+
+describe('parseSpritePrompts entity-id agreement', () => {
+  // A prompt bullet whose name is not the entity's runtime `type` produces art
+  // that parses, composites and registers but never renders, because
+  // getSpriteConfig(category, type) matches on the runtime type. Soldier and
+  // sentry both construct with type 'default'.
+  const VALID = {
+    enemy:   Object.keys(ENEMY_DEFS),
+    tower:   Object.keys(TOWER_DEFS),
+    hero:    Object.keys(HEROES),
+    soldier: ['default'],
+    sentry:  ['default'],
+  };
+
+  it('emits only types that some entity actually constructs', () => {
+    const md = readFileSync('public/assets/sprites/PROMPTS.md', 'utf8');
+    const offenders = parseSpritePrompts(md)
+      .filter(p => !(VALID[p.category] ?? []).includes(p.type))
+      .map(p => `${p.category}/${p.type}`);
+    expect(offenders).toEqual([]);
+  });
+
+  it('covers every hero, tower and enemy exactly once', () => {
+    const md = readFileSync('public/assets/sprites/PROMPTS.md', 'utf8');
+    const got = parseSpritePrompts(md).map(p => `${p.category}/${p.type}`);
+    expect(new Set(got).size).toBe(got.length);            // no duplicates
+    for (const t of Object.keys(TOWER_DEFS)) expect(got).toContain(`tower/${t}`);
+    for (const h of Object.keys(HEROES))     expect(got).toContain(`hero/${h}`);
+    expect(got).toContain('soldier/default');
+    expect(got).toContain('sentry/default');
+  });
+});
+
+describe('parseSpritePrompts prefers the fenced block over an inline span', () => {
+  // A bullet that documents its output path puts a >15-char backtick span on
+  // the bullet line. The inline heuristic cannot tell that path from a prompt,
+  // so a fenced block — when there is one — must win.
+  const md = [
+    '### (d) Heroes / Soldiers / Sentries',
+    '',
+    '- **rael** — `Commander Rael`, bruiser — `assets/sprites/heroes/`:',
+    '  ```',
+    '  human Vanguard commander, navy-blue powered armor',
+    '  ```',
+    '- **sentry** — `assets/sprites/sentry/default_*.png`, `idle` + `attack`:',
+    '  ```',
+    '  small deployable auto-turret, copper-orange armored dome',
+    '  ```',
+  ].join('\n');
+
+  it('reads the fenced prompt, not the documented output path', () => {
+    const got = parseSpritePrompts(md);
+    const rael = got.find(p => p.type === 'rael');
+    expect(rael.subject).toContain('Vanguard commander');
+    expect(rael.subject).not.toContain('assets/sprites');
+
+    const sentry = got.find(p => p.category === 'sentry');
+    expect(sentry.subject).toContain('auto-turret');
+    expect(sentry.subject).not.toContain('assets/sprites');
+  });
+
+  it('still uses the inline span for a bullet with no fenced block', () => {
+    const towers = [
+      '### (c) Towers',
+      '',
+      '- **archer** — `#8B4513` brown: `automated crossbow ballista turret emplacement, weathered brown metal`',
+      '- **mage** — `#6a0dad` purple: `arcane energy spire turret, floating violet crystal orb, glowing runic rings`',
+    ].join('\n');
+    const got = parseSpritePrompts(towers);
+    expect(got.find(p => p.type === 'archer').subject).toContain('crossbow');
+    expect(got.find(p => p.type === 'mage').subject).toContain('arcane energy spire');
+  });
+});
+
+describe('the real PROMPTS.md yields a usable subject for every entity', () => {
+  it('never hands a file path to the image model', () => {
+    const md = readFileSync('public/assets/sprites/PROMPTS.md', 'utf8');
+    for (const p of parseSpritePrompts(md)) {
+      expect(p.subject, `${p.category}/${p.type}`).not.toMatch(/assets\/sprites/);
+      expect(p.subject.length, `${p.category}/${p.type}`).toBeGreaterThan(30);
+    }
   });
 });

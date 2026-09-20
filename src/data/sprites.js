@@ -95,6 +95,152 @@ export const SPRITE_MANIFEST = [
                frameWidth: 128, frameHeight: 128, frames: 6, frameRate: 10 },
     },
   },
+
+  // --- Towers ---------------------------------------------------------
+  // Static emplacements: idle is a single frame, loaded as a plain texture
+  // rather than an animation (frames: 1 is only broken for a one-shot state,
+  // which never fires animationcomplete — idle just sits there, which is
+  // correct). Attack is the firing beat.
+  {
+    category: 'tower', type: 'archer',
+    scale: 1.03, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    states: {
+      idle:   { path: 'assets/sprites/towers/archer_idle.png',
+                frameWidth: 96, frameHeight: 96, frames: 1 },
+      attack: { path: 'assets/sprites/towers/archer_attack.png',
+                frameWidth: 96, frameHeight: 96, frames: 5, frameRate: 14 },
+    },
+  },
+  // Mage — the narrowest tower (silhouette aspect 0.48). At a 64px cell it
+  // would be only 25px wide and need a 1.44x upscale to reach the 36px tower
+  // footprint, which looks soft, so it gets a 96px cell like the colossus
+  // and titan do.
+  {
+    category: 'tower', type: 'mage',
+    scale: 0.86, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    states: {
+      idle:   { path: 'assets/sprites/towers/mage_idle.png',
+                frameWidth: 96, frameHeight: 96, frames: 1 },
+      attack: { path: 'assets/sprites/towers/mage_attack.png',
+                frameWidth: 96, frameHeight: 96, frames: 5, frameRate: 14 },
+    },
+  },
+  {
+    category: 'tower', type: 'cannon',
+    scale: 0.86, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    states: {
+      idle:   { path: 'assets/sprites/towers/cannon_idle.png',
+                frameWidth: 64, frameHeight: 64, frames: 1 },
+      attack: { path: 'assets/sprites/towers/cannon_attack.png',
+                frameWidth: 64, frameHeight: 64, frames: 5, frameRate: 14 },
+    },
+  },
+  {
+    category: 'tower', type: 'ice',
+    scale: 0.88, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    states: {
+      idle:   { path: 'assets/sprites/towers/ice_idle.png',
+                frameWidth: 64, frameHeight: 64, frames: 1 },
+      attack: { path: 'assets/sprites/towers/ice_attack.png',
+                frameWidth: 64, frameHeight: 64, frames: 5, frameRate: 14 },
+    },
+  },
+  {
+    category: 'tower', type: 'sniper',
+    scale: 0.82, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    states: {
+      idle:   { path: 'assets/sprites/towers/sniper_idle.png',
+                frameWidth: 64, frameHeight: 64, frames: 1 },
+      attack: { path: 'assets/sprites/towers/sniper_attack.png',
+                frameWidth: 64, frameHeight: 64, frames: 5, frameRate: 14 },
+    },
+  },
+  // Barracks never fires — its soldiers do the fighting — so it has no
+  // attack state at all.
+  {
+    category: 'tower', type: 'barracks',
+    scale: 0.86, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    states: {
+      idle: { path: 'assets/sprites/towers/barracks_idle.png',
+              frameWidth: 64, frameHeight: 64, frames: 1 },
+    },
+  },
+
+  // --- Heroes ----------------------------------------------------------
+  // Heroes walk the path, so unlike towers and units they get a real gait:
+  // idle, move and attack all animate.
+  {
+    category: 'hero', type: 'rael',
+    scale: 0.38, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    states: {
+      idle:   { path: 'assets/sprites/heroes/rael_idle.png',
+                frameWidth: 64, frameHeight: 64, frames: 6, frameRate: 8 },
+      move:   { path: 'assets/sprites/heroes/rael_move.png',
+                frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 12 },
+      attack: { path: 'assets/sprites/heroes/rael_attack.png',
+                frameWidth: 64, frameHeight: 64, frames: 5, frameRate: 14 },
+    },
+  },
+  {
+    category: 'hero', type: 'engineer',
+    scale: 0.39, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    states: {
+      idle:   { path: 'assets/sprites/heroes/engineer_idle.png',
+                frameWidth: 64, frameHeight: 64, frames: 6, frameRate: 8 },
+      move:   { path: 'assets/sprites/heroes/engineer_move.png',
+                frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 12 },
+      attack: { path: 'assets/sprites/heroes/engineer_attack.png',
+                frameWidth: 64, frameHeight: 64, frames: 5, frameRate: 14 },
+    },
+  },
+  {
+    category: 'hero', type: 'scout',
+    scale: 0.38, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    states: {
+      idle:   { path: 'assets/sprites/heroes/scout_idle.png',
+                frameWidth: 64, frameHeight: 64, frames: 6, frameRate: 8 },
+      move:   { path: 'assets/sprites/heroes/scout_move.png',
+                frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 12 },
+      attack: { path: 'assets/sprites/heroes/scout_attack.png',
+                frameWidth: 64, frameHeight: 64, frames: 5, frameRate: 14 },
+    },
+  },
+  {
+    category: 'hero', type: 'pyro',
+    scale: 0.39, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    states: {
+      idle:   { path: 'assets/sprites/heroes/pyro_idle.png',
+                frameWidth: 64, frameHeight: 64, frames: 6, frameRate: 8 },
+      move:   { path: 'assets/sprites/heroes/pyro_move.png',
+                frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 12 },
+      attack: { path: 'assets/sprites/heroes/pyro_attack.png',
+                frameWidth: 64, frameHeight: 64, frames: 5, frameRate: 14 },
+    },
+  },
+
+  // --- Units -------------------------------------------------------------
+  // The soldier holds a blocking post and the sentry is bolted down, so
+  // neither gets a move state — just idle and attack, like the towers.
+  {
+    category: 'soldier', type: 'default',
+    scale: 0.36, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    states: {
+      idle:   { path: 'assets/sprites/soldiers/default_idle.png',
+                frameWidth: 48, frameHeight: 48, frames: 6, frameRate: 8 },
+      attack: { path: 'assets/sprites/soldiers/default_attack.png',
+                frameWidth: 48, frameHeight: 48, frames: 5, frameRate: 16 },
+    },
+  },
+  {
+    category: 'sentry', type: 'default',
+    scale: 0.58, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    states: {
+      idle:   { path: 'assets/sprites/sentry/default_idle.png',
+                frameWidth: 48, frameHeight: 48, frames: 6, frameRate: 8 },
+      attack: { path: 'assets/sprites/sentry/default_attack.png',
+                frameWidth: 48, frameHeight: 48, frames: 5, frameRate: 16 },
+    },
+  },
 ];
 
 // Look up the manifest entry for an entity, or null if none is registered.

@@ -203,12 +203,12 @@ shatter) optional. Author facing right, moving right.
 Towers are static emplacements viewed top-down 3/4 — author the muzzle/business
 end facing right.
 
-- **archer** — `#8B4513` brown: `automated crossbow / ballista turret emplacement, weathered brown metal and wood, taut bowstring, swivel mount on a base disc`
+- **archer** — `#8B4513` brown: `automated crossbow ballista turret emplacement, tall upright swivel mount, dark weathered iron and deep brown wood, taut bowstring, high contrast against pale ground, compact dark base disc`
 - **mage** — `#6a0dad` purple: `arcane energy spire turret, floating violet crystal orb, glowing runic rings, purple magic emissive, metal base disc`
 - **cannon** — `#666666` grey: `heavy artillery cannon turret, stubby thick grey barrel, riveted armor plating, recoil mount, base disc`
 - **ice** — `#4a8fa8` teal: `cryo frost turret, glowing teal ice-crystal emitter, frosted condenser coils, pale-blue vapor, base disc`
 - **sniper** — `#556b2f` olive: `long-barreled railgun sniper turret, slim olive-drab rail, targeting scope, sleek precise build, base disc`
-- **barracks** — `#4caf50` green: `military barracks structure, small reinforced bunker with a rally flag, green field markings, sandbag perimeter, deployment doorway` (static building, no `attack`)
+- **barracks** — `#4caf50` green: `military barracks bunker, small reinforced green-walled structure with a rally flag on top, sandbag perimeter, deployment doorway, blank unmarked walls, no signage and no lettering anywhere, compact footprint on a round base disc` (static building, no `attack`)
 
 ### (d) Heroes / Soldiers / Sentries
 
@@ -219,28 +219,28 @@ glance; keep them clearly heroic vs. the enemy chitin.
 - **rael** — `Commander Rael`, generalist bruiser — `assets/sprites/heroes/`:
   ```
   human Vanguard commander, navy-blue powered armor with cyan energy trim and
-  gold accents, sidearm rifle, confident heroic stance
+  gold accents, sidearm rifle, confident heroic stance, one single standing human character, full body, not a turret, not a building, not an emplacement
   ```
-- **dax** — `Engineer Dax`, support/builder:
+- **engineer** — `Engineer Dax`, support/builder:
   ```
   combat engineer, brown utility armor with copper-orange trim, hexagonal
-  hardhat helmet, tool-rig backpack, wrench-rifle
+  hardhat helmet, tool-rig backpack, wrench-rifle, one single standing human character, full body, not a turret, not a building, not an emplacement
   ```
-- **vex** — `Scout Vex`, ranged anti-air:
+- **scout** — `Scout Vex`, ranged anti-air:
   ```
   agile scout-ranger, dark-green hooded cloak with bright-green trim, light
-  recon armor, energy longbow, nimble crouched-ready stance
+  recon armor, energy longbow, nimble crouched-ready stance, one single standing human character, full body, not a turret, not a building, not an emplacement
   ```
-- **mira** — `Pyromancer Mira`, AoE burn:
+- **pyro** — `Pyromancer Mira`, AoE burn:
   ```
   pyromancer soldier, dark-red armor with glowing ember trim, flamethrower
-  gauntlet, small flame above shoulder, intense fiery presence
+  gauntlet, intense fiery presence, one single standing human character, full body, standing on plain empty ground with nothing beneath him, no platform, no pedestal, no floating objects above the head, not a turret, not a building, not an emplacement
   ```
 - **soldier** — `assets/sprites/soldiers/default_*.png`, `idle` (+ `attack`),
   barracks green `#4caf50`:
   ```
   small infantry trooper, green combat fatigues and helmet, compact rifle,
-  guard stance
+  guard stance, one single standing human character, full body, standing on plain empty ground with nothing beneath him, no platform, no pedestal, no bunker, not a turret, not a building, not an emplacement
   ```
 - **sentry** — `assets/sprites/sentry/default_*.png`, `idle` + `attack`,
   engineer copper `#ff9933`:
