@@ -119,7 +119,7 @@ export const MAP_WAVES = {
     [{ type: 'phantom', count: 16, interval: 680  }, { type: 'drone',   count: 12, interval: 800 }],
     [{ type: 'titan',   count: 2,  interval: 3500 }, { type: 'skitter', count: 10, interval: 700 }, { type: 'phantom', count: 8, interval: 730 }],
     [{ type: 'drone',   count: 20, interval: 750  }, { type: 'phantom', count: 12, interval: 700 }],
-    [{ type: 'titan',   count: 2,  interval: 4000 }, { type: 'colossus', count: 2, interval: 3500 }, { type: 'brute',   count: 8,  interval: 950 }],
+    [{ type: 'titan',   count: 3,  interval: 4000 }, { type: 'brute',   count: 8,  interval: 950 }],
     [{ type: 'phantom', count: 18, interval: 650  }, { type: 'skitter', count: 10, interval: 680 }],
     [{ type: 'titan',   count: 3,  interval: 4000 }, { type: 'drone',   count: 15, interval: 750 }, { type: 'phantom', count: 8, interval: 700 }],
     [{ type: 'titan',   count: 4,  interval: 4500 }, { type: 'phantom', count: 15, interval: 650 }, { type: 'brute',   count: 8, interval: 900 }],
