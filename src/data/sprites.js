@@ -23,13 +23,14 @@
 //     },
 //   },
 export const SPRITE_MANIFEST = [
-  // Veth Drone — ground, def.radius 9. The 64px cell renders at ~27px with
-  // scale 0.42, matching the Graphics circle it replaces plus a little overhang
-  // for legs. Move frames are one reference cutout under a bob/rock transform,
+  // Veth Drone — ground, def.radius 9. The 64px cell renders at ~38px. That is
+  // deliberately larger than the Graphics circle it replaced: at the original
+  // ~27px a drone read as an indistinct speck next to 52-99px towers.
+  // Move frames are one reference cutout under a bob/rock transform,
   // so the creature is pixel-identical across the loop (see PROMPTS.md).
   {
     category: 'enemy', type: 'drone',
-    scale: 0.42, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    scale: 0.59, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
     states: {
       move:  { path: 'assets/sprites/enemies/drone_move.png',
                frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 12 },
@@ -40,7 +41,7 @@ export const SPRITE_MANIFEST = [
   // Veth Skitter — ground, def.radius 7. Fast, so the smallest footprint.
   {
     category: 'enemy', type: 'skitter',
-    scale: 0.37, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    scale: 0.52, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
     states: {
       move:  { path: 'assets/sprites/enemies/skitter_move.png',
                frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 16 },
@@ -51,7 +52,7 @@ export const SPRITE_MANIFEST = [
   // Veth Brute — ground, def.radius 11. Slow and heavy, so the gait is slower.
   {
     category: 'enemy', type: 'brute',
-    scale: 0.80, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    scale: 0.91, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
     states: {
       move:  { path: 'assets/sprites/enemies/brute_move.png',
                frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 9 },
@@ -171,7 +172,7 @@ export const SPRITE_MANIFEST = [
   // idle, move and attack all animate.
   {
     category: 'hero', type: 'rael',
-    scale: 0.38, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    scale: 0.76, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
     states: {
       idle:   { path: 'assets/sprites/heroes/rael_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 6, frameRate: 8 },
@@ -183,7 +184,7 @@ export const SPRITE_MANIFEST = [
   },
   {
     category: 'hero', type: 'engineer',
-    scale: 0.39, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    scale: 0.78, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
     states: {
       idle:   { path: 'assets/sprites/heroes/engineer_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 6, frameRate: 8 },
@@ -195,7 +196,7 @@ export const SPRITE_MANIFEST = [
   },
   {
     category: 'hero', type: 'scout',
-    scale: 0.38, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    scale: 0.76, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
     states: {
       idle:   { path: 'assets/sprites/heroes/scout_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 6, frameRate: 8 },
@@ -207,7 +208,7 @@ export const SPRITE_MANIFEST = [
   },
   {
     category: 'hero', type: 'pyro',
-    scale: 0.39, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    scale: 0.78, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
     states: {
       idle:   { path: 'assets/sprites/heroes/pyro_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 6, frameRate: 8 },

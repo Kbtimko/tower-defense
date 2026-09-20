@@ -39,6 +39,7 @@ const makeCtx = (overrides = {}) => ({
     getNearestPathProgress: () => 0.5,
     getPathPoints: () => [],
   },
+  _repaintStaticLayers: vi.fn(),
   _closeTowerPanel: vi.fn(),
   _openTowerPanel: vi.fn(),
   _deselectButtons: vi.fn(),
