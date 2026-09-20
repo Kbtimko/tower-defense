@@ -15,7 +15,9 @@ vi.mock('phaser', () => ({
 }));
 
 import { Hero } from './Hero.js';
-import { HERO_REGEN_DELAY, HERO_REGEN_RATE } from '../data/heroes.js';
+import { HEROES, HERO_REGEN_DELAY, HERO_REGEN_RATE } from '../data/heroes.js';
+import { totalEnemyHpForMap } from '../data/waves.js';
+import { heroXpThresholds } from '../systems/heroLeveling.js';
 
 const makeGraphics = () => ({
   clear() {}, fillStyle() {}, fillCircle() {}, fillRect() {},
@@ -43,6 +45,7 @@ const makeEnemy = (x, y, hp = 50) => {
       calls.push({ amount, opts });
       this.hp = Math.max(0, this.hp - amount);
       if (this.hp <= 0) { this.hp = 0; this.dead = true; }
+      return amount;   // Enemy.takeDamage returns the post-armour damage it applied
     },
   };
 };
@@ -212,35 +215,137 @@ describe('Hero — takeDamage and respawn', () => {
 });
 
 describe('Hero — leveling', () => {
-  it('levels up to L2 at 25 kills', () => {
-    const scene = makeScene();
-    const hero  = new Hero(scene, { x: 0, y: 0 });
-    for (let i = 0; i < 24; i++) hero._registerKill();
+  const MAP = 0;
+  const thresholds = heroXpThresholds(totalEnemyHpForMap(MAP));
+  const newHero = (scene, mods) => new Hero(scene, { x: 0, y: 0, mapId: MAP }, mods);
+
+  it('starts at level 1 with no damage dealt', () => {
+    const hero = newHero(makeScene());
     expect(hero.level).toBe(1);
-    hero._registerKill();
-    expect(hero.level).toBe(2);
+    expect(hero.damageDealt).toBe(0);
   });
 
-  it('levels up to L3 at 75 kills', () => {
-    const scene = makeScene();
-    const hero  = new Hero(scene, { x: 0, y: 0 });
-    for (let i = 0; i < 75; i++) hero._registerKill();
-    expect(hero.level).toBe(3);
+  it('levels on damage dealt, not on kills', () => {
+    // Kill-count is why this changed: the hero can hold a titan from full to
+    // 10% and score nothing because a tower lands the blow.
+    const hero = newHero(makeScene());
+    for (let i = 0; i < 200; i++) hero._registerKill();
+    expect(hero.killCount).toBe(200);
+    expect(hero.level).toBe(1);
+  });
+
+  it('reaches each level as post-armour damage crosses its threshold', () => {
+    const hero = newHero(makeScene());
+    hero._registerDamage(thresholds[0] - 1);
+    expect(hero.level).toBe(1);
+    hero._registerDamage(1);
+    expect(hero.level).toBe(2);
+    hero._registerDamage(thresholds[3] - thresholds[0]);
+    expect(hero.level).toBe(5);
+  });
+
+  it('caps at the def maxLevel of 5', () => {
+    const hero = newHero(makeScene());
+    hero._registerDamage(1e9);
+    expect(hero.level).toBe(5);
   });
 
   it('emits hero:level-up on scene events when leveling', () => {
     const scene = makeScene();
-    const hero  = new Hero(scene, { x: 0, y: 0 });
-    for (let i = 0; i < 25; i++) hero._registerKill();
+    const hero  = newHero(scene);
+    hero._registerDamage(thresholds[0]);
     expect(scene.events.emitted.some(e => e.event === 'hero:level-up' && e.data.level === 2)).toBe(true);
   });
 
-  it('does not emit level-up when already at max level', () => {
+  it('does not emit level-up again once at max level', () => {
     const scene = makeScene();
-    const hero  = new Hero(scene, { x: 0, y: 0 });
-    for (let i = 0; i < 100; i++) hero._registerKill();
-    const l3Events = scene.events.emitted.filter(e => e.event === 'hero:level-up' && e.data.level === 3);
-    expect(l3Events.length).toBe(1);
+    const hero  = newHero(scene);
+    hero._registerDamage(1e9);
+    hero._registerDamage(1e9);
+    const l5 = scene.events.emitted.filter(e => e.event === 'hero:level-up' && e.data.level === 5);
+    expect(l5.length).toBe(1);
+  });
+
+  it('ignores a non-numeric or zero damage report', () => {
+    const hero = newHero(makeScene());
+    hero._registerDamage(undefined);
+    hero._registerDamage(0);
+    expect(hero.damageDealt).toBe(0);
+    expect(hero.level).toBe(1);
+  });
+
+  it('scales attack damage by 1.2x per level, off the base stat', () => {
+    const scene = makeScene();
+    const hero  = newHero(scene);
+    const enemy = makeEnemy(0, 0, 1e9);
+    hero._attackTimer = 0;
+    hero.update(0, [enemy]);
+    expect(enemy._calls[0].amount).toBeCloseTo(HEROES.rael.stats.attackDamage);
+
+    hero._registerDamage(thresholds[3]);   // level 5
+    hero._attackTimer = 0;
+    hero.update(0, [enemy]);
+    expect(enemy._calls[1].amount).toBeCloseTo(HEROES.rael.stats.attackDamage * 1.8);
+  });
+
+  it('raises max hp by the same 1.2x per level', () => {
+    const hero = newHero(makeScene());
+    expect(hero.maxHp).toBe(HEROES.rael.stats.maxHp);
+    hero._registerDamage(thresholds[3]);
+    expect(hero.maxHp).toBeCloseTo(HEROES.rael.stats.maxHp * 1.8);
+  });
+
+  it('raises CURRENT hp by exactly the max hp gained — never a full heal', () => {
+    const hero = newHero(makeScene());
+    hero.takeDamage(100);                  // 150 -> 50
+    const before = hero.hp, beforeMax = hero.maxHp;
+    hero._registerDamage(thresholds[0]);   // level 2: +20% of base 150 = +30
+    expect(hero.maxHp - beforeMax).toBeCloseTo(HEROES.rael.stats.maxHp * 0.2);
+    expect(hero.hp - before).toBeCloseTo(hero.maxHp - beforeMax);
+    expect(hero.hp).toBeLessThan(hero.maxHp);
+  });
+
+  it('never lets the hp raise push current hp past max', () => {
+    const hero = newHero(makeScene());
+    hero._registerDamage(thresholds[0]);
+    expect(hero.hp).toBe(hero.maxHp);
+  });
+
+  it('starts a veteran/elite hero with its head-start level AND those stats', () => {
+    // heroStartLevel 3 is the Elite Commander meta upgrade.
+    const hero = newHero(makeScene(), { heroStartLevel: 3 });
+    expect(hero.level).toBe(3);
+    expect(hero.maxHp).toBeCloseTo(HEROES.rael.stats.maxHp * 1.4);
+    expect(hero.hp).toBe(hero.maxHp);
+  });
+
+  it('never demotes a head-started hero as it deals its first damage', () => {
+    const hero = newHero(makeScene(), { heroStartLevel: 3 });
+    hero._registerDamage(1);
+    expect(hero.level).toBe(3);
+  });
+
+  it('adds heroMaxHpBonus after the level multiplier, so it stays flat', () => {
+    const hero = newHero(makeScene(), { heroMaxHpBonus: 50 });
+    expect(hero.maxHp).toBe(HEROES.rael.stats.maxHp + 50);
+    hero._registerDamage(thresholds[3]);
+    expect(hero.maxHp).toBeCloseTo(HEROES.rael.stats.maxHp * 1.8 + 50);
+  });
+
+  it('scores the POST-armour damage the enemy reports, not the raw attack stat', () => {
+    // Enemy.takeDamage returns what it actually applied after flat armour
+    // subtraction. A hero that banked its own attackDamage instead would level
+    // roughly 18x too fast against a titan.
+    const scene = makeScene();
+    const hero  = newHero(scene);
+    const armoured = makeEnemy(0, 0, 1e9);
+    armoured.takeDamage = (amount, opts) => {
+      armoured._calls.push({ amount, opts });
+      return 1;                            // max(1, 18 - 20) against a titan
+    };
+    hero._attackTimer = 0;
+    hero.update(0, [armoured]);
+    expect(hero.damageDealt).toBe(1);
   });
 });
 

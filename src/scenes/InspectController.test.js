@@ -358,11 +358,13 @@ describe('InspectController — hero panel rendering', () => {
     expect(document.getElementById('hi-level').textContent).toContain('Kills: 47');
   });
 
-  it('pin renders attack stats from HERO_STATS', () => {
+  it('pin renders the CURRENT attack damage, scaled by hero level', () => {
+    // The fixture hero is level 2, so the panel must read 18 * 1.2 = 22, not
+    // the level-1 base stat — the number shown has to be the one it hits for.
     const ctrl = new InspectController(makeScene());
     ctrl.pin({ kind: 'hero', target: makeHero() });
     const text = document.getElementById('hi-attack').textContent;
-    expect(text).toContain('18');
+    expect(text).toContain('22');
     expect(text).toContain('40');
   });
 
@@ -525,9 +527,10 @@ describe('hero panel reads hero.def', () => {
     ctrl.pin({ kind: 'hero', target: hero });
     // level line must include the def-sourced maxLevel
     expect(document.getElementById('hi-level').textContent).toContain('Level: 2');
-    // attack line must read def.stats values (12 dmg, 60 range), not HERO_STATS (18/40)
+    // attack line must read def.stats values (12 dmg, 60 range), not HERO_STATS
+    // (18/40) — scaled to this hero's level 2, so 12 * 1.2 = 14.
     const attackText = document.getElementById('hi-attack').textContent;
-    expect(attackText).toContain('12');
+    expect(attackText).toContain('14');
     expect(attackText).toContain('60');
   });
 
