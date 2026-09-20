@@ -24,7 +24,7 @@ import { gameToPageCss } from '../systems/viewport.js';
 import { STORY_PANELS, briefKey, victorySequenceId, STORY_SEQUENCES } from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
 import { soldierSource, heroAbilitySource } from '../data/sourceBuilders.js';
-import { ENEMY_MELEE_DAMAGE, findBlockingSoldier } from '../systems/soldierCombat.js';
+import { ENEMY_MELEE_DAMAGE, findBlockingSoldier, heroBlocksEnemy } from '../systems/soldierCombat.js';
 import { AreaEffectsManager } from '../systems/AreaEffectsManager.js';
 import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
@@ -380,6 +380,11 @@ export default class GameScene extends Phaser.Scene {
 
   _updateEnemies(dt) {
     const path = this.pathMgr.path;
+    // The hero is one body: it hard-stops one enemy and the rest of the wave
+    // flows past. Tracked per frame rather than inside heroBlocksEnemy, which
+    // is a pure eligibility test several callers share — the exclusivity is a
+    // property of this pass over the queue, not of a hero/enemy pair.
+    let heroHolding = false;
     for (const enemy of this.enemies) {
       enemy.update(dt);
       if (enemy.statusEffects.stun.active) continue; // stun is full freeze: skip movement and melee
@@ -392,6 +397,19 @@ export default class GameScene extends Phaser.Scene {
           blocker._sprite?.setState('attack');
         }
         if (enemy.dead) continue;
+        continue;
+      }
+      // Checked after soldiers so a soldier already holding this enemy wins and
+      // it is not blocked twice. The hero does not strike back here: Hero.update
+      // auto-attacks everything inside attackRange, which contains MELEE_RANGE.
+      // `enemy.dead` matters only here: corpses are swept at the end of the
+      // pass, so one a tower killed after the last sweep is still in the list
+      // and would eat the single hold slot, waving the live enemy behind it
+      // through. The simulator sweeps its dead before this loop, so without the
+      // guard the two would disagree about who gets held.
+      if (!heroHolding && !enemy.dead && heroBlocksEnemy(this.hero, enemy)) {
+        heroHolding = true;
+        this.hero.takeDamage(ENEMY_MELEE_DAMAGE * dt);
         continue;
       }
       let rem = enemy.currentSpeed * dt;

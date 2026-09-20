@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { heroSource } from '../data/sourceBuilders.js';
-import { HEROES } from '../data/heroes.js';
+import { HEROES, HERO_REGEN_DELAY, HERO_REGEN_RATE } from '../data/heroes.js';
 import { EntitySprite } from '../systems/EntitySprite.js';
 import { pointAtProgress } from '../systems/pathGeometry.js';
 
@@ -46,6 +46,8 @@ export class Hero extends Phaser.GameObjects.Container {
     this.overchargeRemaining = 0;
 
     this._attackTimer = 0;
+    // A hero that has never been hit counts as already out of combat.
+    this._timeSinceDamage = HERO_REGEN_DELAY;
 
     this._body  = scene.add.graphics();
     this._hpBar = scene.add.graphics();
@@ -90,6 +92,7 @@ export class Hero extends Phaser.GameObjects.Container {
 
   takeDamage(amount, _opts = {}) {
     if (this.dead) return;
+    this._timeSinceDamage = 0;
     this.hp = Math.max(0, this.hp - amount);
     this._redrawHpBar();
     if (this.hp <= 0) {
@@ -121,6 +124,7 @@ export class Hero extends Phaser.GameObjects.Container {
     this._attackDamageMult   = 1.0;
     this._attackDmgRevertEvt = null;
     this._attackTimer        = 1 / this.def.stats.attackRate;
+    this._timeSinceDamage    = HERO_REGEN_DELAY;
     this.setPathPosition(0);
     if (this._sprite?.active) this._sprite.sprite.setVisible(true);
     else this._body.setVisible(true);
@@ -200,6 +204,12 @@ export class Hero extends Phaser.GameObjects.Container {
       this.respawnTimer -= dt;
       if (this.respawnTimer <= 0) this.respawn();
       return;
+    }
+
+    this._timeSinceDamage += dt;
+    if (this._timeSinceDamage >= HERO_REGEN_DELAY && this.hp < this.maxHp) {
+      this.hp = Math.min(this.maxHp, this.hp + HERO_REGEN_RATE * dt);
+      this._redrawHpBar();
     }
 
     if (this.moving && this._totalPathLength > 0) {

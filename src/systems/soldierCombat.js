@@ -62,3 +62,20 @@ export function tickSoldier(soldier, dt) {
   soldier.respawnTimer = 0;
   return true;
 }
+
+// The hero blocks like a ground soldier but is not soldier-shaped: it carries
+// `_attackTimer` / `def.stats.attackDamage`, so it cannot go through
+// findBlockingSoldier. Only the eligibility test is shared — the damage
+// exchange differs, because the hero's own auto-attack already covers melee
+// range and striking again from the block would double its dps.
+//
+// Eligibility only, and deliberately stateless: the hero holds ONE enemy at a
+// time (the rest of the wave flows past), but that is a property of a single
+// pass over the enemy queue, so each caller tracks it with a frame-local flag
+// rather than this predicate carrying per-frame state its other callers would
+// have to reason about.
+export function heroBlocksEnemy(hero, enemy) {
+  if (!hero || hero.dead) return false;
+  if (enemy.def?.flying) return false;  // flyers pass over the hero, as over ground soldiers
+  return Math.hypot(enemy.x - hero.x, enemy.y - hero.y) < MELEE_RANGE;
+}
