@@ -1151,7 +1151,11 @@ export default class GameScene extends Phaser.Scene {
       const span = document.createElement('span');
       span.className = row.band === 'floored' ? 'ar-floor' : 'ar-heavy';
       const name = row.name.replace(/^Veth\s+/, '');
-      span.textContent = `${name} ${damage}→${row.after}${row.band === 'floored' ? ' ⚠' : ''}`;
+      // Print the absorbed FRACTION, not a damage arrow: `row.after` is the
+      // mid-formula armour value, before the weakness multiplier, so a damage
+      // arrow here can show a number the in-world hit never actually lands.
+      const pct = Math.round(row.absorbed * 100);
+      span.textContent = `${name} ${pct}%${row.band === 'floored' ? ' ⚠' : ''}`;
       head.appendChild(span);
       if (i < rows.length - 1) head.appendChild(document.createTextNode(' · '));
     });

@@ -45,9 +45,12 @@ describe('tower panel armour line', () => {
     expect(el.textContent).not.toContain('Veth');
   });
 
-  it('shows the damage that actually lands', () => {
+  it('shows the absorbed fraction, not a fabricated mid-formula damage arrow', () => {
+    // Ice T1 (8) vs brute/colossus/titan armour (8/15/20) floors to 1 against
+    // all three, absorbing 7 of the 8 raw damage: (8-1)/8 = 87.5% -> 88%.
     render({ type: 'ice', damage: TOWER_DEFS.ice.damage, pierce: false });
-    expect(el.textContent).toContain('8→1');
+    expect(el.textContent).toContain('88%');
+    expect(el.textContent).not.toContain('→');
   });
 
   it('marks a floored row apart from a heavy one', () => {
@@ -84,9 +87,10 @@ describe('tower panel armour line', () => {
     // long after the player upgraded out of the floor.
     render({ type: 'ice', damage: TOWER_DEFS.ice.tier3.damage, pierce: false });
     const floored = el.querySelectorAll('.ar-floor');
-    // ice T3 (18) still floors vs titan (20) but only heavily absorbs colossus.
-    expect(el.textContent).toContain('18→1');    // titan, floored
-    expect(el.textContent).toContain('18→3');    // colossus, heavy
+    // ice T3 (18) still floors vs titan (20): (18-1)/18 = 94%. It only
+    // heavily absorbs colossus (armour 15, after=3): (18-3)/18 = 83%.
+    expect(el.textContent).toContain('94%');    // titan, floored
+    expect(el.textContent).toContain('83%');    // colossus, heavy
     // ice T3 clears the brute (10 through, 44% absorbed) — no longer flagged.
     expect(el.textContent).not.toContain('Brute');
     expect(floored.length).toBe(1);
