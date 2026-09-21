@@ -505,9 +505,10 @@ export default class GameScene extends Phaser.Scene {
       this._applyOvercharge(this.hero.overchargeActive);
     }
 
-    // Emit HP/level for UIScene
+    // Emit HP/level/XP for UIScene
     this.game.events.emit('hero:update', {
       hp: this.hero.hp, maxHp: this.hero.maxHp, level: this.hero.level,
+      xp: this.hero.xpProgress(),
     });
 
     // Cooldown tick (once per second)

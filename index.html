@@ -179,6 +179,8 @@
     #hero-level { font-size:10px; color:#4fc3f7; }
     #hero-hp-bg { width:52px; height:5px; background:#333; border-radius:2px; overflow:hidden; }
     #hero-hp-fill { height:100%; background:#4fc3f7; border-radius:2px; transition:width 0.15s; }
+    #hero-xp-bg { width:52px; height:4px; background:#332b12; border-radius:2px; overflow:hidden; }
+    #hero-xp-fill { height:100%; width:0%; background:#ffd700; border-radius:2px; transition:width 0.15s; }
     .ability-btn { background:#1a2a3a; border:2px solid #4fc3f7; border-radius:5px;
                    padding:4px 7px; cursor:pointer; display:flex; flex-direction:column;
                    align-items:center; gap:1px; color:#4fc3f7; font-family:'Georgia',serif; }
@@ -471,6 +473,7 @@
       <div id="hero-info">
         <div id="hero-level">Rael L1</div>
         <div id="hero-hp-bg"><div id="hero-hp-fill"></div></div>
+        <div id="hero-xp-bg"><div id="hero-xp-fill"></div></div>
       </div>
       <button class="ability-btn" id="ability-q" disabled title="Overcharge — +50% tower fire rate 6s">
         <span class="ability-key">Q</span><span class="ability-name">⚡</span><span class="ability-cd"></span>

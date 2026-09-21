@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { heroSource } from '../data/sourceBuilders.js';
 import { HEROES, HERO_REGEN_DELAY, HERO_REGEN_RATE } from '../data/heroes.js';
 import { totalEnemyHpForMap } from '../data/waves.js';
-import { heroLevelForDamage, heroAttackDamage, heroMaxHp } from '../systems/heroLeveling.js';
+import { heroLevelForDamage, heroAttackDamage, heroMaxHp, heroXpProgress } from '../systems/heroLeveling.js';
 import { EntitySprite } from '../systems/EntitySprite.js';
 import { pointAtProgress } from '../systems/pathGeometry.js';
 
@@ -168,6 +168,15 @@ export class Hero extends Phaser.GameObjects.Container {
     this.maxHp = grownMaxHp;
     this._redrawHpBar();
     this.scene.events.emit('hero:level-up', { level: this.level });
+  }
+
+  // Progress toward the next level, for the HUD. The map's HP budget and the
+  // start level are this entity's business; the scene only relays the result.
+  xpProgress() {
+    return heroXpProgress(this.damageDealt, this._mapTotalHp, {
+      startLevel: this._startLevel,
+      maxLevel:   this.def.stats.maxLevel,
+    });
   }
 
   /**

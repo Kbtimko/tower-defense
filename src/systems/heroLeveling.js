@@ -46,3 +46,27 @@ export function heroAttackDamage(stats, level) {
 export function heroMaxHp(stats, level, modifiers = {}) {
   return stats.maxHp * heroLevelMult(level) + (modifiers.heroMaxHpBonus ?? 0);
 }
+
+// Progress toward the NEXT level, for the HUD bar. Returns the position inside
+// the current level's window rather than the running total, because the bar
+// empties and refills at each level.
+//
+// `heroStartLevel` (the veteran/elite meta upgrades) puts a hero above level 1
+// with zero damage dealt, which lands below its own window — clamped, not
+// negative. A map with no wave table has no HP budget to pace against, so it
+// reports empty rather than NaN.
+export function heroXpProgress(damageDealt, mapTotalHp, { startLevel = 1, maxLevel = 5 } = {}) {
+  const level = heroLevelForDamage(damageDealt, mapTotalHp, { startLevel, maxLevel });
+  const atMax = level >= maxLevel;
+  if (atMax)            return { level, progress: 1, current: 0, needed: 0, atMax: true };
+  if (!(mapTotalHp > 0)) return { level, progress: 0, current: 0, needed: 0, atMax: false };
+
+  const thresholds = heroXpThresholds(mapTotalHp);
+  const prev   = level >= 2 ? thresholds[level - 2] : 0;
+  const next   = thresholds[level - 1];
+  const needed = next - prev;
+  if (!(needed > 0)) return { level, progress: 0, current: 0, needed: 0, atMax: false };
+
+  const current = Math.min(Math.max(damageDealt - prev, 0), needed);
+  return { level, progress: current / needed, current, needed, atMax: false };
+}
