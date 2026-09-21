@@ -6,19 +6,21 @@ import { describeEnemy } from './entityDescriptors.js';
 // mapId can be caller-controlled (a URL param, a save file); MAP_WAVES is a
 // plain object literal, so a bare MAP_WAVES[mapId] reaches Object.prototype
 // for keys like 'toString' or 'constructor'. Object.hasOwn keeps lookups to
-// the table's own entries, and resolving it here means neither exported
-// function reads MAP_WAVES[mapId] before checking the { waves } override.
-function resolveWaves(mapId) {
+// the table's own entries. An explicit opts.waves always wins over the real
+// table — including [] and including on an unknown mapId — so callers can
+// inject a fixture without it being silently shadowed by a real lookup.
+function resolveWaves(mapId, opts) {
+  if (Object.hasOwn(opts, 'waves')) return opts.waves;
   return Object.hasOwn(MAP_WAVES, mapId) ? MAP_WAVES[mapId] : undefined;
 }
 
 export function waveCount(mapId, opts = {}) {
-  const waves = Object.hasOwn(opts, 'waves') ? opts.waves : resolveWaves(mapId);
+  const waves = resolveWaves(mapId, opts);
   return Array.isArray(waves) ? waves.length : 0;
 }
 
 export function summarizeWave(mapId, waveIndex, opts = {}) {
-  const waves = Object.hasOwn(opts, 'waves') ? opts.waves : resolveWaves(mapId);
+  const waves = resolveWaves(mapId, opts);
   if (!Array.isArray(waves))                      return null;
   if (!Number.isInteger(waveIndex))                return null;
   if (waveIndex < 0 || waveIndex >= waves.length)  return null;
@@ -34,6 +36,9 @@ export function summarizeWave(mapId, waveIndex, opts = {}) {
     byType.set(group.type, { ...described, count: group.count });
   }
 
+  // A valid index whose wave has no groups falls through to here, not the
+  // out-of-range branch above: an empty wave is a wave (totalCount 0, groups
+  // []), structurally distinct from an index that names no wave at all.
   const groups = [...byType.values()];
   return {
     waveNumber: waveIndex + 1,

@@ -6,25 +6,34 @@ import { MAPS }       from '../data/maps.js';
 
 describe('summarizeWave', () => {
   it('summarises a single-type wave', () => {
-    const s = summarizeWave(0, 0);           // map 0 wave 1: 6 drones
-    expect(s.waveNumber).toBe(1);            // 1-based for display
-    expect(s.totalCount).toBe(6);
+    const wave0Total = MAP_WAVES[0][0].reduce((n, g) => n + g.count, 0);
+    const s = summarizeWave(0, 0);
+    expect(s.waveNumber).toBe(1);            // 1-based for display: pins structure, not balance
+    expect(s.totalCount).toBe(wave0Total);
     expect(s.groups.length).toBe(1);
     expect(s.groups[0].type).toBe('drone');
-    expect(s.groups[0].count).toBe(6);
+    expect(s.groups[0].count).toBe(wave0Total);
     expect(s.groups[0].hp).toBe(ENEMY_DEFS.drone.hp);
     expect(s.groups[0].vulnerableTo).toBeDefined();
   });
 
   it('summarises a multi-type wave in authored order', () => {
-    const s = summarizeWave(0, 1);           // 8 drones + 3 skitters
+    const wave1Total = MAP_WAVES[0][1].reduce((n, g) => n + g.count, 0);
+    const s = summarizeWave(0, 1);
     expect(s.groups.map(g => g.type)).toEqual(['drone', 'skitter']);
-    expect(s.totalCount).toBe(11);
+    expect(s.totalCount).toBe(wave1Total);
   });
 
   it('returns null for an out-of-range wave index', () => {
     expect(summarizeWave(0, 999)).toBeNull();
     expect(summarizeWave(0, -1)).toBeNull();
+  });
+
+  it('returns null for a non-integer wave index', () => {
+    expect(summarizeWave(0, 1.5)).toBeNull();
+    expect(summarizeWave(0, '0')).toBeNull();
+    expect(summarizeWave(0, NaN)).toBeNull();
+    expect(summarizeWave(0, undefined)).toBeNull();
   });
 
   it('returns null for an unknown map', () => {
@@ -39,10 +48,12 @@ describe('summarizeWave', () => {
   });
 
   it('does not alias ENEMY_DEFS or MAP_WAVES: mutating a returned group is inert', () => {
+    const originalCount = MAP_WAVES[0][0][0].count;
+    const originalHp = ENEMY_DEFS.drone.hp;
     const s = summarizeWave(0, 0);
     s.groups[0].count = 9999;
-    expect(MAP_WAVES[0][0][0].count).toBe(6);
-    expect(ENEMY_DEFS.drone.hp).toBe(70);
+    expect(MAP_WAVES[0][0][0].count).toBe(originalCount);
+    expect(ENEMY_DEFS.drone.hp).toBe(originalHp);
   });
 
   it('does not reach the prototype chain for an inherited map id', () => {
