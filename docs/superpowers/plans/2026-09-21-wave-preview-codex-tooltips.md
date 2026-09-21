@@ -54,6 +54,21 @@
 
 ### Task 1: Enemy and tower descriptors
 
+> **Amended after code review (see commit history).** The shipped module differs
+> from the code shown below in four ways, and later tasks assume the *amended*
+> shape:
+> 1. `Object.hasOwn` guards, so a prototype key like `'constructor'` returns
+>    `null` instead of throwing.
+> 2. `soldierStats` and `ability` are deep-copied, so a renderer cannot mutate
+>    the live balance tables.
+> 3. `vulnerableTo` / `resists` / `effectiveAtBase` / `weakAtBase` are arrays of
+>    `{kind, type, name, icon}` objects, **not** bare type strings. The raw
+>    `describeEnemyMatchups` output mixes bare tower types with `hero:`-prefixed
+>    hero ids; mapping it once here stops three UI surfaces each re-parsing it.
+> 4. The tower matchup fields are named `effectiveAtBase` / `weakAtBase`,
+>    because they are tier-1 unbranched values and `TIER4_OVERRIDES` can invert
+>    them (cannon is weak vs skitter at base; Artillery is 2.0x *against* it).
+
 **Files:**
 - Create: `src/systems/entityDescriptors.js`
 - Test: `src/systems/entityDescriptors.test.js`
@@ -1066,10 +1081,10 @@ Expected: FAIL — cannot resolve `./WavePreviewPopover.js`.
 // #wave-btn for the whole of an active wave, and Chrome and Safari fire no
 // pointer events on a disabled control. Hovering the button would go dead
 // exactly when a player most wants to see what is coming.
-const TOWER_LABEL = { archer:'Archer', mage:'Mage', cannon:'Cannon', ice:'Ice', sniper:'Sniper', barracks:'Barracks' };
-
-function towerNames(types) {
-  return types.filter(t => !t.startsWith('hero:')).map(t => TOWER_LABEL[t] ?? t).join(', ');
+// vulnerableTo/resists arrive from describeEnemy as {kind, type, name, icon}
+// objects — already display-ready, so no prefix parsing happens here.
+function counterNames(counters) {
+  return counters.map(c => c.name).join(', ');
 }
 
 export class WavePreviewPopover {
@@ -1143,13 +1158,13 @@ export class WavePreviewPopover {
       if (g.vulnerableTo.length) {
         const weak = document.createElement('div');
         weak.className   = 'wp-match';
-        weak.textContent = `weak to ${towerNames(g.vulnerableTo)}`;
+        weak.textContent = `weak to ${counterNames(g.vulnerableTo)}`;
         this._el.appendChild(weak);
       }
       if (g.resists.length) {
         const res = document.createElement('div');
         res.className   = 'wp-match resist';
-        res.textContent = `resists ${towerNames(g.resists)}`;
+        res.textContent = `resists ${counterNames(g.resists)}`;
         this._el.appendChild(res);
       }
     }
@@ -1529,7 +1544,6 @@ Expected: FAIL — cannot resolve `./CodexOverlay.js`.
 // SettingsOverlay idiom: an explicit listener array, wired in open() and
 // unwired in close(), so nothing outlives the overlay.
 const TABS = ['towers', 'heroes', 'enemies'];
-const TOWER_LABEL = { archer:'Archer', mage:'Mage', cannon:'Cannon', ice:'Ice', sniper:'Sniper', barracks:'Barracks' };
 
 function line(cls, text) {
   const el = document.createElement('div');
@@ -1538,8 +1552,9 @@ function line(cls, text) {
   return el;
 }
 
-function towerNames(types) {
-  return types.filter(t => !t.startsWith('hero:')).map(t => TOWER_LABEL[t] ?? t).join(', ');
+// Matchup entries are already {kind, type, name, icon} from the descriptors.
+function names(entries) {
+  return entries.map(e => e.name).join(', ');
 }
 
 export class CodexOverlay {
@@ -1657,8 +1672,8 @@ export class CodexOverlay {
       line('codex-stat', `Speed: ${e.speed}`),
       line('codex-stat', `Bounty: ${e.reward} gold`),
       line('codex-section', 'Matchups'),
-      line('codex-stat', e.vulnerableTo.length ? `Weak to: ${towerNames(e.vulnerableTo)}` : 'No particular weakness'),
-      line('codex-stat', e.resists.length ? `Resists: ${towerNames(e.resists)}` : 'Resists nothing'),
+      line('codex-stat', e.vulnerableTo.length ? `Weak to: ${names(e.vulnerableTo)}` : 'No particular weakness'),
+      line('codex-stat', e.resists.length ? `Resists: ${names(e.resists)}` : 'Resists nothing'),
     );
     if (!e.encountered) this._detail.appendChild(line('codex-unseen-tag', 'Not yet encountered'));
   }
@@ -1709,10 +1724,13 @@ export class CodexOverlay {
       );
     }
 
+    // Labelled "at base tier" deliberately: TIER4_OVERRIDES can invert these
+    // outright (cannon is weak vs skitter at base, but Artillery is 2.0x
+    // AGAINST skitter), and the tier ladder is rendered directly above.
     this._detail.append(
-      line('codex-section', 'Matchups'),
-      line('codex-stat', t.effective.length ? `Strong against: ${t.effective.join(', ')}` : 'No particular strength'),
-      line('codex-stat', t.weak.length ? `Weak against: ${t.weak.join(', ')}` : 'No particular weakness'),
+      line('codex-section', 'Matchups (at base tier)'),
+      line('codex-stat', t.effectiveAtBase.length ? `Strong against: ${names(t.effectiveAtBase)}` : 'No particular strength'),
+      line('codex-stat', t.weakAtBase.length ? `Weak against: ${names(t.weakAtBase)}` : 'No particular weakness'),
     );
   }
 
