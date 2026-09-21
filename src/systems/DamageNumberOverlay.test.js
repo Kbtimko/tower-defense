@@ -177,6 +177,30 @@ describe('absorbed hits', () => {
     expect(made[0].setText).toHaveBeenCalledTimes(2);
   });
 
+  it('does not consume the throttle window when the pool is exhausted', () => {
+    // Fill every pool slot with in-flight numbers (tweens.add never fires
+    // onComplete here, so nothing gets recycled), then send an absorbed hit
+    // on a fresh enemy that the pool has to drop. If the throttle timestamp
+    // were written before the pool check, that dropped hit would still burn
+    // the enemy's 700ms window and swallow the next legitimate one.
+    const scene = makeScene();
+    scene.tweens.add = vi.fn(() => ({}));
+    const made = [];
+    scene.add.text = vi.fn(() => { const t = makeText(); made.push(t); return t; });
+    const overlay = new DamageNumberOverlay(scene);
+    const target = { x: 0, y: 0 };
+
+    for (let i = 0; i < 24; i++) {
+      scene.events.emit('damage-dealt', { target: { x: i, y: i }, amount: 50 });
+    }
+    expect(made.length).toBe(24);
+
+    // Pool is exhausted: this absorbed hit is dropped before it can set the
+    // throttle timestamp for `target`.
+    scene.events.emit('damage-dealt', { target, amount: 1, absorbedBand: 'floored' });
+    expect(overlay._absorbedAt.has(target)).toBe(false);
+  });
+
   it('drops its throttle state on destroy', () => {
     const scene = makeScene();
     const overlay = new DamageNumberOverlay(scene);

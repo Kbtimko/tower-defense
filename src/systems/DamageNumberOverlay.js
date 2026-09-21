@@ -31,14 +31,14 @@ export class DamageNumberOverlay {
 
   _handle({ target, amount, isCrit = false, isAoe = false, abilityLabel = null, absorbedBand = 'none' }) {
     const absorbed = absorbedBand === 'heavy' || absorbedBand === 'floored';
+    let now;
 
     if (absorbed) {
       // Per-enemy gate. A WeakMap means a dead enemy needs no sweep to be
       // collected, so a long level cannot leak entries.
       const last = this._absorbedAt.get(target);
-      const now  = this._now();
+      now = this._now();
       if (last !== undefined && now - last < ABSORBED_COOLDOWN_MS) return;
-      this._absorbedAt.set(target, now);
     } else if (!(isCrit || isAoe || amount >= THRESHOLD)) {
       return;
     }
@@ -55,6 +55,10 @@ export class DamageNumberOverlay {
     } else {
       return;
     }
+    // Spend the throttle window only once the number is actually going to be
+    // shown — writing it earlier let a pool-exhausted absorbed hit silently
+    // eat this enemy's next window too.
+    if (absorbed) this._absorbedAt.set(target, now);
     this._inUse.add(txt);
 
     const style = absorbed ? STYLES.absorbed
