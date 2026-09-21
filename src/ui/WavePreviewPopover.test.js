@@ -59,6 +59,11 @@ describe('WavePreviewPopover', () => {
     expect(dom.pop.textContent.toLowerCase()).toContain('flying');
   });
 
+  it('marks ground enemies', () => {
+    popover.setWave(summarizeWave(0, firstWaveWith(0, 'drone')));
+    expect(dom.pop.textContent.toLowerCase()).toContain('ground');
+  });
+
   // No next wave: show nothing at all, not an empty frame.
   it('stays hidden when the wave is null', () => {
     popover.setWave(null);
@@ -74,12 +79,22 @@ describe('WavePreviewPopover', () => {
     expect(dom.pop.classList.contains('shown')).toBe(false);
   });
 
-  it('opens on focus and closes on blur', () => {
+  it('opens on focusin and closes on focusout', () => {
     popover.setWave(summarizeWave(0, 0));
-    dom.wrap.dispatchEvent(new Event('focus'));
+    dom.wrap.dispatchEvent(new Event('focusin', { bubbles: true }));
     expect(dom.pop.classList.contains('shown')).toBe(true);
-    dom.wrap.dispatchEvent(new Event('blur'));
+    dom.wrap.dispatchEvent(new Event('focusout', { bubbles: true }));
     expect(dom.pop.classList.contains('shown')).toBe(false);
+  });
+
+  // focus/blur don't bubble, so a naive listener on the wrapper would close
+  // the instant keyboard focus moved from the wrapper onto the button inside
+  // it. focusin/focusout bubble, so focus reaching the button must still
+  // count as focus "inside" and keep the popover open.
+  it('opens on a bubbling focusin from the Send Wave button', () => {
+    popover.setWave(summarizeWave(0, 0));
+    dom.btn.dispatchEvent(new Event('focusin', { bubbles: true }));
+    expect(dom.pop.classList.contains('shown')).toBe(true);
   });
 
   it('closes on Escape', () => {
@@ -97,6 +112,16 @@ describe('WavePreviewPopover', () => {
     tap();
     expect(dom.pop.classList.contains('shown')).toBe(true);
     tap();
+    expect(dom.pop.classList.contains('shown')).toBe(false);
+  });
+
+  // pointerdown on #wave-btn bubbles up through the wrapper. A touch tap on
+  // Send Wave must send the wave and nothing else — not open a popover that
+  // then sits over the wave the button's own click handler just started.
+  it('does not open on a touch tap of the Send Wave button itself', () => {
+    popover.setWave(summarizeWave(0, 0));
+    dom.btn.dispatchEvent(
+      Object.assign(new Event('pointerdown', { bubbles: true }), { pointerType: 'touch' }));
     expect(dom.pop.classList.contains('shown')).toBe(false);
   });
 
@@ -128,9 +153,42 @@ describe('WavePreviewPopover', () => {
   it('removes every listener on destroy', () => {
     popover.setWave(summarizeWave(0, 0));
     popover.destroy();
+
+    // destroy() clears _summary, so show() itself now no-ops — that would mask
+    // a leaked hide-triggering listener. Force the "shown" class directly so
+    // any listener still attached shows up as unwanted class churn.
+    const forceShown = () => {
+      dom.pop.classList.add('shown');
+      dom.pop.setAttribute('aria-hidden', 'false');
+    };
+
+    forceShown();
+    dom.wrap.dispatchEvent(new Event('pointerleave'));
+    expect(dom.pop.classList.contains('shown')).toBe(true);
+
+    forceShown();
+    dom.wrap.dispatchEvent(new Event('focusout', { bubbles: true }));
+    expect(dom.pop.classList.contains('shown')).toBe(true);
+
+    forceShown();
+    dom.wrap.dispatchEvent(
+      Object.assign(new Event('pointerdown', { bubbles: true }), { pointerType: 'touch' }));
+    expect(dom.pop.classList.contains('shown')).toBe(true);
+
+    forceShown();
+    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(dom.pop.classList.contains('shown')).toBe(true);
+
+    forceShown();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(dom.pop.classList.contains('shown')).toBe(true);
+
+    // pointerenter/focusin must not resurrect it either.
+    dom.pop.classList.remove('shown');
     dom.wrap.dispatchEvent(new Event('pointerenter'));
     expect(dom.pop.classList.contains('shown')).toBe(false);
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    dom.wrap.dispatchEvent(new Event('focusin', { bubbles: true }));
+    expect(dom.pop.classList.contains('shown')).toBe(false);
   });
 
   it('survives construction when the DOM is absent', () => {

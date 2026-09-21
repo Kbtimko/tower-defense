@@ -374,6 +374,7 @@ export default class GameScene extends Phaser.Scene {
     const am = this.game.registry.get('audio');
     if (am) am.playSfx('wave-start');
     this.waveMgr.startWave();
+    this._wavePreview?.hide();
     this._updateWaveButton();
   }
 

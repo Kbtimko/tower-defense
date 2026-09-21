@@ -23,8 +23,13 @@ export class WavePreviewPopover {
 
     // Touch has no hover, so a tap toggles. Guarded on pointerType: a mouse
     // click on Send Wave must start the wave, not fight with the popover.
+    // Also guarded against the button itself: pointerdown on #wave-btn bubbles
+    // to this wrapper listener, and a tap there must send the wave and nothing
+    // else — not toggle a popover the button's own click handler then starts
+    // a wave underneath.
     this._onTap = (e) => {
       if (e.pointerType !== 'touch') return;
+      if (e.target.closest?.('#wave-btn')) return;
       if (this._el?.classList.contains('shown')) this.hide(); else this.show();
     };
     // Any pointerdown outside dismisses — the touch equivalent of pointerleave.
@@ -35,8 +40,12 @@ export class WavePreviewPopover {
     if (this._wrap) {
       this._wrap.addEventListener('pointerenter', this._onEnter);
       this._wrap.addEventListener('pointerleave', this._onLeave);
-      this._wrap.addEventListener('focus',        this._onEnter);
-      this._wrap.addEventListener('blur',         this._onLeave);
+      // focus/blur don't bubble, so with tabindex on the wrapper AND a focusable
+      // #wave-btn inside it, tabbing onto the button would fire blur on the
+      // wrapper and immediately close the popover the instant focus reaches the
+      // button. focusin/focusout bubble, so focus anywhere inside keeps it open.
+      this._wrap.addEventListener('focusin',      this._onEnter);
+      this._wrap.addEventListener('focusout',     this._onLeave);
       this._wrap.addEventListener('pointerdown',  this._onTap);
     }
     document.addEventListener('keydown',     this._onEsc);
@@ -110,8 +119,8 @@ export class WavePreviewPopover {
     if (this._wrap) {
       this._wrap.removeEventListener('pointerenter', this._onEnter);
       this._wrap.removeEventListener('pointerleave', this._onLeave);
-      this._wrap.removeEventListener('focus',        this._onEnter);
-      this._wrap.removeEventListener('blur',         this._onLeave);
+      this._wrap.removeEventListener('focusin',      this._onEnter);
+      this._wrap.removeEventListener('focusout',     this._onLeave);
       this._wrap.removeEventListener('pointerdown',  this._onTap);
     }
     document.removeEventListener('keydown',     this._onEsc);
