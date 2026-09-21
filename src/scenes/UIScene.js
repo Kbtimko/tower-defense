@@ -15,6 +15,12 @@ export default class UIScene extends Phaser.Scene {
     this._openTower    = null;
     this._onKeyDown    = null;
 
+    // Phaser reuses this one UIScene instance across maps; reset the XP
+    // tooltip memo so the previous map's damage-needed figures don't linger.
+    this._heroXpPct    = null;
+    this._heroXpAtMax  = null;
+    this._heroXpLevel  = null;
+
     document.getElementById('hud').style.display        = 'flex';
     document.getElementById('bottom-bar').style.display = 'flex';
     document.getElementById('game-msg').style.display   = 'none';
@@ -394,9 +400,10 @@ export default class UIScene extends Phaser.Scene {
     if (fill) fill.style.width = (xp.progress * 100).toFixed(1) + '%';
 
     const pct = Math.floor(xp.progress * 100);
-    if (pct === this._heroXpPct && xp.atMax === this._heroXpAtMax) return;
+    if (pct === this._heroXpPct && xp.atMax === this._heroXpAtMax && xp.level === this._heroXpLevel) return;
     this._heroXpPct   = pct;
     this._heroXpAtMax = xp.atMax;
+    this._heroXpLevel = xp.level;
 
     const section = document.getElementById('hero-section');
     if (!section) return;

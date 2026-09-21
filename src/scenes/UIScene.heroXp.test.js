@@ -121,3 +121,78 @@ describe('UIScene hero level label', () => {
     expect(document.getElementById('ability-e').disabled).toBe(false);
   });
 });
+
+describe('UIScene hero XP tooltip memo correctness', () => {
+  beforeEach(setupHeroDOM);
+
+  // A damage tick can cross a level boundary and land on a progress that
+  // floors to the same whole percent as the frame before; xp.level must be
+  // part of the memo key or the tooltip keeps naming the old level.
+  it('updates the tooltip on a level change even when the percent floors the same', () => {
+    const s = makeScene();
+    s._onHeroUpdate({ hp: 100, maxHp: 100,
+      xp: { level: 2, progress: 0.99, current: 5940, needed: 6000, atMax: false } });
+    expect(tooltip().startsWith('Level 2 — 99%')).toBe(true);
+
+    s._onHeroUpdate({ hp: 100, maxHp: 100,
+      xp: { level: 3, progress: 0.99, current: 0, needed: 9000, atMax: false } });
+    expect(tooltip().startsWith('Level 3 — 99%')).toBe(true);
+  });
+});
+
+function setupCreateDOM() {
+  document.body.textContent = '';
+  for (const id of ['hud', 'bottom-bar', 'game-msg']) {
+    const d = document.createElement('div');
+    d.id = id;
+    document.body.appendChild(d);
+  }
+  const section = document.createElement('div');
+  section.id = 'hero-section';
+  for (const id of ['hero-hp-fill', 'hero-xp-fill']) {
+    const d = document.createElement('div');
+    d.id = id;
+    section.appendChild(d);
+  }
+  document.body.appendChild(section);
+  const btnIds = [
+    'wave-btn', 'speed-btn', 'panel-upgrade-btn', 'panel-sell-btn', 'msg-btn',
+    'panel-reposition-btn', 'ability-q', 'ability-w', 'ability-e',
+  ];
+  for (const id of btnIds) {
+    const b = document.createElement('button');
+    b.id = id;
+    document.body.appendChild(b);
+  }
+}
+
+// UIScene is registered once in main.js's scene array, so Phaser reuses the
+// same instance across maps: create() re-runs on relaunch rather than
+// constructing a fresh scene. Drive the real create() (with GameScene absent,
+// as it is mid-launch) rather than a hand-built stub, so this pins the actual
+// reset create() performs, not a reimplementation of it.
+function makeLaunchableScene() {
+  const s = Object.create(UIScene.prototype);
+  s.events = { on() {} };
+  s.game = { events: { on() {}, off() {}, emit() {} } };
+  s.scene = { get() { return undefined; } };
+  return s;
+}
+
+describe('UIScene hero XP memo reset on scene relaunch', () => {
+  beforeEach(setupCreateDOM);
+
+  it('clears the memoised XP percent/level/atMax on create() so a new map is not silently skipped', () => {
+    const s = makeLaunchableScene();
+    s.create();
+    s._onHeroUpdate({ hp: 100, maxHp: 100,
+      xp: { level: 2, progress: 0.4, current: 240, needed: 600, atMax: false } });
+    expect(s._heroXpPct).toBe(40);
+
+    s.create(); // simulate the scene relaunching for the next map
+
+    expect(s._heroXpPct).toBeNull();
+    expect(s._heroXpAtMax).toBeNull();
+    expect(s._heroXpLevel).toBeNull();
+  });
+});
