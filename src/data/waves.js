@@ -32,19 +32,21 @@ export const MAP_WAVES = {
     [{ type: 'drone',   count: 18, interval: 720  }],
   ],
 
+  // Trimmed 12330 -> 11000 to smooth the on-ramp: HP per wave now runs
+  // 722 -> 812 -> 917 across maps 0-2 instead of 880 -> 812 -> 1028.
   2: [
     [{ type: 'drone',   count: 8,  interval: 1100 }],
     [{ type: 'skitter', count: 6,  interval: 900  }],
     [{ type: 'drone',   count: 10, interval: 1000 }, { type: 'skitter', count: 4, interval: 850 }],
-    [{ type: 'brute',   count: 5,  interval: 1300 }],
-    [{ type: 'drone',   count: 12, interval: 950  }, { type: 'brute',   count: 3, interval: 1300 }],
-    [{ type: 'skitter', count: 8,  interval: 800  }, { type: 'brute',   count: 4, interval: 1200 }],
+    [{ type: 'brute',   count: 4,  interval: 1300 }],
+    [{ type: 'drone',   count: 10, interval: 950  }, { type: 'brute',   count: 3, interval: 1300 }],
+    [{ type: 'skitter', count: 8,  interval: 800  }, { type: 'brute',   count: 3, interval: 1200 }],
     [{ type: 'drone',   count: 10, interval: 900  }, { type: 'skitter', count: 6, interval: 780  }],
-    [{ type: 'brute',   count: 7,  interval: 1100 }],
-    [{ type: 'drone',   count: 12, interval: 850  }, { type: 'brute',   count: 5, interval: 1100 }],
-    [{ type: 'skitter', count: 10, interval: 750  }, { type: 'brute',   count: 6, interval: 1000 }],
-    [{ type: 'drone',   count: 15, interval: 800  }, { type: 'skitter', count: 8, interval: 700  }],
-    [{ type: 'drone',   count: 20, interval: 650  }, { type: 'brute',   count: 8, interval: 900  }],
+    [{ type: 'brute',   count: 6,  interval: 1100 }],
+    [{ type: 'drone',   count: 10, interval: 850  }, { type: 'brute',   count: 4, interval: 1100 }],
+    [{ type: 'skitter', count: 10, interval: 750  }, { type: 'brute',   count: 5, interval: 1000 }],
+    [{ type: 'drone',   count: 14, interval: 800  }, { type: 'skitter', count: 8, interval: 700  }],
+    [{ type: 'drone',   count: 18, interval: 650  }, { type: 'brute',   count: 6, interval: 900  }],
   ],
 
   3: [

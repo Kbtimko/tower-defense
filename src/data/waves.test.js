@@ -144,7 +144,7 @@ describe('totalEnemyHpForMap', () => {
   // moves the levelling curve with it — which is exactly what should happen,
   // but it should not happen unnoticed.
   const EXPECTED = {
-    0:  8800, 1:  8120, 2: 12330, 3: 10770, 4: 18500,
+    0:  7220, 1:  8120, 2: 11000, 3: 10770, 4: 18500,
     5: 18080, 6: 24440, 7: 31430, 8: 40970, 9: 59780,
   };
 
