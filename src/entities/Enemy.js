@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { computeDamage } from '../systems/damage.js';
+import { armourAbsorption } from '../systems/armourLegibility.js';
 import { SFX_KEYS } from '../systems/AudioManager.js';
 import { enemyHitSfxKey } from '../systems/sfxKeys.js';
 import { EntitySprite } from '../systems/EntitySprite.js';
@@ -133,12 +134,19 @@ export class Enemy extends Phaser.GameObjects.Container {
 
     const am = this.scene.game?.registry?.get('audio');
     if (am) am.playSfx(enemyHitSfxKey(this.def.type, SFX_KEYS), { detune: (Math.random() - 0.5) * 100 });
+    // Both the raw amount and the armour that ate it are in hand here, so the
+    // overlay can be told WHY a hit was small without a second event or a
+    // second copy of the arithmetic.
+    const { band } = armourAbsorption({
+      amount, armor: this.armor, pierce: optsObj.pierce,
+    });
     this.scene.events.emit('damage-dealt', {
       target: this,
       amount: dmg,
       isCrit: optsObj.isCrit ?? false,
       isAoe:  optsObj.isAoe  ?? false,
       abilityLabel: optsObj.abilityLabel ?? null,
+      absorbedBand: band,
     });
 
     if (justDied) {
