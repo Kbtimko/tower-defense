@@ -40,6 +40,8 @@ import { SFX_KEYS } from '../systems/AudioManager.js';
 import { towerFireSfxKey } from '../systems/sfxKeys.js';
 import { WavePreviewPopover } from '../ui/WavePreviewPopover.js';
 import { summarizeWave }      from '../systems/wavePreview.js';
+import { CodexOverlay }       from '../ui/CodexOverlay.js';
+import { buildCatalog, progressFromSave } from '../systems/codexCatalog.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const WAVE_CLEAR_BONUS   = 38;
@@ -237,6 +239,7 @@ export default class GameScene extends Phaser.Scene {
       if (!this._userPaused) this.scene.resume();
     });
     document.getElementById('pause-btn').addEventListener('click', () => this._onPauseToggle());
+    document.getElementById('open-codex')?.addEventListener('click', () => this._openCodex());
   }
 
   _showConfirmExit() {
@@ -263,6 +266,18 @@ export default class GameScene extends Phaser.Scene {
       overlay.classList.remove('shown');
       btn.textContent = '⏸ Pause';
     }
+  }
+
+  // Reading a stat block should not cost lives. Opening pauses a running game;
+  // closing resumes it ONLY if the player had not paused deliberately — the
+  // same rule the exit-confirm dialog already uses.
+  _openCodex() {
+    if (this.over || this.won) return;
+    if (!this._codexOverlay) this._codexOverlay = new CodexOverlay();
+    if (!this._userPaused) this.scene.pause();
+    this._codexOverlay.open(buildCatalog(progressFromSave(this.game.registry.get('save'))), {
+      onClose: () => { if (!this._userPaused) this.scene.resume(); },
+    });
   }
 
   // Scene-level listeners, wired and unwired as a matched pair.
@@ -303,13 +318,15 @@ export default class GameScene extends Phaser.Scene {
     this._unwireSceneEvents();
     this._wavePreview?.destroy();
     this._wavePreview = null;
+    this._codexOverlay?.close();
+    this._codexOverlay = null;
     this._storyDialog?.close();
     this.inspector?.destroy();
     if (import.meta.env.DEV) window.__game = null;
     this.game.events.off('ui:ability', this._onAbility, this);
     this.game.events.off('ui:pause-toggle', this._onPauseToggle, this);
     // Remove all DOM listeners without tracking refs: clone replaces the node
-    ['wave-btn','speed-btn','pause-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','msg-cancel-btn','exit-btn','panel-reposition-btn','story-dismiss'].forEach(id => {
+    ['wave-btn','speed-btn','pause-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','msg-cancel-btn','exit-btn','panel-reposition-btn','story-dismiss','open-codex'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.replaceWith(el.cloneNode(true));
     });

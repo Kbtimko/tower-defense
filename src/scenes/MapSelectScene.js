@@ -9,6 +9,8 @@ import { SettingsOverlay }        from '../ui/SettingsOverlay.js';
 import { HeroManagementOverlay }  from '../ui/HeroManagementOverlay.js';
 import { StoryDialogOverlay }     from '../ui/StoryDialogOverlay.js';
 import { storyLogEntries }        from '../data/story.js';
+import { CodexOverlay }           from '../ui/CodexOverlay.js';
+import { buildCatalog, progressFromSave } from '../systems/codexCatalog.js';
 
 export default class MapSelectScene extends Phaser.Scene {
   constructor() { super('MapSelectScene'); }
@@ -42,6 +44,7 @@ export default class MapSelectScene extends Phaser.Scene {
     this._bindUpgrades();
     this._bindHeroes();
     this._bindSettings();
+    this._bindCodex();
     this._bindStoryLog();
 
     const am = this.game.registry.get('audio');
@@ -214,6 +217,18 @@ export default class MapSelectScene extends Phaser.Scene {
     });
   }
 
+  _bindCodex() {
+    // Clone removes any prior listener before re-adding (matches _bindSettings).
+    const old = document.getElementById('open-codex-ms');
+    if (!old) return;
+    const btn = old.cloneNode(true);
+    old.replaceWith(btn);
+    btn.addEventListener('click', () => {
+      if (!this._codexOverlay) this._codexOverlay = new CodexOverlay();
+      this._codexOverlay.open(buildCatalog(progressFromSave(this.game.registry.get('save'))));
+    });
+  }
+
   _bindStoryLog() {
     const openBtn  = document.getElementById('open-story-log');
     const overlay  = document.getElementById('story-log-overlay');
@@ -254,6 +269,7 @@ export default class MapSelectScene extends Phaser.Scene {
     // DOM persists into the next scene. Direct style mutation would leak listeners.
     if (this._overlay)     this._overlay.close();
     if (this._heroOverlay) this._heroOverlay.close();
+    this._codexOverlay?.close();
     const openBtn  = document.getElementById('open-story-log');
     const closeBtn = document.getElementById('story-log-close');
     if (openBtn && this._onOpenStoryLog)   openBtn.removeEventListener('click', this._onOpenStoryLog);
