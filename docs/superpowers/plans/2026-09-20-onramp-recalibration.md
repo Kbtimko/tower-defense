@@ -332,7 +332,7 @@ map 2 and these are a playtest starting point, not a derived answer."
 `src/sim/deficit.test.js` asserts that map 0 "needs help" — it hardcodes the brokenness this change removes, exactly like the old `VALID_TYPES` list that made the suite enforce dead content. `findWinMultiplier`'s contract is "find the multiplier that wins", which is a property of the function, not of any shipped map's calibration. Repoint it at a synthetic under-resourced map so no future balance change can break it again.
 
 **Files:**
-- Modify: `src/sim/deficit.test.js:26-32`
+- Modify: `src/sim/deficit.test.js:25-32` (the `returns a multiplier above 1 for a map that needs help` test)
 
 - [ ] **Step 1: Confirm the test fails for the expected reason**
 
@@ -451,7 +451,27 @@ Play **Level 1 end to end** and confirm:
 
 Then start **Level 3 (The Crater)** and confirm it opens with **170 gold**.
 
-- [ ] **Step 5: Report**
+- [ ] **Step 5: Record the two follow-ups the spec raises**
+
+Append these to the Prioritized Backlog in `.claude/notes.md` (edit it directly — no permission needed; write atomically, since it is subject to read/write races):
+
+```markdown
+N. `[review]` **Make `greedyBuildPlan` matchup-aware** — `towerValue` in
+   `src/sim/buildPolicy.js` is `damage * fireRate / cost`, ignoring armour and
+   the weakness matrix. It is why the balance simulator shows 5 monotonicity
+   inversions in 11 steps on map 2 and cannot be used to tune any map past
+   map 1. Until this lands, every per-map number beyond the on-ramp is a guess
+   dressed as a measurement. Raised by the 2026-09-20 on-ramp recalibration.
+N+1. `[review]` **Re-examine maps 3–9 difficulty** — the sim calls 9 of 10 maps
+   unwinnable, but it also plays badly (see above). Establish whether that is a
+   real calibration problem or an artefact of the model, AFTER the build policy
+   is fixed. Also closes the pre-existing map 2 -> map 3 HP-per-wave inversion
+   (917 vs 898) that the on-ramp change shrank but did not remove.
+```
+
+Use the next free numbers in the existing list rather than the literal `N`.
+
+- [ ] **Step 6: Report**
 
 State, with raw output, not summary: the test count, the `npm run balance` verdict rows for maps 0–2, and the Level 1 playthrough result including lives remaining. If Level 1 is now *too* easy in real play, say so — the simulator is pessimistic and 68% kept may translate to a walkover, which is a real finding and the reason this task exists.
 
@@ -459,7 +479,8 @@ State, with raw output, not summary: the test count, the `npm run balance` verdi
 
 ## Out of scope — do not do these
 
+- **Map 1 (Level 2) — do not touch it, in `maps.js` or `waves.js`.** It is the only map the simulator currently rates healthy (`OK`, 35% of lives kept), so it is the fixed reference the other two are ordered against. Tuning it to "smooth the ramp" would remove the one calibrated point in the range and make the whole comparison circular. If the ramp test fails, change map 0 or map 2, never map 1.
 - **Maps 3–9.** They will still report `UNWINNABLE`. That is expected and documented.
 - **Tower or enemy constants** — the archer's 0.75-vs-brute multiplier, brute `armor: 8`, the floor-of-1 rule in `src/systems/damage.js`. Campaign-wide; would invalidate all ten maps.
 - **`greedyBuildPlan`'s matchup-blindness** in `src/sim/buildPolicy.js`. It is the root cause of the simulator's unreliability and deserves its own backlog item, but it is not a prerequisite here.
-- **`.claude/notes.md`** — update it only after the PR is open, as the last step.
+- **`.claude/notes.md` status sections** — the Current Status, In Progress and Loose Ends prose is updated only after the PR is open, as the last step. Task 5 Step 5 appends two *backlog* items and is the one exception; do not rewrite the status narrative before then.
