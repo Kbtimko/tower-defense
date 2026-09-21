@@ -551,12 +551,12 @@ describe('Hero — out-of-combat regeneration', () => {
 
 describe('Hero.xpProgress', () => {
   // Exact integer, unlike the thresholds derived from it: heroXpThresholds
-  // multiplies by fractions like 0.07, which loses precision (0.07 * 8800 ===
-  // 616.0000000000001). Always derive a threshold via heroXpThresholds(...)
+  // multiplies by fractions like 0.07, which loses precision (0.07 * 7220 ===
+  // 505.40000000000003). Always derive a threshold via heroXpThresholds(...)
   // rather than writing its rounded decimal as a literal.
   // Derived, never restated: a literal here would silently diverge from the
   // hero's own _mapTotalHp if map 0's wave table changes. Thresholds must be
-  // derived from it too — 0.07 * 8800 is 616.0000000000001, not 616.
+  // derived from it too — 0.07 * 7220 is 505.40000000000003, not 505.4.
   const MAP0_TOTAL_HP = totalEnemyHpForMap(0);
 
   it('reports an empty bar for a hero that has dealt no damage', () => {

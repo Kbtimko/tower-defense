@@ -10,7 +10,7 @@ export const HERO_REGEN_RATE  = 4;  // hp per second once regenerating
 
 // ── Levelling ──────────────────────────────────────────────────────────────
 // XP is post-armour damage dealt, and the thresholds are fractions of the
-// map's total base enemy HP so map 0 (8,800 HP) and map 9 (59,780) pace alike.
+// map's total base enemy HP so map 0 (7,220 HP) and map 9 (59,780) pace alike.
 //
 // The fractions are measured, not guessed: armour is flat subtraction, so the
 // hero's share of a map's HP is not derivable on paper.
