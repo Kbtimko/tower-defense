@@ -13,10 +13,28 @@
     .hud-stat { display: flex; align-items: center; gap: 5px; font-size: 13px; }
     .hud-val { font-weight: bold; color: #ffd700; font-size: 15px; }
     .hud-lbl { color: #aaa; font-size: 11px; }
+    /* Speed and Pause used to carry byte-identical styling and sat flush against
+       the stat cluster, so the control you reach for in a hurry looked exactly
+       like the one beside it. They are now separated from the stats (margin-left
+       on the first of them) and from each other: speed stays a quiet green
+       toggle, pause takes the HUD's gold accent and a larger hit area, because
+       it is the one button a player needs to find without looking for it. */
     #speed-btn { background: #1a2a1a; border: 1px solid #4a6a4a; color: #aaddaa;
-                 padding: 4px 9px; border-radius: 4px; cursor: pointer; font-size: 12px; }
-    #pause-btn { background: #1a2a1a; border: 1px solid #4a6a4a; color: #aaddaa;
-                 padding: 4px 9px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+                 padding: 4px 9px; border-radius: 4px; cursor: pointer; font-size: 12px;
+                 margin-left: auto; transition: background 0.12s, border-color 0.12s; }
+    #speed-btn:hover { background: #243824; border-color: #6a8a6a; }
+
+    #pause-btn { background: #3a2c08; border: 1px solid #8b6914; color: #ffd700;
+                 padding: 6px 16px; border-radius: 4px; cursor: pointer;
+                 font-size: 13px; font-weight: bold; letter-spacing: 0.3px;
+                 transition: background 0.12s, border-color 0.12s, color 0.12s; }
+    #pause-btn:hover { background: #4d3a0b; border-color: #c39a1d; }
+    #pause-btn:focus-visible { outline: 2px solid #ffd700; outline-offset: 2px; }
+    /* Paused is a state you can get stuck in, so the way back out is the
+       brightest thing in the bar rather than the same pill with new text. */
+    #pause-btn.paused { background: #ffd700; border-color: #ffd700; color: #241a00; }
+    #pause-btn.paused:hover { background: #ffe34d; border-color: #ffe34d; }
+
     #pause-btn.disabled, #exit-btn.disabled {
                  background: #2a2a2a; border-color: #444; color: #666;
                  cursor: not-allowed; pointer-events: none; }
@@ -413,7 +431,7 @@
     <div class="hud-stat"><span>🌊</span><span class="hud-val" id="stat-wave">0/10</span><span class="hud-lbl">Wave</span></div>
     <div class="hud-stat"><span>💀</span><span class="hud-val" id="stat-kills">0</span><span class="hud-lbl">Kills</span></div>
     <button id="speed-btn">⏩ 2x</button>
-    <button id="pause-btn">⏸ Pause</button>
+    <button id="pause-btn" title="Pause the level (Spacebar)">⏸ Pause</button>
     <button id="open-codex" title="Codex (towers, heroes, enemies)">📚 Codex</button>
   </div>
   <div id="game">
