@@ -14,7 +14,10 @@ export default class MapSelectScene extends Phaser.Scene {
   constructor() { super('MapSelectScene'); }
 
   create() {
-    this.events.on('shutdown', this.shutdown, this);
+    // `once`, not `on`: the scene emitter outlives a shutdown, so `on` stacks
+    // another copy every time create() runs and shutdown() then runs once per
+    // entry. Same root cause as the GameScene spawn-duplication bug.
+    this.events.once('shutdown', this.shutdown, this);
 
     const container = document.getElementById('map-select');
     container.style.display = 'flex';

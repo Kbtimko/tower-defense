@@ -173,7 +173,7 @@ function setupCreateDOM() {
 // reset create() performs, not a reimplementation of it.
 function makeLaunchableScene() {
   const s = Object.create(UIScene.prototype);
-  s.events = { on() {} };
+  s.events = { on() {}, once() {} };
   s.game = { events: { on() {}, off() {}, emit() {} } };
   s.scene = { get() { return undefined; } };
   return s;

@@ -51,7 +51,10 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
-    this.events.on('shutdown', this.shutdown, this);
+    // `once`, not `on`: the scene's event emitter is owned by Systems and
+    // OUTLIVES a shutdown, so create() running again on the next level entry
+    // would stack another copy and run shutdown() once per entry.
+    this.events.once('shutdown', this.shutdown, this);
 
     // Phase 8 — Audio & Polish systems
     const am = this.game.registry.get('audio');
@@ -169,10 +172,9 @@ export default class GameScene extends Phaser.Scene {
     // Phaser input
     this.input.on('pointerdown', this._onPointerDown, this);
 
-    // Scene events from systems
-    this.events.on('enemy:spawn',    this._spawnEnemy,  this);
-    this.events.on('economy:update', this._updateHUD,   this);
-    this.events.on('game:defeat',    this._onDefeat,    this);
+    // Scene events from systems. Wired as a pair with _unwireSceneEvents so
+    // registration and removal cannot drift apart — see the comment there.
+    this._wireSceneEvents();
 
     this._userPaused = false;
 
@@ -190,11 +192,6 @@ export default class GameScene extends Phaser.Scene {
     this._bindDOMEvents();
     this._updateHUD();
     this._updateWaveButton();
-
-    // Relay hero scene events to game bus for UIScene
-    this.events.on('hero:level-up', ({ level }) => {
-      this.game.events.emit('hero:level-up', { level });
-    }, this);
 
     // Launch UIScene now that GameScene state is ready. UIScene.create reads
     // the active GameScene's hero.def + economy on first paint.
@@ -265,7 +262,42 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  // Scene-level listeners, wired and unwired as a matched pair.
+  //
+  // `this.events` belongs to the scene's Systems and is NOT cleared on
+  // shutdown — Phaser's Systems.shutdown() removes only its own TRANSITION_*
+  // listeners. So anything registered here outlives the scene and is still
+  // attached when create() runs again on the next level entry.
+  //
+  // That is not cosmetic. WaveManager emits `enemy:spawn` once per queued
+  // enemy, so a duplicated listener spawns a duplicate enemy: map 0 wave 1 is
+  // six drones, and a second playthrough in the same tab fielded twelve. The
+  // more a player retried a map they were stuck on, the harder it got.
+  //
+  // Keep these two lists identical. `off` matches on handler + context, which
+  // is why the hero relay is a named method rather than the inline arrow it
+  // used to be — an anonymous function cannot be removed by reference.
+  _wireSceneEvents() {
+    this.events.on('enemy:spawn',    this._spawnEnemy,     this);
+    this.events.on('economy:update', this._updateHUD,      this);
+    this.events.on('game:defeat',    this._onDefeat,       this);
+    this.events.on('hero:level-up',  this._onHeroLevelUp,  this);
+  }
+
+  _unwireSceneEvents() {
+    this.events.off('enemy:spawn',    this._spawnEnemy,     this);
+    this.events.off('economy:update', this._updateHUD,      this);
+    this.events.off('game:defeat',    this._onDefeat,       this);
+    this.events.off('hero:level-up',  this._onHeroLevelUp,  this);
+  }
+
+  // Relay hero scene events to the game bus for UIScene.
+  _onHeroLevelUp({ level }) {
+    this.game.events.emit('hero:level-up', { level });
+  }
+
   shutdown() {
+    this._unwireSceneEvents();
     this._storyDialog?.close();
     this.inspector?.destroy();
     if (import.meta.env.DEV) window.__game = null;
