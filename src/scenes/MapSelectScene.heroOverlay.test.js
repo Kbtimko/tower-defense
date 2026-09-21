@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 vi.mock('phaser', () => ({
-  default: { Scene: class { constructor(){} events = { on(){} } } },
+  default: { Scene: class { constructor(){} events = { on(){}, once(){} } } },
 }));
 
 import MapSelectScene from './MapSelectScene.js';
