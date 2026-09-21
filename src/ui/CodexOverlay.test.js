@@ -4,6 +4,7 @@ import { buildCatalog } from '../systems/codexCatalog.js';
 import { HERO_ORDER } from '../data/heroes.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
+import { describeEnemy } from '../systems/entityDescriptors.js';
 
 const FRESH = { reachedMapIds: [0], unlockedHeroIds: ['rael'] };
 const ALL   = { reachedMapIds: [0,1,2,3,4,5,6,7,8,9], unlockedHeroIds: [...HERO_ORDER] };
@@ -91,6 +92,24 @@ describe('CodexOverlay', () => {
     // Derived from balance data, not a bare '120' literal (which would also
     // be a weak substring match against unrelated text).
     expect(dom.detail.textContent).toContain(String(ENEMY_DEFS.brute.hp));
+  });
+
+  // The actual bug: Dax, Vex and Mira are heroes, not towers, and a flat
+  // comma list gave a player no way to tell them apart from Mage/Cannon/etc.
+  it('distinguishes hero counters from tower counters in an enemy matchup line', () => {
+    codex.open(buildCatalog(ALL));
+    dom.tabs.querySelector('[data-tab="enemies"]').dispatchEvent(new Event('click', { bubbles: true }));
+    const titanBtn = [...dom.list.querySelectorAll('.codex-entry')].find(e => e.textContent.includes('Titan'));
+    titanBtn.dispatchEvent(new Event('click', { bubbles: true }));
+
+    const { vulnerableTo } = describeEnemy('titan');
+    const towerNames = vulnerableTo.filter(e => e.kind === 'tower').map(e => e.name);
+    const heroNames  = vulnerableTo.filter(e => e.kind === 'hero').map(e => e.name);
+    // Guards the regression: this only proves the fix if Titan actually has
+    // a hero among its counters (it does — Dax).
+    expect(heroNames.length).toBeGreaterThan(0);
+
+    expect(dom.detail.textContent).toContain(`Weak to: ${towerNames.join(', ')} (heroes: ${heroNames.join(', ')})`);
   });
 
   it('renders the tier ladder for a tower', () => {

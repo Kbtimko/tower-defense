@@ -6,10 +6,11 @@
 // exactly when a player most wants to see what is coming.
 
 // vulnerableTo/resists arrive from describeEnemy as {kind, type, name, icon}
-// objects — already display-ready, so no prefix parsing happens here.
-function counterNames(counters) {
-  return counters.map(c => c.name).join(', ');
-}
+// objects mixing towers and heroes — already display-ready, so no prefix
+// parsing happens here, but the two kinds must render distinguishably (a
+// hero like Dax is not a tower a player can build) so formatCounters is
+// shared with CodexOverlay rather than reimplemented as a flat join here.
+import { formatCounters } from './matchupText.js';
 
 export class WavePreviewPopover {
   constructor() {
@@ -91,13 +92,13 @@ export class WavePreviewPopover {
       if (g.vulnerableTo.length) {
         const weak = document.createElement('div');
         weak.className   = 'wp-match';
-        weak.textContent = `weak to ${counterNames(g.vulnerableTo)}`;
+        weak.textContent = `weak to ${formatCounters(g.vulnerableTo)}`;
         this._el.appendChild(weak);
       }
       if (g.resists.length) {
         const res = document.createElement('div');
         res.className   = 'wp-match resist';
-        res.textContent = `resists ${counterNames(g.resists)}`;
+        res.textContent = `resists ${formatCounters(g.resists)}`;
         this._el.appendChild(res);
       }
     }

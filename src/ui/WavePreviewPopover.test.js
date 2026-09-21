@@ -3,6 +3,7 @@ import { WavePreviewPopover } from './WavePreviewPopover.js';
 import { summarizeWave } from '../systems/wavePreview.js';
 import { MAP_WAVES }  from '../data/waves.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
+import { describeEnemy } from '../systems/entityDescriptors.js';
 
 // Wave composition is balance data and HAS been retuned mid-project. Derive
 // every expected count from the table instead of hardcoding it, or this file
@@ -52,6 +53,21 @@ describe('WavePreviewPopover', () => {
     popover.setWave(summarizeWave(0, firstWaveWith(0, 'brute')));
     expect(dom.pop.textContent).toContain(`${ENEMY_DEFS.brute.hp} HP`);
     expect(dom.pop.textContent.toLowerCase()).toContain('cannon');
+  });
+
+  // The actual bug: Vex and Mira are heroes, not towers, and a flat comma
+  // list gave a player no way to tell them apart from a buildable Mage.
+  it('distinguishes hero counters from tower counters in a wave matchup line', () => {
+    popover.setWave(summarizeWave(0, firstWaveWith(0, 'drone')));
+
+    const { vulnerableTo } = describeEnemy('drone');
+    const towerNames = vulnerableTo.filter(e => e.kind === 'tower').map(e => e.name);
+    const heroNames  = vulnerableTo.filter(e => e.kind === 'hero').map(e => e.name);
+    // Guards the regression: this only proves the fix if Drone actually has
+    // a hero among its counters (it does — Vex and Mira).
+    expect(heroNames.length).toBeGreaterThan(0);
+
+    expect(dom.pop.textContent).toContain(`weak to ${towerNames.join(', ')} (heroes: ${heroNames.join(', ')})`);
   });
 
   it('marks flying enemies', () => {

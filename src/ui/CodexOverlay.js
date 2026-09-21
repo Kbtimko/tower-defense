@@ -1,6 +1,8 @@
 // Three-tab reference for towers, heroes and enemies. Follows the
 // SettingsOverlay idiom: an explicit listener array, wired in open() and
 // unwired in close(), so nothing outlives the overlay.
+import { formatCounters } from './matchupText.js';
+
 const TABS = ['towers', 'heroes', 'enemies'];
 
 function line(cls, text) {
@@ -10,7 +12,10 @@ function line(cls, text) {
   return el;
 }
 
-// Matchup entries are already {kind, type, name, icon} from the descriptors.
+// Tower/hero effectiveAtBase/weakAtBase/effectiveAgainst/weakAgainst lists
+// are homogeneous (kind: 'enemy'), so a plain comma list is unambiguous —
+// only the enemy-detail vulnerableTo/resists lists mix towers and heroes and
+// need formatCounters to keep them apart.
 function names(entries) {
   return entries.map(e => e.name).join(', ');
 }
@@ -146,8 +151,8 @@ export class CodexOverlay {
       line('codex-stat', `Speed: ${e.speed}`),
       line('codex-stat', `Bounty: ${e.reward} gold`),
       line('codex-section', 'Matchups'),
-      line('codex-stat', e.vulnerableTo.length ? `Weak to: ${names(e.vulnerableTo)}` : 'No particular weakness'),
-      line('codex-stat', e.resists.length ? `Resists: ${names(e.resists)}` : 'Resists nothing'),
+      line('codex-stat', e.vulnerableTo.length ? `Weak to: ${formatCounters(e.vulnerableTo)}` : 'No particular weakness'),
+      line('codex-stat', e.resists.length ? `Resists: ${formatCounters(e.resists)}` : 'Resists nothing'),
     );
     if (!e.encountered) this._detail.appendChild(line('codex-unseen-tag', 'Not yet encountered'));
   }
