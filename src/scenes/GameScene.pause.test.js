@@ -125,3 +125,41 @@ describe('Exit-confirm Cancel × user-pause interaction', () => {
     expect(scene.scene.resume).not.toHaveBeenCalled();
   });
 });
+
+
+// The pause button shared its styling byte-for-byte with the speed toggle and
+// sat immediately after the stat cluster, so the one control you reach for in a
+// hurry looked like the one next to it. Making it findable is CSS, but the
+// paused state needs a hook the stylesheet can target -- and that hook has to
+// survive the same cloneNode trap that already bit the .disabled class.
+describe('GameScene pause button state hook', () => {
+  beforeEach(setupDOM);
+
+  it('marks the button paused so the stylesheet can highlight it', () => {
+    const scene = makeScene();
+    scene._onPauseToggle();
+    expect(document.getElementById('pause-btn').classList.contains('paused')).toBe(true);
+  });
+
+  it('clears the paused mark on resume', () => {
+    const scene = makeScene();
+    scene._onPauseToggle();
+    scene._onPauseToggle();
+    expect(document.getElementById('pause-btn').classList.contains('paused')).toBe(false);
+  });
+
+  // shutdown() removes DOM listeners by cloning the node, and cloneNode keeps
+  // classes. A player who paused, exited, and started a new level would
+  // otherwise open it with the button stuck in its paused styling -- exactly
+  // the bug the existing .disabled reset in create() exists to prevent.
+  it('does not carry the paused mark into the next level', () => {
+    const btn = document.getElementById('pause-btn');
+    btn.classList.add('paused', 'disabled');
+
+    GameScene.prototype._resetPauseButton.call({});
+
+    expect(btn.classList.contains('paused')).toBe(false);
+    expect(btn.classList.contains('disabled')).toBe(false);
+    expect(btn.textContent).toBe('⏸ Pause');
+  });
+});

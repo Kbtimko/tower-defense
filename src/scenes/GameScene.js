@@ -186,7 +186,7 @@ export default class GameScene extends Phaser.Scene {
     // node but cloneNode preserves classes — without this, a second play in
     // the same tab opens with Exit + Pause permanently dead).
     document.getElementById('exit-btn').classList.remove('disabled');
-    document.getElementById('pause-btn').classList.remove('disabled');
+    this._resetPauseButton();
 
     // Wire DOM buttons (use once-registered named functions; shutdown() cleans up via clone)
     this._bindDOMEvents();
@@ -255,11 +255,24 @@ export default class GameScene extends Phaser.Scene {
       this.scene.pause();
       overlay.classList.add('shown');
       btn.textContent = '▶ Resume';
+      btn.classList.add('paused');
     } else {
       this.scene.resume();
       overlay.classList.remove('shown');
       btn.textContent = '⏸ Pause';
+      btn.classList.remove('paused');
     }
+  }
+
+  // shutdown() strips DOM listeners by cloning the node, and cloneNode keeps
+  // classes AND text. Without this, a player who paused, exited, and started a
+  // new level would open it with the button reading "▶ Resume" in its paused
+  // styling while the game ran. Same trap the .disabled reset guards against.
+  _resetPauseButton() {
+    const btn = document.getElementById('pause-btn');
+    if (!btn) return;
+    btn.classList.remove('paused', 'disabled');
+    btn.textContent = '⏸ Pause';
   }
 
   // Scene-level listeners, wired and unwired as a matched pair.
