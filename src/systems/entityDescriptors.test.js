@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { describeEnemy, describeTower } from './entityDescriptors.js';
+import { describeEnemy, describeTower, describeHero, describeAbility } from './entityDescriptors.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
 import { TOWER_DEFS } from '../data/towers.js';
-import { HEROES } from '../data/heroes.js';
+import { HEROES, HERO_ORDER } from '../data/heroes.js';
 
 describe('describeEnemy', () => {
   it('carries the stat block for a known enemy', () => {
@@ -165,5 +165,108 @@ describe('describeTower', () => {
       expect(d, `missing descriptor for ${type}`).not.toBeNull();
       expect(d.tiers.length).toBe(4);
     }
+  });
+});
+
+describe('describeHero', () => {
+  it('carries identity, role and stats', () => {
+    const d = describeHero('scout');
+    expect(d.displayName).toBe('Scout Vex');
+    expect(d.role).toBe('Ranged DPS / anti-air');
+    expect(d.stats.maxHp).toBe(HEROES.scout.stats.maxHp);
+    expect(d.unlockMapAfter).toBe(HEROES.scout.unlockMapAfter);
+  });
+
+  it('lists three abilities in q/w/e order, in static form', () => {
+    const d = describeHero('rael');
+    expect(d.abilities.map(a => a.slot)).toEqual(['q', 'w', 'e']);
+    expect(d.abilities[0].label).toBe('Overcharge');
+    expect(d.abilities[0].unlockLevel).toBe(HEROES.rael.stats.abilityUnlockLevels.q);
+    expect(d.abilities[2].unlockLevel).toBe(HEROES.rael.stats.abilityUnlockLevels.e);
+    // Static form: no live state on a codex entry.
+    expect(d.abilities[0].state).toBeUndefined();
+  });
+
+  it('reports hero matchups', () => {
+    expect(describeHero('engineer').matchups.titan).toBe(HEROES.engineer.matchups.titan);
+  });
+
+  it('returns null for an unknown hero', () => {
+    expect(describeHero('nope')).toBeNull();
+  });
+
+  // HEROES[id] reaches Object.prototype for unowned keys; a garbage
+  // descriptor (or a throw further down the pipeline) must not slip through.
+  it('does not resolve prototype-chain properties as heroes', () => {
+    expect(describeHero('toString')).toBeNull();
+    expect(describeHero('constructor')).toBeNull();
+    expect(describeHero('hasOwnProperty')).toBeNull();
+  });
+
+  it('describes every hero in HERO_ORDER', () => {
+    for (const id of HERO_ORDER) {
+      const d = describeHero(id);
+      expect(d, `missing descriptor for ${id}`).not.toBeNull();
+      expect(d.abilities.length).toBe(3);
+    }
+  });
+
+  it('does not alias abilityUnlockLevels to the live balance table', () => {
+    const original = HEROES.rael.stats.abilityUnlockLevels.q;
+    const d = describeHero('rael');
+    d.stats.abilityUnlockLevels.q = original + 100;
+    expect(HEROES.rael.stats.abilityUnlockLevels.q).toBe(original);
+  });
+});
+
+describe('describeAbility', () => {
+  const rael = HEROES.rael;
+
+  it('is available when the hero is unlocked, level is high enough, no cooldown', () => {
+    const a = describeAbility(rael, 'q', { level: 1, heroUnlocked: true, cooldownRemaining: 0 });
+    expect(a.state).toBe('available');
+    expect(a.hotkey).toBe('Q');
+    expect(a.cooldown).toBe(rael.abilities.q.cooldown);
+    expect(a.effect).toBe(rael.abilities.q.tooltip);
+    expect(a.lockReason).toBeNull();
+  });
+
+  it('reports remaining cooldown', () => {
+    const a = describeAbility(rael, 'q', { level: 3, heroUnlocked: true, cooldownRemaining: 7 });
+    expect(a.state).toBe('cooldown');
+    expect(a.cooldownRemaining).toBe(7);
+  });
+
+  it('is locked by level below its unlock level, and says which level', () => {
+    const a = describeAbility(rael, 'e', { level: 2, heroUnlocked: true, cooldownRemaining: 0 });
+    expect(a.state).toBe('locked_level');
+    expect(a.unlockLevel).toBe(rael.stats.abilityUnlockLevels.e);
+    expect(a.lockReason).toBe(`Unlocks at level ${rael.stats.abilityUnlockLevels.e}`);
+  });
+
+  // Hero lock outranks level lock: in Hero Command a locked hero shows the
+  // map to clear, not a level the player cannot reach yet anyway.
+  it('is locked by the hero itself when the hero is not unlocked', () => {
+    const a = describeAbility(HEROES.scout, 'q', { level: 1, heroUnlocked: false, cooldownRemaining: 0 });
+    expect(a.state).toBe('locked_hero');
+    expect(a.lockReason).toBe('Clear Map 5 to unlock Scout Vex');
+  });
+
+  it('defaults to available-at-level-1 when no options are given', () => {
+    expect(describeAbility(rael, 'q').state).toBe('available');
+  });
+
+  it('reads unlock levels from the hero data, not a hardcoded map', () => {
+    for (const id of HERO_ORDER) {
+      const def = HEROES[id];
+      for (const slot of ['q', 'w', 'e']) {
+        const a = describeAbility(def, slot, { level: 1, heroUnlocked: true, cooldownRemaining: 0 });
+        expect(a.unlockLevel).toBe(def.stats.abilityUnlockLevels[slot]);
+      }
+    }
+  });
+
+  it('returns null for an unknown ability slot', () => {
+    expect(describeAbility(rael, 'r', { level: 1, heroUnlocked: true, cooldownRemaining: 0 })).toBeNull();
   });
 });

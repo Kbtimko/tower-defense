@@ -87,3 +87,71 @@ export function describeTower(type) {
     weakAtBase:      weak.map(describeEnemyEntry),
   };
 }
+
+const ABILITY_SLOTS = ['q', 'w', 'e'];
+
+// The static form: what an ability IS, with no live state. A codex entry uses
+// this; the HUD calls describeAbility directly with the current level and
+// cooldown, because those change between renders.
+function staticAbility(def, slot) {
+  const a = def.abilities[slot];
+  return {
+    slot,
+    hotkey:      slot.toUpperCase(),
+    id:          a.id,
+    label:       a.label,
+    icon:        a.icon,
+    cooldown:    a.cooldown,
+    aim:         a.aim,
+    effect:      a.tooltip,
+    unlockLevel: def.stats.abilityUnlockLevels[slot],
+  };
+}
+
+export function describeHero(id) {
+  if (!Object.hasOwn(HEROES, id)) return null;
+  const def = HEROES[id];
+  return {
+    kind: 'hero',
+    id:             def.id,
+    displayName:    def.displayName,
+    shortName:      def.shortName,
+    role:           def.role,
+    portraitChar:   def.portraitChar,
+    bodyColor:      def.bodyColor,
+    strokeColor:    def.strokeColor,
+    // stats.abilityUnlockLevels is a nested object, not a flat value, so a
+    // shallow spread would still alias it to the live balance table.
+    stats:          { ...def.stats, abilityUnlockLevels: { ...def.stats.abilityUnlockLevels } },
+    matchups:       { ...def.matchups },
+    unlockMapAfter: def.unlockMapAfter,
+    abilities:      ABILITY_SLOTS.map(slot => staticAbility(def, slot)),
+  };
+}
+
+export function describeAbility(def, slot, opts = {}) {
+  if (!def.abilities[slot]) return null;
+  const { level = 1, heroUnlocked = true, cooldownRemaining = 0 } = opts;
+  const base = staticAbility(def, slot);
+
+  if (!heroUnlocked) {
+    return {
+      ...base,
+      state: 'locked_hero',
+      cooldownRemaining: 0,
+      lockReason: `Clear Map ${def.unlockMapAfter + 1} to unlock ${def.displayName}`,
+    };
+  }
+  if (level < base.unlockLevel) {
+    return {
+      ...base,
+      state: 'locked_level',
+      cooldownRemaining: 0,
+      lockReason: `Unlocks at level ${base.unlockLevel}`,
+    };
+  }
+  if (cooldownRemaining > 0) {
+    return { ...base, state: 'cooldown', cooldownRemaining, lockReason: null };
+  }
+  return { ...base, state: 'available', cooldownRemaining: 0, lockReason: null };
+}
