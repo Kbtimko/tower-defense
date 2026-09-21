@@ -554,7 +554,10 @@ describe('Hero.xpProgress', () => {
   // multiplies by fractions like 0.07, which loses precision (0.07 * 8800 ===
   // 616.0000000000001). Always derive a threshold via heroXpThresholds(...)
   // rather than writing its rounded decimal as a literal.
-  const MAP0_TOTAL_HP = 8800;   // totalEnemyHpForMap(0); thresholds ~616/1144/1848/2640
+  // Derived, never restated: a literal here would silently diverge from the
+  // hero's own _mapTotalHp if map 0's wave table changes. Thresholds must be
+  // derived from it too — 0.07 * 8800 is 616.0000000000001, not 616.
+  const MAP0_TOTAL_HP = totalEnemyHpForMap(0);
 
   it('reports an empty bar for a hero that has dealt no damage', () => {
     const h = new Hero(makeScene(), { x: 0, y: 0 });
