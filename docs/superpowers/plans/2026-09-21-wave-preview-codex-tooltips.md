@@ -265,6 +265,18 @@ git commit -m "feat(codex): describe enemies and towers as display-ready shapes"
 
 ### Task 2: Hero and ability descriptors
 
+> **Amended after code review.** The shipped module differs from the code below:
+> 1. `Object.hasOwn` guards on both the hero id and the ability slot; a bad
+>    `def` returns `null` rather than throwing.
+> 2. `stats.abilityUnlockLevels` is nested, so `{...def.stats}` alone would
+>    alias the balance table — that one field is copied separately.
+> 3. **`matchups` is gone.** A raw multiplier map gave consumers no signal that
+>    0.5 means "weak" and 1.5 means "strong". Heroes now expose
+>    `effectiveAgainst` / `weakAgainst`, display-ready `{kind, type, name, icon}`
+>    arrays, matching what `describeTower` does.
+> 4. Ability descriptors carry `kind: 'ability'`.
+> 5. A null `unlockMapAfter` no longer renders as "Clear Map 1".
+
 **Files:**
 - Modify: `src/systems/entityDescriptors.js`
 - Modify: `src/systems/entityDescriptors.test.js`
@@ -939,6 +951,16 @@ git commit -m "feat(ui): markup and styles for wave preview, codex, and ability 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { WavePreviewPopover } from './WavePreviewPopover.js';
 import { summarizeWave } from '../systems/wavePreview.js';
+import { MAP_WAVES }  from '../data/waves.js';
+import { ENEMY_DEFS } from '../data/enemies.js';
+
+// Wave composition is balance data and HAS been retuned mid-project. Derive
+// every expected count from the table instead of hardcoding it, or this file
+// goes red on the next rebalance for no correctness reason.
+const countOf = (mapId, waveIdx, type) =>
+  MAP_WAVES[mapId][waveIdx].find(g => g.type === type).count;
+const firstWaveWith = (mapId, type) =>
+  MAP_WAVES[mapId].findIndex(w => w.some(g => g.type === type));
 
 function setupDom() {
   document.body.replaceChildren();
@@ -958,30 +980,31 @@ describe('WavePreviewPopover', () => {
   beforeEach(() => { dom = setupDom(); popover = new WavePreviewPopover(); });
 
   it('renders one row per enemy type with counts', () => {
-    popover.setWave(summarizeWave(0, 1));   // 9 drones + 3 skitters
+    popover.setWave(summarizeWave(0, 1));   // drones + skitters
     popover.show();
     expect(dom.pop.classList.contains('shown')).toBe(true);
     const rows = dom.pop.querySelectorAll('.wp-row');
     expect(rows.length).toBe(2);
     expect(dom.pop.textContent).toContain('Veth Drone');
-    expect(dom.pop.textContent).toContain('×9');
-    expect(dom.pop.textContent).toContain('×3');
+    expect(dom.pop.textContent).toContain(`×${countOf(0, 1, 'drone')}`);
+    expect(dom.pop.textContent).toContain(`×${countOf(0, 1, 'skitter')}`);
   });
 
   it('shows the wave number and total', () => {
     popover.setWave(summarizeWave(0, 1));
+    const total = MAP_WAVES[0][1].reduce((n, g) => n + g.count, 0);
     expect(dom.pop.textContent).toContain('Wave 2');
-    expect(dom.pop.textContent).toContain('12');
+    expect(dom.pop.textContent).toContain(String(total));
   });
 
   it('shows stats and matchup lines', () => {
-    popover.setWave(summarizeWave(0, 3));   // brutes
-    expect(dom.pop.textContent).toContain('120 HP');
+    popover.setWave(summarizeWave(0, firstWaveWith(0, 'brute')));
+    expect(dom.pop.textContent).toContain(`${ENEMY_DEFS.brute.hp} HP`);
     expect(dom.pop.textContent.toLowerCase()).toContain('cannon');
   });
 
   it('marks flying enemies', () => {
-    popover.setWave(summarizeWave(3, 3));   // map 3 wave 4: phantoms
+    popover.setWave(summarizeWave(3, firstWaveWith(3, 'phantom')));
     expect(dom.pop.textContent.toLowerCase()).toContain('flying');
   });
 
@@ -1203,8 +1226,11 @@ export class WavePreviewPopover {
 Run: `npm test -- src/ui/WavePreviewPopover.test.js`
 Expected: PASS.
 
-> If the `flying` assertion fails, check which map-3 wave holds phantoms —
-> `MAP_WAVES[3][3]` is `[{type:'phantom', count:4}]`. Use the real index.
+> **Do not hardcode wave composition.** The plan originally carried literal
+> counts read from a checkout that was 41 commits stale; two balance commits
+> (`c134db2`, `18641a1`) had since retuned map 0, moving brutes off wave index
+> 3 entirely. The `countOf` / `firstWaveWith` helpers above read the live table,
+> so the tests stay correct across a rebalance. Keep it that way.
 
 - [ ] **Step 5: Run the full suite and commit**
 
@@ -1742,6 +1768,9 @@ export class CodexOverlay {
       line('codex-stat', `Attack: ${h.stats.attackDamage} every ${h.stats.attackRate}s`),
       line('codex-stat', `Range: ${h.stats.attackRange}`),
       line('codex-stat', `Move speed: ${h.stats.moveSpeed}`),
+      line('codex-section', 'Matchups'),
+      line('codex-stat', h.effectiveAgainst.length ? `Strong against: ${names(h.effectiveAgainst)}` : 'No particular strength'),
+      line('codex-stat', h.weakAgainst.length ? `Weak against: ${names(h.weakAgainst)}` : 'No particular weakness'),
       line('codex-section', 'Abilities'),
     );
     for (const a of h.abilities) {
