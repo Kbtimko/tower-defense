@@ -135,7 +135,7 @@ describe('band membership across the real tables', () => {
     }
   });
 
-  it('partitions every combination into exactly one band', () => {
+  it('only ever returns one of the three known band literals', () => {
     for (const r of all) expect(['none', 'heavy', 'floored']).toContain(r.band);
   });
 
