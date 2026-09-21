@@ -3,6 +3,8 @@ import { TOWER_DEFS } from '../data/towers.js';
 import { MAPS } from '../data/maps.js';
 import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
+import { AbilityTooltip } from '../ui/AbilityTooltip.js';
+import { describeAbility } from '../systems/entityDescriptors.js';
 
 export default class UIScene extends Phaser.Scene {
   constructor() { super('UIScene'); }
@@ -68,6 +70,9 @@ export default class UIScene extends Phaser.Scene {
     this.game.events.off('hero:aim-cancel',    this._onHeroAimCancel,     this);
     this.game.events.off('hero:cooldown-tick', this._onHeroCooldownTick,  this);
     if (this._onKeyDown) document.removeEventListener('keydown', this._onKeyDown);
+
+    this._abilityTip?.destroy();
+    this._abilityTip = null;
 
     ['wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','panel-reposition-btn','ability-q','ability-w','ability-e'].forEach(id => {
       const el = document.getElementById(id);
@@ -359,7 +364,9 @@ export default class UIScene extends Phaser.Scene {
   toCssColor(hex) { return '#' + ('000000' + hex.toString(16)).slice(-6); }
 
   _onHeroHudInit({ heroId, def }) {
-    this._heroDef = def;
+    this._heroDef   = def;
+    this._heroLevel = 1;
+    this._heroCds   = { q: 0, w: 0, e: 0 };
 
     const portrait = document.getElementById('hero-portrait');
     if (portrait) {
@@ -383,9 +390,20 @@ export default class UIScene extends Phaser.Scene {
       const nameEl = btn.querySelector('.ability-name');
       if (keyEl)  keyEl.textContent  = slot.toUpperCase();
       if (nameEl) nameEl.textContent = a.icon;
-      btn.title = `${a.label} — ${a.tooltip}`;
       btn.classList.add('locked');
       btn.disabled = true;
+    }
+
+    // Live state is read at hover time, so the card always matches the button.
+    this._abilityTip?.detachAll();
+    this._abilityTip ??= new AbilityTooltip();
+    for (const slot of ['q', 'w', 'e']) {
+      const btn = document.getElementById(`ability-${slot}`);
+      this._abilityTip.attach(btn, () => describeAbility(def, slot, {
+        level:             this._heroLevel,
+        heroUnlocked:      true,     // an in-level hero is by definition unlocked
+        cooldownRemaining: this._heroCds[slot],
+      }));
     }
   }
 
@@ -418,6 +436,7 @@ export default class UIScene extends Phaser.Scene {
   }
 
   _onHeroLevelUp({ level }) {
+    this._heroLevel = level;
     const name = this._heroDef?.shortName ?? 'Rael';
     const cap  = this._heroDef?.stats?.maxLevel ?? 5;
     document.getElementById('hero-level').textContent =
@@ -449,6 +468,7 @@ export default class UIScene extends Phaser.Scene {
   }
 
   _onHeroCooldownTick({ q, w, e }) {
+    this._heroCds = { q, w, e };
     this._setAbilityCd('ability-q', q);
     this._setAbilityCd('ability-w', w);
     this._setAbilityCd('ability-e', e);
