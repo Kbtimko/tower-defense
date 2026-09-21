@@ -32,51 +32,54 @@ tower the player is watching underperform.
 ## Measurements
 
 All figures computed from the live tables in this worktree, not from the backlog
-text. Absorption is **armour-only** (see "Metric" below), across tiers 1-3.
+text. Absorption is **armour-only** and **honours `pierce`** (see "Metric").
+Tiers 1-3, plus barracks soldiers.
 
-Of 45 (tower-tier x armoured-enemy) combinations:
+**`pierce` is load-bearing, and the backlog entry misses it.** `TOWER_DEFS.mage`
+and `TOWER_DEFS.sniper` both set `pierce: true`, so `computeDamage` zeroes armour
+for them and they can never be floored. No tier override touches `pierce`, so it
+is a tower-level property. A first pass that ignored `pierce` produced **eight
+false warnings** (e.g. "mage T1 vs titan, 67% absorbed" — the mage in fact loses
+nothing). The flagged set is therefore exactly **archer, ice, and barracks
+soldiers**.
+
+Of 54 (damage-source x armoured-enemy) combinations, 17 are flagged:
 
 | band | rule | count |
 |---|---|---|
-| `floored` | `after === 1` | 8 |
+| `floored` | `after === 1` and `absorbed > 0` | 9 |
 | `heavy` | `absorbed >= 0.5`, not floored | 8 |
-| `none` | rest | 29 |
-
-Floored, tower projectiles:
+| `none` | rest (incl. all mage/sniper) | 37 |
 
 ```
- 94% | ice T3      raw  18 vs titan    armor 20 -> 1
- 93% | archer T1   raw  15 vs colossus armor 15 -> 1
- 93% | archer T1   raw  15 vs titan    armor 20 -> 1
- 92% | ice T2      raw  12 vs colossus armor 15 -> 1
- 92% | ice T2      raw  12 vs titan    armor 20 -> 1
- 88% | ice T1      raw   8 vs brute    armor  8 -> 1
- 88% | ice T1      raw   8 vs colossus armor 15 -> 1
- 88% | ice T1      raw   8 vs titan    armor 20 -> 1
+FLOORED  95% | soldier T1  raw  20 vs titan    armor 20 -> 1
+FLOORED  94% | ice T3      raw  18 vs titan    armor 20 -> 1
+FLOORED  93% | archer T1   raw  15 vs colossus armor 15 -> 1
+FLOORED  93% | archer T1   raw  15 vs titan    armor 20 -> 1
+FLOORED  92% | ice T2      raw  12 vs colossus armor 15 -> 1
+FLOORED  92% | ice T2      raw  12 vs titan    armor 20 -> 1
+FLOORED  88% | ice T1      raw   8 vs brute    armor  8 -> 1
+FLOORED  88% | ice T1      raw   8 vs colossus armor 15 -> 1
+FLOORED  88% | ice T1      raw   8 vs titan    armor 20 -> 1
+heavy    83% | ice T3      raw  18 vs colossus armor 15 -> 3
+heavy    80% | archer T2   raw  25 vs titan    armor 20 -> 5
+heavy    75% | soldier T1  raw  20 vs colossus armor 15 -> 5
+heavy    67% | ice T2      raw  12 vs brute    armor  8 -> 4
+heavy    60% | archer T2   raw  25 vs colossus armor 15 -> 10
+heavy    57% | soldier T2  raw  35 vs titan    armor 20 -> 15
+heavy    53% | archer T1   raw  15 vs brute    armor  8 -> 7
+heavy    50% | archer T3   raw  40 vs titan    armor 20 -> 20
 ```
 
-Heavy (the band a `dmg === 1` test would miss, and which plays just as badly):
+The `heavy` band is what a `dmg === 1` test would miss, and it plays just as
+badly: `ice T3 vs colossus` lands 3, `archer T2 vs titan` lands 5.
 
-```
- 83% | ice T3      raw  18 vs colossus armor 15 -> 3
- 80% | archer T2   raw  25 vs titan    armor 20 -> 5
- 67% | mage T1     raw  30 vs titan    armor 20 -> 10
- 67% | ice T2      raw  12 vs brute    armor  8 -> 4
- 60% | archer T2   raw  25 vs colossus armor 15 -> 10
- 53% | archer T1   raw  15 vs brute    armor  8 -> 7
- 50% | archer T3   raw  40 vs titan    armor 20 -> 20
- 50% | mage T1     raw  30 vs colossus armor 15 -> 15
-```
-
-The 50% threshold lands on a natural gap in the sorted data: the next combo down
-is 44% (`cannon T1 vs titan`).
-
-**The backlog's "eight combinations" undercounts.** It reads only `TOWER_DEFS[t].damage`
-and misses `soldierStats`. A tier-1 barracks soldier deals 20 against a titan's
-armour 20, so it too floors to 1 — a **ninth** floored combination, on the tower
-most often bought as an opener. Barracks soldiers route through `computeDamage`
-via `soldierSource()` in `src/data/sourceBuilders.js`, so this is the same
-mechanic, not a separate one.
+**The backlog's "eight combinations" undercounts in a second way.** It reads only
+`TOWER_DEFS[t].damage` and misses `soldierStats`. A tier-1 barracks soldier deals
+20 against a titan's armour 20, so it floors to 1 — a **ninth** floored
+combination, on the tower most often bought as an opener, and the worst in the
+set at 95%. Barracks soldiers route through `computeDamage` via `soldierSource()`
+in `src/data/sourceBuilders.js`, so this is the same mechanic, not a separate one.
 
 ## Decisions taken (2026-09-21)
 
@@ -101,6 +104,11 @@ directions: a Cannon hitting a Phantom (armour 0, matchup 0.5x) would report
 hitting a Titan (armour 20, matchup 1.5x) nets *above* raw and would report no
 absorption despite losing 25% to armour. Isolating the subtraction step is what
 makes the readout mean what it says.
+
+`pierce` is honoured inside `applyArmour`: a piercing source has
+`effectiveArmor = 0`, so `absorbed` is 0 and the band is always `none`. Flagging
+a tower that ignores armour would be a false warning, and the mage and sniper are
+exactly the two towers a player is most likely to have bought *for* heavies.
 
 `vulnerableMult` (the Mage's Vulnerable debuff) is likewise excluded — it is a
 transient status, not a property of the matchup, and a panel line that changed
