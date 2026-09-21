@@ -95,7 +95,7 @@ export class CodexOverlay {
       // Defensive only: a real catalog always lists every entry (dimmed
       // when unencountered, never hidden), so this fires for a malformed or
       // partial catalog, not normal play.
-      this._list.appendChild(line('wp-empty', 'Nothing to show yet.'));
+      this._list.appendChild(line('codex-empty', 'Nothing to show yet.'));
       this._detail.replaceChildren();
       return;
     }
@@ -186,6 +186,11 @@ export class CodexOverlay {
       if (tier.damage       != null) bits.push(`${tier.damage} dmg`);
       if (tier.range        != null) bits.push(`${tier.range} range`);
       if (tier.splashRadius != null) bits.push(`${tier.splashRadius} splash`);
+      // Ice is the only tower whose tiers vary slow (0.45 -> 0.3 -> 0.2 ->
+      // 0.15); without this, Deep Freeze/Blizzard show damage and range but
+      // give no hint that they also strengthen the slow, which is their
+      // actual point.
+      if (tier.slow         != null) bits.push(`Slow: ${Math.round(tier.slow * 100)}%`);
       if (tier.passiveEffect)        bits.push(tier.passiveEffect);
       if (bits.length) row.appendChild(document.createTextNode(` — ${bits.join(', ')}`));
       this._detail.appendChild(row);

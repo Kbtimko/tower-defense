@@ -61,6 +61,22 @@ describe('CodexOverlay', () => {
     expect(dom.detail.textContent).toContain('Veth Titan');
   });
 
+  it('tags an unseen enemy as not yet encountered in the detail pane, not just the list', () => {
+    codex.open(buildCatalog(FRESH));
+    dom.tabs.querySelector('[data-tab="enemies"]').dispatchEvent(new Event('click', { bubbles: true }));
+    const titan = [...dom.list.querySelectorAll('.codex-entry')].find(e => e.textContent.includes('Titan'));
+    titan.dispatchEvent(new Event('click', { bubbles: true }));
+    expect(dom.detail.textContent).toContain('Not yet encountered');
+  });
+
+  it('shows the unlock requirement in the detail pane for a locked hero', () => {
+    codex.open(buildCatalog(FRESH));
+    dom.tabs.querySelector('[data-tab="heroes"]').dispatchEvent(new Event('click', { bubbles: true }));
+    const engineer = [...dom.list.querySelectorAll('.codex-entry')].find(e => e.textContent.includes('Engineer'));
+    engineer.dispatchEvent(new Event('click', { bubbles: true }));
+    expect(dom.detail.textContent).toContain('Clear Map 3 to unlock');
+  });
+
   it('marks nothing unseen at full progress', () => {
     codex.open(buildCatalog(ALL));
     dom.tabs.querySelector('[data-tab="heroes"]').dispatchEvent(new Event('click', { bubbles: true }));
@@ -83,6 +99,18 @@ describe('CodexOverlay', () => {
     archer.dispatchEvent(new Event('click', { bubbles: true }));
     expect(dom.detail.textContent).toContain('Eagle Eye');
     expect(dom.detail.textContent).toContain('Marksman');
+  });
+
+  // Ice is the only tower whose tiers vary slow rather than (or in addition
+  // to) damage/range; Deep Freeze and Blizzard have no passiveEffect text to
+  // fall back on, so without a dedicated slow row those upgrades would look
+  // like they do nothing for your freeze build.
+  it('shows the slow percentage on ice tier rows', () => {
+    codex.open(buildCatalog(ALL));
+    const ice = [...dom.list.querySelectorAll('.codex-entry')].find(e => e.textContent.includes('Ice'));
+    ice.dispatchEvent(new Event('click', { bubbles: true }));
+    expect(dom.detail.textContent).toContain(`Slow: ${Math.round(TOWER_DEFS.ice.tier2.slow * 100)}%`);
+    expect(dom.detail.textContent).toContain(`Slow: ${Math.round(TOWER_DEFS.ice.tier3.slow * 100)}%`);
   });
 
   // The barracks deals 0 damage; a blank damage row would read as a bug.
@@ -129,12 +157,29 @@ describe('CodexOverlay', () => {
     expect(closed).toBe(1);
   });
 
+  // close() already sets display to 'none', so asserting 'none' after firing
+  // a post-close event can't tell "listener removed" from "listener leaked
+  // but harmless" — it would pass even if close() forgot _teardown()
+  // entirely. Force the visible state back on before each dispatch (the
+  // pattern WavePreviewPopover's destroy test uses) so a leaked listener
+  // would show up as unwanted state churn.
   it('removes every listener on close', () => {
     codex.open(buildCatalog(ALL));
     codex.close();
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+
+    const forceOpen = () => { dom.overlay.style.display = 'flex'; };
+
+    forceOpen();
     dom.close.dispatchEvent(new Event('click', { bubbles: true }));
-    expect(dom.overlay.style.display).toBe('none');
+    expect(dom.overlay.style.display).toBe('flex');
+
+    forceOpen();
+    dom.overlay.dispatchEvent(new Event('click', { bubbles: true }));
+    expect(dom.overlay.style.display).toBe('flex');
+
+    forceOpen();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(dom.overlay.style.display).toBe('flex');
   });
 
   it('is idempotent when opened twice', () => {
@@ -161,13 +206,13 @@ describe('CodexOverlay', () => {
   // it anyway rather than let the list silently render blank.
   it('shows an empty-state message instead of a blank list for an empty tab', () => {
     expect(() => codex.open({ towers: [], heroes: [], enemies: [] })).not.toThrow();
-    expect(dom.list.querySelector('.wp-empty')).toBeTruthy();
+    expect(dom.list.querySelector('.codex-empty')).toBeTruthy();
     expect(dom.detail.textContent).toBe('');
   });
 
   it('does not throw when opened with a null catalog', () => {
     expect(() => codex.open(null)).not.toThrow();
-    expect(dom.list.querySelector('.wp-empty')).toBeTruthy();
+    expect(dom.list.querySelector('.codex-empty')).toBeTruthy();
   });
 
   it('close() before open() does not throw, and neither does operating with no codex markup in the DOM', () => {
