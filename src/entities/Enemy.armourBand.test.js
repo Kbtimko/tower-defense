@@ -42,8 +42,13 @@ describe('Enemy.takeDamage', () => {
   });
 
   it('emits none when the hit pierces', () => {
+    // amount 25 vs. titan armor 20 is chosen so the two paths land in
+    // DIFFERENT bands: pierce false -> after 5, absorbed 0.8 -> 'heavy';
+    // pierce true -> after 25, absorbed 0 -> 'none'. If pierce ever stops
+    // being forwarded into armourAbsorption, this assertion fails instead of
+    // passing by coincidence.
     const { self, emitted } = fakeEnemy(ENEMY_DEFS.titan);
-    Enemy.prototype.takeDamage.call(self, 80, {
+    Enemy.prototype.takeDamage.call(self, 25, {
       pierce: true,
       source: { kind: 'tower', type: 'sniper', tier: 1, branch: null },
     });
