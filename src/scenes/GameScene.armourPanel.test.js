@@ -56,7 +56,11 @@ describe('tower panel armour line', () => {
     expect(el.querySelector('.ar-heavy')).not.toBeNull();
   });
 
-  it('renders nothing at all for a piercing tower', () => {
+  it('renders nothing for a high-damage tower armour barely dents', () => {
+    // Sniper's raw damage alone already puts every armoured enemy in band
+    // 'none' (highest absorption ~25%, under the 0.5 heavy threshold), so
+    // this passes regardless of pierce — it does not exercise the pierce
+    // path. The pierce guarantee is pinned by the tier-4-branch test below.
     render({ type: 'sniper', damage: TOWER_DEFS.sniper.damage, pierce: true });
     expect(el.childNodes.length).toBe(0);
     expect(el.style.display).toBe('none');
