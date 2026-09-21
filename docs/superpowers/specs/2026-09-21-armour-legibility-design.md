@@ -144,7 +144,7 @@ export function armourAbsorption({ amount, armor = 0, pierce = false })
 
 // → [{ enemyType, name, armor, after, absorbed, band }, ...]
 //   armoured enemies only, band !== 'none', in ENEMY_DEFS order
-export function describeTowerArmour({ type, tier, branch, damage })
+export function describeTowerArmour({ damage, pierce = false })
 ```
 
 `describeTowerArmour` takes the tower's *current* damage rather than re-deriving
@@ -165,7 +165,7 @@ matchup-line code — no `innerHTML`.
 
 ```
 🗡 Effective vs: Skitter, Phantom
-🛡 Armour absorbs: Brute 15→7 · Colossus 15→1 ⚠ · Titan 15→1 ⚠
+🛡 Armour absorbs: Brute 53% · Colossus 93% ⚠ · Titan 93% ⚠
 ```
 
 - `floored` rows red (`.ar-floor`), `heavy` rows amber (`.ar-heavy`), reusing the
