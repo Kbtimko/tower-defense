@@ -1,6 +1,8 @@
 import { HEROES, HERO_ORDER }  from '../data/heroes.js';
 import { UPGRADES }            from '../data/upgrades.js';
 import { renderUpgradeNode }   from './upgradeNode.js';
+import { AbilityTooltip }      from './AbilityTooltip.js';
+import { describeAbility }     from '../systems/entityDescriptors.js';
 
 function toCssColor(hex) {
   return '#' + ('000000' + hex.toString(16)).slice(-6);
@@ -29,6 +31,8 @@ export class HeroManagementOverlay {
   close() {
     this._closeBtn.removeEventListener('click', this._onClose);
     this._overlay.style.display = 'none';
+    this._abilityTip?.destroy();
+    this._abilityTip = null;
   }
 
   _render() {
@@ -102,6 +106,7 @@ export class HeroManagementOverlay {
   }
 
   _renderTree(heroId) {
+    this._abilityTip?.detachAll();
     const def = HEROES[heroId];
     this._tree.replaceChildren();
 
@@ -125,6 +130,27 @@ export class HeroManagementOverlay {
       banner.textContent = `🔒 Clear Map ${def.unlockMapAfter + 1} to unlock ${def.displayName}`;
       this._tree.appendChild(banner);
     }
+
+    // Ability reference for this hero. The overlay is a planning screen, so
+    // the cards describe the ability in the abstract: a hero's in-level
+    // cooldown has no meaning here, but its unlock level does.
+    const unlocked = this._save.isHeroUnlocked(heroId);
+    this._abilityTip ??= new AbilityTooltip();
+    const strip = document.createElement('div');
+    strip.className = 'ho-ability-strip';
+    for (const slot of ['q', 'w', 'e']) {
+      const a   = def.abilities[slot];
+      const row = document.createElement('div');
+      row.className   = 'ho-ability';
+      row.textContent = `${a.icon} ${a.label} [${slot.toUpperCase()}]`;
+      this._abilityTip.attach(row, () => describeAbility(def, slot, {
+        level:             def.stats.maxLevel,
+        heroUnlocked:      unlocked,
+        cooldownRemaining: 0,
+      }));
+      strip.appendChild(row);
+    }
+    this._tree.appendChild(strip);
 
     for (const node of UPGRADES.filter(u => u.branch === heroId)) {
       this._tree.appendChild(renderUpgradeNode(node, this._mgr, HEROES, () => this._render()));
