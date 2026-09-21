@@ -136,10 +136,16 @@ export class Enemy extends Phaser.GameObjects.Container {
     if (am) am.playSfx(enemyHitSfxKey(this.def.type, SFX_KEYS), { detune: (Math.random() - 0.5) * 100 });
     // Both the raw amount and the armour that ate it are in hand here, so the
     // overlay can be told WHY a hit was small without a second event or a
-    // second copy of the arithmetic.
-    const { band } = armourAbsorption({
-      amount, armor: this.armor, pierce: optsObj.pierce,
-    });
+    // second copy of the arithmetic. Only a 'tower' source (towers plus
+    // barracks soldiers, see soldierSource()) is something the tower panel's
+    // "Armour absorbs" line can actually explain — banding a status DoT
+    // (Pyro's burn/firefield) or a hero attack would spam a 🛡 marker the
+    // player can't trace to anything they built. getWeaknessMultiplier
+    // already special-cases source.kind === 'status'; this follows the same
+    // precedent rather than inventing a new rule.
+    const band = optsObj.source?.kind === 'tower'
+      ? armourAbsorption({ amount, armor: this.armor, pierce: optsObj.pierce }).band
+      : 'none';
     this.scene.events.emit('damage-dealt', {
       target: this,
       amount: dmg,

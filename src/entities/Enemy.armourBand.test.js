@@ -80,4 +80,35 @@ describe('Enemy.takeDamage', () => {
     const [, payload] = emitted.find(([e]) => e === 'damage-dealt');
     expect(payload.absorbedBand).toBe('none');
   });
+
+  it('bands a status DoT as none even though the arithmetic would floor it', () => {
+    // Pyro's burn is 3 dps vs. a brute's armour 8: after=1, absorbed=7/8 ->
+    // 'floored' by arithmetic alone. The tower panel has no line for a DoT,
+    // so surfacing that band would put an unexplained shield marker over the
+    // enemy every tick. If the source-kind check is dropped this fails.
+    const { self, emitted } = fakeEnemy(ENEMY_DEFS.brute);
+    Enemy.prototype.takeDamage.call(self, 3, {
+      source: { kind: 'status', type: 'burn' },
+    });
+    const [, payload] = emitted.find(([e]) => e === 'damage-dealt');
+    expect(payload.absorbedBand).toBe('none');
+  });
+
+  it('bands a hero attack as none even though the arithmetic would floor it', () => {
+    const { self, emitted } = fakeEnemy(ENEMY_DEFS.brute);
+    Enemy.prototype.takeDamage.call(self, 8, {
+      source: { kind: 'hero', heroId: 'scout' },
+    });
+    const [, payload] = emitted.find(([e]) => e === 'damage-dealt');
+    expect(payload.absorbedBand).toBe('none');
+  });
+
+  it('still bands a tower hit correctly alongside non-tower sources', () => {
+    const { self, emitted } = fakeEnemy(ENEMY_DEFS.brute);
+    Enemy.prototype.takeDamage.call(self, 8, {
+      source: { kind: 'tower', type: 'ice', tier: 1, branch: null },
+    });
+    const [, payload] = emitted.find(([e]) => e === 'damage-dealt');
+    expect(payload.absorbedBand).toBe('floored');
+  });
 });
