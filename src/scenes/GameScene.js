@@ -38,6 +38,10 @@ import { BLOCKER_TYPES } from '../data/blockerTypes.js';
 import { previewRange } from '../systems/rangePreview.js';
 import { SFX_KEYS } from '../systems/AudioManager.js';
 import { towerFireSfxKey } from '../systems/sfxKeys.js';
+import { WavePreviewPopover } from '../ui/WavePreviewPopover.js';
+import { summarizeWave }      from '../systems/wavePreview.js';
+import { CodexOverlay }       from '../ui/CodexOverlay.js';
+import { buildCatalog, progressFromSave } from '../systems/codexCatalog.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const WAVE_CLEAR_BONUS   = 38;
@@ -190,6 +194,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Wire DOM buttons (use once-registered named functions; shutdown() cleans up via clone)
     this._bindDOMEvents();
+    this._wavePreview = new WavePreviewPopover();
     this._updateHUD();
     this._updateWaveButton();
 
@@ -234,6 +239,7 @@ export default class GameScene extends Phaser.Scene {
       if (!this._userPaused) this.scene.resume();
     });
     document.getElementById('pause-btn').addEventListener('click', () => this._onPauseToggle());
+    document.getElementById('open-codex')?.addEventListener('click', () => this._openCodex());
   }
 
   _showConfirmExit() {
@@ -262,6 +268,18 @@ export default class GameScene extends Phaser.Scene {
       btn.textContent = '⏸ Pause';
       btn.classList.remove('paused');
     }
+  }
+
+  // Reading a stat block should not cost lives. Opening pauses a running game;
+  // closing resumes it ONLY if the player had not paused deliberately — the
+  // same rule the exit-confirm dialog already uses.
+  _openCodex() {
+    if (this.over || this.won) return;
+    if (!this._codexOverlay) this._codexOverlay = new CodexOverlay();
+    if (!this._userPaused) this.scene.pause();
+    this._codexOverlay.open(buildCatalog(progressFromSave(this.game.registry.get('save'))), {
+      onClose: () => { if (!this._userPaused) this.scene.resume(); },
+    });
   }
 
   // shutdown() strips DOM listeners by cloning the node, and cloneNode keeps
@@ -311,13 +329,17 @@ export default class GameScene extends Phaser.Scene {
 
   shutdown() {
     this._unwireSceneEvents();
+    this._wavePreview?.destroy();
+    this._wavePreview = null;
+    this._codexOverlay?.close();
+    this._codexOverlay = null;
     this._storyDialog?.close();
     this.inspector?.destroy();
     if (import.meta.env.DEV) window.__game = null;
     this.game.events.off('ui:ability', this._onAbility, this);
     this.game.events.off('ui:pause-toggle', this._onPauseToggle, this);
     // Remove all DOM listeners without tracking refs: clone replaces the node
-    ['wave-btn','speed-btn','pause-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','msg-cancel-btn','exit-btn','panel-reposition-btn','story-dismiss'].forEach(id => {
+    ['wave-btn','speed-btn','pause-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','msg-cancel-btn','exit-btn','panel-reposition-btn','story-dismiss','open-codex'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.replaceWith(el.cloneNode(true));
     });
@@ -382,6 +404,7 @@ export default class GameScene extends Phaser.Scene {
     const am = this.game.registry.get('audio');
     if (am) am.playSfx('wave-start');
     this.waveMgr.startWave();
+    this._wavePreview?.hide();
     this._updateWaveButton();
   }
 
@@ -1232,6 +1255,11 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _updateWaveButton() {
+    this._updateWaveButtonText();
+    this._refreshWavePreview();
+  }
+
+  _updateWaveButtonText() {
     const btn = document.getElementById('wave-btn');
     if (!btn) return;
     if (this.waveMgr.done) {
@@ -1251,6 +1279,16 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
     btn.disabled = false; btn.textContent = `▶ Send Wave ${this.waveMgr.currentWave + 1}`;
+  }
+
+  // The popover always describes the wave the button would send, so the two
+  // never disagree — including during an early-send window, where the button
+  // reads "Send Wave N+1". waveMgr.currentWave is the 0-based index of the
+  // next wave to spawn (spawnWave reads it, then increments).
+  _refreshWavePreview() {
+    if (!this._wavePreview) return;
+    if (this.waveMgr.done) { this._wavePreview.setWave(null); return; }
+    this._wavePreview.setWave(summarizeWave(this.mapId, this.waveMgr.currentWave));
   }
 
   _killReward(reward) {

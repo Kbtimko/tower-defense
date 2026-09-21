@@ -199,6 +199,9 @@
     #hero-hp-fill { height:100%; background:#4fc3f7; border-radius:2px; transition:width 0.15s; }
     #hero-xp-bg { width:52px; height:4px; background:#332b12; border-radius:2px; overflow:hidden; }
     #hero-xp-fill { height:100%; width:0%; background:#ffd700; border-radius:2px; transition:width 0.15s; }
+    /* Wraps each ability button so the hover card still works once the button
+       goes disabled (locked / on cooldown) — same reason as #wave-btn-wrap. */
+    .ability-btn-wrap { position: relative; display: inline-block; }
     .ability-btn { background:#1a2a3a; border:2px solid #4fc3f7; border-radius:5px;
                    padding:4px 7px; cursor:pointer; display:flex; flex-direction:column;
                    align-items:center; gap:1px; color:#4fc3f7; font-family:'Georgia',serif; }
@@ -268,6 +271,10 @@
     .ho-tree-head-stars { font-size:11px; color:#9aa; margin-left:auto; }
     .ho-tree-banner { background:#2a1a0a; border:1px dashed #ff9933; border-radius:4px; padding:8px 12px;
                       font-size:11px; color:#ffc080; margin-bottom:10px; }
+    .ho-ability-strip { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 14px; }
+    .ho-ability { background: #12202e; border: 1px solid #2a3a4a; border-radius: 4px;
+      color: #cde; padding: 5px 9px; font-size: 11px; cursor: help; }
+    .ho-ability:hover { background: #1a3145; border-color: #4fc3f7; }
     #upgrade-overlay { display:none; position:absolute; inset:0; z-index:15;
                        background:rgba(4,4,14,0.96); align-items:center;
                        justify-content:center; padding:24px; }
@@ -318,6 +325,74 @@
     .settings-row input[type=range] { flex:1; }
     .settings-row .settings-val { width:34px; text-align:right; color:#8ab; }
     .settings-mute { margin-top:12px; font-size:12px; color:#cfd8e8; }
+
+    /* Wave preview popover */
+    #wave-btn-wrap { position: relative; display: inline-block; }
+    .wave-preview { display: none; position: absolute; bottom: calc(100% + 10px); right: 0;
+      min-width: 240px; max-width: 320px; max-height: 50vh; overflow-y: auto;
+      background: #0a1018; border: 2px solid #4fc3f7; border-radius: 6px;
+      padding: 10px 12px; z-index: 19; text-align: left; box-shadow: 0 4px 18px rgba(0,0,0,0.6); }
+    .wave-preview.shown { display: block; }
+    .wp-title { color: #ffd700; font-size: 13px; font-weight: bold; margin-bottom: 8px; }
+    .wp-row { display: flex; gap: 8px; align-items: baseline; margin-bottom: 7px; }
+    .wp-icon { font-size: 17px; }
+    .wp-name { font-size: 12px; color: #dde; flex: 1; }
+    .wp-count { font-size: 13px; color: #ffd700; font-weight: bold; }
+    .wp-stats { font-size: 10px; color: #8aa; margin: 0 0 3px 25px; }
+    .wp-match { font-size: 10px; color: #7c9; margin: 0 0 3px 25px; }
+    .wp-match.resist { color: #c87; }
+    .wp-empty { font-size: 11px; color: #789; }
+
+    /* Codex overlay */
+    #codex-overlay { display: none; position: absolute; inset: 0; z-index: 20;
+      background: rgba(0,0,0,0.72); align-items: center; justify-content: center; padding: 20px; }
+    #codex-overlay-inner { width: 100%; max-width: 900px; max-height: 100%; display: flex;
+      flex-direction: column; background: #0a1018; border: 2px solid #2a3a4a;
+      border-radius: 8px; padding: 16px; }
+    #codex-overlay-header { display: flex; align-items: center; gap: 14px; padding-bottom: 10px;
+      border-bottom: 1px solid #2a3a4a; }
+    #codex-overlay-title { font-size: 18px; color: #ffd700; font-weight: bold; }
+    #codex-tabs { display: flex; gap: 6px; flex: 1; }
+    .codex-tab { background: #12202e; border: 1px solid #2a3a4a; color: #8aa; border-radius: 4px;
+      padding: 5px 12px; font-size: 12px; cursor: pointer; }
+    .codex-tab.active { background: #1a3145; border-color: #4fc3f7; color: #cfe; }
+    #codex-close { background: transparent; border: 1px solid #3a4a5a; color: #8aa;
+      border-radius: 4px; padding: 5px 12px; cursor: pointer; }
+    #codex-body { display: flex; gap: 14px; flex: 1; min-height: 0; padding-top: 12px; }
+    #codex-list { width: 210px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; }
+    #codex-detail { flex: 1; overflow-y: auto; padding-left: 14px; border-left: 1px solid #2a3a4a; }
+    .codex-entry { display: flex; gap: 8px; align-items: center; width: 100%; text-align: left;
+      background: #12202e; border: 1px solid #2a3a4a; border-radius: 4px; color: #cde;
+      padding: 7px 9px; font-size: 12px; cursor: pointer; }
+    .codex-entry:hover { background: #1a3145; }
+    .codex-entry.active { border-color: #ffd700; }
+    .codex-entry.codex-unseen { opacity: 0.55; }
+    .codex-unseen-tag { font-size: 9px; color: #789; margin-left: auto; }
+    .codex-detail-title { font-size: 16px; color: #ffd700; font-weight: bold; margin-bottom: 2px; }
+    .codex-detail-sub { font-size: 11px; color: #8aa; margin-bottom: 10px; }
+    .codex-stat { font-size: 12px; color: #cde; margin-bottom: 3px; }
+    .codex-section { font-size: 11px; color: #6bf; font-weight: bold;
+      margin: 12px 0 5px; text-transform: uppercase; letter-spacing: 1px; }
+    .codex-tier { font-size: 11px; color: #bcd; margin-bottom: 4px; padding-left: 8px;
+      border-left: 2px solid #2a3a4a; }
+    .codex-tier-label { color: #ffd700; }
+    .codex-empty { font-size: 11px; color: #789; }
+
+    /* Shared ability hover card */
+    .ability-card { display: none; position: absolute; z-index: 21; min-width: 210px;
+      max-width: 280px; background: #0a1018; border: 2px solid #4fc3f7; border-radius: 6px;
+      padding: 9px 11px; text-align: left; box-shadow: 0 4px 18px rgba(0,0,0,0.6);
+      pointer-events: none; }
+    .ability-card.shown { display: block; }
+    .ac-head { display: flex; gap: 7px; align-items: baseline; margin-bottom: 5px; }
+    .ac-icon { font-size: 16px; }
+    .ac-label { font-size: 13px; color: #ffd700; font-weight: bold; flex: 1; }
+    .ac-key { font-size: 10px; color: #8aa; border: 1px solid #3a4a5a; border-radius: 3px;
+      padding: 1px 5px; }
+    .ac-effect { font-size: 11px; color: #cde; margin-bottom: 5px; line-height: 1.4; }
+    .ac-meta { font-size: 10px; color: #8aa; }
+    .ac-lock { font-size: 10px; color: #c87; margin-top: 4px; }
+
     .inspector-panel { position: absolute; background: #0f0f1e; border: 2px solid #8b6914;
                        border-radius: 6px; padding: 8px 10px; font-size: 11px; color: #ddd;
                        min-width: 200px; max-width: 260px; z-index: 40; }
@@ -357,6 +432,7 @@
     <div class="hud-stat"><span>💀</span><span class="hud-val" id="stat-kills">0</span><span class="hud-lbl">Kills</span></div>
     <button id="speed-btn">⏩ 2x</button>
     <button id="pause-btn" title="Pause the level (Spacebar)">⏸ Pause</button>
+    <button id="open-codex" title="Codex (towers, heroes, enemies)">📚 Codex</button>
   </div>
   <div id="game">
     <div id="paused-overlay">PAUSED</div>
@@ -395,6 +471,7 @@
         <button id="open-heroes" title="Hero command">🦸 Heroes</button>
         <button id="open-settings" title="Audio settings">♪ Audio</button>
         <button id="open-story-log" title="Story log">📖 Story</button>
+        <button id="open-codex-ms" title="Codex">📚 Codex</button>
       </div>
       <div id="map-select-layout">
         <div id="map-overworld"></div>
@@ -487,6 +564,23 @@
         </div>
       </div>
     </div>
+    <div id="codex-overlay">
+      <div id="codex-overlay-inner">
+        <div id="codex-overlay-header">
+          <span id="codex-overlay-title">📚 Codex</span>
+          <div id="codex-tabs">
+            <button class="codex-tab" data-tab="towers">Towers</button>
+            <button class="codex-tab" data-tab="heroes">Heroes</button>
+            <button class="codex-tab" data-tab="enemies">Enemies</button>
+          </div>
+          <button id="codex-close">Close</button>
+        </div>
+        <div id="codex-body">
+          <div id="codex-list"></div>
+          <div id="codex-detail"></div>
+        </div>
+      </div>
+    </div>
   </div>
   <div id="bottom-bar">
     <div id="hero-section">
@@ -496,15 +590,21 @@
         <div id="hero-hp-bg"><div id="hero-hp-fill"></div></div>
         <div id="hero-xp-bg"><div id="hero-xp-fill"></div></div>
       </div>
-      <button class="ability-btn" id="ability-q" disabled title="Overcharge — +50% tower fire rate 6s">
-        <span class="ability-key">Q</span><span class="ability-name">⚡</span><span class="ability-cd"></span>
-      </button>
-      <button class="ability-btn locked" id="ability-w" disabled title="Airstrike — AoE damage on target area">
-        <span class="ability-key">W</span><span class="ability-name">🎯</span><span class="ability-cd"></span>
-      </button>
-      <button class="ability-btn locked" id="ability-e" disabled title="EMP Pulse — stuns all aliens 3s">
-        <span class="ability-key">E</span><span class="ability-name">💥</span><span class="ability-cd"></span>
-      </button>
+      <span class="ability-btn-wrap" id="ability-q-wrap" tabindex="0">
+        <button class="ability-btn" id="ability-q" disabled title="Overcharge — +50% tower fire rate 6s">
+          <span class="ability-key">Q</span><span class="ability-name">⚡</span><span class="ability-cd"></span>
+        </button>
+      </span>
+      <span class="ability-btn-wrap" id="ability-w-wrap" tabindex="0">
+        <button class="ability-btn locked" id="ability-w" disabled title="Airstrike — AoE damage on target area">
+          <span class="ability-key">W</span><span class="ability-name">🎯</span><span class="ability-cd"></span>
+        </button>
+      </span>
+      <span class="ability-btn-wrap" id="ability-e-wrap" tabindex="0">
+        <button class="ability-btn locked" id="ability-e" disabled title="EMP Pulse — stuns all aliens 3s">
+          <span class="ability-key">E</span><span class="ability-name">💥</span><span class="ability-cd"></span>
+        </button>
+      </span>
     </div>
     <div class="bar-divider"></div>
     <button class="tower-btn" data-type="archer">
@@ -526,7 +626,10 @@
       <span class="t-icon">⚔️</span><span class="t-cost">100g</span><span class="t-name">Barracks</span>
     </button>
     <button id="exit-btn">⏻ Exit</button>
-    <button id="wave-btn">▶ Send Wave 1</button>
+    <span id="wave-btn-wrap" tabindex="0">
+      <button id="wave-btn">▶ Send Wave 1</button>
+      <div id="wave-preview" class="wave-preview" role="tooltip" aria-hidden="true"></div>
+    </span>
   </div>
   <div id="tower-tooltip"></div>
   <div id="enemy-inspector" class="inspector-panel" style="display:none">
@@ -558,6 +661,7 @@
   </div>
 
   <div id="inspect-peek" style="display:none"></div>
+  <div id="ability-card" class="ability-card" role="tooltip" aria-hidden="true"></div>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
