@@ -313,6 +313,9 @@
                        margin-bottom: 2px; }
     .inspector-hpfill { background: #6f6; height: 100%; transition: width 0.1s linear; }
     .inspector-hp-label { font-size: 10px; color: #888; margin-bottom: 5px; }
+    /* Shares .inspector-hpbar's shell; gold matches the HUD's #hero-xp-fill so
+       the two readouts of the same number look like the same thing. */
+    .inspector-xpfill { background: #ffd700; height: 100%; transition: width 0.1s linear; }
     .inspector-stat { font-size: 11px; color: #aaa; margin: 2px 0; }
     .inspector-stat .ei-status-active { color: #6cf; }
     .inspector-matchups { margin-top: 5px; font-size: 10px; line-height: 1.4; }
@@ -529,6 +532,8 @@
     <div class="inspector-hpbar"><div class="inspector-hpfill" id="hi-hpfill"></div></div>
     <div class="inspector-hp-label" id="hi-hp-label">- / -</div>
     <div class="inspector-stat" id="hi-level">Level: -</div>
+    <div class="inspector-hpbar"><div class="inspector-xpfill" id="hi-xpfill"></div></div>
+    <div class="inspector-hp-label" id="hi-xp-label">- / -</div>
     <div class="inspector-stat" id="hi-attack">Attack: - dmg @ - range</div>
     <div class="inspector-abilities" id="hi-abilities"></div>
     <div class="inspector-matchups" id="hi-matchups"></div>

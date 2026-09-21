@@ -36,6 +36,8 @@ function setupDom() {
   hi.appendChild(mk('div', 'hi-hpfill'));
   hi.appendChild(mk('div', 'hi-hp-label'));
   hi.appendChild(mk('div', 'hi-level'));
+  hi.appendChild(mk('div', 'hi-xpfill'));
+  hi.appendChild(mk('div', 'hi-xp-label'));
   hi.appendChild(mk('div', 'hi-attack'));
   hi.appendChild(mk('div', 'hi-abilities'));
   hi.appendChild(mk('div', 'hi-matchups'));
@@ -70,6 +72,8 @@ const makeHero = (overrides = {}) => ({
   x: 50, y: 50, hp: 150, maxHp: 200, level: 2, killCount: 47, dead: false,
   _timers: { q: 0, w: 12, e: 0 }, respawnTimer: 0,
   def: RAEL_DEF,
+  // Shape mirrors Hero.xpProgress() -> heroXpProgress().
+  xpProgress: () => ({ level: 2, progress: 0.7, current: 1516, needed: 2166, atMax: false }),
   ...overrides,
 });
 
@@ -610,5 +614,73 @@ describe('InspectController — refresh', () => {
     ctrl.pin({ kind: 'hero', target: hero });
     ctrl.refresh();
     expect(ctrl.pinned).not.toBeNull();
+  });
+});
+
+
+// The hero card showed `Level: 2 / 5` and nothing about how close the next
+// level was, so levelling read as something that happened TO you rather than
+// something you were working toward. The HUD had a bar already; the card --
+// the thing you open to study the hero -- did not.
+describe('InspectController — hero XP progress on the card', () => {
+  beforeEach(setupDom);
+
+  it('fills the XP bar to the reported progress', () => {
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'hero', target: makeHero() });
+    expect(document.getElementById('hi-xpfill').style.width).toBe('70%');
+  });
+
+  it('labels the bar with damage dealt and the level being worked toward', () => {
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'hero', target: makeHero() });
+    expect(document.getElementById('hi-xp-label').textContent).toBe('1,516 / 2,166 to Level 3');
+  });
+
+  it('shows a full bar and MAX at the level cap', () => {
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'hero', target: makeHero({
+      level: 5,
+      xpProgress: () => ({ level: 5, progress: 1, current: 0, needed: 0, atMax: true }),
+    }) });
+    expect(document.getElementById('hi-xpfill').style.width).toBe('100%');
+    expect(document.getElementById('hi-xp-label').textContent).toBe('MAX');
+  });
+
+  // heroXpProgress returns needed:0 for a map with no wave table rather than
+  // throwing; the card must not render NaN% or "0 / 0" off the back of it.
+  it('renders no NaN when the map has no HP budget to pace against', () => {
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'hero', target: makeHero({
+      xpProgress: () => ({ level: 1, progress: 0, current: 0, needed: 0, atMax: false }),
+    }) });
+    expect(document.getElementById('hi-xpfill').style.width).toBe('0%');
+    expect(document.getElementById('hi-xp-label').textContent).toBe('—');
+  });
+
+  it('tracks progress live while the card stays pinned', () => {
+    const ctrl = new InspectController(makeScene());
+    let progress = 0.1;
+    const hero = makeHero({
+      xpProgress: () => ({ level: 2, progress, current: 216, needed: 2166, atMax: false }),
+    });
+    ctrl.pin({ kind: 'hero', target: hero });
+    expect(document.getElementById('hi-xpfill').style.width).toBe('10%');
+
+    progress = 0.55;
+    ctrl.refresh();
+    expect(document.getElementById('hi-xpfill').style.width).toBe('55%');
+  });
+
+  // A hero that starts above level 1 (the veteran / elite meta upgrades) sits
+  // below its own window with zero damage dealt; heroXpProgress clamps that to
+  // 0 rather than returning a negative, and the card must not invent a level.
+  it('does not misreport the target level for a hero that started above level 1', () => {
+    const ctrl = new InspectController(makeScene());
+    ctrl.pin({ kind: 'hero', target: makeHero({
+      level: 3,
+      xpProgress: () => ({ level: 3, progress: 0, current: 0, needed: 650, atMax: false }),
+    }) });
+    expect(document.getElementById('hi-xp-label').textContent).toBe('0 / 650 to Level 4');
   });
 });
