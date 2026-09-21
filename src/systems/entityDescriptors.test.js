@@ -187,8 +187,14 @@ describe('describeHero', () => {
     expect(d.abilities[0].state).toBeUndefined();
   });
 
-  it('reports hero matchups', () => {
-    expect(describeHero('engineer').matchups.titan).toBe(HEROES.engineer.matchups.titan);
+  it('reports hero matchups as display-ready entries', () => {
+    const d = describeHero('engineer');
+    expect(d.effectiveAgainst).toEqual(
+      expect.arrayContaining([
+        { kind: 'enemy', type: 'titan', name: ENEMY_DEFS.titan.name, icon: ENEMY_DEFS.titan.icon },
+      ])
+    );
+    expect(d.matchups).toBeUndefined();
   });
 
   it('returns null for an unknown hero', () => {
@@ -245,11 +251,20 @@ describe('describeAbility', () => {
   });
 
   // Hero lock outranks level lock: in Hero Command a locked hero shows the
-  // map to clear, not a level the player cannot reach yet anyway.
-  it('is locked by the hero itself when the hero is not unlocked', () => {
-    const a = describeAbility(HEROES.scout, 'q', { level: 1, heroUnlocked: false, cooldownRemaining: 0 });
+  // map to clear, not a level the player cannot reach yet anyway. Slot 'e'
+  // (unlockLevel 3) at level 1 puts BOTH locks in play — that's what actually
+  // pins the ordering; slot 'q' (unlockLevel 1) would pass regardless.
+  it('is locked by the hero itself when the hero is not unlocked, even if the level lock would also apply', () => {
+    const a = describeAbility(HEROES.scout, 'e', { level: 1, heroUnlocked: false, cooldownRemaining: 0 });
     expect(a.state).toBe('locked_hero');
     expect(a.lockReason).toBe('Clear Map 5 to unlock Scout Vex');
+  });
+
+  it('does not invent a map number when the hero has no unlock map', () => {
+    const a = describeAbility(HEROES.rael, 'q', { level: 1, heroUnlocked: false, cooldownRemaining: 0 });
+    expect(HEROES.rael.unlockMapAfter).toBeNull();
+    expect(a.state).toBe('locked_hero');
+    expect(a.lockReason).toBe(`${HEROES.rael.displayName} is locked`);
   });
 
   it('defaults to available-at-level-1 when no options are given', () => {
@@ -268,5 +283,19 @@ describe('describeAbility', () => {
 
   it('returns null for an unknown ability slot', () => {
     expect(describeAbility(rael, 'r', { level: 1, heroUnlocked: true, cooldownRemaining: 0 })).toBeNull();
+  });
+
+  // def.abilities[slot] reaches Object.prototype for unowned keys ('toString'
+  // etc.), which would otherwise pass the guard and produce a garbage
+  // descriptor (hotkey 'TOSTRING', every real field undefined).
+  it('does not resolve prototype-chain properties as ability slots', () => {
+    expect(describeAbility(rael, 'toString')).toBeNull();
+    expect(describeAbility(rael, 'constructor')).toBeNull();
+    expect(describeAbility(rael, 'hasOwnProperty')).toBeNull();
+  });
+
+  it('returns null when def itself is missing or malformed', () => {
+    expect(describeAbility(null, 'q')).toBeNull();
+    expect(describeAbility({}, 'q')).toBeNull();
   });
 });

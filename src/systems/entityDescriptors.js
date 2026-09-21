@@ -96,6 +96,7 @@ const ABILITY_SLOTS = ['q', 'w', 'e'];
 function staticAbility(def, slot) {
   const a = def.abilities[slot];
   return {
+    kind: 'ability',
     slot,
     hotkey:      slot.toUpperCase(),
     id:          a.id,
@@ -111,6 +112,10 @@ function staticAbility(def, slot) {
 export function describeHero(id) {
   if (!Object.hasOwn(HEROES, id)) return null;
   const def = HEROES[id];
+  // Same convention as describeTower: hand consumers display-ready matchup
+  // entries, not the raw multiplier map, so a bare 0.5 vs 1.5 doesn't have to
+  // be interpreted downstream.
+  const { effective, weak } = describeMatchups({ kind: 'hero', heroId: id });
   return {
     kind: 'hero',
     id:             def.id,
@@ -122,15 +127,19 @@ export function describeHero(id) {
     strokeColor:    def.strokeColor,
     // stats.abilityUnlockLevels is a nested object, not a flat value, so a
     // shallow spread would still alias it to the live balance table.
-    stats:          { ...def.stats, abilityUnlockLevels: { ...def.stats.abilityUnlockLevels } },
-    matchups:       { ...def.matchups },
-    unlockMapAfter: def.unlockMapAfter,
-    abilities:      ABILITY_SLOTS.map(slot => staticAbility(def, slot)),
+    stats:            { ...def.stats, abilityUnlockLevels: { ...def.stats.abilityUnlockLevels } },
+    unlockMapAfter:   def.unlockMapAfter,
+    abilities:        ABILITY_SLOTS.map(slot => staticAbility(def, slot)),
+    effectiveAgainst: effective.map(describeEnemyEntry),
+    weakAgainst:      weak.map(describeEnemyEntry),
   };
 }
 
+// def must already be a resolved hero definition (e.g. HEROES.rael) — this
+// function is called every tick by the HUD, so it validates only the slot,
+// not hero identity; use describeHero(id) when starting from an id.
 export function describeAbility(def, slot, opts = {}) {
-  if (!def.abilities[slot]) return null;
+  if (!def?.abilities || !Object.hasOwn(def.abilities, slot)) return null;
   const { level = 1, heroUnlocked = true, cooldownRemaining = 0 } = opts;
   const base = staticAbility(def, slot);
 
@@ -139,7 +148,9 @@ export function describeAbility(def, slot, opts = {}) {
       ...base,
       state: 'locked_hero',
       cooldownRemaining: 0,
-      lockReason: `Clear Map ${def.unlockMapAfter + 1} to unlock ${def.displayName}`,
+      lockReason: def.unlockMapAfter == null
+        ? `${def.displayName} is locked`
+        : `Clear Map ${def.unlockMapAfter + 1} to unlock ${def.displayName}`,
     };
   }
   if (level < base.unlockLevel) {
