@@ -156,6 +156,7 @@ export class InspectController {
     document.getElementById('hi-hp-label').textContent = `${Math.ceil(hero.hp)} / ${hero.maxHp}`;
 
     document.getElementById('hi-level').textContent = `Level: ${hero.level} / ${hero.def.stats.maxLevel} · Kills: ${hero.killCount}`;
+    this._renderHeroXp(hero);
     // The CURRENT figure, not the level-1 base: levelling scales attack damage,
     // and a panel showing the base would understate a level-5 hero by 80%.
     const attack = Math.round(heroAttackDamage(hero.def.stats, hero.level));
@@ -163,6 +164,35 @@ export class InspectController {
 
     this._renderHeroAbilities(hero);
     this._renderHeroMatchups(hero);
+  }
+
+  // Progress toward the next level. The HUD has carried this since PR #69, but
+  // only as a bare bar under the HP bar; the card is where you go to actually
+  // study the hero, and it showed the level with no sense of how close the next
+  // one was. Same numbers, spelled out.
+  //
+  // xpProgress() owns the maths (damage dealt as a fraction of the map's HP
+  // budget) — this only formats it, so the card cannot drift from the HUD.
+  _renderHeroXp(hero) {
+    const fill  = document.getElementById('hi-xpfill');
+    const label = document.getElementById('hi-xp-label');
+    if (!fill || !label) return;
+
+    const xp = hero.xpProgress?.();
+    if (!xp) return;
+
+    fill.style.width = `${(xp.progress * 100).toFixed(1)}%`;
+
+    if (xp.atMax) {
+      label.textContent = 'MAX';
+    } else if (xp.needed > 0) {
+      const n = (v) => Math.round(v).toLocaleString('en-US');
+      label.textContent = `${n(xp.current)} / ${n(xp.needed)} to Level ${xp.level + 1}`;
+    } else {
+      // A map with no wave table has no HP budget to pace against, so there is
+      // no denominator to show — an em dash rather than a meaningless "0 / 0".
+      label.textContent = '—';
+    }
   }
 
   _renderHeroAbilities(hero) {
