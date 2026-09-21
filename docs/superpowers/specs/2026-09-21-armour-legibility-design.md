@@ -243,7 +243,7 @@ pattern):
 | tower with no flagged enemies (Sniper) | line hidden entirely, no empty container |
 | tier-4 branch damage overrides | read from the live tower, not the tier-1 table |
 | Vulnerable debuff active | excluded from the metric; panel does not flicker |
-| enemy dies on the absorbed hit | no number printed (the death anim sells it), consistent with the existing hit-flash rule |
+| enemy dies on the absorbed hit | the number still prints — `DamageNumberOverlay` has never suppressed a killing blow, and only the hit *flash* is skipped on death (`Enemy.js:131`). Suppressing it here would be a new, inconsistent rule. |
 | many floored hits per second | throttled to one number per enemy per 700ms |
 | level replayed / scene shutdown | throttle map cleared; no retained enemy references |
 
