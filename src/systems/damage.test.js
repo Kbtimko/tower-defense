@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeDamage } from './damage.js';
+import { computeDamage, applyArmour } from './damage.js';
 
 // An archer projectile is the plain reference case: no armour, no matchup bonus.
 const archer = { kind: 'tower', type: 'archer', tier: 1, branch: null };
@@ -51,5 +51,24 @@ describe('computeDamage', () => {
 
   it('treats a missing armour value as zero', () => {
     expect(computeDamage({ amount: 25, enemyType: 'drone', source: archer })).toBe(25);
+  });
+});
+
+describe('applyArmour', () => {
+  it('subtracts armour from the raw amount', () => {
+    expect(applyArmour(20, 8)).toBe(12);
+  });
+
+  it('floors at 1 when armour meets or exceeds the amount', () => {
+    expect(applyArmour(8, 8)).toBe(1);
+    expect(applyArmour(5, 99)).toBe(1);
+  });
+
+  it('ignores armour entirely when the hit pierces', () => {
+    expect(applyArmour(20, 8, true)).toBe(20);
+  });
+
+  it('defaults to no armour and no pierce', () => {
+    expect(applyArmour(20)).toBe(20);
   });
 });
