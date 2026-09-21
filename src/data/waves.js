@@ -1,17 +1,22 @@
 import { ENEMY_DEFS } from './enemies.js';
 
 export const MAP_WAVES = {
+  // Level 1 is the gentlest map in the campaign by construction: the lowest
+  // HP-per-wave of any map, and the brute debuts ALONE on wave 5 (360 HP)
+  // before wave 6 doubles up (780 HP). That ordering is the point -- an archer
+  // opening does 5 DPS to a brute, so the mismatch has to be shown on a wave
+  // the player can survive learning from. Pinned by waves.test.js.
   0: [
-    [{ type: 'drone',   count: 7,  interval: 1200 }],
-    [{ type: 'drone',   count: 9,  interval: 1100 }, { type: 'skitter', count: 3, interval: 950  }],
+    [{ type: 'drone',   count: 6,  interval: 1200 }],
+    [{ type: 'drone',   count: 8,  interval: 1100 }, { type: 'skitter', count: 3, interval: 950  }],
     [{ type: 'skitter', count: 8,  interval: 850  }],
-    [{ type: 'brute',   count: 4,  interval: 1400 }],
-    [{ type: 'drone',   count: 8,  interval: 1000 }, { type: 'brute',   count: 3, interval: 1400 }],
-    [{ type: 'skitter', count: 6,  interval: 800  }, { type: 'brute',   count: 4, interval: 1300 }],
-    [{ type: 'drone',   count: 10, interval: 900  }, { type: 'skitter', count: 5, interval: 750  }],
-    [{ type: 'brute',   count: 8,  interval: 1100 }, { type: 'skitter', count: 5, interval: 700  }],
-    [{ type: 'drone',   count: 10, interval: 900  }, { type: 'brute',   count: 6, interval: 1000 }, { type: 'skitter', count: 6, interval: 750 }],
-    [{ type: 'drone',   count: 20, interval: 700  }],
+    [{ type: 'drone',   count: 10, interval: 1000 }],
+    [{ type: 'brute',   count: 3,  interval: 1400 }],
+    [{ type: 'drone',   count: 6,  interval: 1000 }, { type: 'brute',   count: 3, interval: 1400 }],
+    [{ type: 'drone',   count: 8,  interval: 950  }, { type: 'skitter', count: 5, interval: 750  }],
+    [{ type: 'brute',   count: 5,  interval: 1150 }, { type: 'skitter', count: 5, interval: 700  }],
+    [{ type: 'drone',   count: 8,  interval: 900  }, { type: 'brute',   count: 4, interval: 1050 }, { type: 'skitter', count: 6, interval: 750 }],
+    [{ type: 'drone',   count: 16, interval: 750  }],
   ],
 
   1: [

@@ -9,7 +9,13 @@ export const MAPS = [
     startLives: 25,
     overworldPos: [0.092, 0.85],
     overworldArt: 'overworld_0_outpost_sigma.png',
-    rewardMult: 0.30,
+    // 0.35, matching Lunar Gate, is not about the gold -- the trimmed wave
+    // table clears this map at 0.30 too. It is about where the calibration
+    // SITS: at 0.30 a 5g drop takes the map from 64% of lives kept to 24%,
+    // so it balanced one step above a cliff. At 0.35 the 125-140g band is a
+    // uniform 64-76% and survives small future changes to rewards or the
+    // wave-clear bonus.
+    rewardMult: 0.35,
     unlockCost: 0,
     waveCount: 10,
     maxTierAllowed: 2,
