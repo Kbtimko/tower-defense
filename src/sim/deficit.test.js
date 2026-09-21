@@ -22,12 +22,23 @@ describe('findWinMultiplier', () => {
     expect(r).toBeNull();
   });
 
+  // Deliberately synthetic, not a shipped map. This used to pass map 0 and
+  // assert the result was > 1 -- which quietly made the suite depend on map 0
+  // being UNWINNABLE, so recalibrating it into a beatable first level broke a
+  // test of arithmetic that has nothing to do with campaign balance. Starving
+  // a map of gold is a property of the fixture, so it stays true whatever the
+  // campaign is tuned to.
+  //
+  // Only the ECONOMY is synthetic; waves0 stays real so the search still runs
+  // against a realistic wave shape. Measured margin: the multiplier sits on a
+  // ~1.96 plateau from 0 to 90 starting gold and is unaffected by startLives,
+  // so it is not knife-edge on the > 1 bound.
   it('returns a multiplier above 1 for a map that needs help', () => {
-    const m = findWinMultiplier(map0, waves0, { buildPlan: greedyBuildPlan });
-    if (m !== null) {
-      expect(m).toBeGreaterThan(1);
-      expect(m).toBeLessThanOrEqual(8);
-    }
+    const starved = { ...map0, startGold: 60, startLives: 5 };
+    const m = findWinMultiplier(starved, waves0, { buildPlan: greedyBuildPlan });
+    expect(m).not.toBeNull();
+    expect(m).toBeGreaterThan(1);
+    expect(m).toBeLessThanOrEqual(8);
   });
 
   it('is monotone — the found multiplier wins and just below it does not', () => {

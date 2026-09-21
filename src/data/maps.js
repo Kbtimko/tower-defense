@@ -9,7 +9,13 @@ export const MAPS = [
     startLives: 25,
     overworldPos: [0.092, 0.85],
     overworldArt: 'overworld_0_outpost_sigma.png',
-    rewardMult: 0.30,
+    // 0.35, matching Lunar Gate, is not about the gold -- the trimmed wave
+    // table clears this map at 0.30 too. It is about where the calibration
+    // SITS: at 0.30 a 5g drop takes the map from 64% of lives kept to 24%,
+    // so it balanced one step above a cliff. At 0.35 the 125-140g band is a
+    // uniform 64-76% and survives small future changes to rewards or the
+    // wave-clear bonus.
+    rewardMult: 0.35,
     unlockCost: 0,
     waveCount: 10,
     maxTierAllowed: 2,
@@ -63,11 +69,18 @@ export const MAPS = [
     background: 0x1e1e1e,
     pathColor: 0x808080,
     waypoints: [[0,.387],[.025,.432],[.045,.378],[.121,.459],[.176,.468],[.176,.541],[.251,.64],[.261,.595],[.296,.595],[.367,.505],[.472,.532],[.523,.64],[.578,.658],[.593,.748],[.643,.802],[.804,.649],[.794,.613],[.814,.595],[.894,.631],[.955,.595],[.975,.631],[1,.613]],
-    startGold: 130,
+    // PROVISIONAL -- playtest-tunable, not derived. The balance simulator
+    // cannot resolve this map: sweeping startGold in 5g steps gives five
+    // monotonicity inversions in eleven (more gold, worse outcome), because
+    // greedyBuildPlan's towerValue ignores armour and the weakness matrix and
+    // this map's 11 slots and tier-3 cap compound that mis-ranking. 170/0.40
+    // is the most stable cell found (a three-wide plateau at 165/170/175g).
+    // Expect to retune after a human plays it.
+    startGold: 170,
     startLives: 20,
     overworldPos: [0.383, 0.85],
     overworldArt: 'overworld_2_the_crater.png',
-    rewardMult: 0.30,
+    rewardMult: 0.40,
     unlockCost: 0,
     waveCount: 12,
     maxTierAllowed: 3,

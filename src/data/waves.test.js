@@ -144,7 +144,7 @@ describe('totalEnemyHpForMap', () => {
   // moves the levelling curve with it — which is exactly what should happen,
   // but it should not happen unnoticed.
   const EXPECTED = {
-    0:  8800, 1:  8120, 2: 12330, 3: 10770, 4: 18500,
+    0:  7220, 1:  8120, 2: 11000, 3: 10770, 4: 18500,
     5: 18080, 6: 24440, 7: 31430, 8: 40970, 9: 59780,
   };
 
@@ -168,5 +168,57 @@ describe('totalEnemyHpForMap', () => {
 
   it('returns 0 for a map with no wave table rather than throwing', () => {
     expect(totalEnemyHpForMap(999)).toBe(0);
+  });
+});
+
+// The on-ramp is the first three maps, and it is the stretch a new player is
+// judged by. Before this guard existed, map 0 shipped HARDER than map 1 on HP,
+// reward rate, peak pressure and brute count -- the 2026-06-17 economy spec
+// tuned each map against a board-fill curve and never compared maps to one
+// another, so nothing caught the inversion.
+//
+// HP per wave, not total HP: maps 0 and 1 run 10 waves and map 2 runs 12, so
+// totals alone would call map 2 harder purely for being longer.
+//
+// Scoped to maps 0-2 on purpose. Map 3 ships 898 HP per wave, BELOW map 2's
+// 917, so a 0 < 1 < 2 < 3 assertion would fail. That inversion is pre-existing
+// and out of scope here -- this change shrinks it from 14.5% (1028 vs 898) to
+// 2.1% rather than introducing it. Extend this test past map 2 only as part of
+// recalibrating maps 3-9.
+describe('on-ramp difficulty ramp (maps 0-2)', () => {
+  const hpPerWave = (mapId) => totalEnemyHpForMap(mapId) / MAP_WAVES[mapId].length;
+
+  it('increases strictly from map 0 to map 1 to map 2', () => {
+    const ramp = [0, 1, 2].map(hpPerWave);
+    expect(ramp[0]).toBeLessThan(ramp[1]);
+    expect(ramp[1]).toBeLessThan(ramp[2]);
+  });
+
+  it('makes map 0 the gentlest map in the campaign per wave', () => {
+    const others = [1, 2, 3, 4, 5, 6, 7, 8, 9].map(hpPerWave);
+    for (const hp of others) expect(hpPerWave(0)).toBeLessThan(hp);
+  });
+});
+
+// Map 0 is where the brute is introduced, and the archer -- what 130 starting
+// gold and a naive damage-per-gold read both pick -- lands 5 DPS on one once
+// flat armour and the 0.75 weakness multiplier compound. That mismatch has to
+// be REVEALED on a small isolated wave before it is PUNISHED on a big mixed
+// one, or the player is beaten for a reasonable inference with no warning.
+describe('map 0 introduces the brute before it tests it', () => {
+  const waves = MAP_WAVES[0];
+  const waveHp = (w) => w.reduce((s, g) => s + ENEMY_DEFS[g.type].hp * g.count, 0);
+  const bruteWaves = waves
+    .map((w, i) => ({ w, i }))
+    .filter(({ w }) => w.some(g => g.type === 'brute'));
+
+  it('debuts the brute on a wave of nothing but brutes', () => {
+    expect(bruteWaves.length).toBeGreaterThan(1);
+    const debut = bruteWaves[0].w;
+    expect(debut.every(g => g.type === 'brute')).toBe(true);
+  });
+
+  it('makes that debut smaller than the next wave carrying brutes', () => {
+    expect(waveHp(bruteWaves[0].w)).toBeLessThan(waveHp(bruteWaves[1].w));
   });
 });
