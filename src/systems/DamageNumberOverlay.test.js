@@ -84,3 +84,104 @@ describe('DamageNumberOverlay', () => {
     expect(scene.tweens.killTweensOf).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('absorbed hits', () => {
+  it('prints a sub-threshold hit when armour absorbed it', () => {
+    const scene = makeScene();
+    new DamageNumberOverlay(scene);
+    scene.events.emit('damage-dealt', { target: { x: 10, y: 10 }, amount: 1, absorbedBand: 'floored' });
+    expect(scene.add.text).toHaveBeenCalledTimes(1);
+  });
+
+  it('still hides a sub-threshold hit that armour did not absorb', () => {
+    const scene = makeScene();
+    new DamageNumberOverlay(scene);
+    scene.events.emit('damage-dealt', { target: { x: 10, y: 10 }, amount: 1, absorbedBand: 'none' });
+    expect(scene.add.text).not.toHaveBeenCalled();
+  });
+
+  it('marks an absorbed number with the shield glyph', () => {
+    const scene = makeScene();
+    const made = [];
+    scene.add.text = vi.fn(() => { const t = makeText(); made.push(t); return t; });
+    new DamageNumberOverlay(scene);
+    scene.events.emit('damage-dealt', { target: { x: 0, y: 0 }, amount: 1, absorbedBand: 'floored' });
+    expect(made[0].text).toBe('🛡1');
+  });
+
+  // Note on these throttle tests: DamageNumberOverlay's object pool recycles a
+  // text object synchronously in this test harness (the mocked tweens.add
+  // fires onComplete immediately), so `scene.add.text` is only called once no
+  // matter how many logical spawns happen afterward — it counts object
+  // allocation, not spawn attempts, and a repeat emit reuses the pooled
+  // object either way. That makes `scene.add.text` call-count blind to
+  // whether the throttle actually fired. Asserting on the captured object's
+  // `setText` calls instead counts spawn attempts correctly, since every
+  // spawn (fresh or pooled) re-invokes setText — so a broken/missing/global
+  // throttle is caught rather than masked by pool reuse.
+  it('throttles repeat absorbed numbers on the same enemy', () => {
+    const scene = makeScene();
+    const made = [];
+    scene.add.text = vi.fn(() => { const t = makeText(); made.push(t); return t; });
+    new DamageNumberOverlay(scene);
+    const target = { x: 0, y: 0 };
+    scene.events.emit('damage-dealt', { target, amount: 1, absorbedBand: 'floored' });
+    scene.events.emit('damage-dealt', { target, amount: 1, absorbedBand: 'floored' });
+    expect(made[0].setText).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets a different enemy through inside the same window', () => {
+    const scene = makeScene();
+    const made = [];
+    scene.add.text = vi.fn(() => { const t = makeText(); made.push(t); return t; });
+    new DamageNumberOverlay(scene);
+    scene.events.emit('damage-dealt', { target: { x: 0, y: 0 }, amount: 1, absorbedBand: 'floored' });
+    scene.events.emit('damage-dealt', { target: { x: 5, y: 5 }, amount: 1, absorbedBand: 'floored' });
+    expect(made[0].setText).toHaveBeenCalledTimes(2);
+  });
+
+  it('admits the same enemy again once the window has passed', () => {
+    const scene = makeScene();
+    const made = [];
+    scene.add.text = vi.fn(() => { const t = makeText(); made.push(t); return t; });
+    const overlay = new DamageNumberOverlay(scene);
+    const target = { x: 0, y: 0 };
+    let now = 1000;
+    overlay._now = () => now;
+    scene.events.emit('damage-dealt', { target, amount: 1, absorbedBand: 'floored' });
+    now += 701;
+    scene.events.emit('damage-dealt', { target, amount: 1, absorbedBand: 'floored' });
+    expect(made[0].setText).toHaveBeenCalledTimes(2);
+  });
+
+  it('still prints when the absorbed hit is the killing blow', () => {
+    // The overlay has never suppressed a killing blow; only the hit FLASH is
+    // skipped on death (Enemy.js:131). Suppressing the number here would be a
+    // new and inconsistent rule.
+    const scene = makeScene();
+    new DamageNumberOverlay(scene);
+    scene.events.emit('damage-dealt', {
+      target: { x: 0, y: 0, dead: true }, amount: 1, absorbedBand: 'floored',
+    });
+    expect(scene.add.text).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not throttle an ordinary big hit', () => {
+    const scene = makeScene();
+    const made = [];
+    scene.add.text = vi.fn(() => { const t = makeText(); made.push(t); return t; });
+    new DamageNumberOverlay(scene);
+    const target = { x: 0, y: 0 };
+    scene.events.emit('damage-dealt', { target, amount: 50 });
+    scene.events.emit('damage-dealt', { target, amount: 50 });
+    expect(made[0].setText).toHaveBeenCalledTimes(2);
+  });
+
+  it('drops its throttle state on destroy', () => {
+    const scene = makeScene();
+    const overlay = new DamageNumberOverlay(scene);
+    const before = overlay._absorbedAt;
+    overlay.destroy();
+    expect(overlay._absorbedAt).not.toBe(before);
+  });
+});
