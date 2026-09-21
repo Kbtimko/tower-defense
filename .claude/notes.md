@@ -3,8 +3,12 @@
 ## Goal
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
-## Current Status (2026-09-20)
-**The campaign is feature-complete and shipped. `main` is at `a3c717d` and every PR is merged — nothing is open.** `main` is the Vercel production branch, so all of the below is live.
+## Current Status (2026-09-21)
+**The campaign is feature-complete and shipped. `main` is the Vercel production branch, so merging publishes.** **One PR is open: #75 — wave preview, codex, and hero ability tooltips** (backlog #19), 24 commits, **1339 tests / 95 files**, build clean, 32/32 live browser checks + 11/11 replay checks against the production bundle. Not merged — merging auto-deploys, so that call is yours.
+
+`main` advanced mid-session to `7e311f4` (PR #74, the findable pause button), which conflicted with #75 in `index.html` and `GameScene.js`; both were "two features want the same spot", merged with both sides kept and re-verified afterwards.
+
+_(Prior state, 2026-09-20: campaign shipped at `a3c717d`, everything merged, nothing open.)_
 
 **This session was a bug-hunt that turned into four merged PRs (#66, #67, #68, #69), plus hero systems landed in parallel by another session (#63, #64, #65).** Suite is now **84 files / 1168 tests**; build clean.
 
@@ -25,7 +29,9 @@ The bug hunt started from "damage doesn't register with enemies" and ended up fi
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
-**Nothing in progress. No open PRs.**
+**PR #75 is open and awaiting your merge decision** — https://github.com/Kbtimko/tower-defense/pull/75 (branch `feat/wave-preview-codex-tooltips`, worktree `~/.config/superpowers/worktrees/tower-defense/codex-and-previews`). Everything is verified; the only thing left is the merge, which auto-deploys to production.
+
+**One product decision is open on it:** there is no touch path to the wave preview (see Loose ends).
 
 Last shipped (2026-09-20), newest first:
 - **PR #69 — hero XP progress bar.** Full pipeline: brainstorm → spec → plan → 7 tasks via subagents with two-stage review each → live verification → PR. Spec `docs/superpowers/specs/2026-09-20-hero-xp-bar-design.md`, plan `docs/superpowers/plans/2026-09-20-hero-xp-bar.md`.
@@ -35,6 +41,9 @@ Last shipped (2026-09-20), newest first:
 - **PRs #63/#64/#65 — hero melee, regen and damage-levelling** (landed by a parallel session; #65 recovered #64's work after a stacked-PR merge-order slip).
 
 ### Hard-won facts worth not re-deriving
+- **Disabled controls fire NO pointer events in Chrome/Safari, and jsdom does not reproduce it.** This bit twice in PR #75: `#wave-btn` (disabled for a whole active wave) and `#ability-q/w/e` (disabled when locked *or* on cooldown — making two of the hover card's four states unreachable in a real browser while the suite stayed green). Fix is a wrapper element that is never disabled (`#wave-btn-wrap`, `#ability-<slot>-wrap`), with `focusin`/`focusout` rather than `focus`/`blur`, which do not bubble. **Any hover affordance on a control this game disables needs a wrapper.**
+- **Read plan data from a worktree on the TARGET base, not the primary checkout.** PR #75's plan hardcoded `MAP_WAVES[0][0]` as 7 drones with brutes at wave index 3; both came from the primary checkout while it sat 41 commits behind `origin/main`, and `c134db2` / `18641a1` had since retuned map 0 to 6 drones and moved brutes off index 3 entirely. Derive balance expectations from the tables in tests; keep literals only for structure (wave numbering, array lengths).
+- **Screenshots catch what assertions cannot.** PR #75's matchup lists rendered "Weak to: Mage, Cannon, Sniper, Dax" — Dax is a hero, listed as if it were a tower to build. Every DOM assertion passed. Only looking at the image found it.
 - **`main` IS the Vercel production branch.** Verified via the deployments API: only `main` produces `target: "production"`; every other branch is `target: null` (a preview). Do NOT infer the deploy target from `origin/HEAD` — that pointed at an integration branch and is what let the live site sit 141 commits stale for two months (fixed in PR #45).
 - **Vite copies ONLY `publicDir` into `dist/`.** Art must live under `public/assets/...`. A repo-root `assets/` dir is served by the dev server and silently dropped from the build — that shipped broken backdrops for two months. `npm run assets` now detects this specific mistake.
 - **Browser-verify the production build (`npm run build && npm run preview`), not just `npm run dev`.** The dev server serves files the build omits; every prior "browser-verified" note was localhost-only, which is why the 404s survived so long.
@@ -75,6 +84,8 @@ Last shipped (2026-09-20), newest first:
     - **The plan's own wave literals were wrong**, read from the primary checkout while it sat 41 commits behind `origin/main`; two balance commits (`c134db2`, `18641a1`) had retuned map 0 since, moving brutes off wave index 3 entirely. Tests now derive balance expectations from the tables. See `docs/superpowers/specs/2026-09-21-*` and `docs/superpowers/plans/2026-09-21-*`.
 
 ## Loose ends
+- **PR #75: no touch path to the wave preview — an open product decision.** On a touchscreen the Send Wave button is the only thing to tap, and tapping it sends the wave. Tap-toggle was implemented, then removed because it opened the popover *and* fired the wave, stranding a stale preview over a running wave. Hover and keyboard work fully. The three options put to you were: (1) accept the limitation and fold touch into the iOS port (#9) — the shipped choice; (2) tap-to-preview-then-tap-to-send; (3) a separate ⓘ affordance. Ability hover cards have the same gap — `pointerenter` never fires from a tap.
+- **PR #75: ability strip rows in Hero Command are not keyboard-reachable.** They are `div`s with no `tabindex`. Adding it would work (the tooltip binds `focusin`), but it is 3 stops × 4 heroes on a screen that already sequences a hero rail and an upgrade tree — left as a deliberate navigation-order decision rather than a silent change.
 - **Armour legibility is the one thing raised this session and NOT done** — tracked as backlog #15. The player has no in-combat signal for WHY a hit is weak. 8 tower/tier/enemy combos deal exactly 1 damage a shot (ice T1–T3 and archer T1 vs brute/colossus/titan) = **5m50s to 38m51s to kill one wave-8 enemy**. You chose "make it legible, don't rebalance": surface the armour interaction in the tower panel, do not touch the formula. The enemy inspector already shows `Armor N`; the TOWER panel shows only the weakness matrix.
 - **`Hero.js` and `Soldier.js` HP bars still derive geometry from `def.radius`** — the same defect fixed for enemies in PR #68. Deliberately left out of scope; the report was about enemies.
 - **Concurrent sessions share the primary checkout and WILL destroy each other's work.** Mid-session another session ran `git checkout main` → `pull` → `checkout feat/hero-melee-and-regen` → `reset`, which wiped uncommitted work in `/Users/keithtimko/projects/tower-defense`. Recovered only because a patch had been backed up first. **Work in a git worktree, not the primary checkout**, and back up a patch before any branch operation there.
