@@ -11,15 +11,17 @@ export class AbilityTooltip {
     document.addEventListener('keydown', this._onEsc);
   }
 
-  // focus/blur (not focusin/focusout) are correct here: unlike the wave
-  // popover, where the hover target is a wrapper around a sometimes-disabled
-  // button, here the anchor passed in IS the interactive control itself, so
-  // there is no separate wrapper for focus to bubble past.
+  // focusin/focusout (not focus/blur): the anchor passed in is often a
+  // wrapper around a sometimes-disabled button (ability buttons go disabled
+  // when locked or on cooldown, and disabled controls fire no pointer events
+  // in Chrome/Safari — same reason the wave popover wraps #wave-btn). focus/
+  // blur don't bubble from the button to the wrapper, so tabbing onto the
+  // button would never show the card; focusin/focusout do bubble.
   attach(anchor, getModel) {
     if (!anchor) return;
     const show = () => this._show(anchor, getModel());
     const hide = () => this.hide();
-    for (const [evt, fn] of [['pointerenter', show], ['pointerleave', hide], ['focus', show], ['blur', hide]]) {
+    for (const [evt, fn] of [['pointerenter', show], ['pointerleave', hide], ['focusin', show], ['focusout', hide]]) {
       anchor.addEventListener(evt, fn);
       this._listeners.push({ el: anchor, evt, fn });
     }

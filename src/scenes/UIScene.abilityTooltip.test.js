@@ -43,6 +43,11 @@ function setupHeroDOM() {
   document.body.appendChild(section);
 
   for (const slot of ['q', 'w', 'e']) {
+    // Mirrors index.html: the button sits inside a wrapper span so the hover
+    // card still works once the button goes `disabled` (locked/cooldown) —
+    // disabled controls fire no pointer events in a real browser.
+    const wrap = document.createElement('span');
+    wrap.id = `ability-${slot}-wrap`;
     const btn = document.createElement('button');
     btn.id = `ability-${slot}`;
     for (const cls of ['ability-key', 'ability-name', 'ability-cd']) {
@@ -50,7 +55,8 @@ function setupHeroDOM() {
       span.className = cls;
       btn.appendChild(span);
     }
-    document.body.appendChild(btn);
+    wrap.appendChild(btn);
+    document.body.appendChild(wrap);
   }
 
   const card = document.createElement('div');
@@ -73,8 +79,10 @@ function makeScene() {
 
 const cardText = () => document.getElementById('ability-card').textContent;
 const cardShown = () => document.getElementById('ability-card').classList.contains('shown');
-const hover = (slot) => document.getElementById(`ability-${slot}`).dispatchEvent(new Event('pointerenter'));
-const unhover = (slot) => document.getElementById(`ability-${slot}`).dispatchEvent(new Event('pointerleave'));
+// Hover the WRAPPER, not the button: that's what a real pointer does, since a
+// disabled button fires no pointer events at all in Chrome/Safari.
+const hover = (slot) => document.getElementById(`ability-${slot}-wrap`).dispatchEvent(new Event('pointerenter'));
+const unhover = (slot) => document.getElementById(`ability-${slot}-wrap`).dispatchEvent(new Event('pointerleave'));
 
 describe('UIScene ability hover card', () => {
   beforeEach(setupHeroDOM);
@@ -143,5 +151,55 @@ describe('UIScene ability hover card', () => {
 
     expect(afterFirst).toBeGreaterThan(0);
     expect(afterSecond).toBe(afterFirst);
+  });
+
+  // A disabled button fires no pointer events in Chrome/Safari (jsdom does not
+  // reproduce this), so the card's most important states — "why can't I use
+  // this?" and "how long until it's ready?" — must be reachable from the
+  // wrapper, which is never disabled.
+  it('shows the lock reason when hovering the wrapper of a locked ability (button disabled, .locked)', () => {
+    const s = makeScene();
+    s._onHeroHudInit({ heroId: 'rael', def: HEROES.rael });
+
+    const btn = document.getElementById('ability-e');
+    expect(btn.disabled).toBe(true);
+    expect(btn.classList.contains('locked')).toBe(true);
+
+    hover('e');
+
+    expect(cardShown()).toBe(true);
+    expect(cardText()).toContain('Unlocks at level 3');
+  });
+
+  it('shows the remaining seconds when hovering the wrapper of an ability on cooldown (button disabled)', () => {
+    const s = makeScene();
+    s._onHeroHudInit({ heroId: 'rael', def: HEROES.rael });
+    s._onHeroLevelUp({ level: 1 });
+    s._onHeroCooldownTick({ q: 9, w: 0, e: 0 });
+
+    const btn = document.getElementById('ability-q');
+    expect(btn.disabled).toBe(true);
+
+    hover('q');
+
+    expect(cardShown()).toBe(true);
+    expect(cardText()).toContain('Ready in 9s');
+  });
+
+  it('attaches the hover listeners to the wrapper element, not the button — a bubbling pointerenter-equivalent path must work even while the button is disabled', () => {
+    const s = makeScene();
+    s._onHeroHudInit({ heroId: 'rael', def: HEROES.rael });
+
+    const btn  = document.getElementById('ability-e');
+    const wrap = document.getElementById('ability-e-wrap');
+    expect(btn.disabled).toBe(true);
+
+    const enterListeners = s._abilityTip._listeners.filter(l => l.evt === 'pointerenter');
+    expect(enterListeners.every(l => l.el !== btn)).toBe(true);
+    expect(enterListeners.some(l => l.el === wrap)).toBe(true);
+
+    wrap.dispatchEvent(new Event('pointerenter'));
+
+    expect(cardShown()).toBe(true);
   });
 });

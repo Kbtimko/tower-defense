@@ -398,8 +398,13 @@ export default class UIScene extends Phaser.Scene {
     this._abilityTip?.detachAll();
     this._abilityTip ??= new AbilityTooltip();
     for (const slot of ['q', 'w', 'e']) {
-      const btn = document.getElementById(`ability-${slot}`);
-      this._abilityTip.attach(btn, () => describeAbility(def, slot, {
+      // Attach to the wrapper, not the button: the button goes `disabled`
+      // whenever the ability is locked or cooling down, and Chrome/Safari
+      // fire no pointer events on a disabled control — exactly when a player
+      // most needs the card. Falls back to the button if markup ever drifts.
+      const btn  = document.getElementById(`ability-${slot}`);
+      const wrap = document.getElementById(`ability-${slot}-wrap`) ?? btn;
+      this._abilityTip.attach(wrap, () => describeAbility(def, slot, {
         level:             this._heroLevel,
         heroUnlocked:      true,     // an in-level hero is by definition unlocked
         cooldownRemaining: this._heroCds[slot],

@@ -60,11 +60,28 @@ describe('AbilityTooltip', () => {
     expect(dom.card.textContent).toContain(`Clear Map ${HEROES.scout.unlockMapAfter + 1}`);
   });
 
-  it('opens on focus and closes on blur', () => {
+  it('opens on focusin and closes on focusout', () => {
     tip.attach(dom.anchor, () => describeAbility(HEROES.rael, 'q'));
-    dom.anchor.dispatchEvent(new Event('focus'));
+    dom.anchor.dispatchEvent(new Event('focusin'));
     expect(dom.card.classList.contains('shown')).toBe(true);
-    dom.anchor.dispatchEvent(new Event('blur'));
+    dom.anchor.dispatchEvent(new Event('focusout'));
+    expect(dom.card.classList.contains('shown')).toBe(false);
+  });
+
+  // The ability HUD attaches to a wrapper span around the (sometimes disabled)
+  // button, so focus lands on a child inside the anchor, not the anchor
+  // itself. focus/blur don't bubble; focusin/focusout do — this is the whole
+  // reason the switch was made.
+  it('shows the card when a focusable child inside the anchor receives focus, via bubbling focusin', () => {
+    const wrap  = document.createElement('span');
+    const child = document.createElement('button');
+    wrap.appendChild(child);
+    document.body.appendChild(wrap);
+
+    tip.attach(wrap, () => describeAbility(HEROES.rael, 'q'));
+    child.focus();
+    expect(dom.card.classList.contains('shown')).toBe(true);
+    child.blur();
     expect(dom.card.classList.contains('shown')).toBe(false);
   });
 

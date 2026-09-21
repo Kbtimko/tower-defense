@@ -181,6 +181,9 @@
     #hero-hp-fill { height:100%; background:#4fc3f7; border-radius:2px; transition:width 0.15s; }
     #hero-xp-bg { width:52px; height:4px; background:#332b12; border-radius:2px; overflow:hidden; }
     #hero-xp-fill { height:100%; width:0%; background:#ffd700; border-radius:2px; transition:width 0.15s; }
+    /* Wraps each ability button so the hover card still works once the button
+       goes disabled (locked / on cooldown) — same reason as #wave-btn-wrap. */
+    .ability-btn-wrap { position: relative; display: inline-block; }
     .ability-btn { background:#1a2a3a; border:2px solid #4fc3f7; border-radius:5px;
                    padding:4px 7px; cursor:pointer; display:flex; flex-direction:column;
                    align-items:center; gap:1px; color:#4fc3f7; font-family:'Georgia',serif; }
@@ -565,15 +568,21 @@
         <div id="hero-hp-bg"><div id="hero-hp-fill"></div></div>
         <div id="hero-xp-bg"><div id="hero-xp-fill"></div></div>
       </div>
-      <button class="ability-btn" id="ability-q" disabled title="Overcharge — +50% tower fire rate 6s">
-        <span class="ability-key">Q</span><span class="ability-name">⚡</span><span class="ability-cd"></span>
-      </button>
-      <button class="ability-btn locked" id="ability-w" disabled title="Airstrike — AoE damage on target area">
-        <span class="ability-key">W</span><span class="ability-name">🎯</span><span class="ability-cd"></span>
-      </button>
-      <button class="ability-btn locked" id="ability-e" disabled title="EMP Pulse — stuns all aliens 3s">
-        <span class="ability-key">E</span><span class="ability-name">💥</span><span class="ability-cd"></span>
-      </button>
+      <span class="ability-btn-wrap" id="ability-q-wrap" tabindex="0">
+        <button class="ability-btn" id="ability-q" disabled title="Overcharge — +50% tower fire rate 6s">
+          <span class="ability-key">Q</span><span class="ability-name">⚡</span><span class="ability-cd"></span>
+        </button>
+      </span>
+      <span class="ability-btn-wrap" id="ability-w-wrap" tabindex="0">
+        <button class="ability-btn locked" id="ability-w" disabled title="Airstrike — AoE damage on target area">
+          <span class="ability-key">W</span><span class="ability-name">🎯</span><span class="ability-cd"></span>
+        </button>
+      </span>
+      <span class="ability-btn-wrap" id="ability-e-wrap" tabindex="0">
+        <button class="ability-btn locked" id="ability-e" disabled title="EMP Pulse — stuns all aliens 3s">
+          <span class="ability-key">E</span><span class="ability-name">💥</span><span class="ability-cd"></span>
+        </button>
+      </span>
     </div>
     <div class="bar-divider"></div>
     <button class="tower-btn" data-type="archer">
