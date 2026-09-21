@@ -44,6 +44,28 @@ describe('buildCatalog', () => {
     const c = buildCatalog(NOTHING);
     const seen = c.enemies.filter(e => e.encountered).map(e => e.type).sort();
     expect(seen).toEqual(MAP0_ENEMY_TYPES);
+    // Independent check, not routed through enemyTypesInWaves: a bug in that
+    // helper's iteration would be mirrored by the same bug in the
+    // implementation's own iteration and this test would still pass. Verified
+    // by hand against src/data/waves.js MAP_WAVES[0] — do not re-derive this.
+    expect(seen).toEqual(['brute', 'drone', 'skitter']);
+  });
+
+  it('tolerates null and undefined progress (the shape progressFromSave returns for a bad save)', () => {
+    for (const progress of [null, undefined]) {
+      const c = buildCatalog(progress);
+      expect(c.enemies.length).toBe(Object.keys(ENEMY_DEFS).length);
+      expect(c.enemies.every(e => e.encountered === false)).toBe(true);
+      expect(c.towers.every(t => t.encountered === true)).toBe(true);
+    }
+  });
+
+  it('composes with progressFromSave on a missing/malformed save without throwing', () => {
+    expect(() => buildCatalog(progressFromSave(null))).not.toThrow();
+    expect(() => buildCatalog(progressFromSave(undefined))).not.toThrow();
+    const c = buildCatalog(progressFromSave(null));
+    expect(c.enemies.every(e => e.encountered === false)).toBe(true);
+    expect(c.towers.every(t => t.encountered === true)).toBe(true);
   });
 
   it('marks an enemy encountered once the map introducing it is reached, and not an enemy introduced later', () => {
@@ -108,6 +130,18 @@ describe('buildCatalog', () => {
     const originalUnlockLevel = HEROES[hero.id].stats.abilityUnlockLevels.q;
     hero.stats.abilityUnlockLevels.q = 999;
     expect(HEROES[hero.id].stats.abilityUnlockLevels.q).toBe(originalUnlockLevel);
+
+    const enemy = c.enemies[0];
+    const originalHp = ENEMY_DEFS[enemy.type].hp;
+    enemy.hp = 999999;
+    expect(ENEMY_DEFS[enemy.type].hp).toBe(originalHp);
+    // hp is a primitive so the above can't catch a shared-reference bug;
+    // vulnerableTo is the enemy entry's one nested structure, so mutate that
+    // and confirm a fresh build for the same type isn't affected.
+    const originalVulnerableCount = enemy.vulnerableTo.length;
+    enemy.vulnerableTo.push({ kind: 'tower', type: 'bogus', name: 'bogus', icon: '?' });
+    const freshEnemy = buildCatalog(ALL).enemies.find(e => e.type === enemy.type);
+    expect(freshEnemy.vulnerableTo.length).toBe(originalVulnerableCount);
   });
 });
 

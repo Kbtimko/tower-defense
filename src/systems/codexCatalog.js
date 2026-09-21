@@ -36,7 +36,11 @@ function enemyTypesOnMaps(mapIds) {
   return seen;
 }
 
-export function buildCatalog({ reachedMapIds = [], unlockedHeroIds = [] } = {}) {
+// progress is typically the output of progressFromSave, which returns null
+// for a missing/malformed save — `= {}` alone only covers undefined, not
+// null, so normalize with `?? {}` to tolerate both.
+export function buildCatalog(progress) {
+  const { reachedMapIds = [], unlockedHeroIds = [] } = progress ?? {};
   const seenEnemies = enemyTypesOnMaps(reachedMapIds);
   const heroSet     = new Set(unlockedHeroIds);
 
