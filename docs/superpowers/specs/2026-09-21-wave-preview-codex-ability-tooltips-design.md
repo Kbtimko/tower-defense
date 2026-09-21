@@ -126,8 +126,11 @@ the popover and ability card above the bottom bar but below the codex.
   tracks in `_onHeroLevelUp` and the cooldowns from `_onHeroCooldownTick`.
 - **`MapSelectScene`** — 📚 Codex button in `#map-meta-bar`, alongside
   ⚙ Upgrades / 🦸 Heroes / ♪ Audio / 📖 Story.
-- **`HeroManagementOverlay`** — attaches the same `AbilityTooltip` to its ability rows,
-  including the `locked_hero` state for heroes not yet unlocked.
+- **`HeroManagementOverlay`** — **has no ability rows today**; it renders a hero rail
+  (`_renderRail`) and an upgrade tree (`_renderTree`) only. This feature must *add* an
+  ability strip to `_renderTree`, below the head and above the upgrade nodes, then
+  attach the same `AbilityTooltip` to it — including the `locked_hero` state for heroes
+  not yet unlocked.
 
 ## Critical implementation details
 
