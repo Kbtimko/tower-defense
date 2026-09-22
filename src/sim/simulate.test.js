@@ -120,3 +120,19 @@ describe('simulateMap', () => {
     }
   });
 });
+
+describe('build-phase context', () => {
+  it('hands the build plan the wave table and the current wave number', () => {
+    // Without these the policy cannot know what is still coming and silently
+    // falls back to the matchup-blind ranking.
+    const seen = [];
+    simulateMap({
+      map: map0, waves: waves0,
+      buildPlan: (ctx) => { seen.push(ctx); return []; },
+    });
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen[0].waves).toBe(waves0);
+    expect(seen[0].waveNumber).toBe(1);
+    expect(seen[1]?.waveNumber).toBe(2);
+  });
+});

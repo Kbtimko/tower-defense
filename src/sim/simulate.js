@@ -184,7 +184,7 @@ export function simulateMap({
   for (let w = 0; w < waves.length; w++) {
     // ── Build phase: spend gold before the wave starts ──────────────────────
     const purchases = buildPlan({
-      gold, towers, slotsUsed, buildZones: pathMgr.buildZones, path, waveNumber: w + 1, map,
+      gold, towers, slotsUsed, buildZones: pathMgr.buildZones, path, waveNumber: w + 1, map, waves,
     }) ?? [];
     for (const p of purchases) {
       if (p.upgrade) {

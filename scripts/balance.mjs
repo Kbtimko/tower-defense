@@ -60,9 +60,10 @@ const pad = (s, n) => String(s).padEnd(n);
 const padL = (s, n) => String(s).padStart(n);
 
 console.log('\nSimulated combat — towers + tier upgrades + hero auto-attack + barracks soldiers');
-console.log('(blocking, melee and respawn). Omits hero abilities, meta upgrades, matchup-aware');
-console.log('tower choice, soldier repositioning and the send-wave-early bonus, so this model');
-console.log('is PESSIMISTIC.\n');
+console.log('(blocking, melee and respawn), buying and upgrading by the damage a tower actually');
+console.log('lands against the enemies still to come. Omits hero abilities, meta upgrades,');
+console.log('soldier repositioning and the send-wave-early bonus, so this model is still');
+console.log('PESSIMISTIC — less so than before.\n');
 console.log(pad('#', 3) + pad('Map', 22) + padL('waves', 7) + padL('lives', 8)
           + padL('gold', 7) + padL('towers', 8) + padL('leaked', 8) + padL('blocked', 9)
           + padL('heroDmg', 9) + padL('/mapHP', 8) + padL('heroLv', 8)
@@ -131,6 +132,29 @@ for (const { map } of rows) {
 }
 console.log('');
 
+// ── Matchup sensitivity ────────────────────────────────────────────────────
+// How much of each map's difficulty was the MODEL rather than the MAP. "blind"
+// is the old damage-per-gold ranking, which buys an archer against titans;
+// "aware" buys and upgrades by damage actually landed. A large delta means the
+// map was never as hard as the report used to claim. Kept for one release so
+// backlog #16 can tell a smarter model apart from an easier map.
+const awarePlan = on => ctx => greedyBuildPlan({ ...ctx, matchupAware: on });
+
+console.log('\nMatchup sensitivity — damage multiplier needed, by how the model picks towers.\n');
+console.log(pad('#', 3) + pad('Map', 22) + padL('blind', 9) + padL('aware', 9) + padL('delta', 10));
+console.log('-'.repeat(120));
+
+for (const { map } of rows) {
+  const waves = MAP_WAVES[map.id];
+  const show = v => (v === null ? '>8x' : `${v}x`);
+  const blind = findWinMultiplier(map, waves, { buildPlan: awarePlan(false) });
+  const aware = findWinMultiplier(map, waves, { buildPlan: awarePlan(true) });
+  const delta = (blind === null || aware === null) ? '—'
+              : `${(blind - aware >= 0 ? '-' : '+')}${Math.abs(blind - aware).toFixed(2)}x`;
+  console.log(pad(map.id, 3) + pad(map.name, 22)
+            + padL(show(blind), 9) + padL(show(aware), 9) + padL(delta, 10));
+}
+
 // ── Economy diagnostic ─────────────────────────────────────────────────────
 // Exact, not modelled: derived only from map data + wave tables. Independent of
 // how well the simulated towers shoot, so trust these numbers over the sim.
@@ -156,7 +180,7 @@ console.log('  heroDmg = post-armour damage the hero landed; /mapHP its share of
 console.log('            total base enemy HP — the quantity hero levelling is paced against.');
 console.log('  needs  = uniform damage multiplier at which the modelled defence clears the map;');
 console.log('           i.e. how much everything this model omits (hero abilities, meta upgrades,');
-console.log('           matchup-aware building, soldier repositioning) has to be worth.\n');
+console.log('           soldier repositioning, the send-wave-early bonus) has to be worth.\n');
 console.log('\n  board  = cheapest tower x every slot on the map');
 console.log('  boards = how many times over the map\'s whole gold ceiling could fill that board');
 console.log('           (< 1.00 means a full cheap board is NEVER affordable, even with flawless play)\n');
