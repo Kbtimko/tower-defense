@@ -5,6 +5,7 @@
 // rank the slots by how much of the path they actually cover, then fill the
 // best free slot with the best tower currently affordable.
 import { TOWER_DEFS } from '../data/towers.js';
+import { remainingEnemyWeights, towerSpecAt, towerValueAgainst } from './matchupValue.js';
 
 // How many sampled path points fall inside a tower's range from this slot.
 // A slot that covers more of the route gets more shots at every enemy.
@@ -57,9 +58,20 @@ export function upgradeCost(tower, maxTier) {
 export function greedyBuildPlan({
   gold, slotsUsed, buildZones, path, towers = [], map = {},
   barracksTarget = DEFAULT_BARRACKS_TARGET,
+  waves = null, waveNumber = 1, matchupAware = true,
 }) {
   const ranked = rankSlots(buildZones, path);
-  const byValue = [...BUYABLE].sort((a, b) => towerValue(b) - towerValue(a));
+
+  // Rank by the damage a tower will ACTUALLY land against what is still coming.
+  // With no wave table — several tests call this function directly with a
+  // hand-built context — fall back to the static damage-per-gold ranking so
+  // those callers keep the behaviour they were written against.
+  const weights = matchupAware ? remainingEnemyWeights(waves, waveNumber - 1) : new Map();
+  const byValue = weights.size > 0
+    ? [...BUYABLE].sort((a, b) =>
+        towerValueAgainst(towerSpecAt(b), weights) - towerValueAgainst(towerSpecAt(a), weights)
+        || a.localeCompare(b))
+    : [...BUYABLE].sort((a, b) => towerValue(b) - towerValue(a));
   const maxTier = map.maxTierAllowed ?? 4;
 
   const purchases = [];
