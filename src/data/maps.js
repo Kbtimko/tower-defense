@@ -103,11 +103,17 @@ export const MAPS = [
     background: 0x0a1a2a,
     pathColor: 0x4a7a8a,
     waypoints: [[0,.333],[.065,.333],[.206,.514],[.266,.342],[.261,.279],[.296,.297],[.322,.234],[.342,.27],[.377,.234],[.397,.27],[.427,.216],[.437,.333],[.477,.252],[.487,.279],[.528,.225],[.573,.36],[.638,.405],[.658,.378],[.704,.523],[.729,.514],[.779,.586],[.884,.514],[1,.676]],
-    startGold: 120,
+    // Economy derived, not hand-picked -- see
+    // docs/superpowers/specs/2026-09-22-campaign-economy-ramp-design.md
+    // 12 slots: cheap board 720, fully-upgraded board 2280 (tier-3 cap).
+    // startGold  = 25% of the cheap board, so the opening hand scales with the
+    //              board instead of shrinking.
+    // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
+    startGold: 180,
     startLives: 18,
     overworldPos: [0.533, 0.70],
     overworldArt: 'overworld_3_orbital_station.png',
-    rewardMult: 0.30,
+    rewardMult: 0.40,
     unlockCost: 0,
     waveCount: 12,
     maxTierAllowed: 3,
@@ -130,11 +136,17 @@ export const MAPS = [
     background: 0x1a1208,
     pathColor: 0x7a5a2a,
     waypoints: [[0,.351],[.06,.396],[.045,.468],[.07,.523],[.106,.459],[.206,.541],[.221,.649],[.286,.73],[.452,.757],[.467,.721],[.578,.685],[.568,.604],[.588,.541],[.638,.477],[.653,.505],[.673,.468],[.724,.468],[.759,.351],[.789,.396],[.849,.369],[.869,.45],[.884,.432],[.93,.514],[.97,.532],[.97,.595],[1,.622]],
-    startGold: 120,
+    // Economy derived, not hand-picked -- see
+    // docs/superpowers/specs/2026-09-22-campaign-economy-ramp-design.md
+    // 13 slots: cheap board 780, fully-upgraded board 4030 (tier-4 cap).
+    // startGold  = ~25% of the cheap board, so the opening hand scales with the
+    //              board instead of shrinking.
+    // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
+    startGold: 200,
     startLives: 18,
     overworldPos: [0.683, 0.783],
     overworldArt: 'overworld_4_asteroid_belt.png',
-    rewardMult: 0.25,
+    rewardMult: 0.47,
     unlockCost: 0,
     waveCount: 14,
     maxTierAllowed: 4,
@@ -158,11 +170,17 @@ export const MAPS = [
     background: 0x1a0a00,
     pathColor: 0x8a3a1a,
     waypoints: [[0,.252],[.131,.387],[.111,.441],[.121,.477],[.221,.64],[.206,.667],[.226,.739],[.261,.766],[.281,.739],[.317,.757],[.302,.712],[.332,.685],[.347,.613],[.397,.622],[.437,.523],[.467,.577],[.553,.55],[.598,.64],[.698,.622],[.734,.658],[.779,.604],[.769,.559],[.789,.523],[.839,.541],[.884,.477],[.93,.559],[1,.613]],
-    startGold: 120,
+    // Economy derived, not hand-picked -- see
+    // docs/superpowers/specs/2026-09-22-campaign-economy-ramp-design.md
+    // 14 slots: cheap board 840, fully-upgraded board 4340 (tier-4 cap).
+    // startGold  = 25% of the cheap board, so the opening hand scales with the
+    //              board instead of shrinking.
+    // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
+    startGold: 210,
     startLives: 15,
     overworldPos: [0.85, 0.567],
     overworldArt: 'overworld_5_titans_reach.png',
-    rewardMult: 0.25,
+    rewardMult: 0.57,
     unlockCost: 0,
     waveCount: 14,
     maxTierAllowed: 4,
@@ -186,11 +204,18 @@ export const MAPS = [
     background: 0x060618,
     pathColor: 0x3a3a7a,
     waypoints: [[0,.333],[.121,.324],[.166,.288],[.191,.387],[.216,.342],[.271,.36],[.307,.324],[.296,.423],[.327,.486],[.312,.622],[.417,.712],[.442,.685],[.457,.739],[.442,.757],[.503,.829],[.553,.766],[.568,.784],[.558,.838],[.593,.811],[.608,.874],[.678,.919],[.749,.919],[.764,.856],[.839,.757],[.834,.721],[.879,.631],[.92,.658],[.945,.568],[1,.604]],
-    startGold: 110,
+    // Economy derived, not hand-picked -- see
+    // docs/superpowers/specs/2026-09-22-campaign-economy-ramp-design.md
+    // 15 slots: cheap board 900, fully-upgraded board 4650 (tier-4 cap).
+    // startGold  = ~25% of the cheap board, so the opening hand scales with the
+    //              board instead of shrinking (this map used to open with barely
+    //              enough for one tower).
+    // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
+    startGold: 230,
     startLives: 15,
     overworldPos: [0.675, 0.40],
     overworldArt: 'overworld_6_deep_space_corridor.png',
-    rewardMult: 0.30,
+    rewardMult: 0.49,
     unlockCost: 0,
     waveCount: 15,
     maxTierAllowed: 4,
@@ -214,11 +239,17 @@ export const MAPS = [
     background: 0x030308,
     pathColor: 0x2a2a4a,
     waypoints: [[0,.198],[.111,.171],[.161,.279],[.176,.261],[.206,.306],[.246,.225],[.291,.342],[.347,.387],[.392,.36],[.467,.387],[.503,.324],[.533,.351],[.533,.405],[.578,.486],[.613,.468],[.658,.514],[.724,.514],[.739,.568],[.799,.559],[.829,.604],[.824,.667],[.854,.739],[.889,.748],[.94,.631],[1,.595]],
-    startGold: 110,
+    // Economy derived, not hand-picked -- see
+    // docs/superpowers/specs/2026-09-22-campaign-economy-ramp-design.md
+    // 16 slots: cheap board 960, fully-upgraded board 4960 (tier-4 cap).
+    // startGold  = 25% of the cheap board, so the opening hand scales with the
+    //              board instead of shrinking.
+    // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
+    startGold: 240,
     startLives: 12,
     overworldPos: [0.50, 0.467],
     overworldArt: 'overworld_7_the_void_frontier.png',
-    rewardMult: 0.25,
+    rewardMult: 0.44,
     unlockCost: 0,
     waveCount: 15,
     maxTierAllowed: 4,
@@ -242,11 +273,17 @@ export const MAPS = [
     background: 0x100818,
     pathColor: 0x5a2a6a,
     waypoints: [[0,.279],[.025,.243],[.035,.297],[.065,.279],[.07,.369],[.095,.378],[.111,.315],[.151,.315],[.166,.27],[.271,.18],[.332,.315],[.432,.333],[.457,.387],[.518,.36],[.533,.315],[.588,.459],[.588,.514],[.618,.523],[.638,.595],[.688,.64],[.729,.613],[.769,.649],[.829,.595],[.879,.658],[.935,.622],[1,.64]],
-    startGold: 100,
+    // Economy derived, not hand-picked -- see
+    // docs/superpowers/specs/2026-09-22-campaign-economy-ramp-design.md
+    // 18 slots: cheap board 1080, fully-upgraded board 5580 (tier-4 cap).
+    // startGold  = 25% of the cheap board, so the opening hand scales with the
+    //              board instead of shrinking.
+    // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
+    startGold: 270,
     startLives: 12,
     overworldPos: [0.333, 0.317],
     overworldArt: 'overworld_8_enemy_homeworld.png',
-    rewardMult: 0.20,
+    rewardMult: 0.39,
     unlockCost: 0,
     waveCount: 16,
     maxTierAllowed: 4,
@@ -271,11 +308,20 @@ export const MAPS = [
     background: 0x1a0808,
     pathColor: 0x8a1a1a,
     waypoints: [[0,.369],[.095,.405],[.146,.477],[.226,.486],[.241,.459],[.266,.514],[.327,.495],[.382,.577],[.533,.532],[.568,.55],[.608,.658],[.688,.64],[.729,.685],[.824,.658],[.874,.505],[.91,.532],[.915,.622],[1,.595]],
-    startGold: 100,
+    // Economy derived, not hand-picked -- see
+    // docs/superpowers/specs/2026-09-22-campaign-economy-ramp-design.md
+    // 20 slots: cheap board 1200, fully-upgraded board 6200 (tier-4 cap).
+    // startGold  = 25% of the cheap board, so the opening hand scales with the
+    //              board instead of shrinking (this map used to open with ONE
+    //              tower on twenty slots).
+    // rewardMult = solves gold ceiling = 55% of the fully-upgraded board. Lower
+    //              than the mid maps because this one carries far more raw kill
+    //              income; the declining multiplier was never the defect.
+    startGold: 300,
     startLives: 10,
     overworldPos: [0.50, 0.15],
     overworldArt: 'overworld_9_last_light.png',
-    rewardMult: 0.20,
+    rewardMult: 0.31,
     unlockCost: 0,
     waveCount: 18,
     maxTierAllowed: 4,
