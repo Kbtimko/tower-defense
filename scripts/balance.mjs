@@ -134,26 +134,44 @@ console.log('');
 
 // ── Matchup sensitivity ────────────────────────────────────────────────────
 // How much of each map's difficulty was the MODEL rather than the MAP. "blind"
-// is the old damage-per-gold ranking, which buys an archer against titans;
-// "aware" buys and upgrades by damage actually landed. A large delta means the
-// map was never as hard as the report used to claim. Kept for one release so
-// backlog #16 can tell a smarter model apart from an easier map.
+// is the old policy — rank purchases by raw damage-per-gold and upgrade
+// cheapest-first; "aware" is the new one — score BOTH purchases and upgrades
+// by damage actually landed against what is coming. matchupAware flips two
+// behaviours at once, not one, and they move the roster differently: the
+// upgrade change concentrates gold into fewer towers instead of lifting the
+// whole board evenly. This table cannot separate "better tower choice" from
+// "better upgrade ordering" — don't attribute the whole delta to tower
+// choice. A large delta means the map was never as hard as the report used
+// to claim. The multiplier alone can also hide the improvement: it saturates
+// at 1x once a map is winnable, so a map that already won under both
+// policies (e.g. map 2) shows "1x / 1x" even when the lives kept getting the
+// win are wildly different — the kept-lives figure alongside each multiplier
+// is what actually carries that result. Kept for one release so backlog #16
+// can tell a smarter model apart from an easier map.
 const awarePlan = on => ctx => greedyBuildPlan({ ...ctx, matchupAware: on });
 
-console.log('\nMatchup sensitivity — damage multiplier needed, by how the model picks towers.\n');
-console.log(pad('#', 3) + pad('Map', 22) + padL('blind', 9) + padL('aware', 9) + padL('delta', 10));
+console.log('\nMatchup sensitivity — damage multiplier needed and lives kept getting there, by');
+console.log('how the model picks AND upgrades towers (not separable in this table).\n');
+console.log(pad('#', 3) + pad('Map', 22) + padL('blind', 15) + padL('aware', 15) + padL('delta', 10));
 console.log('-'.repeat(120));
 
 for (const { map } of rows) {
   const waves = MAP_WAVES[map.id];
   const show = v => (v === null ? '>8x' : `${v}x`);
+  const kept = run => `${Math.round((run.livesRemaining / map.startLives) * 100)}%`;
+  const blindRun = simulateMap({ map, waves, buildPlan: awarePlan(false) });
+  const awareRun = simulateMap({ map, waves, buildPlan: awarePlan(true) });
   const blind = findWinMultiplier(map, waves, { buildPlan: awarePlan(false) });
   const aware = findWinMultiplier(map, waves, { buildPlan: awarePlan(true) });
-  const delta = (blind === null || aware === null) ? '—'
-              : `${(blind - aware >= 0 ? '-' : '+')}${Math.abs(blind - aware).toFixed(2)}x`;
+  const diff = (blind === null || aware === null) ? null : blind - aware;
+  const delta = diff === null ? '—' : diff === 0 ? '0.00x'
+              : `${(diff > 0 ? '-' : '+')}${Math.abs(diff).toFixed(2)}x`;
   console.log(pad(map.id, 3) + pad(map.name, 22)
-            + padL(show(blind), 9) + padL(show(aware), 9) + padL(delta, 10));
+            + padL(`${show(blind)} (${kept(blindRun)})`, 15)
+            + padL(`${show(aware)} (${kept(awareRun)})`, 15)
+            + padL(delta, 10));
 }
+console.log('');
 
 // ── Economy diagnostic ─────────────────────────────────────────────────────
 // Exact, not modelled: derived only from map data + wave tables. Independent of
