@@ -69,3 +69,45 @@ describe('greedyBuildPlan purchase pass', () => {
     expect(a).toEqual(b);
   });
 });
+
+describe('greedyBuildPlan upgrade pass', () => {
+  const upgradeOnly = (over = {}) => greedyBuildPlan({
+    gold: 400, slotsUsed: new Set([0, 1, 2]), buildZones: zones, path,
+    barracksTarget: 0, waveNumber: 1, ...over,
+  });
+
+  it('prefers the upgrade that buys more damage over the merely cheapest', () => {
+    // Ice T2 is the cheapest upgrade on the board (55g) but ice lands 1 damage
+    // a shot on a titan at every tier below 4. Against titans the sniper
+    // upgrade must win despite costing more.
+    const p = upgradeOnly({
+      waves: titanWaves,
+      towers: [{ type: 'ice', level: 1 }, { type: 'sniper', level: 1 }],
+    });
+    const first = p.find(x => x.upgrade);
+    expect(first).toBeDefined();
+    expect(first.towerIndex).toBe(1);
+  });
+
+  it('still respects the map tier ceiling', () => {
+    const p = upgradeOnly({
+      waves: titanWaves, map: { maxTierAllowed: 1 },
+      towers: [{ type: 'sniper', level: 1 }],
+    });
+    expect(p.some(x => x.upgrade)).toBe(false);
+  });
+
+  it('never spends more than the budget on upgrades', () => {
+    const p = upgradeOnly({
+      gold: 60, waves: titanWaves,
+      towers: [{ type: 'sniper', level: 1 }, { type: 'ice', level: 1 }],
+    });
+    expect(p.filter(x => x.upgrade).length).toBeLessThanOrEqual(1);
+  });
+
+  it('falls back to cheapest-first with no wave table', () => {
+    const p = upgradeOnly({ towers: [{ type: 'ice', level: 1 }, { type: 'sniper', level: 1 }] });
+    const first = p.find(x => x.upgrade);
+    expect(first.towerIndex).toBe(0);   // ice T2 at 55g is the cheapest
+  });
+});

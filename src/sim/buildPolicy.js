@@ -5,7 +5,7 @@
 // rank the slots by how much of the path they actually cover, then fill the
 // best free slot with the best tower currently affordable.
 import { TOWER_DEFS } from '../data/towers.js';
-import { remainingEnemyWeights, towerSpecAt, towerValueAgainst } from './matchupValue.js';
+import { remainingEnemyWeights, towerSpecAt, towerDpsAgainst, towerValueAgainst } from './matchupValue.js';
 
 // How many sampled path points fall inside a tower's range from this slot.
 // A slot that covers more of the route gets more shots at every enemy.
@@ -94,14 +94,31 @@ export function greedyBuildPlan({
     purchases.push({ type: pick, slotIndex });
   }
 
-  // Upgrade pass: repeatedly buy the cheapest available upgrade so the budget
-  // lifts the whole board rather than over-investing in one tower.
+  // Upgrade pass. Each round buys the upgrade with the best marginal damage
+  // gain per gold, so the budget goes where it actually raises throughput —
+  // buying the CHEAPEST upgrade is how a tier-3 map spends most of its gold on
+  // towers that cannot hurt what is coming. With no wave table, fall back to
+  // cheapest-first so direct callers keep their original behaviour.
   const levels = towers.map(t => t.level);
   for (;;) {
-    let bestIdx = -1, bestCost = Infinity;
+    let bestIdx = -1, bestCost = Infinity, bestScore = -Infinity;
     for (let i = 0; i < towers.length; i++) {
-      const cost = upgradeCost({ ...towers[i], level: levels[i] }, maxTier);
-      if (cost !== null && cost <= budget && cost < bestCost) { bestCost = cost; bestIdx = i; }
+      const level = levels[i];
+      const cost = upgradeCost({ ...towers[i], level }, maxTier);
+      if (cost === null || cost > budget) continue;
+
+      if (weights.size === 0) {
+        if (cost < bestCost) { bestCost = cost; bestIdx = i; }
+        continue;
+      }
+      const type   = towers[i].type;
+      const branch = towers[i].branch ?? null;
+      const before = towerDpsAgainst(towerSpecAt(type, level, branch), weights);
+      const after  = towerDpsAgainst(towerSpecAt(type, level + 1, branch), weights);
+      const score  = (after - before) / cost;
+      if (score > bestScore || (score === bestScore && cost < bestCost)) {
+        bestScore = score; bestCost = cost; bestIdx = i;
+      }
     }
     if (bestIdx === -1) break;
     budget -= bestCost;
