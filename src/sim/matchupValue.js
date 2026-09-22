@@ -54,7 +54,9 @@ export function towerSpecAt(type, tier = 1, branch = null) {
 
 // Expected damage per second against the weighted mix. Every candidate goes
 // through the real computeDamage, so armour, the weakness matrix and pierce
-// are all honoured and no combat arithmetic is duplicated here.
+// are all honoured and no combat arithmetic is duplicated here. Prices raw
+// single-target damage only — splash and slow go unpriced, so it under-rates
+// cannon and ice, same as the towerValue caveat in buildPolicy.js.
 export function towerDpsAgainst(spec, weights) {
   if (!spec || !weights || weights.size === 0) return 0;
   let total = 0, mass = 0;
