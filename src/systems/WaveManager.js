@@ -1,5 +1,12 @@
 import { ENEMY_DEFS } from '../data/enemies.js';
 
+// Per-wave HP scaling. Exported because the balance simulator weights enemies
+// by the HP they will actually arrive with, and a second copy of this constant
+// is how the model drifts away from the game it is meant to model.
+export function waveScaleFactor(waveIndex) {
+  return 1 + waveIndex * 0.13;
+}
+
 export class WaveManager {
   constructor(waves, eventEmitter) {
     this.waves = waves;
@@ -28,7 +35,7 @@ export class WaveManager {
     this.active = true;
     this._elapsed = 0;
     this._spawnQ = [];
-    const scaleFactor = 1 + this.currentWave * 0.13;
+    const scaleFactor = waveScaleFactor(this.currentWave);
     let delay = 0;
     for (const group of this.waves[this.currentWave]) {
       const def = ENEMY_DEFS[group.type];
