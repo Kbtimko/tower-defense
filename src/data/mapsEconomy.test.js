@@ -11,6 +11,13 @@ import { MAP_WAVES } from './waves.js';
 import { TOWER_DEFS } from './towers.js';
 import { goldCeiling, depthBoardCost } from '../sim/economy.js';
 
+// The cheapest FIRING tower, currently the archer (60g) -- an affordability
+// floor computed from every tower so it re-derives itself if a cheaper one is
+// ever added. depthBoardCost (economy.js) is intentionally NOT derived the
+// same way: it hardcodes the archer as the campaign's fixed reference tower
+// for tier pricing, so a future tower cheaper than 60g would silently loosen
+// the two-tower assertion below without moving the depth-ratio assertions
+// that also use depthBoardCost.
 const CHEAPEST = Math.min(
   ...Object.values(TOWER_DEFS).filter(d => d.fireRate > 0).map(d => d.cost),
 );
