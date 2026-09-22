@@ -214,8 +214,8 @@ export const MAPS = [
     // docs/superpowers/specs/2026-09-22-campaign-economy-ramp-design.md
     // 15 slots: cheap board 900, fully-upgraded board 4650 (tier-4 cap).
     // startGold  = ~25% of the cheap board, so the opening hand scales with the
-    //              board instead of shrinking (this map used to open with barely
-    //              enough for one tower).
+    //              board instead of shrinking (this map used to open with not
+    //              enough for two towers).
     // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
     startGold: 230,
     startLives: 15,
