@@ -65,6 +65,16 @@ describe('campaign economy ramp', () => {
     }
   });
 
+  it('scales the opening hand with the board, not a flat floor', () => {
+    // The invariant this whole change exists for. Without it a FLAT campaign
+    // passes every other assertion here: startGold 120 on every map satisfies
+    // non-decreasing, clears the two-tower floor, and can still hold a uniform
+    // depth ratio — while map 9 opens with 120 gold on twenty slots.
+    for (const m of MAPS) {
+      expect(m.startGold).toBeGreaterThanOrEqual(0.2 * CHEAPEST * m.towerSlots.length);
+    }
+  });
+
   it('leaves the on-ramp maps exactly as PR #71 calibrated them', () => {
     // Backlog #18 records the standing decision that this calibration STANDS.
     expect(byId(0).startGold).toBe(130);
