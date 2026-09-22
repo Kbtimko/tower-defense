@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { remainingEnemyWeights, towerSpecAt, towerDpsAgainst, towerValueAgainst } from './matchupValue.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
 import { TOWER_DEFS } from '../data/towers.js';
+import { waveScaleFactor } from '../systems/WaveManager.js';
 
 const mixOf = (type) => new Map([[type, 1]]);
 
@@ -20,6 +21,13 @@ describe('remainingEnemyWeights', () => {
     const w = remainingEnemyWeights(waves, 1);
     expect(w.has('drone')).toBe(false);
     expect(w.get('titan')).toBeGreaterThan(0);
+  });
+
+  it('scales a later wave by ITS OWN index, not its position in the remainder', () => {
+    // A slice-relative implementation would use waveScaleFactor(0) here and pass
+    // every other test in this file, silently shifting every weight by one wave.
+    expect(remainingEnemyWeights(waves, 1).get('titan'))
+      .toBeCloseTo(ENEMY_DEFS.titan.hp * 2 * waveScaleFactor(1));
   });
 
   it('weighs a later wave more heavily than the same wave earlier', () => {
