@@ -242,8 +242,13 @@ lives), map 6 about **1.05x**, and maps 7-9 converging on about **1.30x, 1.36x,
 
 Exact figures may drift a little; the acceptance conditions are that **maps 3-5
 read OK** and **every one of maps 6-9 is strictly better than the value above**.
-If any map moves the wrong way, stop and report it — do not adjust a value to
-chase the number.
+
+If any map misses, **stop and report it — do not adjust a value to chase the
+number.** The spec does permit a per-map override where the derived value misses
+the intended band, but an override is a deliberate decision that must be argued
+and recorded, so it belongs to whoever is running this plan, not to you. Hand
+back the number you got and let them rule on it. Silently retuning a dial to make
+a report look right is how seven maps ended up with values nobody could explain.
 
 - [ ] **Step 6: Commit**
 
