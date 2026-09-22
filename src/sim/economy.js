@@ -26,12 +26,30 @@ export function goldCeiling(map, waves, killGoldMult = 1) {
   return { startGold: map.startGold, killGold, clearGold, total: map.startGold + killGold + clearGold };
 }
 
-// What it costs to fill every slot with the cheapest firing tower.
+// What it costs to fill every slot with the cheapest firing tower. Blind to
+// tier: an archer costs 110 taken to tier 2 but 310 taken to tier 4, so this
+// cannot see the difference between a map capped at tier 2 and one at tier 4
+// -- which is exactly how the pre-#71 startGold collapse went unnoticed.
 export function cheapestFullBoardCost(map) {
   const cheapest = Math.min(
     ...Object.values(TOWER_DEFS).filter(d => d.fireRate > 0).map(d => d.cost),
   );
   return cheapest * (map.towerSlots?.length ?? 0);
+}
+
+// What it costs to fill AND fully upgrade a board to the map's own tier cap.
+// Where cheapestFullBoardCost is blind to tier, this is blind to entry cost:
+// it prices one fixed tower's whole upgrade curve rather than the cheapest
+// buy-in, so the two measure different things and neither substitutes for
+// the other.
+export function depthBoardCost(map) {
+  const def = TOWER_DEFS.archer;
+  let per = def.cost;
+  for (let t = 2; t <= (map.maxTierAllowed ?? 4); t++) {
+    const tier = def[t === 4 ? 'tier4A' : `tier${t}`];
+    if (tier) per += tier.cost;
+  }
+  return per * (map.towerSlots?.length ?? 0);
 }
 
 // Total enemy hit points across the campaign of a map, including the per-wave

@@ -9,25 +9,11 @@ import { describe, it, expect } from 'vitest';
 import { MAPS } from './maps.js';
 import { MAP_WAVES } from './waves.js';
 import { TOWER_DEFS } from './towers.js';
-import { goldCeiling } from '../sim/economy.js';
+import { goldCeiling, depthBoardCost } from '../sim/economy.js';
 
 const CHEAPEST = Math.min(
   ...Object.values(TOWER_DEFS).filter(d => d.fireRate > 0).map(d => d.cost),
 );
-
-// What it costs to fill AND fully upgrade a board to the map's own tier cap.
-// The existing cheapestFullBoardCost cannot see tier 4 — an archer costs 110
-// taken to tier 2 but 310 taken to tier 4 — which is exactly why the collapse
-// went unnoticed.
-function depthBoardCost(map) {
-  const def = TOWER_DEFS.archer;
-  let per = def.cost;
-  for (let t = 2; t <= (map.maxTierAllowed ?? 4); t++) {
-    const tier = def[t === 4 ? 'tier4A' : `tier${t}`];
-    if (tier) per += tier.cost;
-  }
-  return per * map.towerSlots.length;
-}
 
 const depthRatio = (map) =>
   goldCeiling(map, MAP_WAVES[map.id]).total / depthBoardCost(map);
