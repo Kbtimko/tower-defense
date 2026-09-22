@@ -32,7 +32,9 @@ const TIER_KEY = (tier, branch) => (tier === 4 ? `tier4${branch ?? 'A'}` : `tier
 // Effective stats of a tower at a given tier. Tier blocks are SPARSE and
 // CUMULATIVE — archer tier3 sets damage and range but not fireRate — so each
 // one is folded over the last, mirroring how simulate.js applies them during
-// an upgrade.
+// an upgrade. NOTE: `cost` is the BASE purchase cost only and does NOT fold
+// across tiers — it is not cumulative upgrade spend. Callers pricing an
+// upgrade must use `upgradeCost()`, not `spec.cost`.
 export function towerSpecAt(type, tier = 1, branch = null) {
   const def = TOWER_DEFS[type];
   if (!def) return null;

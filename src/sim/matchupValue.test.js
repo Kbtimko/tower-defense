@@ -136,6 +136,17 @@ describe('towerDpsAgainst', () => {
 });
 
 describe('towerValueAgainst', () => {
+  it('reverses the value-per-gold order between a titan mix and a skitter mix', () => {
+    // The purchase pass ranks by value per gold, and THAT metric flips outright
+    // rather than merely narrowing — which is the real proof the buy order
+    // tracks the mix instead of being a new fixed order favouring the sniper.
+    const titans   = mixOf('titan');
+    const skitters = mixOf('skitter');
+    const v = (t, w) => towerValueAgainst(towerSpecAt(t), w);
+    expect(v('sniper', titans)).toBeGreaterThan(v('archer', titans));
+    expect(v('archer', skitters)).toBeGreaterThan(v('sniper', skitters));
+  });
+
   it('divides expected DPS by cost', () => {
     const mix = mixOf('brute');
     const spec = towerSpecAt('cannon');
