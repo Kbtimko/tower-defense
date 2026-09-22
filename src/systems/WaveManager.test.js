@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { WaveManager } from './WaveManager.js';
+import { WaveManager, waveScaleFactor } from './WaveManager.js';
 
 function makeEmitter() {
   return { emit: vi.fn() };
@@ -97,5 +97,27 @@ describe('WaveManager — startWave permits early restart', () => {
     const currentBefore = wm.currentWave;
     wm.startWave();
     expect(wm.currentWave).toBe(currentBefore);
+  });
+});
+
+describe('waveScaleFactor', () => {
+  it('is 1 on the first wave', () => {
+    expect(waveScaleFactor(0)).toBe(1);
+  });
+
+  it('grows 13% of base per wave', () => {
+    expect(waveScaleFactor(1)).toBeCloseTo(1.13);
+    expect(waveScaleFactor(10)).toBeCloseTo(2.3);
+  });
+
+  it('is what WaveManager actually applies to spawned enemies', () => {
+    // The whole point of exporting it: the sim must not keep a second copy.
+    const emitter = makeEmitter();
+    const wm = new WaveManager([[{ type: 'drone', count: 1, interval: 0 }]], emitter);
+    const waveIndexAtStart = wm.currentWave; // startWave() reads currentWave before incrementing it
+    wm.startWave();
+    wm.update(1000);
+    const [, spawnPayload] = emitter.emit.mock.calls.find(([event]) => event === 'enemy:spawn');
+    expect(spawnPayload.scaleFactor).toBe(waveScaleFactor(waveIndexAtStart));
   });
 });

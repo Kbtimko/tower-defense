@@ -5,6 +5,7 @@
 // rank the slots by how much of the path they actually cover, then fill the
 // best free slot with the best tower currently affordable.
 import { TOWER_DEFS } from '../data/towers.js';
+import { remainingEnemyWeights, towerSpecAt, towerDpsAgainst, towerValueAgainst } from './matchupValue.js';
 
 // How many sampled path points fall inside a tower's range from this slot.
 // A slot that covers more of the route gets more shots at every enemy.
@@ -57,9 +58,20 @@ export function upgradeCost(tower, maxTier) {
 export function greedyBuildPlan({
   gold, slotsUsed, buildZones, path, towers = [], map = {},
   barracksTarget = DEFAULT_BARRACKS_TARGET,
+  waves = null, waveNumber = 1, matchupAware = true,
 }) {
   const ranked = rankSlots(buildZones, path);
-  const byValue = [...BUYABLE].sort((a, b) => towerValue(b) - towerValue(a));
+
+  // Rank by the damage a tower will ACTUALLY land against what is still coming.
+  // With no wave table — several tests call this function directly with a
+  // hand-built context — fall back to the static damage-per-gold ranking so
+  // those callers keep the behaviour they were written against.
+  const weights = matchupAware ? remainingEnemyWeights(waves, waveNumber - 1) : new Map();
+  const byValue = weights.size > 0
+    ? [...BUYABLE].sort((a, b) =>
+        towerValueAgainst(towerSpecAt(b), weights) - towerValueAgainst(towerSpecAt(a), weights)
+        || a.localeCompare(b))
+    : [...BUYABLE].sort((a, b) => towerValue(b) - towerValue(a));
   const maxTier = map.maxTierAllowed ?? 4;
 
   const purchases = [];
@@ -82,14 +94,40 @@ export function greedyBuildPlan({
     purchases.push({ type: pick, slotIndex });
   }
 
-  // Upgrade pass: repeatedly buy the cheapest available upgrade so the budget
-  // lifts the whole board rather than over-investing in one tower.
+  // Upgrade pass. Each round buys the upgrade with the best marginal damage
+  // gain per gold, so the budget goes where it actually raises throughput —
+  // buying the CHEAPEST upgrade is how a tier-3 map spends most of its gold on
+  // towers that cannot hurt what is coming. With no wave table, fall back to
+  // cheapest-first so direct callers keep their original behaviour.
+  //
+  // Barracks tiers carry no damage/fireRate, so towerDpsAgainst scores every
+  // barracks upgrade at exactly 0 and it always loses to any positive-scoring
+  // upgrade — a zero-DPS tower can never win this pass. Currently unreachable
+  // on every shipped map: a cheaper, positive-scoring upgrade (e.g. archer T2)
+  // is always available first, so cheapest-first never reached barracks
+  // either and it stays L1 in both columns. Pricing blocking DEPTH (beyond
+  // the opening purchase, which barracksTarget already handles) needs its own
+  // explicit rule, not a damage metric — see the barracksTarget comment above.
   const levels = towers.map(t => t.level);
   for (;;) {
-    let bestIdx = -1, bestCost = Infinity;
+    let bestIdx = -1, bestCost = Infinity, bestScore = -Infinity;
     for (let i = 0; i < towers.length; i++) {
-      const cost = upgradeCost({ ...towers[i], level: levels[i] }, maxTier);
-      if (cost !== null && cost <= budget && cost < bestCost) { bestCost = cost; bestIdx = i; }
+      const level = levels[i];
+      const cost = upgradeCost({ ...towers[i], level }, maxTier);
+      if (cost === null || cost > budget) continue;
+
+      if (weights.size === 0) {
+        if (cost < bestCost) { bestCost = cost; bestIdx = i; }
+        continue;
+      }
+      const type   = towers[i].type;
+      const branch = towers[i].branch ?? null;
+      const before = towerDpsAgainst(towerSpecAt(type, level, branch), weights);
+      const after  = towerDpsAgainst(towerSpecAt(type, level + 1, branch), weights);
+      const score  = (after - before) / cost;
+      if (score > bestScore || (score === bestScore && cost < bestCost)) {
+        bestScore = score; bestCost = cost; bestIdx = i;
+      }
     }
     if (bestIdx === -1) break;
     budget -= bestCost;

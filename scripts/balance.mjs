@@ -60,9 +60,10 @@ const pad = (s, n) => String(s).padEnd(n);
 const padL = (s, n) => String(s).padStart(n);
 
 console.log('\nSimulated combat — towers + tier upgrades + hero auto-attack + barracks soldiers');
-console.log('(blocking, melee and respawn). Omits hero abilities, meta upgrades, matchup-aware');
-console.log('tower choice, soldier repositioning and the send-wave-early bonus, so this model');
-console.log('is PESSIMISTIC.\n');
+console.log('(blocking, melee and respawn), buying and upgrading by the damage a tower actually');
+console.log('lands against the enemies still to come. Omits hero abilities, meta upgrades,');
+console.log('soldier repositioning and the send-wave-early bonus, so this model is still');
+console.log('PESSIMISTIC — less so than before.\n');
 console.log(pad('#', 3) + pad('Map', 22) + padL('waves', 7) + padL('lives', 8)
           + padL('gold', 7) + padL('towers', 8) + padL('leaked', 8) + padL('blocked', 9)
           + padL('heroDmg', 9) + padL('/mapHP', 8) + padL('heroLv', 8)
@@ -108,6 +109,11 @@ if (verbose) {
 // refunds the gold and hands the map a spare slot at the same spot, so nothing
 // is displaced. If "free" is much better than "bought", blocking is priced
 // wrong rather than weak.
+//
+// Caveat: this now runs through greedyBuildPlan's scored upgrade pass, which
+// cannot buy MORE blocking (see the comment on the upgrade pass in
+// buildPolicy.js) — barracksTarget only controls the opening purchase. These
+// columns price the opening barracks, not blocking depth.
 const barracksPlan = n => ctx => greedyBuildPlan({ ...ctx, barracksTarget: n });
 
 console.log('\nBlocking sensitivity — damage multiplier needed, by how the barracks is paid for.\n');
@@ -128,6 +134,47 @@ for (const { map } of rows) {
     + padL(show(findWinMultiplier(map, waves, { buildPlan: barracksPlan(1) })), 9)
     + padL(show(findWinMultiplier(free, waves, { buildPlan: barracksPlan(1) })), 9),
   );
+}
+console.log('');
+
+// ── Matchup sensitivity ────────────────────────────────────────────────────
+// How much of each map's difficulty was the MODEL rather than the MAP. "blind"
+// is the old policy — rank purchases by raw damage-per-gold and upgrade
+// cheapest-first; "aware" is the new one — score BOTH purchases and upgrades
+// by damage actually landed against what is coming. matchupAware flips two
+// behaviours at once, not one, and they move the roster differently: the
+// upgrade change concentrates gold into fewer towers instead of lifting the
+// whole board evenly. This table cannot separate "better tower choice" from
+// "better upgrade ordering" — don't attribute the whole delta to tower
+// choice. A large delta means the map was never as hard as the report used
+// to claim. The multiplier alone can also hide the improvement: it saturates
+// at 1x once a map is winnable, so a map that already won under both
+// policies (e.g. map 2) shows "1x / 1x" even when the lives kept getting the
+// win are wildly different — the kept-lives figure alongside each multiplier
+// is what actually carries that result. Kept for one release so backlog #16
+// can tell a smarter model apart from an easier map.
+const awarePlan = on => ctx => greedyBuildPlan({ ...ctx, matchupAware: on });
+
+console.log('\nMatchup sensitivity — damage multiplier needed and lives kept getting there, by');
+console.log('how the model picks AND upgrades towers (not separable in this table).\n');
+console.log(pad('#', 3) + pad('Map', 22) + padL('blind', 15) + padL('aware', 15) + padL('delta', 10));
+console.log('-'.repeat(120));
+
+for (const { map } of rows) {
+  const waves = MAP_WAVES[map.id];
+  const show = v => (v === null ? '>8x' : `${v}x`);
+  const kept = run => `${Math.round((run.livesRemaining / map.startLives) * 100)}%`;
+  const blindRun = simulateMap({ map, waves, buildPlan: awarePlan(false) });
+  const awareRun = simulateMap({ map, waves, buildPlan: awarePlan(true) });
+  const blind = findWinMultiplier(map, waves, { buildPlan: awarePlan(false) });
+  const aware = findWinMultiplier(map, waves, { buildPlan: awarePlan(true) });
+  const diff = (blind === null || aware === null) ? null : blind - aware;
+  const delta = diff === null ? '—' : diff === 0 ? '0.00x'
+              : `${(diff > 0 ? '-' : '+')}${Math.abs(diff).toFixed(2)}x`;
+  console.log(pad(map.id, 3) + pad(map.name, 22)
+            + padL(`${show(blind)} (${kept(blindRun)})`, 15)
+            + padL(`${show(aware)} (${kept(awareRun)})`, 15)
+            + padL(delta, 10));
 }
 console.log('');
 
@@ -156,7 +203,7 @@ console.log('  heroDmg = post-armour damage the hero landed; /mapHP its share of
 console.log('            total base enemy HP — the quantity hero levelling is paced against.');
 console.log('  needs  = uniform damage multiplier at which the modelled defence clears the map;');
 console.log('           i.e. how much everything this model omits (hero abilities, meta upgrades,');
-console.log('           matchup-aware building, soldier repositioning) has to be worth.\n');
+console.log('           soldier repositioning, the send-wave-early bonus) has to be worth.\n');
 console.log('\n  board  = cheapest tower x every slot on the map');
 console.log('  boards = how many times over the map\'s whole gold ceiling could fill that board');
 console.log('           (< 1.00 means a full cheap board is NEVER affordable, even with flawless play)\n');
