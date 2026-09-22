@@ -175,12 +175,18 @@ export const MAPS = [
     // 14 slots: cheap board 840, fully-upgraded board 4340 (tier-4 cap).
     // startGold  = 25% of the cheap board, so the opening hand scales with the
     //              board instead of shrinking.
-    // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
+    // rewardMult = OVERRIDDEN from the derived 0.57. Map 5 has a bigger board
+    //              than map 4 (14 slots vs 13) but less enemy HP and less raw
+    //              kill income, so pegging gold to the board over-funds it --
+    //              0.57 would make this the richest map in the campaign bar
+    //              map 0 and break the gold-per-HP decline across maps 3-9.
+    //              0.51 pins map 5's gold/HP just under map 4's, keeping that
+    //              decline monotonic.
     startGold: 210,
     startLives: 15,
     overworldPos: [0.85, 0.567],
     overworldArt: 'overworld_5_titans_reach.png',
-    rewardMult: 0.57,
+    rewardMult: 0.51,
     unlockCost: 0,
     waveCount: 14,
     maxTierAllowed: 4,

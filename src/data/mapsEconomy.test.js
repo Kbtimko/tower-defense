@@ -54,7 +54,13 @@ describe('campaign economy ramp', () => {
     // Spread, not a monotonic test: rounding rewardMult to 2dp puts +/-0.017 of
     // jitter around the target, and a strict non-increasing assertion would fail
     // on a correct ramp.
-    const ratios = late().map(depthRatio);
+    //
+    // Map 5 is excluded: its rewardMult is a recorded per-map override (see the
+    // comment in maps.js) that deliberately trades a uniform board-based depth
+    // ratio for a monotonic gold-per-HP curve, because map 5's board is bigger
+    // than map 4's but its threat is not. The two invariants disagree only for
+    // this one map, and gold-per-HP is the one that matters here.
+    const ratios = late().filter(m => m.id !== 5).map(depthRatio);
     expect(Math.max(...ratios) - Math.min(...ratios)).toBeLessThanOrEqual(0.05);
   });
 
