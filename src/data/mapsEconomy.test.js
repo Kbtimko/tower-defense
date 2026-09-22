@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { MAPS } from './maps.js';
 import { MAP_WAVES } from './waves.js';
 import { TOWER_DEFS } from './towers.js';
-import { goldCeiling, depthBoardCost } from '../sim/economy.js';
+import { goldCeiling, depthBoardCost, goldPerHp } from '../sim/economy.js';
 
 // The cheapest FIRING tower, currently the archer (60g) -- an affordability
 // floor computed from every tower so it re-derives itself if a cheaper one is
@@ -61,6 +61,20 @@ describe('campaign economy ramp', () => {
     const early = depthRatio(byId(2));
     for (const m of late()) {
       expect(depthRatio(m)).toBeLessThanOrEqual(early);
+    }
+  });
+
+  it('keeps gold-per-HP non-increasing across the late campaign', () => {
+    // The invariant the map-5 override exists to satisfy, and the one the spread
+    // assertion above cannot check because map 5 is excluded from it by design.
+    // Gold per point of enemy HP is the truer measure of generosity than a
+    // board-based ratio: it accounts for what a map SENDS, not just what it asks
+    // you to build — which is exactly why map 5 (bigger board, lower threat)
+    // needed an override at all.
+    const maps = late();   // includes map 5
+    for (let i = 1; i < maps.length; i++) {
+      expect(goldPerHp(maps[i], MAP_WAVES[maps[i].id]))
+        .toBeLessThanOrEqual(goldPerHp(maps[i - 1], MAP_WAVES[maps[i - 1].id]));
     }
   });
 
