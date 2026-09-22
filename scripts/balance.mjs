@@ -109,6 +109,11 @@ if (verbose) {
 // refunds the gold and hands the map a spare slot at the same spot, so nothing
 // is displaced. If "free" is much better than "bought", blocking is priced
 // wrong rather than weak.
+//
+// Caveat: this now runs through greedyBuildPlan's scored upgrade pass, which
+// cannot buy MORE blocking (see the comment on the upgrade pass in
+// buildPolicy.js) — barracksTarget only controls the opening purchase. These
+// columns price the opening barracks, not blocking depth.
 const barracksPlan = n => ctx => greedyBuildPlan({ ...ctx, barracksTarget: n });
 
 console.log('\nBlocking sensitivity — damage multiplier needed, by how the barracks is paid for.\n');

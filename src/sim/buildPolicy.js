@@ -99,6 +99,15 @@ export function greedyBuildPlan({
   // buying the CHEAPEST upgrade is how a tier-3 map spends most of its gold on
   // towers that cannot hurt what is coming. With no wave table, fall back to
   // cheapest-first so direct callers keep their original behaviour.
+  //
+  // Barracks tiers carry no damage/fireRate, so towerDpsAgainst scores every
+  // barracks upgrade at exactly 0 and it always loses to any positive-scoring
+  // upgrade — a zero-DPS tower can never win this pass. Currently unreachable
+  // on every shipped map: a cheaper, positive-scoring upgrade (e.g. archer T2)
+  // is always available first, so cheapest-first never reached barracks
+  // either and it stays L1 in both columns. Pricing blocking DEPTH (beyond
+  // the opening purchase, which barracksTarget already handles) needs its own
+  // explicit rule, not a damage metric — see the barracksTarget comment above.
   const levels = towers.map(t => t.level);
   for (;;) {
     let bestIdx = -1, bestCost = Infinity, bestScore = -Infinity;
