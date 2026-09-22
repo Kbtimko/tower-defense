@@ -27,6 +27,7 @@ import { soldierSource, heroAbilitySource } from '../data/sourceBuilders.js';
 import { ENEMY_MELEE_DAMAGE, findBlockingSoldier, heroBlocksEnemy } from '../systems/soldierCombat.js';
 import { AreaEffectsManager } from '../systems/AreaEffectsManager.js';
 import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
+import { describeTowerArmour } from '../systems/armourLegibility.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
 import { InspectController } from './InspectController.js';
 import { SentryTurret } from '../entities/SentryTurret.js';
@@ -1091,6 +1092,8 @@ export default class GameScene extends Phaser.Scene {
       matchupsEl.appendChild(line);
     }
 
+    this._renderArmourLine(tower);
+
     const upgradeBtn = document.getElementById('panel-upgrade-btn');
     const picker     = document.getElementById('panel-branch-picker');
     picker.style.display = 'none';
@@ -1119,6 +1122,45 @@ export default class GameScene extends Phaser.Scene {
 
     this.selectedType = null;
     document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('selected'));
+  }
+
+  // Flat armour is subtracted before any multiplier, so a tower at or below an
+  // enemy's armour lands exactly 1 a shot. The Effective/Weak line above cannot
+  // say this — it reads only the multiplicative weakness matrix, which is why an
+  // Ice tower shows no warning at all against a brute it can barely scratch.
+  _renderArmourLine(tower) {
+    const el = document.getElementById('panel-armour');
+    el.replaceChildren();
+
+    // A barracks deals no damage itself; its soldiers are its damage.
+    const damage = tower.type === 'barracks'
+      ? (tower.soldierStats?.damage ?? 0)
+      : tower.damage;
+    const rows = describeTowerArmour({ damage, pierce: Boolean(tower.pierce) });
+
+    if (!rows.length) { el.style.display = 'none'; return; }
+    el.style.display = '';
+
+    const head = document.createElement('span');
+    head.className = 'ar-head';
+    head.textContent = tower.type === 'barracks'
+      ? '🛡 Armour absorbs (soldiers): '
+      : '🛡 Armour absorbs: ';
+
+    rows.forEach((row, i) => {
+      const span = document.createElement('span');
+      span.className = row.band === 'floored' ? 'ar-floor' : 'ar-heavy';
+      const name = row.name.replace(/^Veth\s+/, '');
+      // Print the absorbed FRACTION, not a damage arrow: `row.after` is the
+      // mid-formula armour value, before the weakness multiplier, so a damage
+      // arrow here can show a number the in-world hit never actually lands.
+      const pct = Math.round(row.absorbed * 100);
+      span.textContent = `${name} ${pct}%${row.band === 'floored' ? ' ⚠' : ''}`;
+      head.appendChild(span);
+      if (i < rows.length - 1) head.appendChild(document.createTextNode(' · '));
+    });
+
+    el.appendChild(head);
   }
 
   _closeTowerPanel() {
