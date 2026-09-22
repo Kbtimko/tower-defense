@@ -140,9 +140,18 @@ retune without saying what broke:
 - `startGold` is non-decreasing from map 3 to map 9.
 - Every map affords at least a 2-tower opening hand (PR #34's rule, currently
   violated by maps 6-9).
-- The gold ceiling as a fraction of a fully-upgraded board is non-increasing
-  from map 2 onward — the late campaign never becomes *relatively* richer than
-  the early campaign.
+- The gold ceiling as a fraction of a fully-upgraded board does not COLLAPSE
+  across maps 3-9: the spread between the richest and poorest is at most 0.05.
+  Today that spread is **0.16** (0.42 down to 0.26) — the defect itself. After
+  the change it is 0.017.
+  **Not** a strict non-increasing test: rounding `rewardMult` to two decimals
+  puts +/-0.017 of jitter around the target, so maps 8-9 land a hair above map
+  7 and a monotonic assertion would fail on the very change it exists to
+  protect. The spread band captures the real invariant without being defeated
+  by rounding.
+- No map from 3 onward exceeds map 2's ratio — the late campaign never becomes
+  *relatively* richer than the early campaign. True today and after; kept as a
+  standing guard against a future over-correction.
 - Maps 0-2 are untouched: their `startGold`/`rewardMult` equal the values on
   `origin/main` at `ef67486`, pinned so the #18 decision cannot be eroded by a
   later sweep.
