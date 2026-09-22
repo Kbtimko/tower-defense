@@ -484,6 +484,15 @@ describe('greedyBuildPlan purchase pass', () => {
     const p = plan({ waves: titanWaves, barracksTarget: 1 });
     expect(p[0].type).toBe('barracks');
   });
+
+  it('is deterministic — the same context yields the same plan', () => {
+    // simulateMap has a determinism test that runs through this policy. A
+    // comparator without a stable tie-break could reorder equal-scoring towers
+    // between runs and make that test flake intermittently.
+    const a = plan({ waves: titanWaves });
+    const b = plan({ waves: titanWaves });
+    expect(a).toEqual(b);
+  });
 });
 ```
 
@@ -524,17 +533,20 @@ Replace the `byValue` line with a matchup-aware ranking that degrades to the old
     ? [...BUYABLE].sort((a, b) =>
         towerValueAgainst(towerSpecAt(b), weights) - towerValueAgainst(towerSpecAt(a), weights)
         || a.localeCompare(b))
-    : [...BUYABLE].sort((a, b) => towerValue(b) - towerValue(a) || a.localeCompare(b));
+    : [...BUYABLE].sort((a, b) => towerValue(b) - towerValue(a));
 ```
 
-The `localeCompare` tie-break keeps the order deterministic when two towers score identically — otherwise the plan could differ between runs and `simulate.test.js`'s determinism test would flake.
+Two details that matter:
+
+- **The naive branch stays byte-identical to today's line** — no tie-break added. `mage` and `sniper` currently tie at exactly `0.2000`, and every pre-existing test in `simulate.test.js`, `deficit.test.js` and `soldiers.test.js` runs through this fallback. Adding a tie-break there produces the same order today but would silently change the fallback if a retune ever flips the tie. Do not "tidy" the two branches into one comparator.
+- **The `localeCompare` tie-break belongs only to the new matchup-aware branch**, where it keeps the buy order deterministic if two towers score identically against a mix.
 
 Leave the barracks rule, the slot loop and the upgrade pass exactly as they are.
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run src/sim/buildPolicy.test.js`
-Expected: PASS, 8 tests.
+Expected: PASS, 9 tests.
 
 - [ ] **Step 5: Run the full suite**
 
@@ -658,7 +670,7 @@ Note `weights` is already in scope from Task 4 — do not recompute it.
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run src/sim/buildPolicy.test.js`
-Expected: PASS, 12 tests.
+Expected: PASS, 13 tests.
 
 - [ ] **Step 5: Run the full suite**
 
