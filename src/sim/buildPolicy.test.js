@@ -7,6 +7,7 @@ const path  = [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 10, y: 0 }];
 
 const titanWaves   = [[{ type: 'titan',   count: 4, interval: 1000 }]];
 const skitterWaves = [[{ type: 'skitter', count: 20, interval: 500 }]];
+const droneWaves   = [[{ type: 'drone',   count: 10, interval: 1000 }]];
 
 // barracksTarget: 0 isolates the damage ranking from the opening-barracks rule.
 const plan = (over = {}) => greedyBuildPlan({
@@ -24,6 +25,14 @@ describe('greedyBuildPlan purchase pass', () => {
   it('opens with an archer when the mix is skitters', () => {
     // Proves the choice tracks the mix instead of becoming a new fixed order.
     expect(plan({ waves: skitterWaves })[0].type).toBe('archer');
+  });
+
+  it('ranks by value per GOLD, not by raw damage per second', () => {
+    // A drone mix separates the two metrics: raw DPS favours the sniper (24 vs
+    // 15) while value per gold favours the archer (0.2500 vs 0.2000). An
+    // implementation that forgot to divide by cost would open with a sniper and
+    // this is the only test that would notice.
+    expect(plan({ waves: droneWaves })[0].type).toBe('archer');
   });
 
   it('reproduces the naive ranking when matchupAware is off', () => {
