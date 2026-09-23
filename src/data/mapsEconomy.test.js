@@ -1,0 +1,100 @@
+// The campaign's economy SHAPE, not its numbers.
+//
+// Every dial used to move against the player at once: startGold fell 130 -> 100
+// across the campaign while the board doubled and enemy HP rose 8.3x, so map 9
+// opened with one tower on twenty slots. These assertions describe the shape a
+// sane ramp has, so a future retune cannot quietly restore the collapse.
+// Deliberately no literal values — see the spec for why.
+import { describe, it, expect } from 'vitest';
+import { MAPS } from './maps.js';
+import { MAP_WAVES } from './waves.js';
+import { TOWER_DEFS } from './towers.js';
+import { goldCeiling, depthBoardCost, goldPerHp } from '../sim/economy.js';
+
+// The cheapest FIRING tower, currently the archer (60g) -- an affordability
+// floor computed from every tower so it re-derives itself if a cheaper one is
+// ever added. depthBoardCost (economy.js) is intentionally NOT derived the
+// same way: it hardcodes the archer as the campaign's fixed reference tower
+// for tier pricing, so a future tower cheaper than 60g would silently loosen
+// the two-tower assertion below without moving the depth-ratio assertions
+// that also use depthBoardCost.
+const CHEAPEST = Math.min(
+  ...Object.values(TOWER_DEFS).filter(d => d.fireRate > 0).map(d => d.cost),
+);
+
+const depthRatio = (map) =>
+  goldCeiling(map, MAP_WAVES[map.id]).total / depthBoardCost(map);
+
+const byId = (id) => MAPS.find(m => m.id === id);
+const late = () => MAPS.filter(m => m.id >= 3).sort((a, b) => a.id - b.id);
+
+describe('campaign economy ramp', () => {
+  it('never shrinks the opening hand as the campaign goes on', () => {
+    const gold = late().map(m => m.startGold);
+    for (let i = 1; i < gold.length; i++) {
+      expect(gold[i]).toBeGreaterThanOrEqual(gold[i - 1]);
+    }
+  });
+
+  it('gives every map at least a two-tower opening hand', () => {
+    // PR #34's own stated rule. Maps 6-9 violated it at 110/100 gold.
+    for (const m of MAPS) {
+      expect(m.startGold).toBeGreaterThanOrEqual(2 * CHEAPEST);
+    }
+  });
+
+  it('does not let purchasing power collapse across the late campaign', () => {
+    // Spread, not a monotonic test: rounding rewardMult to 2dp puts +/-0.017 of
+    // jitter around the target, and a strict non-increasing assertion would fail
+    // on a correct ramp.
+    //
+    // Map 5 is excluded: its rewardMult is a recorded per-map override (see the
+    // comment in maps.js) that deliberately trades a uniform board-based depth
+    // ratio for a monotonic gold-per-HP curve, because map 5's board is bigger
+    // than map 4's but its threat is not. The two invariants disagree only for
+    // this one map, and gold-per-HP is the one that matters here.
+    const ratios = late().filter(m => m.id !== 5).map(depthRatio);
+    expect(Math.max(...ratios) - Math.min(...ratios)).toBeLessThanOrEqual(0.05);
+  });
+
+  it('never makes a late map relatively richer than the early campaign', () => {
+    const early = depthRatio(byId(2));
+    for (const m of late()) {
+      expect(depthRatio(m)).toBeLessThanOrEqual(early);
+    }
+  });
+
+  it('keeps gold-per-HP non-increasing across the late campaign', () => {
+    // The invariant the map-5 override exists to satisfy, and the one the spread
+    // assertion above cannot check because map 5 is excluded from it by design.
+    // Gold per point of enemy HP is the truer measure of generosity than a
+    // board-based ratio: it accounts for what a map SENDS, not just what it asks
+    // you to build — which is exactly why map 5 (bigger board, lower threat)
+    // needed an override at all.
+    const maps = late();   // includes map 5
+    for (let i = 1; i < maps.length; i++) {
+      expect(goldPerHp(maps[i], MAP_WAVES[maps[i].id]))
+        .toBeLessThanOrEqual(goldPerHp(maps[i - 1], MAP_WAVES[maps[i - 1].id]));
+    }
+  });
+
+  it('scales the opening hand with the board, not a flat floor', () => {
+    // The invariant this whole change exists for. Without it a FLAT campaign
+    // passes every other assertion here: startGold 120 on every map satisfies
+    // non-decreasing, clears the two-tower floor, and can still hold a uniform
+    // depth ratio — while map 9 opens with 120 gold on twenty slots.
+    for (const m of MAPS) {
+      expect(m.startGold).toBeGreaterThanOrEqual(0.2 * CHEAPEST * m.towerSlots.length);
+    }
+  });
+
+  it('leaves the on-ramp maps exactly as PR #71 calibrated them', () => {
+    // Backlog #18 records the standing decision that this calibration STANDS.
+    expect(byId(0).startGold).toBe(130);
+    expect(byId(0).rewardMult).toBe(0.35);
+    expect(byId(1).startGold).toBe(130);
+    expect(byId(1).rewardMult).toBe(0.35);
+    expect(byId(2).startGold).toBe(170);
+    expect(byId(2).rewardMult).toBe(0.40);
+  });
+});

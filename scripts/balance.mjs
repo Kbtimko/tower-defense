@@ -8,7 +8,7 @@ import { MAP_WAVES, totalEnemyHpForMap } from '../src/data/waves.js';
 import { simulateMap } from '../src/sim/simulate.js';
 import { greedyBuildPlan } from '../src/sim/buildPolicy.js';
 import { TOWER_DEFS } from '../src/data/towers.js';
-import { goldCeiling, cheapestFullBoardCost, goldPerHp } from '../src/sim/economy.js';
+import { goldCeiling, cheapestFullBoardCost, depthBoardCost, goldPerHp } from '../src/sim/economy.js';
 import { findWinMultiplier } from '../src/sim/deficit.js';
 
 const args = process.argv.slice(2);
@@ -183,7 +183,7 @@ console.log('');
 // how well the simulated towers shoot, so trust these numbers over the sim.
 console.log('Economy ceiling — exact, model-free (perfect play: every kill, every wave cleared).\n');
 console.log(pad('#', 3) + pad('Map', 22) + padL('start', 7) + padL('kills', 8) + padL('clears', 8)
-          + padL('TOTAL', 8) + padL('board', 8) + padL('boards', 8) + padL('gold/hp', 9));
+          + padL('TOTAL', 8) + padL('board', 8) + padL('boards', 8) + padL('depth', 8) + padL('gold/hp', 9));
 console.log('-'.repeat(120));
 
 for (const { map } of rows) {
@@ -191,11 +191,14 @@ for (const { map } of rows) {
   const c = goldCeiling(map, waves);
   const board = cheapestFullBoardCost(map);
   const boards = board === 0 ? 0 : c.total / board;
+  const depth = depthBoardCost(map);
+  const depthFrac = depth === 0 ? 0 : c.total / depth;
   console.log(
     pad(map.id, 3) + pad(map.name, 22)
     + padL(c.startGold, 7) + padL(c.killGold, 8) + padL(c.clearGold, 8)
     + padL(c.total, 8) + padL(board, 8)
     + padL(boards.toFixed(2), 8)
+    + padL(depthFrac.toFixed(2), 8)
     + padL(goldPerHp(map, waves).toFixed(4), 9),
   );
 }
@@ -206,7 +209,11 @@ console.log('           i.e. how much everything this model omits (hero abilitie
 console.log('           soldier repositioning, the send-wave-early bonus) has to be worth.\n');
 console.log('\n  board  = cheapest tower x every slot on the map');
 console.log('  boards = how many times over the map\'s whole gold ceiling could fill that board');
-console.log('           (< 1.00 means a full cheap board is NEVER affordable, even with flawless play)\n');
+console.log('           (< 1.00 means a full cheap board is NEVER affordable, even with flawless play)');
+console.log('  depth  = gold ceiling as a fraction of filling AND fully upgrading every slot with the');
+console.log('           campaign\'s reference tower (archer) to the map\'s own tier cap -- unlike');
+console.log('           "boards", this sees tier 4, which is exactly what let the pre-#71 collapse');
+console.log('           hide behind a fine-looking "boards" figure\n');
 
 const unwinnable = rows.filter(r => !r.r.won).length;
 const tooEasy = rows.filter(r => r.v.tag === 'TOO EASY').length;
