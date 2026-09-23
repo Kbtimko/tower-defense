@@ -3,19 +3,19 @@
 ## Goal
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
-## Current Status (2026-09-20)
-**The campaign is feature-complete and shipped. `main` is at `a3c717d` and every PR is merged — nothing is open.** `main` is the Vercel production branch, so all of the below is live.
+## Current Status (2026-09-22)
 
-**This session was a bug-hunt that turned into four merged PRs (#66, #67, #68, #69), plus hero systems landed in parallel by another session (#63, #64, #65).** Suite is now **84 files / 1168 tests**; build clean.
+**`main` is at `01cfba2`, every PR is merged, nothing is open, and production is verified serving it** — the deployed bundle hash matches a local build of merged `main` exactly.
 
-The bug hunt started from "damage doesn't register with enemies" and ended up finding three distinct defects, none of which the test suite could see:
-- **#66 — every hit now visibly registers.** Damage was always applying (`computeDamage` floors at 1), but both feedback channels were gated on hit SIZE: the HP bar moved sub-pixel, and damage numbers are suppressed under 30. 19 of 90 tier-1 (tower, enemy, wave) combos showed literally nothing, worst case 38 hits per pixel. Added a magnitude-independent hit flash and a one-pixel floor on bar depletion.
-- **#67 — towers upgraded mid-buff were permanently crippled.** `Tower.upgrade()` assigned `fireRate` directly, bypassing the mod stack, so `_baseFireRate` kept the PRE-upgrade value and clearing Overcharge reverted the tower for the rest of the run. Rapid Cannon ran at 0.45 instead of 1.2 (37%). Only cannon T4B and sniper T4B redefine `fireRate` — i.e. exactly the two branches bought for DPS.
-- **#68 — every enemy's HP bar was drawn ON its own sprite.** Bar geometry came from `def.radius` (the Graphics fallback body) while sprites were scaled up 2–6x. A titan's 48px bar sat inside a 138px chest. This was the *actual* cause of the reported "takes 3-4 shots for an archer to damage a drone": the archer did a clean 15 every shot, but the bar was narrow, green-on-green over green drone art, so the player read the 50%/25% COLOUR flips — which on a 70 HP drone land on hits 3 and 4.
+**This session shipped three backlog items end to end, PRs #76, #77 and #78, all merged.** Each ran the full pipeline: brainstorm → spec → plan → `review-plan` → subagent-driven execution with two-stage review per task → final whole-branch review → fix wave → live/measured verification → PR.
 
-**#69 — hero XP progress bar** (the session's one feature): a gold bar under the hero HP bar, filling as the hero deals damage, with a hover tooltip and `· MAX` at the cap. Display-only — `src/data/` and `src/sim/` untouched, and `heroXpProgress()` delegates to the existing `heroLevelForDamage()` so the headless balance simulator cannot drift.
+- **#76 (backlog #17) — armour-floor legibility.** Flat armour floors 9 tower/tier/enemy combos to exactly 1 damage a shot, which read as a broken tower. Now a `🛡 Armour absorbs:` percentage line on the tower panel plus muted, shield-marked in-world numbers for hits the sub-30 gate used to hide, throttled per enemy. **`pierce` was the thing the backlog entry missed** — mage and sniper both set it, so a first pass produced eight false warnings; the flagged set is exactly archer, ice and barracks soldiers. The entry also undercounted: a tier-1 barracks soldier deals 20 into a titan's armour 20 and floors to 1, a ninth case at 95%, on the tower most often bought as an opener.
+- **#77 (backlog #15) — matchup-aware `greedyBuildPlan`.** `towerValue` was `damage * fireRate / cost`, which ranked the **archer first** while the archer lands 1.0 DPS on a titan and the sniper lands 36. Both the purchase pass and the upgrade pass now score through the real `computeDamage` against the enemies still to come. The blind spot was worth **−0.76x on map 9, −0.41x on map 8, −0.36x on map 7** and roughly nothing on maps 3-6.
+- **#78 (backlog #16) — campaign economy ramp.** Maps 3-9 were not too hard; the campaign had a gold-TIMING problem. Maps 3/4/5 went UNWINNABLE → **OK** (61%/56%/60% of lives kept) and maps 6-9 from 1.88/2.23/2.80/2.89x → **1.05/1.30/1.36/1.36x**.
 
-**Remaining work is the optional iOS port (#9, large)** plus one follow-up this session opened and did not do (backlog #15, armour legibility — see Loose ends). The most valuable next thing is still a **human playtest of the full campaign**; it has only ever been simulated.
+**The session's recurring theme was tests that passed while proving nothing.** The review loop caught roughly a dozen, nearly all defects in plans *I* wrote: a DPS tie mistaken for an ordering (archer and sniper both do exactly 18 to skitters), a wave index read after its increment, a slice-relative scaling bug that every assertion missed, a ranking test a forgot-to-divide-by-cost bug would have passed by alphabetical accident, and — the worst — a guard test that protected nothing at all, which a reviewer proved by building a flat-120-gold campaign that passed all five of its assertions while leaving the game worse than before. Every fix was proven by deliberately reintroducing the bug and watching the specific test fail.
+
+**The most valuable next thing is a human playtest (#30).** Every difficulty number in this project is simulated, against a model that is pessimistic by construction. #78 just shipped a balance change to production on that basis.
 
 ## Blockers
 - None active
@@ -25,16 +25,23 @@ The bug hunt started from "damage doesn't register with enemies" and ended up fi
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
-**Nothing in progress. No open PRs.**
+**Nothing in progress. No open PRs.** Production verified 2026-09-22: live bundle hash matches a local build of merged `main`.
 
-Last shipped (2026-09-20), newest first:
-- **PR #69 — hero XP progress bar.** Full pipeline: brainstorm → spec → plan → 7 tasks via subagents with two-stage review each → live verification → PR. Spec `docs/superpowers/specs/2026-09-20-hero-xp-bar-design.md`, plan `docs/superpowers/plans/2026-09-20-hero-xp-bar.md`.
-- **PR #68 — enemy HP bar lifted off the sprite.** New pure `src/systems/hpBar.js` (`hpBarGeometry`) sizes and positions the bar from the RENDERED sprite, falling back to `def.radius` only when there is no art.
-- **PR #67 — fire-rate revert fixed.** New `setBaseFireRate()` in `fireRateMods.js`; `Tower.upgrade()` routes tier changes through it.
-- **PR #66 — hit feedback.** `Enemy.hitFlash` + `EntitySprite.setFlash()` (solid-white silhouette tint), and `hpBarFillWidth()` reserving one pixel of depletion.
-- **PRs #63/#64/#65 — hero melee, regen and damage-levelling** (landed by a parallel session; #65 recovered #64's work after a stacked-PR merge-order slip).
+Last shipped (2026-09-22), newest first:
+- **PR #78 — campaign economy ramp (backlog #16).** Two derived constants replace fourteen undocumented numbers in `src/data/maps.js`. New `src/data/mapsEconomy.test.js` guards the SHAPE (board-scaled opening floor, gold-per-HP monotonicity, spread band, maps 0-2 pinned). `depthBoardCost` promoted into `src/sim/economy.js` and printed by `npm run balance`.
+- **PR #77 — matchup-aware build policy (backlog #15).** New pure `src/sim/matchupValue.js`; `waveScaleFactor` extracted from `WaveManager`; `waves` threaded into the simulator's build context; a `Matchup sensitivity` A/B column added to the balance report for one release.
+- **PR #76 — armour legibility (backlog #17).** New pure `src/systems/armourLegibility.js`; `applyArmour` extracted from `computeDamage`; `absorbedBand` added to the existing `damage-dealt` payload; `DamageNumberOverlay` gained one exemption to its sub-30 gate plus a per-enemy `WeakMap` throttle.
+
+## Loose ends
+- **9 worktrees and ~20 local branches are all on merged branches** and want a sweep: `armour-legibility`, `codex-and-previews`, `fix-enemy-hit-feedback`, `hero-xp-card`, `listener-leak`, `maps39`, `onramp-recalibration`, `pause-btn`, `sim-matchup`. Deliberately not swept — destructive, and not asked for.
+- **The primary checkout sits on merged `feat/hero-melee-and-regen`** with uncommitted `SESSION_NOTES.md`, a deleted `.claude/session-wrapped` and untracked `.claude/prompts/`. Left alone on purpose: those edits may belong to a concurrent session, and the standing rule is to report rather than auto-stash.
+- **The `Matchup sensitivity` A/B column is scheduled for removal after one release** — it exists so #16 could separate "the model got smarter" from "the map got easier", and that question is now answered.
 
 ### Hard-won facts worth not re-deriving
+- **A test that passes is not a test that works.** This session's review loop caught roughly a dozen assertions that passed while proving nothing. The reliable defence is to deliberately reintroduce the bug and confirm the specific test fails — every fix here was proven that way, and several "obviously correct" tests failed that check.
+- **`cheapestFullBoardCost` cannot see tier 4.** An archer costs 110 taken to tier 2 but **310** taken to tier 4, so the cheapest-board metric hid a 2.4x collapse in campaign purchasing power for months. Use `depthBoardCost` (now in `src/sim/economy.js`, printed by `npm run balance`) when reasoning about whether a map can afford what it asks for.
+- **`pierce` silently exempts mage and sniper from every armour calculation.** Any analysis of armour that forgets it produces false results for exactly the two towers a player buys *for* heavies.
+- **The simulator is pessimistic BY CONSTRUCTION** — it omits hero abilities, meta upgrades, soldier repositioning and the send-wave-early bonus. That cuts both ways: it is an argument for late maps that look too hard AND against mid maps that look comfortable. Applying it in one direction only is how #78 nearly shipped a too-easy mid campaign.
 - **`main` IS the Vercel production branch.** Verified via the deployments API: only `main` produces `target: "production"`; every other branch is `target: null` (a preview). Do NOT infer the deploy target from `origin/HEAD` — that pointed at an integration branch and is what let the live site sit 141 commits stale for two months (fixed in PR #45).
 - **Vite copies ONLY `publicDir` into `dist/`.** Art must live under `public/assets/...`. A repo-root `assets/` dir is served by the dev server and silently dropped from the build — that shipped broken backdrops for two months. `npm run assets` now detects this specific mistake.
 - **Browser-verify the production build (`npm run build && npm run preview`), not just `npm run dev`.** The dev server serves files the build omits; every prior "browser-verified" note was localhost-only, which is why the 404s survived so long.
