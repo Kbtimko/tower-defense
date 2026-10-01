@@ -27,7 +27,7 @@ import { soldierSource, heroAbilitySource } from '../data/sourceBuilders.js';
 import { ENEMY_MELEE_DAMAGE, findBlockingSoldier, heroBlocksEnemy } from '../systems/soldierCombat.js';
 import { AreaEffectsManager } from '../systems/AreaEffectsManager.js';
 import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
-import { describeTowerArmour } from '../systems/armourLegibility.js';
+import { describeTowerArmour, armourRowLabel } from '../systems/armourLegibility.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
 import { InspectController } from './InspectController.js';
 import { SentryTurret } from '../entities/SentryTurret.js';
@@ -1147,19 +1147,7 @@ export default class GameScene extends Phaser.Scene {
       ? '🛡 Armour absorbs (soldiers): '
       : '🛡 Armour absorbs: ';
 
-    rows.forEach((row, i) => {
-      const span = document.createElement('span');
-      span.className = row.band === 'floored' ? 'ar-floor' : 'ar-heavy';
-      const name = row.name.replace(/^Veth\s+/, '');
-      // Print the absorbed FRACTION, not a damage arrow: `row.after` is the
-      // mid-formula armour value, before the weakness multiplier, so a damage
-      // arrow here can show a number the in-world hit never actually lands.
-      const pct = Math.round(row.absorbed * 100);
-      span.textContent = `${name} ${pct}%${row.band === 'floored' ? ' ⚠' : ''}`;
-      head.appendChild(span);
-      if (i < rows.length - 1) head.appendChild(document.createTextNode(' · '));
-    });
-
+    appendArmourRows(head, rows);
     el.appendChild(head);
   }
 
@@ -1225,6 +1213,19 @@ export default class GameScene extends Phaser.Scene {
         matchup.className = 'branch-matchup';
         matchup.textContent = `⚡ ${headline.value}× vs ${headline.name}`;
         card.appendChild(matchup);
+      }
+
+      // The branch pick is the one purchase the armour floor should change:
+      // Permafrost and Shatter look alike on the matchup line above, yet one
+      // loses most of each shot to colossus and titan armour.
+      const pierce = tierDef.pierce ?? def.pierce;
+      const armourRows = describeTowerArmour({ damage: tierDef.damage ?? 0, pierce: Boolean(pierce) });
+      if (armourRows.length) {
+        const armour = document.createElement('div');
+        armour.className = 'branch-armour';
+        armour.textContent = '🛡 ';
+        appendArmourRows(armour, armourRows);
+        card.appendChild(armour);
       }
 
       const cost = document.createElement('div');
@@ -1529,6 +1530,16 @@ export default class GameScene extends Phaser.Scene {
   _redrawZones() {
     // Placeholder — redrawn every frame in update()
   }
+}
+
+function appendArmourRows(parent, rows) {
+  rows.forEach((row, i) => {
+    const span = document.createElement('span');
+    span.className = row.band === 'floored' ? 'ar-floor' : 'ar-heavy';
+    span.textContent = armourRowLabel(row);
+    parent.appendChild(span);
+    if (i < rows.length - 1) parent.appendChild(document.createTextNode(' · '));
+  });
 }
 
 function headlineOverride(towerType, branch) {
