@@ -38,3 +38,12 @@ export function describeTowerArmour({ damage, pierce = false }) {
   }
   return rows;
 }
+
+// One row as the player reads it. Print the absorbed FRACTION, not a damage
+// arrow: `row.after` is the mid-formula armour value, before the weakness
+// multiplier, so a damage arrow can show a number the hit never actually lands.
+export function armourRowLabel(row) {
+  const name = row.name.replace(/^Veth\s+/, '');
+  const pct = Math.round(row.absorbed * 100);
+  return `${name} ${pct}%${row.band === 'floored' ? ' ⚠' : ''}`;
+}
