@@ -1218,8 +1218,12 @@ export default class GameScene extends Phaser.Scene {
       // The branch pick is the one purchase the armour floor should change:
       // Permafrost and Shatter look alike on the matchup line above, yet one
       // loses most of each shot to colossus and titan armour.
+      // Mirror Tower.upgrade: the branch lands its table damage scaled by the
+      // tower's meta-upgrade multiplier, and a branch-set pierce wins.
+      const damageMult = this.selectedTower?._damageMult ?? 1;
+      const damage = Math.round((tierDef.damage ?? 0) * damageMult);
       const pierce = tierDef.pierce ?? def.pierce;
-      const armourRows = describeTowerArmour({ damage: tierDef.damage ?? 0, pierce: Boolean(pierce) });
+      const armourRows = describeTowerArmour({ damage, pierce: Boolean(pierce) });
       if (armourRows.length) {
         const armour = document.createElement('div');
         armour.className = 'branch-armour';

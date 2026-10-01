@@ -22,8 +22,8 @@ import { TOWER_DEFS } from '../data/towers.js';
 const UNLOCKED = { maxTierAllowed: 4 };
 let container;
 
-function render(def, map = UNLOCKED) {
-  GameScene.prototype._renderBranchPicker.call({}, container, def, map);
+function render(def, map = UNLOCKED, ctx = {}) {
+  GameScene.prototype._renderBranchPicker.call(ctx, container, def, map);
   const [a, b] = container.querySelectorAll('.branch-card');
   return { a, b };
 }
@@ -61,6 +61,16 @@ describe('branch card armour line', () => {
     };
     const { a } = render(def);
     expect(a.querySelector('.branch-armour')).toBeNull();
+  });
+
+  it('applies the tower damage multiplier the branch will actually land with', () => {
+    // ars_overcharge (1.06) makes Permafrost round(28*1.06) = 30 on upgrade
+    // (Tower.js upgrade), so armour eats 15/30 of a colossus hit and 20/30 of
+    // a titan hit — not the 54%/71% the unscaled table damage would print.
+    const { a } = render(TOWER_DEFS.ice, UNLOCKED, { selectedTower: { _damageMult: 1.06 } });
+    const line = a.querySelector('.branch-armour');
+    expect(line.textContent).toContain('Colossus 50%');
+    expect(line.textContent).toContain('Titan 67%');
   });
 
   it('still shows the armour line on a locked card, so the choice is legible before it unlocks', () => {
