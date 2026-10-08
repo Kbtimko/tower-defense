@@ -225,11 +225,20 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _bindDOMEvents() {
+    // GameScene owns every .tower-btn listener: its shutdown clones these
+    // nodes, so a listener bound by a longer-lived scene would not survive
+    // into the next level.
     document.querySelectorAll('.tower-btn').forEach(btn => {
       btn.addEventListener('click', () => this._selectTowerType(btn.dataset.type, btn));
+      btn.addEventListener('mouseenter', () => this._showTowerTooltip(btn));
+      btn.addEventListener('mouseleave', () => {
+        document.getElementById('tower-tooltip').style.display = 'none';
+      });
     });
     document.getElementById('wave-btn').addEventListener('click',          () => this._startWave());
     document.getElementById('speed-btn').addEventListener('click',         () => this._toggleSpeed());
+    // Shutdown's clone keeps the old label, but this.speed resets each level.
+    this._renderSpeedButton();
     document.getElementById('panel-upgrade-btn').addEventListener('click', () => this._upgradeSelectedTower());
     document.getElementById('panel-sell-btn').addEventListener('click',    () => this._sellSelectedTower());
     document.getElementById('panel-reposition-btn').addEventListener('click', () => this._startReposition());
@@ -1040,6 +1049,39 @@ export default class GameScene extends Phaser.Scene {
     btn.classList.add('selected');
   }
 
+  _showTowerTooltip(btn) {
+    const type = btn.dataset.type;
+    const def  = TOWER_DEFS[type];
+    if (!def) return;
+    const m = describeMatchups({ kind: 'tower', type, tier: 1, branch: null });
+    const renderEnemyNames = (types) => types.map(shortEnemyName).join(', ');
+    const tt = document.getElementById('tower-tooltip');
+    tt.replaceChildren();
+    const header = document.createElement('strong');
+    header.textContent = `${def.icon} ${def.name} — ${def.cost}g`;
+    tt.appendChild(header);
+    if (m.effective.length) {
+      const line = document.createElement('span');
+      line.className = 'tt-line-good';
+      line.textContent = `Effective vs: ${renderEnemyNames(m.effective)}`;
+      tt.appendChild(line);
+    }
+    if (m.weak.length) {
+      const line = document.createElement('span');
+      line.className = 'tt-line-bad';
+      line.textContent = `Weak vs: ${renderEnemyNames(m.weak)}`;
+      tt.appendChild(line);
+    }
+    const rect = btn.getBoundingClientRect();
+    tt.style.left = `${rect.left}px`;
+    tt.style.top  = `${rect.top - tt.offsetHeight - 6}px`;
+    tt.style.display = 'block';
+    // After display:block, offsetHeight is now real; reposition once.
+    requestAnimationFrame(() => {
+      tt.style.top = `${rect.top - tt.offsetHeight - 6}px`;
+    });
+  }
+
   _deselectButtons() {
     document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('selected'));
   }
@@ -1289,6 +1331,10 @@ export default class GameScene extends Phaser.Scene {
 
   _toggleSpeed() {
     this.speed = this.speed === 1 ? 2 : 1;
+    this._renderSpeedButton();
+  }
+
+  _renderSpeedButton() {
     document.getElementById('speed-btn').textContent = this.speed === 1 ? '⏩ 2x' : '⏸ 1x';
   }
 
@@ -1299,6 +1345,12 @@ export default class GameScene extends Phaser.Scene {
     document.getElementById('stat-gold').textContent  = this.economy.gold;
     document.getElementById('stat-wave').textContent  = `${this.waveMgr.currentWave}/${MAPS[this.mapId].waveCount}`;
     document.getElementById('stat-kills').textContent = this.kills;
+    // Runs on every economy:update, so the dimming tracks gold as it moves.
+    const gold = this.economy.gold;
+    document.querySelectorAll('.tower-btn').forEach(btn => {
+      const cost = TOWER_DEFS[btn.dataset.type]?.cost ?? Infinity;
+      btn.style.opacity = gold >= cost ? '1' : '0.4';
+    });
   }
 
   _updateWaveButton() {

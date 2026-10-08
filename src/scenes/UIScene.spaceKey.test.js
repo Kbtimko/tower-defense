@@ -31,8 +31,6 @@ function setupMinimalDOM() {
 
 function makeUIScene() {
   const scene = Object.create(UIScene.prototype);
-  scene._selectedType = null;
-  scene._speedFast = false;
   const emit = vi.fn();
   scene.game = { events: { emit, on(){}, off(){} } };
   return { scene, emit };
