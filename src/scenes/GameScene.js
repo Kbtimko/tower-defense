@@ -1299,6 +1299,12 @@ export default class GameScene extends Phaser.Scene {
     document.getElementById('stat-gold').textContent  = this.economy.gold;
     document.getElementById('stat-wave').textContent  = `${this.waveMgr.currentWave}/${MAPS[this.mapId].waveCount}`;
     document.getElementById('stat-kills').textContent = this.kills;
+    // Runs on every economy:update, so the dimming tracks gold as it moves.
+    const gold = this.economy.gold;
+    document.querySelectorAll('.tower-btn').forEach(btn => {
+      const cost = TOWER_DEFS[btn.dataset.type]?.cost ?? Infinity;
+      btn.style.opacity = gold >= cost ? '1' : '0.4';
+    });
   }
 
   _updateWaveButton() {
