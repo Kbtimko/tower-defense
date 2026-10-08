@@ -20,24 +20,29 @@ const others = files.filter(f => !f.endsWith('UIScene.js')).map(f => readFileSyn
 
 // Only `game.events` crosses scenes. A scene's own `this.events` (where
 // EconomyManager emits game:defeat) never reaches UIScene.
-const names = (text, verb) =>
-  [...text.matchAll(new RegExp(`game\\.events\\.${verb}\\(\\s*'([^']+)'`, 'g'))].map(m => m[1]);
+// Any quote style, and `once` counts as listening.
+const names = (text, verbs) =>
+  [...text.matchAll(new RegExp(`game\\.events\\.(?:${verbs})\\(\\s*['"\`]([^'"\`]+)['"\`]`, 'g'))].map(m => m[1]);
+const LISTEN = 'on|once';
+const EMIT   = 'emit';
 
 describe('UIScene cross-scene event wiring', () => {
   it('finds the wiring it checks, so the guard is never vacuous', () => {
-    expect(names(ui, 'on').length).toBeGreaterThan(0);
-    expect(names(ui, 'emit').length).toBeGreaterThan(0);
+    expect(names(ui, LISTEN).length).toBeGreaterThan(0);
+    expect(names(ui, EMIT).length).toBeGreaterThan(0);
+    expect(names(others, LISTEN).length).toBeGreaterThan(0);
+    expect(names(others, EMIT).length).toBeGreaterThan(0);
   });
 
   it('listens only for events some other module emits on game.events', () => {
-    const emitted = new Set(names(others, 'emit'));
-    const orphans = names(ui, 'on').filter(n => !emitted.has(n));
+    const emitted = new Set(names(others, EMIT));
+    const orphans = names(ui, LISTEN).filter(n => !emitted.has(n));
     expect(orphans).toEqual([]);
   });
 
   it('emits only events some other module listens for on game.events', () => {
-    const heard = new Set(names(others, 'on'));
-    const orphans = [...new Set(names(ui, 'emit'))].filter(n => !heard.has(n));
+    const heard = new Set(names(others, LISTEN));
+    const orphans = [...new Set(names(ui, EMIT))].filter(n => !heard.has(n));
     expect(orphans).toEqual([]);
   });
 });

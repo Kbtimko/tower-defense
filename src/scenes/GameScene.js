@@ -237,6 +237,8 @@ export default class GameScene extends Phaser.Scene {
     });
     document.getElementById('wave-btn').addEventListener('click',          () => this._startWave());
     document.getElementById('speed-btn').addEventListener('click',         () => this._toggleSpeed());
+    // Shutdown's clone keeps the old label, but this.speed resets each level.
+    this._renderSpeedButton();
     document.getElementById('panel-upgrade-btn').addEventListener('click', () => this._upgradeSelectedTower());
     document.getElementById('panel-sell-btn').addEventListener('click',    () => this._sellSelectedTower());
     document.getElementById('panel-reposition-btn').addEventListener('click', () => this._startReposition());
@@ -1329,6 +1331,10 @@ export default class GameScene extends Phaser.Scene {
 
   _toggleSpeed() {
     this.speed = this.speed === 1 ? 2 : 1;
+    this._renderSpeedButton();
+  }
+
+  _renderSpeedButton() {
     document.getElementById('speed-btn').textContent = this.speed === 1 ? '⏩ 2x' : '⏸ 1x';
   }
 

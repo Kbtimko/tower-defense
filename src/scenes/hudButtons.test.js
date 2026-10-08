@@ -146,3 +146,17 @@ describe('tower tooltip across levels', () => {
     expect(document.getElementById('tower-tooltip').style.display).toBe('none');
   });
 });
+
+describe('speed button label', () => {
+  beforeEach(setupDOM);
+
+  it('starts each level on the 1x label, whatever the last level left', () => {
+    // Shutdown clones the button, text included: a level quit at 2x would
+    // otherwise open the next one, at 1x, reading "⏸ 1x".
+    document.getElementById('speed-btn').textContent = '⏸ 1x';
+    const gs = bindBothScenes();
+    gs.speed = 1;
+    gs._bindDOMEvents();
+    expect(document.getElementById('speed-btn').textContent).toBe('⏩ 2x');
+  });
+});
