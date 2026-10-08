@@ -3,8 +3,9 @@
 ## Goal
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
-## Current Status (2026-10-01)
+## Current Status (2026-10-07)
 
+**2026-10-07: PR #80 (#20/#21) merged. Backlog #24 on branch `fix/hero-soldier-hpbar`, PR open** — hero/soldier HP bars lifted off their sprites. 1456 tests green.
 **2026-10-01: backlog #20 + #21 on branch `feat/branch-card-armour`, PR open** — armour absorption on tier-4 branch cards, tier-4 rows in the armour sweep. 1444 tests green. Found and logged #33 (dead UIScene branch picker).
 
 **`main` is at `01cfba2`, every PR is merged, nothing is open, and production is verified serving it** — the deployed bundle hash matches a local build of merged `main` exactly.
@@ -27,7 +28,7 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
-**PR open: `feat/branch-card-armour` (backlog #20 + #21).** Everything before it is merged; production last verified 2026-09-22.
+**PR open: `fix/hero-soldier-hpbar` (backlog #24).** PR #80 (#20/#21) merged 2026-10-08. Production last verified 2026-09-22.
 
 Last shipped (2026-09-22), newest first:
 - **PR #78 — campaign economy ramp (backlog #16).** Two derived constants replace fourteen undocumented numbers in `src/data/maps.js`. New `src/data/mapsEconomy.test.js` guards the SHAPE (board-scaled opening floor, gold-per-HP monotonicity, spread band, maps 0-2 pinned). `depthBoardCost` promoted into `src/sim/economy.js` and printed by `npm run balance`.
@@ -182,7 +183,12 @@ Last shipped (2026-09-22), newest first:
 
 23. `[auto]` **Absorbed damage numbers have no pool priority** _(raised 2026-09-21 by #17's final review; ceiling case, not currently reachable in normal play)_. `DamageNumberOverlay` has a 24-slot pool. The per-enemy 700ms throttle bounds the per-enemy rate but nothing bounds the global rate. Map 9 wave 18 ships 6 titans + 12 brutes; archer T1/T2 are `heavy` against both and fire ~1/s, each number holding a slot for its 1200ms tween — roughly 21+ slots held by `🛡` numbers alone. Past 24, **every** hit is dropped, including the crit/AoE/big numbers that predate this feature and previously had the pool to themselves. Absorbed numbers are the least valuable of the set and should yield first. Needs a priority rule, not a bigger pool.
 
-24. `[auto]` **`Hero.js` and `Soldier.js` HP bars still size from `def.radius`** _(pre-existing; the same defect PR #68 fixed for enemies, deliberately left out of that PR's scope)_. Sprites render 2-6x their `def.radius`, so the bar is drawn inside the body it describes — the exact bug that made players misread archer damage as "not registering". `src/systems/hpBar.js` `hpBarGeometry()` already exists and already handles the sprite-vs-fallback case; this is wiring, not new logic.
+24. `[auto]` ✅ **Hero and soldier HP bars lifted off their sprites — DONE, PR pending** _(2026-10-07, branch `fix/hero-soldier-hpbar`)_. **The entry's diagnosis was slightly off:** neither entity read `def.radius`. Both bars were hard-coded pixel boxes from the old Graphics bodies (hero 16x2 at y=-22, soldier 14x2 at y=-17). Reproduced live:
+    - **Hero:** the bar sat across the hero's head on 49px art.
+    - **Soldier:** its bar already cleared the 17px sprite, but a 2px green bar over green art was **invisible**.
+    - **Fix:** both now go through a new `drawUnitHpBar` in `src/systems/hpBar.js`. It uses the enemy's `hpBarGeometry` (from `getDisplaySize()`), adds a 0.55-alpha black outline, uses `hpBarFillWidth`'s minimum visible loss, and draws 3px tall (not the enemy's 4px, since a soldier is ~17px tall).
+    - **Unchanged:** each unit keeps its own colour and still hides at full HP. Fallback radii (hero 14, soldier 9) keep the no-art bar's top edge where it was. The no-art bar's width grows, but that only shows if art is missing. Enemy's own bar is untouched.
+    - **Browser-verified:** before/after close-ups on the dev server (map 1, real art). The hero bar is now above the head and ~39px wide; the soldier bar is readable. All five mutations were caught, with one caveat: ignoring the sprite size cannot fail the soldier tests, because the soldier's fallback geometry is already at least as large as its art.
 
 25. `[auto]` **Small cleanups found while working in the damage/number path** _(raised 2026-09-21)_. (a) The `Veth ` prefix strip `.replace(/^Veth\s+/, '')` is now duplicated in **six** places (`GameScene.js` x2, `UIScene.js` x2, `InspectController.js`, and the new armour line) — hoist it into `entityDescriptors.js` beside the other shared naming. (b) `DamageNumberOverlay`'s `isCrit` branch is **dead code**: grep finds no producer of `isCrit` anywhere in `src/`. Either wire crits up or delete the branch and its style; leaving an unreachable presentation implies a feature that does not exist. (c) `armourAbsorption` returns `after: 0` for `amount: 0` where `applyArmour(0, armor)` returns `1` — harmless today (no consumer reads `after` on that path) but the two disagree inside the one module pair whose entire purpose is preventing a second copy of the arithmetic from drifting.
 
