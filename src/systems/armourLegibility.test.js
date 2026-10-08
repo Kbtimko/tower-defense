@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { armourAbsorption, HEAVY_ABSORPTION, describeTowerArmour } from './armourLegibility.js';
+import { armourAbsorption, HEAVY_ABSORPTION, describeTowerArmour, armourRowLabel } from './armourLegibility.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
 import { TOWER_DEFS } from '../data/towers.js';
 
@@ -108,6 +108,13 @@ describe('band membership across the real tables', () => {
       if (!damage) continue;
       sources.push({ label: `${type} T${tier}`, damage, pierce: def.pierce });
     }
+    // A branch can override pierce (Tower.js applies tierDef.pierce when set),
+    // so fall back to the base tower only when the branch is silent.
+    for (const branch of ['A', 'B']) {
+      const t4 = def[`tier4${branch}`];
+      if (!t4?.damage) continue;
+      sources.push({ label: `${type} T4${branch}`, damage: t4.damage, pierce: t4.pierce ?? def.pierce });
+    }
     if (def.soldierStats) {
       for (const tier of [1, 2, 3]) {
         sources.push({
@@ -147,8 +154,26 @@ describe('band membership across the real tables', () => {
     expect(all.some(r => r.band !== 'none')).toBe(true);
   });
 
+  it('sweeps tier 4, and flags ice Permafrost — the one tier-4 row the branch picker renders', () => {
+    const t4 = all.filter(r => /T4[AB]$/.test(r.s.label));
+    expect(t4.length).toBeGreaterThan(0);
+    expect(t4.some(r => r.s.label === 'ice T4A' && r.band === 'heavy')).toBe(true);
+  });
+
   it('still floors ice T1 against a brute — the reported symptom', () => {
     const r = armourAbsorption({ amount: TOWER_DEFS.ice.damage, armor: ENEMY_DEFS.brute.armor });
     expect(r.band).toBe('floored');
+  });
+});
+
+describe('armourRowLabel', () => {
+  const row = (band, absorbed) => ({ name: 'Veth Titan', band, absorbed });
+
+  it('strips the Veth prefix and prints the absorbed percentage', () => {
+    expect(armourRowLabel(row('heavy', 0.714))).toBe('Titan 71%');
+  });
+
+  it('marks a floored row with a warning', () => {
+    expect(armourRowLabel(row('floored', 0.95))).toBe('Titan 95% ⚠');
   });
 });
