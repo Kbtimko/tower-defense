@@ -7,8 +7,8 @@ import { EntitySprite } from '../systems/EntitySprite.js';
 import { pointAtProgress } from '../systems/pathGeometry.js';
 import { drawUnitHpBar } from '../systems/hpBar.js';
 
-// The Graphics fallback body has no radius; 14 puts the no-art bar at y=-22,
-// just over the drawn head, where it always sat.
+// The Graphics fallback body has no radius; 14 keeps the no-art bar's top edge at
+// y=-22, just over the drawn head, where it always sat.
 const FALLBACK_BAR_RADIUS = 14;
 
 export class Hero extends Phaser.GameObjects.Container {

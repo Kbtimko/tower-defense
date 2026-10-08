@@ -78,6 +78,7 @@ for (const [name, make, art, fallbackTop] of [
       const rects = damage(withArt(make(), art));
       expect(frame(rects).h).toBe(3);
       expect(rects[0].color).toBe(0x000000);
+      expect(rects[0].alpha).toBeGreaterThanOrEqual(0.5);
       expect(rects[0].w).toBe(frame(rects).w + 2);
     });
 

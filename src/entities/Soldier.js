@@ -6,8 +6,8 @@ import {
   SOLDIER_ATTACK_RATE, soldierMaxHp, soldierRespawnDuration, damageSoldier, tickSoldier,
 } from '../systems/soldierCombat.js';
 
-// The Graphics fallback body has no radius; 9 puts the no-art bar at y=-17,
-// just over the drawn head, where it always sat.
+// The Graphics fallback body has no radius; 9 keeps the no-art bar's top edge at
+// y=-17, just over the drawn head, where it always sat.
 const FALLBACK_BAR_RADIUS = 9;
 
 export class Soldier extends Phaser.GameObjects.Container {
