@@ -1,5 +1,5 @@
 import { describeEnemyMatchups } from '../data/weaknessMatrix.js';
-import { ENEMY_DEFS } from '../data/enemies.js';
+import { shortEnemyName } from '../systems/entityDescriptors.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { HEROES } from '../data/heroes.js';
 import { gameToPageCss } from '../systems/viewport.js';
@@ -241,7 +241,7 @@ export class InspectController {
       if (mult === 1.0) continue;
       const line = document.createElement('span');
       line.className = mult >= 1 ? 'mu-good' : 'mu-bad';
-      const enemyName = (ENEMY_DEFS[enemyType]?.name ?? enemyType).replace(/^Veth\s+/, '');
+      const enemyName = shortEnemyName(enemyType);
       line.textContent = `${mult}× vs ${enemyName}`;
       el.appendChild(line);
     }

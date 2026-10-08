@@ -4,7 +4,7 @@ import { MAPS } from '../data/maps.js';
 import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
 import { AbilityTooltip } from '../ui/AbilityTooltip.js';
-import { describeAbility } from '../systems/entityDescriptors.js';
+import { describeAbility, shortEnemyName } from '../systems/entityDescriptors.js';
 
 export default class UIScene extends Phaser.Scene {
   constructor() { super('UIScene'); }
@@ -103,7 +103,7 @@ export default class UIScene extends Phaser.Scene {
         if (!def) return;
         const m = describeMatchups({ kind: 'tower', type, tier: 1, branch: null });
         const renderEnemyNames = (types) =>
-          types.map(t => (ENEMY_DEFS[t]?.name ?? t).replace(/^Veth\s+/, '')).join(', ');
+          types.map(shortEnemyName).join(', ');
         const tt = document.getElementById('tower-tooltip');
         tt.replaceChildren();
         const header = document.createElement('strong');

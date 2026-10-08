@@ -29,11 +29,13 @@ function makeScene() {
 }
 
 describe('DamageNumberOverlay', () => {
-  it('spawns a number for a crit regardless of amount', () => {
+  it('has no crit path — nothing in the game produces one', () => {
+    // A stray isCrit must not bypass the small-hit threshold or style a
+    // number for a feature that does not exist.
     const scene = makeScene();
     new DamageNumberOverlay(scene);
     scene.events.emit('damage-dealt', { target: { x: 100, y: 100 }, amount: 5, isCrit: true });
-    expect(scene.add.text).toHaveBeenCalledTimes(1);
+    expect(scene.add.text).not.toHaveBeenCalled();
   });
 
   it('spawns a number for an AoE hit regardless of amount', () => {

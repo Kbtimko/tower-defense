@@ -6,7 +6,6 @@ const ABSORBED_COOLDOWN_MS = 700;
 
 const STYLES = {
   big:  { fontSize: '16px', color: '#ffffff', stroke: '#000000', strokeThickness: 2 },
-  crit: { fontSize: '22px', color: '#ffcc44', stroke: '#000000', strokeThickness: 3 },
   aoe:  { fontSize: '16px', color: '#ff9966', stroke: '#000000', strokeThickness: 2 },
   // Muted and small on purpose: this marks a hit that barely landed, and must
   // not read as a good one.
@@ -29,7 +28,7 @@ export class DamageNumberOverlay {
     this._absorbedAt = new WeakMap();
   }
 
-  _handle({ target, amount, isCrit = false, isAoe = false, abilityLabel = null, absorbedBand = 'none' }) {
+  _handle({ target, amount, isAoe = false, abilityLabel = null, absorbedBand = 'none' }) {
     const absorbed = absorbedBand === 'heavy' || absorbedBand === 'floored';
     let now;
 
@@ -39,7 +38,7 @@ export class DamageNumberOverlay {
       const last = this._absorbedAt.get(target);
       now = this._now();
       if (last !== undefined && now - last < ABSORBED_COOLDOWN_MS) return;
-    } else if (!(isCrit || isAoe || amount >= THRESHOLD)) {
+    } else if (!(isAoe || amount >= THRESHOLD)) {
       return;
     }
 
@@ -62,10 +61,8 @@ export class DamageNumberOverlay {
     this._inUse.add(txt);
 
     const style = absorbed ? STYLES.absorbed
-                : isCrit  ? STYLES.crit
                 : (isAoe  ? STYLES.aoe : STYLES.big);
     const label = absorbed ? `🛡${amount}`
-                : isCrit   ? `CRIT ${amount}!`
                 : (abilityLabel ? `${abilityLabel} ${amount}` : String(amount));
     txt.setText(label);
     txt.setStyle(style);

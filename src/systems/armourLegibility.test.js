@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { armourAbsorption, HEAVY_ABSORPTION, describeTowerArmour, armourRowLabel } from './armourLegibility.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
+import { applyArmour } from './damage.js';
 import { TOWER_DEFS } from '../data/towers.js';
 
 describe('armourAbsorption', () => {
@@ -48,8 +49,15 @@ describe('armourAbsorption', () => {
 
   it('treats a zero-damage source as unflagged', () => {
     // TOWER_DEFS.barracks has damage: 0 — must not divide by zero.
-    expect(armourAbsorption({ amount: 0, armor: 20 }))
-      .toEqual({ after: 0, absorbed: 0, band: 'none' });
+    const r = armourAbsorption({ amount: 0, armor: 20 });
+    expect(r.absorbed).toBe(0);
+    expect(r.band).toBe('none');
+  });
+
+  it('agrees with applyArmour on a zero-damage hit', () => {
+    // The game floors every hit at 1, so `after` must too, or this module and
+    // damage.js disagree — the drift the pair exists to prevent.
+    expect(armourAbsorption({ amount: 0, armor: 20 }).after).toBe(applyArmour(0, 20));
   });
 });
 
@@ -167,7 +175,7 @@ describe('band membership across the real tables', () => {
 });
 
 describe('armourRowLabel', () => {
-  const row = (band, absorbed) => ({ name: 'Veth Titan', band, absorbed });
+  const row = (band, absorbed) => ({ enemyType: 'titan', name: 'Veth Titan', band, absorbed });
 
   it('strips the Veth prefix and prints the absorbed percentage', () => {
     expect(armourRowLabel(row('heavy', 0.714))).toBe('Titan 71%');
