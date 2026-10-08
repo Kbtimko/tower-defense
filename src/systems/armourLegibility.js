@@ -5,6 +5,7 @@
 // feeds `src/data/` or `src/sim/`.
 import { applyArmour } from './damage.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
+import { shortEnemyName } from './entityDescriptors.js';
 
 // Half the shot eaten is where the sorted table of real combinations breaks:
 // the next one down is 0.44. Not a tuning dial — a reporting threshold.
@@ -15,7 +16,7 @@ export const HEAVY_ABSORPTION = 0.5;
 // in would report "armour absorbed 50%" for a cannon hitting an unarmoured
 // phantom, and no absorption at all for a sniper that loses 25% to a titan.
 export function armourAbsorption({ amount, armor = 0, pierce = false }) {
-  if (!(amount > 0)) return { after: 0, absorbed: 0, band: 'none' };
+  if (!(amount > 0)) return { after: applyArmour(0, armor, pierce), absorbed: 0, band: 'none' };
   const after = applyArmour(amount, armor, pierce);
   const absorbed = (amount - after) / amount;
   let band = 'none';
@@ -43,7 +44,7 @@ export function describeTowerArmour({ damage, pierce = false }) {
 // arrow: `row.after` is the mid-formula armour value, before the weakness
 // multiplier, so a damage arrow can show a number the hit never actually lands.
 export function armourRowLabel(row) {
-  const name = row.name.replace(/^Veth\s+/, '');
+  const name = shortEnemyName(row.enemyType);
   const pct = Math.round(row.absorbed * 100);
   return `${name} ${pct}%${row.band === 'floored' ? ' ⚠' : ''}`;
 }

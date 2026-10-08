@@ -28,7 +28,7 @@ import { ENEMY_MELEE_DAMAGE, findBlockingSoldier, heroBlocksEnemy } from '../sys
 import { AreaEffectsManager } from '../systems/AreaEffectsManager.js';
 import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
 import { describeTowerArmour, armourRowLabel } from '../systems/armourLegibility.js';
-import { ENEMY_DEFS } from '../data/enemies.js';
+import { shortEnemyName } from '../systems/entityDescriptors.js';
 import { InspectController } from './InspectController.js';
 import { SentryTurret } from '../entities/SentryTurret.js';
 import { renderPath } from '../systems/PathRenderer.js';
@@ -1078,7 +1078,7 @@ export default class GameScene extends Phaser.Scene {
     matchupsEl.replaceChildren();
     const m = describeMatchups({ kind: 'tower', type: tower.type, tier: tower.level, branch: tower.branch });
     const renderEnemyNames = (types) =>
-      types.map(t => (ENEMY_DEFS[t]?.name ?? t).replace(/^Veth\s+/, '')).join(', ');
+      types.map(shortEnemyName).join(', ');
     if (m.effective.length) {
       const line = document.createElement('span');
       line.className = 'mu-good';
@@ -1555,6 +1555,6 @@ function headlineOverride(towerType, branch) {
     const v = cells[enemy];
     if (v > bestVal) { bestVal = v; bestEnemy = enemy; }
   }
-  const niceName = (ENEMY_DEFS[bestEnemy]?.name ?? bestEnemy).replace(/^Veth\s+/, '');
+  const niceName = shortEnemyName(bestEnemy);
   return { enemy: bestEnemy, value: bestVal, name: niceName };
 }

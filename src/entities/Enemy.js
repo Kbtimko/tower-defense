@@ -149,7 +149,6 @@ export class Enemy extends Phaser.GameObjects.Container {
     this.scene.events.emit('damage-dealt', {
       target: this,
       amount: dmg,
-      isCrit: optsObj.isCrit ?? false,
       isAoe:  optsObj.isAoe  ?? false,
       abilityLabel: optsObj.abilityLabel ?? null,
       absorbedBand: band,

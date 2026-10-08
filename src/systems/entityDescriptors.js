@@ -21,6 +21,13 @@ function describeMatchupEntry(entry) {
   return { kind: 'tower', type: entry, name: tower.name, icon: tower.icon };
 }
 
+// Every enemy is "Veth <X>"; dense UI (matchup lines, armour rows, tooltips)
+// shows only <X>, and a regex hand-copied into every such surface was one
+// typo from disagreeing.
+export function shortEnemyName(type) {
+  return (ENEMY_DEFS[type]?.name ?? type).replace(/^Veth\s+/, '');
+}
+
 function describeEnemyEntry(type) {
   const enemy = ENEMY_DEFS[type];
   return { kind: 'enemy', type, name: enemy.name, icon: enemy.icon };

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { describeEnemy, describeTower, describeHero, describeAbility } from './entityDescriptors.js';
+import { describeEnemy, describeTower, describeHero, describeAbility, shortEnemyName } from './entityDescriptors.js';
 import { ENEMY_DEFS } from '../data/enemies.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { HEROES, HERO_ORDER } from '../data/heroes.js';
@@ -297,5 +297,19 @@ describe('describeAbility', () => {
   it('returns null when def itself is missing or malformed', () => {
     expect(describeAbility(null, 'q')).toBeNull();
     expect(describeAbility({}, 'q')).toBeNull();
+  });
+});
+
+describe('shortEnemyName', () => {
+  it('drops the shared Veth prefix', () => {
+    expect(shortEnemyName('titan')).toBe('Titan');
+  });
+
+  it('never leaves the prefix on any real enemy', () => {
+    for (const type of Object.keys(ENEMY_DEFS)) expect(shortEnemyName(type)).not.toMatch(/^Veth/);
+  });
+
+  it('falls back to the raw type for an unknown enemy', () => {
+    expect(shortEnemyName('nonesuch')).toBe('nonesuch');
   });
 });

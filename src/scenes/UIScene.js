@@ -1,10 +1,9 @@
 import Phaser from 'phaser';
 import { TOWER_DEFS } from '../data/towers.js';
 import { MAPS } from '../data/maps.js';
-import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
-import { ENEMY_DEFS } from '../data/enemies.js';
+import { describeMatchups } from '../data/weaknessMatrix.js';
 import { AbilityTooltip } from '../ui/AbilityTooltip.js';
-import { describeAbility } from '../systems/entityDescriptors.js';
+import { describeAbility, shortEnemyName } from '../systems/entityDescriptors.js';
 
 export default class UIScene extends Phaser.Scene {
   constructor() { super('UIScene'); }
@@ -17,7 +16,6 @@ export default class UIScene extends Phaser.Scene {
 
     this._selectedType = null;
     this._speedFast    = false;
-    this._openTower    = null;
     this._onKeyDown    = null;
 
     // Phaser reuses this one UIScene instance across maps; reset the XP
@@ -58,8 +56,6 @@ export default class UIScene extends Phaser.Scene {
 
     this.game.events.off('hud:update',       this._onHudUpdate,  this);
     this.game.events.off('wave:state',        this._onWaveState,  this);
-    this.game.events.off('tower:panel-open',  this._onPanelOpen,  this);
-    this.game.events.off('tower:panel-close', this._onPanelClose, this);
     this.game.events.off('game:victory',      this._onVictory,    this);
     this.game.events.off('game:defeat',       this._onDefeat,     this);
     this.game.events.off('ui:barracks-reposition', this._onBarracksReposition, this);
@@ -103,7 +99,7 @@ export default class UIScene extends Phaser.Scene {
         if (!def) return;
         const m = describeMatchups({ kind: 'tower', type, tier: 1, branch: null });
         const renderEnemyNames = (types) =>
-          types.map(t => (ENEMY_DEFS[t]?.name ?? t).replace(/^Veth\s+/, '')).join(', ');
+          types.map(shortEnemyName).join(', ');
         const tt = document.getElementById('tower-tooltip');
         tt.replaceChildren();
         const header = document.createElement('strong');
@@ -185,8 +181,6 @@ export default class UIScene extends Phaser.Scene {
   _subscribeToGameEvents() {
     this.game.events.on('hud:update',       this._onHudUpdate,  this);
     this.game.events.on('wave:state',        this._onWaveState,  this);
-    this.game.events.on('tower:panel-open',  this._onPanelOpen,  this);
-    this.game.events.on('tower:panel-close', this._onPanelClose, this);
     this.game.events.on('game:victory',      this._onVictory,    this);
     this.game.events.on('game:defeat',       this._onDefeat,     this);
     this.game.events.on('ui:barracks-reposition', this._onBarracksReposition, this);
@@ -219,134 +213,6 @@ export default class UIScene extends Phaser.Scene {
     } else {
       btn.disabled = false; btn.textContent = `▶ Send Wave ${currentWave + 1}`;
     }
-  }
-
-  _onPanelOpen({ tower, def, x, y, mapId }) {
-    this._openTower = tower;
-    const map = MAPS[mapId];
-
-    const branchLabel = tower.branch ? ` · ${def['tier4' + tower.branch]?.label ?? ''}` : '';
-    document.getElementById('panel-name').textContent = def.icon + ' ' + def.name + branchLabel;
-    document.getElementById('panel-lvl').textContent  = 'Level: ' + tower.level + '/4';
-
-    if (tower.type === 'barracks') {
-      document.getElementById('panel-std-stats').style.display      = 'none';
-      document.getElementById('panel-barracks-stats').style.display = 'block';
-      const ss = tower.soldierStats;
-      document.getElementById('panel-soldier-count').textContent   = ss.count;
-      document.getElementById('panel-soldier-hp').textContent      = ss.hp;
-      document.getElementById('panel-soldier-dmg').textContent     = ss.damage;
-      document.getElementById('panel-soldier-respawn').textContent = ss.respawnDuration;
-      document.getElementById('panel-soldier-blocks').textContent  = ss.canBlockFlyers ? 'Ground + Air' : 'Ground';
-      document.getElementById('panel-reposition-btn').style.display = 'block';
-    } else {
-      document.getElementById('panel-std-stats').style.display      = 'block';
-      document.getElementById('panel-barracks-stats').style.display = 'none';
-      document.getElementById('panel-reposition-btn').style.display = 'none';
-      document.getElementById('panel-dmg').textContent = 'Damage: '    + tower.damage;
-      document.getElementById('panel-rng').textContent = 'Range: '     + tower.range;
-      document.getElementById('panel-spd').textContent = 'Fire rate: ' + (tower.fireRate * 100).toFixed(0) + '%';
-    }
-
-    const upgradeBtn = document.getElementById('panel-upgrade-btn');
-    const picker     = document.getElementById('panel-branch-picker');
-    picker.style.display = 'none';
-    picker.querySelector('.branch-cards').replaceChildren();
-    upgradeBtn.style.display = '';
-
-    if (tower.level === 3 && !tower.branch) {
-      upgradeBtn.style.display = 'none';
-      picker.style.display     = 'block';
-      this._renderBranchPicker(picker.querySelector('.branch-cards'), def, map);
-    } else {
-      this._setUpgradeButton(upgradeBtn, tower, def, map);
-    }
-
-    document.getElementById('panel-sell-btn').textContent =
-      '💰 Sell (' + Math.floor(tower.totalCost * 0.6) + 'g)';
-
-    const gameRect = document.getElementById('game').getBoundingClientRect();
-    const panel    = document.getElementById('tower-panel');
-    panel.style.left    = Math.min(x + 10, gameRect.width  - 180) + 'px';
-    panel.style.top     = Math.min(y - 10, gameRect.height - 220) + 'px';
-    panel.style.display = 'block';
-
-    this._selectedType = null;
-    document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('selected'));
-  }
-
-  _setUpgradeButton(btn, tower, def, map) {
-    const nextLevel = tower.level + 1;
-    if (tower.level >= 4) {
-      btn.disabled    = true;
-      btn.textContent = 'MAX LEVEL';
-      btn.className   = 'upgrade-btn maxed';
-    } else if (nextLevel > map.maxTierAllowed) {
-      const unlockMap = nextLevel <= 3 ? 3 : 5;
-      btn.disabled    = true;
-      btn.textContent = '🔒 Unlocked on Map ' + unlockMap;
-      btn.className   = 'upgrade-btn maxed';
-    } else {
-      btn.disabled    = false;
-      const tierDef   = def['tier' + nextLevel];
-      btn.textContent = 'Upgrade 💰' + tierDef.cost + ': ' + tierDef.label;
-      btn.className   = 'upgrade-btn';
-    }
-  }
-
-  _renderBranchPicker(container, def, map) {
-    const towerType = Object.keys(TOWER_DEFS).find(k => TOWER_DEFS[k] === def);
-    const tierLocked = map.maxTierAllowed < 4;
-    for (const [branch, tierDef] of [['A', def.tier4A], ['B', def.tier4B]]) {
-      const card = document.createElement('div');
-      card.className = tierLocked ? 'branch-card locked' : 'branch-card';
-
-      const label = document.createElement('div');
-      label.className   = 'branch-label';
-      label.textContent = tierDef.label;
-
-      const effect = document.createElement('div');
-      effect.className   = 'branch-effect';
-      effect.textContent = tierDef.passiveEffect;
-
-      card.append(label, effect);
-
-      const headline = headlineOverride(towerType, branch);
-      if (headline) {
-        const matchup = document.createElement('div');
-        matchup.className = 'branch-matchup';
-        matchup.textContent = `⚡ ${headline.value}× vs ${headline.name}`;
-        card.appendChild(matchup);
-      }
-
-      const cost = document.createElement('div');
-      cost.className   = 'branch-cost';
-      cost.textContent = tierDef.cost + 'g';
-
-      const btn = document.createElement('button');
-      btn.className   = 'upgrade-btn';
-      btn.textContent = 'Choose';
-      if (tierLocked) {
-        btn.disabled = true;
-        btn.title    = 'Unlocked on Map 5';
-      }
-      btn.addEventListener('click', () =>
-        this.game.events.emit('ui:tower-upgrade', { branch }));
-
-      card.append(cost, btn);
-      container.appendChild(card);
-    }
-  }
-
-  _onPanelClose() {
-    document.getElementById('tower-panel').style.display          = 'none';
-    const picker = document.getElementById('panel-branch-picker');
-    picker.style.display = 'none';
-    picker.querySelector('.branch-cards').replaceChildren();
-    document.getElementById('panel-upgrade-btn').style.display    = '';
-    document.getElementById('panel-std-stats').style.display      = 'block';
-    document.getElementById('panel-barracks-stats').style.display = 'none';
-    document.getElementById('panel-reposition-btn').style.display = 'none';
   }
 
   _onVictory({ kills, waveCount }) {
@@ -491,17 +357,4 @@ export default class UIScene extends Phaser.Scene {
       if (cdEl) cdEl.textContent = '';
     }
   }
-}
-
-function headlineOverride(towerType, branch) {
-  const cells = TIER4_OVERRIDES[towerType]?.[branch];
-  if (!cells || Object.keys(cells).length === 0) return null;
-  let bestEnemy = null;
-  let bestVal = -Infinity;
-  for (const enemy of Object.keys(cells).sort()) { // alphabetical tiebreak
-    const v = cells[enemy];
-    if (v > bestVal) { bestVal = v; bestEnemy = enemy; }
-  }
-  const niceName = (ENEMY_DEFS[bestEnemy]?.name ?? bestEnemy).replace(/^Veth\s+/, '');
-  return { enemy: bestEnemy, value: bestVal, name: niceName };
 }

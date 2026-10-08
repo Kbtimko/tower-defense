@@ -3,8 +3,9 @@
 ## Goal
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
-## Current Status (2026-10-07)
+## Current Status (2026-10-08)
 
+**2026-10-08: PR #81 (#24) merged. Backlog #25 + #33 on branch `chore/cleanups-25-33`, PR open.** 1462 tests green. Logged #34 (the remaining UIScene orphan events).
 **2026-10-07: PR #80 (#20/#21) merged. Backlog #24 on branch `fix/hero-soldier-hpbar`, PR open** — hero/soldier HP bars lifted off their sprites. 1456 tests green.
 **2026-10-01: backlog #20 + #21 on branch `feat/branch-card-armour`, PR open** — armour absorption on tier-4 branch cards, tier-4 rows in the armour sweep. 1444 tests green. Found and logged #33 (dead UIScene branch picker).
 
@@ -28,7 +29,7 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
-**PR open: `fix/hero-soldier-hpbar` (backlog #24).** PR #80 (#20/#21) merged 2026-10-08. Production last verified 2026-09-22.
+**PR open: `chore/cleanups-25-33` (backlog #25 + #33).** PRs #80 and #81 merged. Production last verified 2026-09-22.
 
 Last shipped (2026-09-22), newest first:
 - **PR #78 — campaign economy ramp (backlog #16).** Two derived constants replace fourteen undocumented numbers in `src/data/maps.js`. New `src/data/mapsEconomy.test.js` guards the SHAPE (board-scaled opening floor, gold-per-HP monotonicity, spread band, maps 0-2 pinned). `depthBoardCost` promoted into `src/sim/economy.js` and printed by `npm run balance`.
@@ -190,7 +191,10 @@ Last shipped (2026-09-22), newest first:
     - **Unchanged:** each unit keeps its own colour and still hides at full HP. Fallback radii (hero 14, soldier 9) keep the no-art bar's top edge where it was. The no-art bar's width grows, but that only shows if art is missing. Enemy's own bar is untouched.
     - **Browser-verified:** before/after close-ups on the dev server (map 1, real art). The hero bar is now above the head and ~39px wide; the soldier bar is readable. All five mutations were caught, with one caveat: ignoring the sprite size cannot fail the soldier tests, because the soldier's fallback geometry is already at least as large as its art.
 
-25. `[auto]` **Small cleanups found while working in the damage/number path** _(raised 2026-09-21)_. (a) The `Veth ` prefix strip `.replace(/^Veth\s+/, '')` is now duplicated in **six** places (`GameScene.js` x2, `UIScene.js` x2, `InspectController.js`, and the new armour line) — hoist it into `entityDescriptors.js` beside the other shared naming. (b) `DamageNumberOverlay`'s `isCrit` branch is **dead code**: grep finds no producer of `isCrit` anywhere in `src/`. Either wire crits up or delete the branch and its style; leaving an unreachable presentation implies a feature that does not exist. (c) `armourAbsorption` returns `after: 0` for `amount: 0` where `applyArmour(0, armor)` returns `1` — harmless today (no consumer reads `after` on that path) but the two disagree inside the one module pair whose entire purpose is preventing a second copy of the arithmetic from drifting.
+25. `[auto]` ✅ **Small cleanups in the damage/number path — DONE, PR pending** _(2026-10-08, branch `chore/cleanups-25-33`)_.
+    - **(a)** `shortEnemyName(type)` in `entityDescriptors.js` replaces every hand-copied `Veth ` strip: GameScene ×2, InspectController, UIScene's tooltip and `armourRowLabel` (which now keys on `row.enemyType`). Two unused `ENEMY_DEFS` imports were dropped.
+    - **(b)** The crit path is **deleted**, not wired up: the `isCrit` branch, the `crit` style and Enemy's passthrough are gone. Nothing ever produced a crit, and real crits would be a design feature.
+    - **(c)** `armourAbsorption` now reports `applyArmour`'s floored `after: 1` for a zero-damage hit. That is what the game actually lands, so the two halves agree.
 
 26. `[review]` **No touch path to the wave preview** _(known gap recorded inside #19, promoted to its own item 2026-09-21)_. On a touchscreen the Send Wave button is the only thing to tap and tapping it sends the wave. Tap-toggle was tried and removed because it opened the popover *and* fired the wave, leaving a stale preview over a running wave. Hover and keyboard work fully. Options: tap-to-preview-then-tap-to-send, or a separate ⓘ affordance. Matters only if touch is a target — **fold this into the iOS port (#9) rather than doing it standalone.**
 
@@ -206,7 +210,12 @@ Last shipped (2026-09-22), newest first:
 
 32. `[review]` **Map 9 is still under-funded, and its opening barracks is provably dead gold** _(raised 2026-09-22 by #16's final review)_. #16 took map 9 from 2.89x to 1.36x but it still builds only **3 of 20 towers** and survives 1/18 waves. Survival is steeply gold-elastic right at the shipped value — 600g start takes it to **12/18 waves and 20/20 towers** — so this is residual under-funding, not a wave-shape wall. Compounding it: `DEFAULT_BARRACKS_TARGET = 1` spends the first 100g of the opening hand on a barracks *before* any firing tower, and **map 9's wave 1 is 12 phantoms, which FLY** — tier-1 soldiers cannot block flyers, so that 100g is provably dead on the wave that ends the run. Forcing `barracksTarget: 0` moves map 9 to 3/18 waves and 5 towers. The same artefact makes **map 6's headline 1.05x misleading**: at `barracksTarget: 0` map 6 is **won 15/15 with 3 lives left at 1x damage**. Fixing this is a build-policy change (make the opening barracks conditional on the early waves containing blockable ground enemies), which belongs with #27/#28.
 
-33. `[auto]` **`UIScene._renderBranchPicker` (and its `_onPanelOpen`) is dead code** _(found 2026-10-01 by #20)_. `UIScene` listens for `tower:panel-open` but nothing in `src/` emits it — `GameScene._openTowerPanel` renders the live panel and branch picker itself. The UIScene copy is a stale duplicate of the branch picker that #20 deliberately did not update. Delete it (and its listener pair) or route the panel through it; leaving it invites the next change to be made in the wrong copy.
+33. `[auto]` ✅ **UIScene's dead tower-panel copy — DELETED, PR pending** _(2026-10-08)_. Removed: `_onPanelOpen`/`_onPanelClose`, `_setUpgradeButton`, `_renderBranchPicker`, `headlineOverride`, the `tower:panel-open/close` listener pairs, `_openTower`, and the `TIER4_OVERRIDES`/`ENEMY_DEFS` imports (148 lines). A guard test (`UIScene.towerPanel.test.js`) pins its absence. Scope was deliberately limited to the panel path; the rest is #34.
+
+34. `[auto]` **The rest of UIScene's orphaned event wiring** _(found 2026-10-08 by #33)_. UIScene is a half-wired duplicate of the UI GameScene owns. It sat dormant for months (see the scene-array auto-start memory), and GameScene took over in the meantime.
+    - **Listeners with NO emitter in `src/`:** `hud:update`, `wave:state`, `game:victory`. Also `game:defeat`: EconomyManager emits it on GameScene's **scene** emitter, not `game.events`. Note that `_onHudUpdate`/`_onWaveState` ARE still called once directly from `create()`.
+    - **Emits with NO listener:** `ui:wave-start`, `ui:tower-upgrade` (×2), `ui:tower-sell`, `ui:restart`, `ui:speed-toggle`, `ui:tower-type-select` (×2). These are wired to real buttons, which work only because GameScene binds its own handlers to the same ids. Careful: the UIScene tower-button handler also toggles the `selected` class, so deleting it is not a pure no-op. **Browser-check every HUD button.**
+    - **Live (keep):** hero HUD events, `ui:ability`/`ui:pause-toggle`, `ui:barracks-reposition` (self-emitted), the tower tooltip, and the initial HUD paint in `create()`.
 
 ## Completed
 <!-- Tags below are retrospective/illustrative — runner skips done items regardless. -->
