@@ -5,6 +5,11 @@ import { totalEnemyHpForMap } from '../data/waves.js';
 import { heroLevelForDamage, heroAttackDamage, heroMaxHp, heroXpProgress } from '../systems/heroLeveling.js';
 import { EntitySprite } from '../systems/EntitySprite.js';
 import { pointAtProgress } from '../systems/pathGeometry.js';
+import { drawUnitHpBar } from '../systems/hpBar.js';
+
+// The Graphics fallback body has no radius; 14 keeps the no-art bar's top edge at
+// y=-22, just over the drawn head, where it always sat.
+const FALLBACK_BAR_RADIUS = 14;
 
 export class Hero extends Phaser.GameObjects.Container {
   constructor(scene, { x, y, heroId = 'rael', pathPoints, mapId = 0 }, modifiers = {}) {
@@ -74,13 +79,10 @@ export class Hero extends Phaser.GameObjects.Container {
   }
 
   _redrawHpBar() {
-    this._hpBar.clear();
-    if (this.hp >= this.maxHp) return;
-    const w = 16, h = 2, ox = -8, oy = -22;
-    this._hpBar.fillStyle(0x333333, 1);
-    this._hpBar.fillRect(ox, oy, w, h);
-    this._hpBar.fillStyle(this.def.strokeColor, 1);
-    this._hpBar.fillRect(ox, oy, Math.max(0, w * (this.hp / this.maxHp)), h);
+    drawUnitHpBar(this._hpBar, {
+      radius: FALLBACK_BAR_RADIUS, size: this._sprite?.getDisplaySize?.() ?? null,
+      hp: this.hp, maxHp: this.maxHp, color: this.def.strokeColor,
+    });
   }
 
   setPathPosition(progress) {

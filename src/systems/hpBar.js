@@ -44,3 +44,20 @@ export function hpBarGeometry(radius, spriteWidth, spriteHeight) {
     : radius;
   return { width, x: -width / 2, top: -halfHeight - BAR_GAP_PX };
 }
+
+// Hero and soldier bars: the enemy geometry plus an outline, because a thin
+// green bar over green soldier art has nothing to read against. 3px, not the
+// enemy's 4, since a soldier's whole body is only ~17px tall.
+const UNIT_BAR_HEIGHT = 3;
+
+export function drawUnitHpBar(g, { radius, size, hp, maxHp, color }) {
+  g.clear();
+  if (hp >= maxHp) return;
+  const { width, x, top } = hpBarGeometry(radius, size?.width, size?.height);
+  g.fillStyle(0x000000, 0.55);
+  g.fillRect(x - 1, top - 1, width + 2, UNIT_BAR_HEIGHT + 2);
+  g.fillStyle(0x222222, 1);
+  g.fillRect(x, top, width, UNIT_BAR_HEIGHT);
+  g.fillStyle(color, 1);
+  g.fillRect(x, top, hpBarFillWidth(hp, maxHp, width), UNIT_BAR_HEIGHT);
+}
