@@ -1,9 +1,14 @@
 import Phaser from 'phaser';
 import { EntitySprite } from '../systems/EntitySprite.js';
 import { pointAtProgress } from '../systems/pathGeometry.js';
+import { drawUnitHpBar } from '../systems/hpBar.js';
 import {
   SOLDIER_ATTACK_RATE, soldierMaxHp, soldierRespawnDuration, damageSoldier, tickSoldier,
 } from '../systems/soldierCombat.js';
+
+// The Graphics fallback body has no radius; 9 puts the no-art bar at y=-17,
+// just over the drawn head, where it always sat.
+const FALLBACK_BAR_RADIUS = 9;
 
 export class Soldier extends Phaser.GameObjects.Container {
   constructor(scene, { barracks, pathProgress, pathPoints, soldierStats, modifiers = {} }) {
@@ -46,13 +51,10 @@ export class Soldier extends Phaser.GameObjects.Container {
   }
 
   _redrawHpBar() {
-    this._hpBar.clear();
-    if (this.hp >= this.maxHp) return;
-    const w = 14, h = 2, ox = -7, oy = -17;
-    this._hpBar.fillStyle(0x333333, 1);
-    this._hpBar.fillRect(ox, oy, w, h);
-    this._hpBar.fillStyle(0x4caf50, 1);
-    this._hpBar.fillRect(ox, oy, Math.max(0, w * (this.hp / this.maxHp)), h);
+    drawUnitHpBar(this._hpBar, {
+      radius: FALLBACK_BAR_RADIUS, size: this._sprite?.getDisplaySize?.() ?? null,
+      hp: this.hp, maxHp: this.maxHp, color: 0x4caf50,
+    });
   }
 
   setPathProgress(progress, pathPoints) {
