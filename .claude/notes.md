@@ -5,7 +5,7 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 
 ## Current Status (2026-10-08)
 
-**2026-10-08: PRs #81 (#24) and #82 (#25/#33) merged. Backlog #34 on branch `chore/uiscene-orphans`, PR open.** 1472 tests green. #34 fixed four live HUD bugs hidden in UIScene's dead wiring.
+**2026-10-08 wrap: `main` is at `c7bea2d`. PRs #80-#83 all merged, nothing open.** This session shipped backlog #20, #21, #24, #25, #33 and #34. 1472 tests green. Production was last hash-verified 2026-09-22; the #80-#83 deploys were not re-verified against the live host. **Next session: the simulator build-policy cluster, #32 + #27 + #28 with #29 folded in.** It is architectural, so it needs a spec. Kickoff prompt: `.claude/prompts/2026-10-08-build-policy-kickoff.md`.
 **2026-10-07: PR #80 (#20/#21) merged. Backlog #24 on branch `fix/hero-soldier-hpbar`, PR open** — hero/soldier HP bars lifted off their sprites. 1456 tests green.
 **2026-10-01: backlog #20 + #21 on branch `feat/branch-card-armour`, PR open** — armour absorption on tier-4 branch cards, tier-4 rows in the armour sweep. 1444 tests green. Found and logged #33 (dead UIScene branch picker).
 
@@ -29,7 +29,7 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
-**PR open: `chore/uiscene-orphans` (backlog #34).** PRs #80, #81 and #82 merged. Production last verified 2026-09-22.
+**Nothing in progress. No open PRs.** Next up: the build-policy cluster (#32/#27/#28/#29). See the kickoff prompt above.
 
 Last shipped (2026-09-22), newest first:
 - **PR #78 — campaign economy ramp (backlog #16).** Two derived constants replace fourteen undocumented numbers in `src/data/maps.js`. New `src/data/mapsEconomy.test.js` guards the SHAPE (board-scaled opening floor, gold-per-HP monotonicity, spread band, maps 0-2 pinned). `depthBoardCost` promoted into `src/sim/economy.js` and printed by `npm run balance`.
