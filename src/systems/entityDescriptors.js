@@ -22,7 +22,8 @@ function describeMatchupEntry(entry) {
 }
 
 // Every enemy is "Veth <X>"; dense UI (matchup lines, armour rows, tooltips)
-// shows only <X>, and seven hand-copied regexes were one typo from disagreeing.
+// shows only <X>, and a regex hand-copied into every such surface was one
+// typo from disagreeing.
 export function shortEnemyName(type) {
   return (ENEMY_DEFS[type]?.name ?? type).replace(/^Veth\s+/, '');
 }
