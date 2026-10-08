@@ -225,8 +225,15 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _bindDOMEvents() {
+    // GameScene owns every .tower-btn listener: its shutdown clones these
+    // nodes, so a listener bound by a longer-lived scene would not survive
+    // into the next level.
     document.querySelectorAll('.tower-btn').forEach(btn => {
       btn.addEventListener('click', () => this._selectTowerType(btn.dataset.type, btn));
+      btn.addEventListener('mouseenter', () => this._showTowerTooltip(btn));
+      btn.addEventListener('mouseleave', () => {
+        document.getElementById('tower-tooltip').style.display = 'none';
+      });
     });
     document.getElementById('wave-btn').addEventListener('click',          () => this._startWave());
     document.getElementById('speed-btn').addEventListener('click',         () => this._toggleSpeed());
@@ -1038,6 +1045,39 @@ export default class GameScene extends Phaser.Scene {
     this._closeTowerPanel();
     this._deselectButtons();
     btn.classList.add('selected');
+  }
+
+  _showTowerTooltip(btn) {
+    const type = btn.dataset.type;
+    const def  = TOWER_DEFS[type];
+    if (!def) return;
+    const m = describeMatchups({ kind: 'tower', type, tier: 1, branch: null });
+    const renderEnemyNames = (types) => types.map(shortEnemyName).join(', ');
+    const tt = document.getElementById('tower-tooltip');
+    tt.replaceChildren();
+    const header = document.createElement('strong');
+    header.textContent = `${def.icon} ${def.name} — ${def.cost}g`;
+    tt.appendChild(header);
+    if (m.effective.length) {
+      const line = document.createElement('span');
+      line.className = 'tt-line-good';
+      line.textContent = `Effective vs: ${renderEnemyNames(m.effective)}`;
+      tt.appendChild(line);
+    }
+    if (m.weak.length) {
+      const line = document.createElement('span');
+      line.className = 'tt-line-bad';
+      line.textContent = `Weak vs: ${renderEnemyNames(m.weak)}`;
+      tt.appendChild(line);
+    }
+    const rect = btn.getBoundingClientRect();
+    tt.style.left = `${rect.left}px`;
+    tt.style.top  = `${rect.top - tt.offsetHeight - 6}px`;
+    tt.style.display = 'block';
+    // After display:block, offsetHeight is now real; reposition once.
+    requestAnimationFrame(() => {
+      tt.style.top = `${rect.top - tt.offsetHeight - 6}px`;
+    });
   }
 
   _deselectButtons() {

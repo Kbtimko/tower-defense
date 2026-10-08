@@ -1,8 +1,6 @@
 import Phaser from 'phaser';
-import { TOWER_DEFS } from '../data/towers.js';
-import { describeMatchups } from '../data/weaknessMatrix.js';
 import { AbilityTooltip } from '../ui/AbilityTooltip.js';
-import { describeAbility, shortEnemyName } from '../systems/entityDescriptors.js';
+import { describeAbility } from '../systems/entityDescriptors.js';
 
 export default class UIScene extends Phaser.Scene {
   constructor() { super('UIScene'); }
@@ -57,51 +55,9 @@ export default class UIScene extends Phaser.Scene {
       const el = document.getElementById(id);
       if (el) el.replaceWith(el.cloneNode(true));
     });
-    document.querySelectorAll('.tower-btn').forEach(btn => btn.replaceWith(btn.cloneNode(true)));
   }
 
   _bindDOMEvents() {
-    document.querySelectorAll('.tower-btn').forEach(btn => {
-      btn.addEventListener('mouseenter', () => {
-        const type = btn.dataset.type;
-        const def  = TOWER_DEFS[type];
-        if (!def) return;
-        const m = describeMatchups({ kind: 'tower', type, tier: 1, branch: null });
-        const renderEnemyNames = (types) =>
-          types.map(shortEnemyName).join(', ');
-        const tt = document.getElementById('tower-tooltip');
-        tt.replaceChildren();
-        const header = document.createElement('strong');
-        header.textContent = `${def.icon} ${def.name} — ${def.cost}g`;
-        tt.appendChild(header);
-        if (m.effective.length) {
-          const line = document.createElement('span');
-          line.className = 'tt-line-good';
-          line.textContent = `Effective vs: ${renderEnemyNames(m.effective)}`;
-          tt.appendChild(line);
-        }
-        if (m.weak.length) {
-          const line = document.createElement('span');
-          line.className = 'tt-line-bad';
-          line.textContent = `Weak vs: ${renderEnemyNames(m.weak)}`;
-          tt.appendChild(line);
-        }
-        const rect = btn.getBoundingClientRect();
-        tt.style.left = `${rect.left}px`;
-        tt.style.top  = `${rect.top - tt.offsetHeight - 6}px`;
-        tt.style.display = 'block';
-        // After display:block, offsetHeight is now real; reposition once.
-        requestAnimationFrame(() => {
-          tt.style.top = `${rect.top - tt.offsetHeight - 6}px`;
-        });
-      });
-
-      btn.addEventListener('mouseleave', () => {
-        const tt = document.getElementById('tower-tooltip');
-        tt.style.display = 'none';
-      });
-    });
-
     // Ability button clicks
     ['q', 'w', 'e'].forEach(slot => {
       const btn = document.getElementById('ability-' + slot);

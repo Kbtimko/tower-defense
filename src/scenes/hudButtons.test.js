@@ -116,3 +116,33 @@ describe('affordability dimming', () => {
     expect(btn('sniper').style.opacity).toBe('0.4');
   });
 });
+
+describe('tower tooltip across levels', () => {
+  beforeEach(setupDOM);
+
+  it('still shows on hover after a level ends and the next one binds', () => {
+    // Level 1: both scenes bind. UIScene is launched once and stays running.
+    bindBothScenes();
+    // GameScene.shutdown clones every .tower-btn to drop its own handlers,
+    // which strips anything else bound to those nodes too.
+    document.querySelectorAll('.tower-btn').forEach(b => b.replaceWith(b.cloneNode(true)));
+    // Level 2: only GameScene binds again.
+    const gs = Object.create(GameScene.prototype);
+    gs.selectedType = null;
+    gs._closeTowerPanel = () => {};
+    gs._bindDOMEvents();
+
+    btn('ice').dispatchEvent(new MouseEvent('mouseenter'));
+
+    const tt = document.getElementById('tower-tooltip');
+    expect(tt.style.display).toBe('block');
+    expect(tt.textContent).toContain(TOWER_DEFS.ice.name);
+  });
+
+  it('hides on mouseleave', () => {
+    bindBothScenes();
+    btn('ice').dispatchEvent(new MouseEvent('mouseenter'));
+    btn('ice').dispatchEvent(new MouseEvent('mouseleave'));
+    expect(document.getElementById('tower-tooltip').style.display).toBe('none');
+  });
+});
