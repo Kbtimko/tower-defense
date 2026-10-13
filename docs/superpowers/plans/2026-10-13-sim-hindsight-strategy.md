@@ -321,7 +321,7 @@ describe('greedyBuildPlan defaults', () => {
 
 Run: `cd /Users/keithtimko/.config/superpowers/worktrees/tower-defense/sim-build-policy && npx vitest run src/sim/buildPolicy.test.js; echo "exit=$?"`
 
-Expected: FAIL on `upgrades a standing barracks…`, `caps the depth…` and `hands the scored upgrade pass…`, because `barracksTier` is ignored. `exit=1`. (`defaults to tier 1`, `skips an unaffordable tier`, `does not upgrade a barracks bought…`, `never spends more…` and the real-map defaults test may already pass. They are regression guards, and Step 5 proves they bite.)
+Expected: FAIL on `upgrades a standing barracks…` and `caps the depth…`, because `barracksTier` is ignored and purchases come first. `exit=1`. The other tests may already pass: `hands the scored upgrade pass…` (today's scored pass happens to buy exactly 2 barracks upgrades when the barracks is the only tower on a tier-3 map), `defaults to tier 1`, `skips an unaffordable tier`, `does not upgrade a barracks bought…`, `never spends more…`, and the real-map defaults test. They are regression guards, and Step 5 proves each one bites.
 
 - [ ] **Step 3: Implement**
 
@@ -842,6 +842,20 @@ This task needs judgement and writes outside the repo (auto-memory), so the cont
   - `none` should equal "none".
 
   Any mismatch means the implementation differs from what was measured. Explain it before going on.
+
+  ```js
+  // <scratchpad>/crosscheck.mjs — run: node <scratchpad>/crosscheck.mjs
+  const R = '/Users/keithtimko/.config/superpowers/worktrees/tower-defense/sim-build-policy/src';
+  const { MAPS } = await import(`${R}/data/maps.js`);
+  const { MAP_WAVES } = await import(`${R}/data/waves.js`);
+  const { bestStrategy, strategyLabel } = await import(`${R}/sim/strategy.js`);
+  for (const map of MAPS) {
+    const { best, results } = bestStrategy(map, MAP_WAVES[map.id]);
+    const cell = x => `${strategyLabel(x.strategy)} ${x.multiplier ?? '>8'}x `
+      + (x.run.won ? `W ${Math.round(100 * x.livesKept)}%` : `${x.wavesSurvived}/${x.run.totalWaves}`);
+    console.log(map.id, '| best:', strategyLabel(best.strategy), '|', results.map(cell).join(' | '));
+  }
+  ```
 - [ ] **Step 2: Build the per-map delta table** from `balance-baseline.txt` and `balance-task4-after.txt`. Columns: map, before (`needs`, waves or lives), after (`needs`, waves or lives, strategy), and verdict change. Also record runtime before and after.
 - [ ] **Step 3: Re-run the #31 measurement.** Use a scratch script: maps 3, 4 and 5 with `startGold + 120`, under `bestStrategy`. Report lives kept against the 90% TOO EASY line. Report only, with no data changes.
 - [ ] **Step 4: Write the implications for maps 6 and 9.** Report only.
