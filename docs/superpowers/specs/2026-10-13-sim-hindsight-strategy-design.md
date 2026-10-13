@@ -186,7 +186,8 @@ upgrade pass (unchanged).
 - The headline table uses `bestStrategy`: the row's run, verdict and `needs` come
   from the winning candidate. A new **`strategy`** column shows its label.
 - If every candidate is unwinnable at 8x, `needs` prints `>8x damage` as today,
-  and the strategy shown is the default (the first in candidate order).
+  and the strategy shown is `pickBest`'s choice (most waves survived, then
+  candidate order).
 - The Blocking sensitivity and Matchup sensitivity tables stay on the **fixed
   default policy**; their headings and comments say so explicitly.
 - The header prose mentions best-of-5 hindsight strategy choice.
@@ -210,7 +211,7 @@ upgrade pass (unchanged).
 | Barracks bought this round | Upgraded next round at the earliest |
 | Barracks already at target tier | No depth upgrade emitted |
 | `opening: 'none'` with an existing barracks (not reachable from candidates) | Target 0 buys none; any existing barracks still gets depth upgrades |
-| All candidates `null` (> 8x) | `needs` prints `>8x damage`; default strategy shown |
+| All candidates `null` (> 8x) | `needs` prints `>8x damage`; strategy shown is `pickBest`'s choice (most waves survived, then candidate order) |
 | Tie on multiplier and lives | Waves survived, then candidate order |
 | Map wins at 1x under several candidates | Most lives kept wins; may push a mid map toward TOO EASY (reported, not corrected) |
 
