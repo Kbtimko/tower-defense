@@ -5,6 +5,7 @@
 // rank the slots by how much of the path they actually cover, then fill the
 // best free slot with the best tower currently affordable.
 import { TOWER_DEFS } from '../data/towers.js';
+import { ENEMY_DEFS } from '../data/enemies.js';
 import { remainingEnemyWeights, towerSpecAt, towerDpsAgainst, towerValueAgainst } from './matchupValue.js';
 
 // How many sampled path points fall inside a tower's range from this slot.
@@ -42,6 +43,24 @@ const BUYABLE = Object.keys(TOWER_DEFS).filter(t => TOWER_DEFS[t].fireRate > 0);
 // so the report can show what the defence looks like with more or none.
 const DEFAULT_BARRACKS_TARGET = 1;
 
+// WHEN the opening barracks is bought. 'start' is the standard opening and
+// buys it before any firing tower; 'none' never buys one; 'beforeGround' waits
+// for a wave soldiers can actually hold — tier-1 soldiers cannot block flyers,
+// so a barracks bought ahead of an all-flying wave idles through it. No single
+// rule wins on every map, which is why src/sim/strategy.js tries them all.
+export const OPENINGS = ['start', 'none', 'beforeGround'];
+export const DEFAULT_OPENING = 'start';
+
+// Barracks target for this build round under an opening. Only the upcoming
+// wave is read; a barracks already standing still counts toward the target.
+export function openingBarracksTarget(opening, barracksTarget, waves, waveNumber) {
+  if (!OPENINGS.includes(opening)) throw new Error(`unknown opening: ${opening}`);
+  if (opening === 'none') return 0;
+  if (opening === 'start' || !Array.isArray(waves)) return barracksTarget;
+  const next = waves[waveNumber - 1] ?? [];
+  return next.some(g => ENEMY_DEFS[g.type] && !ENEMY_DEFS[g.type].flying) ? barracksTarget : 0;
+}
+
 // Cost of taking a tower from its current level to the next one, or null if it
 // is already at the map's ceiling.
 export function upgradeCost(tower, maxTier) {
@@ -57,7 +76,7 @@ export function upgradeCost(tower, maxTier) {
 // what the tower slots and per-map maxTierAllowed are designed around.
 export function greedyBuildPlan({
   gold, slotsUsed, buildZones, path, towers = [], map = {},
-  barracksTarget = DEFAULT_BARRACKS_TARGET,
+  barracksTarget = DEFAULT_BARRACKS_TARGET, opening = DEFAULT_OPENING,
   waves = null, waveNumber = 1, matchupAware = true,
 }) {
   const ranked = rankSlots(buildZones, path);
@@ -79,13 +98,14 @@ export function greedyBuildPlan({
   const taken = new Set(slotsUsed);
 
   let barracks = towers.filter(t => t.type === 'barracks').length;
+  const target = openingBarracksTarget(opening, barracksTarget, waves, waveNumber);
 
   for (const slotIndex of ranked) {
     if (taken.has(slotIndex)) continue;
     // Below target, hold the gold for a barracks rather than spending it on a
     // cheaper tower — otherwise a greedy pass buys archers forever and the
     // opening barracks never happens on a poor map.
-    const wantBarracks = barracks < barracksTarget;
+    const wantBarracks = barracks < target;
     const pick = wantBarracks ? 'barracks' : byValue.find(t => TOWER_DEFS[t].cost <= budget);
     if (!pick || TOWER_DEFS[pick].cost > budget) break;
     if (wantBarracks) barracks++;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { greedyBuildPlan } from './buildPolicy.js';
+import { greedyBuildPlan, OPENINGS } from './buildPolicy.js';
 import { TOWER_DEFS } from '../data/towers.js';
 
 const zones = [{ cx: 0, cy: 0 }, { cx: 5, cy: 0 }, { cx: 10, cy: 0 }];
@@ -8,6 +8,8 @@ const path  = [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 10, y: 0 }];
 const titanWaves   = [[{ type: 'titan',   count: 4, interval: 1000 }]];
 const skitterWaves = [[{ type: 'skitter', count: 20, interval: 500 }]];
 const droneWaves   = [[{ type: 'drone',   count: 10, interval: 1000 }]];
+const phantomWaves = [[{ type: 'phantom', count: 12, interval: 500 }]];
+const isBarracks = x => x.type === 'barracks';
 
 // barracksTarget: 0 isolates the damage ranking from the opening-barracks rule.
 const plan = (over = {}) => greedyBuildPlan({
@@ -118,5 +120,72 @@ describe('greedyBuildPlan upgrade pass', () => {
     const p = upgradeOnly({ towers: [{ type: 'ice', level: 1 }, { type: 'sniper', level: 1 }] });
     const first = p.find(x => x.upgrade);
     expect(first.towerIndex).toBe(0);   // ice T2 at 55g is the cheapest
+  });
+});
+
+describe('greedyBuildPlan opening', () => {
+  // The shared `plan` helper zeroes barracksTarget; these tests are about the
+  // barracks, so they put the standard target of 1 back.
+  const open = (over = {}) => plan({ barracksTarget: 1, ...over });
+
+  it("defaults to 'start', which buys the barracks first", () => {
+    expect(open({ waves: phantomWaves })).toEqual(open({ waves: phantomWaves, opening: 'start' }));
+    expect(open({ waves: phantomWaves, opening: 'start' })[0].type).toBe('barracks');
+  });
+
+  it("'none' never buys a barracks", () => {
+    expect(open({ waves: droneWaves, opening: 'none' }).some(isBarracks)).toBe(false);
+  });
+
+  it("'beforeGround' skips the barracks ahead of an all-flying wave", () => {
+    // Tier-1 soldiers cannot block flyers: map 9's wave 1 is 12 phantoms.
+    expect(open({ waves: phantomWaves, opening: 'beforeGround' }).some(isBarracks)).toBe(false);
+  });
+
+  it("'beforeGround' buys the barracks ahead of a wave with any ground enemy", () => {
+    const mixed = [[
+      { type: 'phantom', count: 12, interval: 500 },
+      { type: 'drone',   count: 1,  interval: 500 },
+    ]];
+    expect(open({ waves: mixed, opening: 'beforeGround' })[0].type).toBe('barracks');
+  });
+
+  it("'beforeGround' reads only the upcoming wave", () => {
+    const waves = [phantomWaves[0], droneWaves[0]];
+    expect(open({ waves, waveNumber: 1, opening: 'beforeGround' }).some(isBarracks)).toBe(false);
+    expect(open({ waves, waveNumber: 2, opening: 'beforeGround' })[0].type).toBe('barracks');
+  });
+
+  it("'beforeGround' buys nothing past the last wave", () => {
+    expect(open({ waves: droneWaves, waveNumber: 99, opening: 'beforeGround' }).some(isBarracks)).toBe(false);
+  });
+
+  it("'beforeGround' does not count an unknown enemy type as ground", () => {
+    const unknown = [[{ type: 'not-an-enemy', count: 5, interval: 500 }]];
+    expect(open({ waves: unknown, opening: 'beforeGround' }).some(isBarracks)).toBe(false);
+  });
+
+  it("'beforeGround' behaves as 'start' with no wave table", () => {
+    // simulate.test.js and soldiers.test.js call the policy with hand-built
+    // contexts that carry no waves; they must keep their meaning.
+    expect(open({ opening: 'beforeGround' })).toEqual(open({ opening: 'start' }));
+  });
+
+  it('keeps counting a barracks already on the board toward the target', () => {
+    const p = open({
+      waves: droneWaves, opening: 'beforeGround',
+      towers: [{ type: 'barracks', level: 1 }], slotsUsed: new Set([0]),
+    });
+    expect(p.some(isBarracks)).toBe(false);
+  });
+
+  it('rejects an unknown opening instead of silently playing the default', () => {
+    expect(() => open({ waves: droneWaves, opening: 'beforeGrond' })).toThrow(/opening/);
+  });
+
+  it('exports every opening it accepts', () => {
+    for (const opening of OPENINGS) {
+      expect(() => open({ waves: droneWaves, opening })).not.toThrow();
+    }
   });
 });
