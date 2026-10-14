@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  CANDIDATE_STRATEGIES, strategyLabel, pickBest, bestStrategy,
+  CANDIDATE_STRATEGIES, strategyLabel, pickBest, bestStrategy, strategyPlan,
 } from './strategy.js';
 import { OPENINGS, DEFAULT_OPENING, DEFAULT_BARRACKS_TIER } from './buildPolicy.js';
 import { MAPS } from '../data/maps.js';
@@ -71,12 +71,14 @@ describe('pickBest', () => {
 });
 
 describe('bestStrategy', () => {
-  const map = MAPS[0], waves = MAP_WAVES[0];
+  // Map 6 picks start/T3, not the first candidate, so best-of-5 selection is observable.
+  const map = MAPS[6], waves = MAP_WAVES[6];
 
   it('evaluates every candidate on a real map and returns one of them', () => {
     const { best, results } = bestStrategy(map, waves);
     expect(results.map(x => x.strategy)).toEqual([...CANDIDATE_STRATEGIES]);
     expect(results).toContain(best);
+    expect(best).toBe(pickBest(results));
     for (const x of results) {
       expect(x.run.totalWaves).toBe(waves.length);
       expect(x.livesKept).toBeCloseTo(x.run.livesRemaining / map.startLives);
@@ -84,11 +86,18 @@ describe('bestStrategy', () => {
     }
   });
 
-  it('really plays each strategy rather than the default five times', () => {
-    // On map 0 the baseline policy keeps 64% of lives and barracks-first to
-    // the tier cap keeps 32%; if the strategy never reached the policy, every
-    // candidate would report the same figure.
-    const { results } = bestStrategy(map, waves);
-    expect(new Set(results.map(x => x.livesKept)).size).toBeGreaterThan(1);
+  it('really hands each strategy to the policy', () => {
+    // A wave of flyers is exactly where 'beforeGround' and 'start' disagree, so a
+    // strategyPlan that dropped its strategy would make these two plans equal.
+    const ctx = {
+      gold: 1000, slotsUsed: new Set(), towers: [], map: { maxTierAllowed: 4 },
+      buildZones: [{ cx: 0, cy: 0 }, { cx: 5, cy: 0 }, { cx: 10, cy: 0 }],
+      path: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 10, y: 0 }],
+      waves: [[{ type: 'phantom', count: 12, interval: 500 }]], waveNumber: 1,
+    };
+    const start  = strategyPlan({ opening: 'start',        barracksTier: 1 })(ctx);
+    const ground = strategyPlan({ opening: 'beforeGround', barracksTier: 1 })(ctx);
+    expect(start.some(x => x.type === 'barracks')).toBe(true);
+    expect(ground.some(x => x.type === 'barracks')).toBe(false);
   });
 });

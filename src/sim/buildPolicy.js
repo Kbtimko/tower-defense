@@ -144,10 +144,14 @@ export function greedyBuildPlan({
   // towers that cannot hurt what is coming. With no wave table, fall back to
   // cheapest-first so direct callers keep their original behaviour.
   //
-  // Barracks tiers carry no damage/fireRate, so towerDpsAgainst scores every
-  // barracks upgrade at exactly 0 and it loses to any positive-scoring
-  // upgrade. Barracks depth is bought by the barracksTier rule above instead;
-  // this pass starts from the levels that rule already paid for.
+  // Barracks tiers carry no damage/fireRate, so a barracks upgrade scores
+  // exactly 0 here. It still wins when no positive-scoring upgrade is
+  // affordable (0 beats the -Infinity start), and the cheapest-first fallback
+  // (no wave table, or matchupAware: false) prices by cost alone. So
+  // barracksTier is a floor the depth rule guarantees, not a cap. On shipped
+  // maps under the matchup-aware policy no run deepens a barracks past
+  // barracksTier (measured 2026-10-13). This pass starts from the levels the
+  // depth rule already paid for.
   for (;;) {
     let bestIdx = -1, bestCost = Infinity, bestScore = -Infinity;
     for (let i = 0; i < towers.length; i++) {

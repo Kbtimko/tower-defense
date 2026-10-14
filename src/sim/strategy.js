@@ -33,7 +33,7 @@ export function strategyPlan(strategy) {
 
 const multiplierRank = m => (m === null ? Infinity : m);
 
-// Positive when `b` is better than `a`. Lives kept only matters between maps
+// Positive when `b` is better than `a`. Lives kept only matters between runs
 // won at the same multiplier; waves survived only between runs that kept the
 // same lives — i.e. two losses.
 function compare(a, b) {

@@ -161,6 +161,8 @@ console.log('');
 // is what actually carries that result. Kept for one release so backlog #16
 // can tell a smarter model apart from an easier map.
 // Runs the FIXED default policy (start/T1), not the headline's hindsight search.
+// The "blind" column upgrades cheapest-first, so it can deepen a barracks past
+// T1 (e.g. map 4); the fixed opening and tier only describe the aware column.
 const awarePlan = on => ctx => greedyBuildPlan({ ...ctx, matchupAware: on });
 
 console.log('\nMatchup sensitivity — damage multiplier needed and lives kept getting there, by');

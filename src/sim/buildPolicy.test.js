@@ -231,6 +231,9 @@ describe('greedyBuildPlan barracks depth (barracksTier)', () => {
   });
 
   it('hands the scored upgrade pass the levels it already bought', () => {
+    // The proof relies on the scored pass buying barracks tiers at score 0 when
+    // nothing else is upgradeable. If that pass is ever capped for barracks,
+    // switch this test to a firing tower to keep guarding stale levels.
     // Capped at T3, so the depth pass stops at the cap. A scored pass reading
     // the STALE level (T1) would buy a third barracks upgrade past the cap.
     const p = depth({ barracksTier: 3, map: { maxTierAllowed: 3 }, slotsUsed: new Set([0, 1, 2]) });
