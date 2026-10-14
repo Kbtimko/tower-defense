@@ -213,7 +213,7 @@ describe('greedyBuildPlan barracks depth (barracksTier)', () => {
     expect(depth()[0].upgrade).toBeUndefined();
   });
 
-  it('caps the depth at the map tier ceiling', () => {
+  it('stops the depth pass at the map tier ceiling (via upgradeCost)', () => {
     expect(leadingUpgrades(depth({ barracksTier: 3, map: { maxTierAllowed: 2 } }))).toBe(1);
   });
 

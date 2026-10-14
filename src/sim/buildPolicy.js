@@ -110,11 +110,12 @@ export function greedyBuildPlan({
   // barracksTier before the board widens. Unlike barracksTarget it does not
   // hold gold — an unaffordable tier is skipped and the budget flows on. A
   // barracks bought below is not in `towers` yet, so it waits a round.
+  // The map tier ceiling needs no cap here: upgradeCost returns null past
+  // maxTier, which ends the loop.
   const levels = towers.map(t => t.level);
-  const depthCap = Math.min(barracksTier, maxTier);
   for (let i = 0; i < towers.length; i++) {
     if (towers[i].type !== 'barracks') continue;
-    while (levels[i] < depthCap) {
+    while (levels[i] < barracksTier) {
       const cost = upgradeCost({ ...towers[i], level: levels[i] }, maxTier);
       if (cost === null || cost > budget) break;
       budget -= cost;
