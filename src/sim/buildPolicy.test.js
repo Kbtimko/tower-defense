@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { greedyBuildPlan, OPENINGS } from './buildPolicy.js';
+import { greedyBuildPlan, OPENINGS, upgradeCost } from './buildPolicy.js';
+import { simulateMap } from './simulate.js';
+import { MAPS } from '../data/maps.js';
+import { MAP_WAVES } from '../data/waves.js';
 import { TOWER_DEFS } from '../data/towers.js';
 
 const zones = [{ cx: 0, cy: 0 }, { cx: 5, cy: 0 }, { cx: 10, cy: 0 }];
@@ -187,5 +190,74 @@ describe('greedyBuildPlan opening', () => {
     for (const opening of OPENINGS) {
       expect(() => open({ waves: droneWaves, opening })).not.toThrow();
     }
+  });
+});
+
+describe('greedyBuildPlan barracks depth (barracksTier)', () => {
+  // One barracks already standing in slot 0, drones coming, plenty of gold.
+  const depth = (over = {}) => greedyBuildPlan({
+    gold: 1000, slotsUsed: new Set([0]), buildZones: zones, path,
+    towers: [{ type: 'barracks', level: 1 }], barracksTarget: 1,
+    waves: droneWaves, waveNumber: 1, map: { maxTierAllowed: 4 }, ...over,
+  });
+  const leadingUpgrades = p => { let n = 0; while (p[n]?.upgrade) n++; return n; };
+
+  it('upgrades a standing barracks to the target tier before buying anything', () => {
+    const p = depth({ barracksTier: 3 });
+    expect(leadingUpgrades(p)).toBe(2);                       // T1 -> T2 -> T3
+    expect(p.slice(0, 2).every(x => x.towerIndex === 0)).toBe(true);
+    expect(p[2].type).toBeDefined();                          // then a purchase
+  });
+
+  it('defaults to tier 1: nothing jumps the queue', () => {
+    expect(depth()[0].upgrade).toBeUndefined();
+  });
+
+  it('caps the depth at the map tier ceiling', () => {
+    expect(leadingUpgrades(depth({ barracksTier: 3, map: { maxTierAllowed: 2 } }))).toBe(1);
+  });
+
+  it('skips an unaffordable tier and spends the gold elsewhere', () => {
+    // Barracks T2 costs 65; 60 buys an archer instead of being held.
+    const p = depth({ barracksTier: 3, gold: 60 });
+    expect(p.some(x => x.upgrade)).toBe(false);
+    expect(p[0].type).toBe('archer');
+  });
+
+  it('does not upgrade a barracks bought in the same round', () => {
+    const p = depth({ towers: [], slotsUsed: new Set(), barracksTier: 3 });
+    expect(p[0].type).toBe('barracks');
+    expect(p.some(x => x.upgrade)).toBe(false);
+  });
+
+  it('hands the scored upgrade pass the levels it already bought', () => {
+    // Capped at T3, so the depth pass stops at the cap. A scored pass reading
+    // the STALE level (T1) would buy a third barracks upgrade past the cap.
+    const p = depth({ barracksTier: 3, map: { maxTierAllowed: 3 }, slotsUsed: new Set([0, 1, 2]) });
+    expect(p.filter(x => x.upgrade && x.towerIndex === 0)).toHaveLength(2);
+  });
+
+  it('never spends more than it has across depth upgrades and purchases', () => {
+    const gold = 300;
+    const p = depth({ barracksTier: 3, gold });
+    let level = 1, spent = 0;
+    for (const x of p) {
+      if (x.upgrade) { spent += upgradeCost({ type: 'barracks', level }, 4); level++; }
+      else spent += TOWER_DEFS[x.type].cost;
+    }
+    expect(spent).toBeLessThanOrEqual(gold);
+  });
+});
+
+describe('greedyBuildPlan defaults', () => {
+  it("reproduces today's policy on a real map: opening 'start', barracksTier 1", () => {
+    // Map 6 buys and fights with a barracks, so both defaults are exercised.
+    const map = MAPS[6], waves = MAP_WAVES[6];
+    const implicit = simulateMap({ map, waves, buildPlan: greedyBuildPlan });
+    const explicit = simulateMap({
+      map, waves,
+      buildPlan: ctx => greedyBuildPlan({ ...ctx, opening: 'start', barracksTier: 1 }),
+    });
+    expect(explicit).toEqual(implicit);
   });
 });
