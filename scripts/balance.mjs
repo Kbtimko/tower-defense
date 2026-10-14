@@ -10,6 +10,7 @@ import { greedyBuildPlan } from '../src/sim/buildPolicy.js';
 import { TOWER_DEFS } from '../src/data/towers.js';
 import { goldCeiling, cheapestFullBoardCost, depthBoardCost, goldPerHp } from '../src/sim/economy.js';
 import { findWinMultiplier } from '../src/sim/deficit.js';
+import { bestStrategy, strategyLabel } from '../src/sim/strategy.js';
 
 const args = process.argv.slice(2);
 const verbose = args.includes('--verbose');
@@ -48,12 +49,15 @@ function suggest(r, map) {
 const targets = MAPS.filter(m => onlyMap === null || m.id === onlyMap);
 const rows = [];
 
+// The headline plays every candidate barracks strategy in full and reports the
+// best (src/sim/strategy.js): a fixed opening measured the opening as much as
+// the map.
 for (const map of targets) {
   const waves = MAP_WAVES[map.id];
   if (!waves) { console.error(`map ${map.id} (${map.name}) has no waves — skipped`); continue; }
-  const r = simulateMap({ map, waves, buildPlan: greedyBuildPlan });
-  const deficit = findWinMultiplier(map, waves, { buildPlan: greedyBuildPlan });
-  rows.push({ map, r, v: { ...verdict(r, map.startLives), deficit } });
+  const { best } = bestStrategy(map, waves);
+  const r = best.run;
+  rows.push({ map, r, strategy: best.strategy, v: { ...verdict(r, map.startLives), deficit: best.multiplier } });
 }
 
 const pad = (s, n) => String(s).padEnd(n);
@@ -61,16 +65,17 @@ const padL = (s, n) => String(s).padStart(n);
 
 console.log('\nSimulated combat — towers + tier upgrades + hero auto-attack + barracks soldiers');
 console.log('(blocking, melee and respawn), buying and upgrading by the damage a tower actually');
-console.log('lands against the enemies still to come. Omits hero abilities, meta upgrades,');
-console.log('soldier repositioning and the send-wave-early bonus, so this model is still');
-console.log('PESSIMISTIC — less so than before.\n');
+console.log('lands against the enemies still to come. Each map is played under 5 barracks');
+console.log('strategies (opening x depth) and the best is reported, as a player who retries a');
+console.log('level would. Omits hero abilities, meta upgrades, soldier repositioning and the');
+console.log('send-wave-early bonus, so this model is still PESSIMISTIC.\n');
 console.log(pad('#', 3) + pad('Map', 22) + padL('waves', 7) + padL('lives', 8)
           + padL('gold', 7) + padL('towers', 8) + padL('leaked', 8) + padL('blocked', 9)
           + padL('heroDmg', 9) + padL('/mapHP', 8) + padL('heroLv', 8)
-          + '  ' + pad('verdict', 12) + 'needs');
-console.log('-'.repeat(120));
+          + '  ' + pad('strategy', 11) + pad('verdict', 12) + 'needs');
+console.log('-'.repeat(131));
 
-for (const { map, r, v } of rows) {
+for (const { map, r, strategy, v } of rows) {
   console.log(
     pad(map.id, 3)
     + pad(map.name, 22)
@@ -83,7 +88,8 @@ for (const { map, r, v } of rows) {
     + padL(r.heroDamageDealt, 9)
     + padL((r.heroDamageDealt / totalEnemyHpForMap(map.id)).toFixed(3), 8)
     + padL(`L${r.heroLevel}`, 8)
-    + '  ' + pad(v.tag, 12)
+    + '  ' + pad(strategyLabel(strategy), 11)
+    + pad(v.tag, 12)
     + (v.deficit === null ? '>8x damage' : v.deficit === 1 ? v.note : `${v.deficit}x damage`),
   );
 }
@@ -110,13 +116,14 @@ if (verbose) {
 // is displaced. If "free" is much better than "bought", blocking is priced
 // wrong rather than weak.
 //
-// Caveat: this now runs through greedyBuildPlan's scored upgrade pass, which
-// cannot buy MORE blocking (see the comment on the upgrade pass in
-// buildPolicy.js) — barracksTarget only controls the opening purchase. These
-// columns price the opening barracks, not blocking depth.
+// Caveat: this table runs the FIXED default policy (start/T1), not the
+// hindsight search the headline uses — it isolates what the opening barracks
+// is worth with depth held at T1. barracksTier (blocking depth) is one of the
+// headline's candidate dimensions instead.
 const barracksPlan = n => ctx => greedyBuildPlan({ ...ctx, barracksTarget: n });
 
-console.log('\nBlocking sensitivity — damage multiplier needed, by how the barracks is paid for.\n');
+console.log('\nBlocking sensitivity — damage multiplier needed, by how the barracks is paid for');
+console.log('(fixed default policy start/T1, not the headline\'s hindsight search).\n');
 console.log(pad('#', 3) + pad('Map', 22) + padL('no barracks', 13) + padL('bought', 9) + padL('free', 9));
 console.log('-'.repeat(120));
 
@@ -153,10 +160,12 @@ console.log('');
 // win are wildly different — the kept-lives figure alongside each multiplier
 // is what actually carries that result. Kept for one release so backlog #16
 // can tell a smarter model apart from an easier map.
+// Runs the FIXED default policy (start/T1), not the headline's hindsight search.
 const awarePlan = on => ctx => greedyBuildPlan({ ...ctx, matchupAware: on });
 
 console.log('\nMatchup sensitivity — damage multiplier needed and lives kept getting there, by');
-console.log('how the model picks AND upgrades towers (not separable in this table).\n');
+console.log('how the model picks AND upgrades towers (not separable in this table; fixed');
+console.log('default policy start/T1, not the headline\'s hindsight search).\n');
 console.log(pad('#', 3) + pad('Map', 22) + padL('blind', 15) + padL('aware', 15) + padL('delta', 10));
 console.log('-'.repeat(120));
 
@@ -206,7 +215,9 @@ console.log('  heroDmg = post-armour damage the hero landed; /mapHP its share of
 console.log('            total base enemy HP — the quantity hero levelling is paced against.');
 console.log('  needs  = uniform damage multiplier at which the modelled defence clears the map;');
 console.log('           i.e. how much everything this model omits (hero abilities, meta upgrades,');
-console.log('           soldier repositioning, the send-wave-early bonus) has to be worth.\n');
+console.log('           soldier repositioning, the send-wave-early bonus) has to be worth.');
+console.log('  strategy = the barracks strategy that won the hindsight search: opening');
+console.log('             (start | ground = wait for a ground wave | none) / depth tier.\n');
 console.log('\n  board  = cheapest tower x every slot on the map');
 console.log('  boards = how many times over the map\'s whole gold ceiling could fill that board');
 console.log('           (< 1.00 means a full cheap board is NEVER affordable, even with flawless play)');
