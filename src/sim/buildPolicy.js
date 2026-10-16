@@ -5,6 +5,7 @@
 // rank the slots by how much of the path they actually cover, then fill the
 // best free slot with the best tower currently affordable.
 import { TOWER_DEFS } from '../data/towers.js';
+import { ENEMY_DEFS } from '../data/enemies.js';
 import { remainingEnemyWeights, towerSpecAt, towerDpsAgainst, towerValueAgainst } from './matchupValue.js';
 
 // How many sampled path points fall inside a tower's range from this slot.
@@ -42,6 +43,29 @@ const BUYABLE = Object.keys(TOWER_DEFS).filter(t => TOWER_DEFS[t].fireRate > 0);
 // so the report can show what the defence looks like with more or none.
 const DEFAULT_BARRACKS_TARGET = 1;
 
+// WHEN the opening barracks is bought. 'start' is the standard opening and
+// buys it before any firing tower; 'none' never buys one; 'beforeGround' waits
+// for a wave soldiers can actually hold — tier-1 soldiers cannot block flyers,
+// so a barracks bought ahead of an all-flying wave idles through it. No single
+// rule wins on every map, which is why src/sim/strategy.js tries them all.
+export const OPENINGS = ['start', 'none', 'beforeGround'];
+export const DEFAULT_OPENING = 'start';
+
+// How deep the barracks goes (#28). The scored upgrade pass prices upgrades by
+// damage and a barracks tier adds none, so depth gets an explicit rule in the
+// spirit of barracksTarget rather than a damage metric.
+export const DEFAULT_BARRACKS_TIER = 1;
+
+// Barracks target for this build round under an opening. Only the upcoming
+// wave is read; a barracks already standing still counts toward the target.
+export function openingBarracksTarget(opening, barracksTarget, waves, waveNumber) {
+  if (!OPENINGS.includes(opening)) throw new Error(`unknown opening: ${opening}`);
+  if (opening === 'none') return 0;
+  if (opening === 'start' || !Array.isArray(waves)) return barracksTarget;
+  const next = waves[waveNumber - 1] ?? [];
+  return next.some(g => ENEMY_DEFS[g.type] && !ENEMY_DEFS[g.type].flying) ? barracksTarget : 0;
+}
+
 // Cost of taking a tower from its current level to the next one, or null if it
 // is already at the map's ceiling.
 export function upgradeCost(tower, maxTier) {
@@ -57,7 +81,8 @@ export function upgradeCost(tower, maxTier) {
 // what the tower slots and per-map maxTierAllowed are designed around.
 export function greedyBuildPlan({
   gold, slotsUsed, buildZones, path, towers = [], map = {},
-  barracksTarget = DEFAULT_BARRACKS_TARGET,
+  barracksTarget = DEFAULT_BARRACKS_TARGET, opening = DEFAULT_OPENING,
+  barracksTier = DEFAULT_BARRACKS_TIER,
   waves = null, waveNumber = 1, matchupAware = true,
 }) {
   const ranked = rankSlots(buildZones, path);
@@ -79,13 +104,32 @@ export function greedyBuildPlan({
   const taken = new Set(slotsUsed);
 
   let barracks = towers.filter(t => t.type === 'barracks').length;
+  const target = openingBarracksTarget(opening, barracksTarget, waves, waveNumber);
+
+  // Barracks depth jumps the queue: standing barracks are upgraded to
+  // barracksTier before the board widens. Unlike barracksTarget it does not
+  // hold gold — an unaffordable tier is skipped and the budget flows on. A
+  // barracks bought below is not in `towers` yet, so it waits a round.
+  // The map tier ceiling needs no cap here: upgradeCost returns null past
+  // maxTier, which ends the loop.
+  const levels = towers.map(t => t.level);
+  for (let i = 0; i < towers.length; i++) {
+    if (towers[i].type !== 'barracks') continue;
+    while (levels[i] < barracksTier) {
+      const cost = upgradeCost({ ...towers[i], level: levels[i] }, maxTier);
+      if (cost === null || cost > budget) break;
+      budget -= cost;
+      levels[i]++;
+      purchases.push({ upgrade: true, towerIndex: i });
+    }
+  }
 
   for (const slotIndex of ranked) {
     if (taken.has(slotIndex)) continue;
     // Below target, hold the gold for a barracks rather than spending it on a
     // cheaper tower — otherwise a greedy pass buys archers forever and the
     // opening barracks never happens on a poor map.
-    const wantBarracks = barracks < barracksTarget;
+    const wantBarracks = barracks < target;
     const pick = wantBarracks ? 'barracks' : byValue.find(t => TOWER_DEFS[t].cost <= budget);
     if (!pick || TOWER_DEFS[pick].cost > budget) break;
     if (wantBarracks) barracks++;
@@ -100,15 +144,14 @@ export function greedyBuildPlan({
   // towers that cannot hurt what is coming. With no wave table, fall back to
   // cheapest-first so direct callers keep their original behaviour.
   //
-  // Barracks tiers carry no damage/fireRate, so towerDpsAgainst scores every
-  // barracks upgrade at exactly 0 and it always loses to any positive-scoring
-  // upgrade — a zero-DPS tower can never win this pass. Currently unreachable
-  // on every shipped map: a cheaper, positive-scoring upgrade (e.g. archer T2)
-  // is always available first, so cheapest-first never reached barracks
-  // either and it stays L1 in both columns. Pricing blocking DEPTH (beyond
-  // the opening purchase, which barracksTarget already handles) needs its own
-  // explicit rule, not a damage metric — see the barracksTarget comment above.
-  const levels = towers.map(t => t.level);
+  // Barracks tiers carry no damage/fireRate, so a barracks upgrade scores
+  // exactly 0 here. It still wins when no positive-scoring upgrade is
+  // affordable (0 beats the -Infinity start), and the cheapest-first fallback
+  // (no wave table, or matchupAware: false) prices by cost alone. So
+  // barracksTier is a floor the depth rule guarantees, not a cap. On shipped
+  // maps under the matchup-aware policy no run deepens a barracks past
+  // barracksTier (measured 2026-10-13). This pass starts from the levels the
+  // depth rule already paid for.
   for (;;) {
     let bestIdx = -1, bestCost = Infinity, bestScore = -Infinity;
     for (let i = 0; i < towers.length; i++) {
