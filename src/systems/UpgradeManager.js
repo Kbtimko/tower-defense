@@ -89,12 +89,11 @@ export class UpgradeManager {
     const has = id => owned.has(id);
     const mods = {
       heroMaxHpBonus: 0, heroStartLevel: 1, heroRespawnDelta: 0,
-      startGoldBonus: 0, killGoldMult: 1.0, startLivesBonus: 0,
+      startGoldPct: 0, killGoldMult: 1.0, startLivesBonus: 0,
       towerCostMult: 1.0, towerRangeMult: 1.0, towerDamageMult: 1.0,
       soldierMaxHpBonus: 0, soldierRespawnMult: 1.0,
     };
-    if (has('log_supply_cache'))    mods.startGoldBonus    += 40;
-    if (has('log_deep_reserves'))   mods.startGoldBonus    += 80;
+    for (const id of owned) mods.startGoldPct += BY_ID.get(id)?.startGoldPct ?? 0;
     if (has('log_bounty'))          mods.killGoldMult       = 1.2;
     if (has('log_garrison'))        mods.startLivesBonus    = 2;
     if (has('ars_munitions'))       mods.towerCostMult      = 0.9;
@@ -109,4 +108,10 @@ export class UpgradeManager {
     if (has(`${heroId}_elite`))          mods.heroStartLevel   = 3;
     return mods;
   }
+}
+
+// Percent-of-base so the perk scales with each map's startGold; round the bonus
+// (not the total) so the result is always a whole number of gold.
+export function startingGold(baseGold, pct) {
+  return baseGold + Math.round(baseGold * pct);
 }
