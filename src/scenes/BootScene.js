@@ -7,6 +7,8 @@ import { SPRITE_MANIFEST } from '../data/sprites.js';
 import { spriteTextureKey } from '../systems/spriteKeys.js';
 import { STORY_SPEAKERS } from '../data/story.js';
 import { portraitPath, registerPortraits } from '../systems/portraitFallback.js';
+import { backgroundUrl, pickBackgroundVariant } from '../systems/backgroundAsset.js';
+import { attachLoadingBar } from '../ui/loadingBar.js';
 import { parseDebugParams } from '../systems/debugCapture.js';
 import { MAP_WAVES } from '../data/waves.js';
 import { TOWER_DEFS } from '../data/towers.js';
@@ -22,6 +24,7 @@ export default class BootScene extends Phaser.Scene {
   constructor() { super('BootScene'); }
 
   preload() {
+    attachLoadingBar(this);
     const sm = new SaveManager();
     this.game.registry.set('save', sm);
     const prefersReduced = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
@@ -33,10 +36,15 @@ export default class BootScene extends Phaser.Scene {
     am.loadAssets(this);
     this.load.image('spark', 'particles/spark.png');
 
-    // Preload all 10 map backdrop PNGs. Missing files log a 404 but
-    // don't crash — GameScene falls back to the solid map.background color.
+    // Preload all 10 map backdrops (WebP derived by `npm run optimize-assets`).
+    // Missing files log a 404 but don't crash — GameScene falls back to the
+    // solid map.background color.
+    const bgVariant = pickBackgroundVariant({
+      canvasCssWidth: this.game.canvas?.getBoundingClientRect().width,
+      dpr: window.devicePixelRatio,
+    });
     for (const m of MAPS) {
-      this.load.image(`bg_map_${m.id}`, `assets/backgrounds/${m.backgroundImage}`);
+      this.load.image(`bg_map_${m.id}`, backgroundUrl(m.backgroundImage, bgVariant));
     }
 
     // Preload story-speaker portraits. Missing files log a 404 but don't crash

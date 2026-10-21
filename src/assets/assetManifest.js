@@ -12,6 +12,8 @@ import { STORY_SPEAKERS } from '../data/story.js';
 import { SPRITE_MANIFEST } from '../data/sprites.js';
 import { spriteTextureKey } from '../systems/spriteKeys.js';
 import { portraitPath } from '../systems/portraitFallback.js';
+import { backgroundUrl } from '../systems/backgroundAsset.js';
+import { BACKGROUND_VARIANTS } from '../data/backgroundAssets.js';
 
 export const PUBLIC_ROOT = 'public';
 
@@ -22,14 +24,19 @@ export function requiredAssets() {
   const out = [];
 
   for (const m of MAPS) {
+    // The shipped WebPs, not the source PNG in assets-src/ (which never ships):
+    // BootScene may request any variant, so each one is required.
     if (m.backgroundImage) {
-      out.push({
-        kind: 'background',
-        id: `map ${m.id} — ${m.name}`,
-        path: `${PUBLIC_ROOT}/assets/backgrounds/${m.backgroundImage}`,
-        url: `assets/backgrounds/${m.backgroundImage}`,
-        required: true,               // GameScene falls back to a flat colour
-      });
+      for (const v of BACKGROUND_VARIANTS) {
+        const url = backgroundUrl(m.backgroundImage, v);
+        out.push({
+          kind: 'background',
+          id: `map ${m.id}${v.suffix} — ${m.name}`,
+          path: `${PUBLIC_ROOT}/${url}`,
+          url,
+          required: true,             // GameScene falls back to a flat colour
+        });
+      }
     }
     if (m.overworldArt) {
       out.push({

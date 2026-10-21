@@ -4,6 +4,8 @@ import { STORY_SPEAKERS } from '../data/story.js';
 import { portraitPath, REGISTERED_PORTRAITS, registerPortraits } from '../systems/portraitFallback.js';
 import { SPRITE_MANIFEST } from '../data/sprites.js';
 import { spriteTextureKey } from '../systems/spriteKeys.js';
+import { backgroundUrl } from '../systems/backgroundAsset.js';
+import { BACKGROUND_VARIANTS } from '../data/backgroundAssets.js';
 
 vi.mock('phaser', () => ({
   default: { Scene: class { constructor() {} } },
@@ -11,6 +13,7 @@ vi.mock('phaser', () => ({
 vi.mock('../systems/SaveManager.js', () => ({
   SaveManager: class { getSettings() { return { ambientMotion: null }; } },
 }));
+vi.mock('../ui/loadingBar.js', () => ({ attachLoadingBar() {} }));
 vi.mock('../systems/AudioManager.js', () => ({ getOrCreateAudioManager: () => ({ loadAssets() {} }) }));
 vi.mock('../systems/AmbientBackgroundLayer.js', () => ({ resolveAmbientMotion: (saved, _) => saved ?? true }));
 
@@ -27,7 +30,8 @@ describe('BootScene', () => {
 
     for (const m of MAPS) {
       const expectedKey = `bg_map_${m.id}`;
-      const expectedPath = `assets/backgrounds/${m.backgroundImage}`;
+      // No canvas to measure in the test, so the picker falls back to full size.
+      const expectedPath = backgroundUrl(m.backgroundImage, BACKGROUND_VARIANTS[0]);
       const found = loaded.find(l => l.key === expectedKey);
       expect(found).toBeDefined();
       expect(found.path).toBe(expectedPath);
