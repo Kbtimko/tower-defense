@@ -66,7 +66,7 @@ Failing tests after two attempts at the same fix; any change that would alter ba
 ### Phase 0 — Harness & art bible
 - [x] **0.1 [AUTO] Capture harness.** Playwright script `scripts/capture.mjs` boots `vite preview`, loads `?debug=1&map=N&wave=W&build=<scripted towers>`, waits N sim-seconds, saves a 1280×720 PNG (+ optional 10 s MP4/GIF) to `.art-cache/captures/`. Add the debug query hooks in `GameScene` (disabled in production builds). *Accept:* one command produces a screenshot of maps 0/3/5/9 mid-wave with towers and enemies visible; Claude can open them with Read. Also emulates iPhone/Pixel/iPad viewports with touch.
 - [ ] **0.2 [AUTO→G1] Art bible.** Write `docs/art-bible.md` from Appendix A (camera, light, palette, unit sizes, outline rule). *Accept:* G1 sign-off.
-- [ ] **0.3 [AUTO] Baseline.** Capture baseline screenshots + write `docs/visual-baseline.md`: ranked list of what looks weakest per screen (title, map select, in-game, tower panel, results). Becomes the before/after record for the portfolio.
+- [x] **0.3 [AUTO] Baseline.** Capture baseline screenshots + write `docs/visual-baseline.md`: ranked list of what looks weakest per screen (title, map select, in-game, tower panel, results). Becomes the before/after record for the portfolio.
 
 ### Phase 1 — Cohesion in code (no new art)  → G3 at the end
 - [ ] **1.1 [AUTO] Asset diet.** `scripts/optimize-assets.mjs` (sharp): backgrounds PNG → WebP at 1× and 0.5× (pick by `devicePixelRatio`/canvas width); keep PNG originals in `assets-src/` (git-lfs-free, gitignored if >50 MB). *Accept:* total shipped background weight ≤ 6 MB (from ~34 MB); no visual diff beyond compression; load screen shows progress.
