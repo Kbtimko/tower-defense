@@ -54,7 +54,7 @@ const WAVE_CLEAR_BONUS   = 38;
 // meaningful when a slow headless browser drops frames.
 function applyDebugCapture(scene) {
   const { build, wave, errors } = scene._debug;
-  applyDebugBuild(build, {
+  const placed = applyDebugBuild(build, {
     economy: scene.economy,
     placementManager: scene.placementManager,
     scene,
@@ -71,7 +71,13 @@ function applyDebugCapture(scene) {
     scene._startWave();
   }
   if (errors.length) console.warn('[capture] ignored:', errors.join('; '));
-  window.__capture = { simMs: 0, enemies: 0, errors };
+  window.__capture = {
+    simMs: 0, enemies: 0, errors,
+    // Game-space positions, so the harness can click a tower to open its panel.
+    towers: placed.map(t => ({ type: t.type, x: t.x, y: t.y })),
+    // Jumps straight to a results screen without playing a level out.
+    end: (result) => (result === 'victory' ? scene._onVictory() : scene._onDefeat()),
+  };
 }
 
 export default class GameScene extends Phaser.Scene {

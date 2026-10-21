@@ -6,8 +6,11 @@
 //   npm run capture -- [--maps 0,3,5,9] [--wave N] [--seconds 6]
 //                      [--build "archer@0:3,mage@4:4b"] [--hero rael]
 //                      [--devices desktop,iphone,pixel,ipad] [--video [secs]]
-//                      [--no-build]
+//                      [--no-build] [--screens]
 //
+// --screens shoots the non-gameplay screens instead (first-run story, map
+// select, in-game, tower panel, defeat, victory) into <device>/screens/, using
+// the first of --maps.
 // Output: .art-cache/captures/<device>/map<N>-w<W>.png (+ .mp4 with --video)
 // and .art-cache/captures/report.json listing console errors per capture.
 // --wave defaults to the middle wave of each map; --build defaults to one of
@@ -37,7 +40,7 @@ const DEVICES = {
 
 function parseArgs(argv) {
   const opts = { maps: [0, 3, 5, 9], wave: null, seconds: 6, build: null, hero: null,
-    devices: ['desktop'], video: 0, rebuild: true };
+    devices: ['desktop'], video: 0, rebuild: true, screens: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => argv[++i];
@@ -48,6 +51,7 @@ function parseArgs(argv) {
     else if (a === '--hero')     opts.hero = next();
     else if (a === '--devices')  opts.devices = next().split(',');
     else if (a === '--no-build') opts.rebuild = false;
+    else if (a === '--screens')  opts.screens = true;
     else if (a === '--video') {
       const secs = Number(argv[i + 1]);
       opts.video = Number.isFinite(secs) && secs > 0 ? (i++, secs) : 10;
@@ -65,6 +69,114 @@ function captureUrl(mapId, opts) {
   return { wave, path: `/?${params}` };
 }
 
+function watchProblems(page) {
+  const problems = [];
+  page.on('pageerror', e => problems.push(`pageerror: ${e.message}`));
+  page.on('console', m => {
+    // Headless GPU chatter (ReadPixels stalls from the screenshot itself).
+    if (m.text().includes('GL Driver Message')) return;
+    if (m.type() === 'error' || m.type() === 'warning') problems.push(`${m.type()}: ${m.text()}`);
+  });
+  return problems;
+}
+
+// Waits `waitMs` of game time, then holds out for a crowd on the path,
+// keeping the busiest frame seen: a strong scripted build can kill fast
+// enemies before three are ever alive. Gives up at 3x the wait.
+async function shootBusiestFrame(page, waitMs, file) {
+  await page.waitForFunction(() => window.__capture, null, { timeout: 30_000 });
+  // Game time, not wall time: a headless browser may run well under 60 fps.
+  await page.waitForFunction(ms => window.__capture.simMs >= ms, waitMs, { timeout: waitMs * 8 + 30_000, polling: 100 });
+  let best = -1;
+  let shotSimMs = 0;
+  for (;;) {
+    const c = await page.evaluate(() => ({ enemies: window.__capture.enemies, simMs: window.__capture.simMs }));
+    if (c.enemies > best) {
+      best = c.enemies;
+      shotSimMs = c.simMs;
+      await page.screenshot({ path: file });
+    }
+    if (best >= MIN_ENEMIES || c.simMs >= waitMs * 3) break;
+    await page.waitForTimeout(150);
+  }
+  const { errors, towers } = await page.evaluate(() => ({ errors: window.__capture.errors, towers: window.__capture.towers }));
+  return { errors, towers, enemies: best, simMs: shotSimMs };
+}
+
+// Game-space (1280x720) point -> page point, through the FIT-scaled canvas.
+async function clickGamePoint(page, x, y) {
+  const box = await page.locator('#game canvas').boundingBox();
+  await page.mouse.click(box.x + (x * box.width) / 1280, box.y + (y * box.height) / 720);
+}
+
+async function shoot(page, file) {
+  await page.screenshot({ path: file });
+  return file;
+}
+
+// The non-gameplay screens, in the order a new player meets them. Used for the
+// before/after baseline (roadmap 0.3).
+async function captureScreens(browser, base, deviceName, opts) {
+  const dir = join(OUT_DIR, deviceName, 'screens');
+  mkdirSync(dir, { recursive: true });
+  const mapId = opts.maps[0];
+  const { path } = captureUrl(mapId, opts);
+  const context = await browser.newContext(DEVICES[deviceName]);
+  const problems = [];
+  const files = [];
+  try {
+    // A fresh context has empty localStorage, so this is a true first run.
+    let page = await context.newPage();
+    const p1 = watchProblems(page);
+    await page.goto(base + '/');
+    await page.locator('#story-dialog-skip').waitFor({ state: 'visible', timeout: 30_000 });
+    await page.waitForTimeout(1500);
+    files.push(await shoot(page, join(dir, '01-first-run-story.png')));
+    await page.locator('#story-dialog-skip').click();
+    await page.waitForTimeout(800);
+    files.push(await shoot(page, join(dir, '02-map-select.png')));
+    problems.push(...p1);
+    await page.close();
+
+    page = await context.newPage();
+    const p2 = watchProblems(page);
+    await page.goto(base + path);
+    const cap = await shootBusiestFrame(page, opts.seconds * 1000, join(dir, '03-in-game.png'));
+    files.push(join(dir, '03-in-game.png'));
+    const tower = cap.towers[0];
+    if (tower) {
+      await clickGamePoint(page, tower.x, tower.y);
+      await page.locator('#tower-panel').waitFor({ state: 'visible', timeout: 5_000 });
+      await page.waitForTimeout(300);
+      files.push(await shoot(page, join(dir, '04-tower-panel.png')));
+    }
+    await page.evaluate(() => window.__capture.end('defeat'));
+    await page.locator('#game-msg').waitFor({ state: 'visible', timeout: 5_000 });
+    await page.waitForTimeout(500);
+    files.push(await shoot(page, join(dir, '05-defeat.png')));
+    problems.push(...p2);
+    await page.close();
+
+    page = await context.newPage();
+    const p3 = watchProblems(page);
+    await page.goto(base + path);
+    await page.waitForFunction(() => window.__capture, null, { timeout: 30_000 });
+    await page.evaluate(() => window.__capture.end('victory'));
+    await page.waitForTimeout(1500);
+    if (await page.locator('#story-dialog-skip').isVisible()) {
+      files.push(await shoot(page, join(dir, '06-victory-story.png')));
+      await page.locator('#story-dialog-skip').click();
+    }
+    await page.locator('#game-msg').waitFor({ state: 'visible', timeout: 5_000 });
+    await page.waitForTimeout(500);
+    files.push(await shoot(page, join(dir, '07-victory.png')));
+    problems.push(...p3);
+  } finally {
+    await context.close();
+  }
+  return { device: deviceName, screens: files, problems };
+}
+
 async function captureOne(browser, base, deviceName, mapId, opts) {
   const { wave, path } = captureUrl(mapId, opts);
   const dir = join(OUT_DIR, deviceName);
@@ -78,34 +190,9 @@ async function captureOne(browser, base, deviceName, mapId, opts) {
     ...(opts.video ? { recordVideo: { dir: videoDir, size: device.viewport } } : {}),
   });
   const page = await context.newPage();
-  const problems = [];
-  page.on('pageerror', e => problems.push(`pageerror: ${e.message}`));
-  page.on('console', m => {
-    // Headless GPU chatter (ReadPixels stalls from the screenshot itself).
-    if (m.text().includes('GL Driver Message')) return;
-    if (m.type() === 'error' || m.type() === 'warning') problems.push(`${m.type()}: ${m.text()}`);
-  });
-
+  const problems = watchProblems(page);
   await page.goto(base + path);
-  await page.waitForFunction(() => window.__capture, null, { timeout: 30_000 });
-  const waitMs = Math.max(opts.seconds, opts.video) * 1000;
-  // Game time, not wall time: a headless browser may run well under 60 fps.
-  await page.waitForFunction(ms => window.__capture.simMs >= ms, waitMs, { timeout: waitMs * 8 + 30_000, polling: 100 });
-  // Then hold out for a crowd on the path, keeping the busiest frame seen: a
-  // strong scripted build can kill fast enemies before three are ever alive.
-  let best = -1;
-  let shotSimMs = 0;
-  for (;;) {
-    const c = await page.evaluate(() => window.__capture);
-    if (c.enemies > best) {
-      best = c.enemies;
-      shotSimMs = c.simMs;
-      await page.screenshot({ path: `${stem}.png` });
-    }
-    if (best >= MIN_ENEMIES || c.simMs >= waitMs * 3) break;
-    await page.waitForTimeout(150);
-  }
-  const capture = { ...(await page.evaluate(() => window.__capture)), enemies: best, simMs: shotSimMs };
+  const capture = await shootBusiestFrame(page, Math.max(opts.seconds, opts.video) * 1000, `${stem}.png`);
   await context.close();
 
   if (opts.video) {
@@ -130,6 +217,13 @@ async function main() {
   const results = [];
   try {
     for (const deviceName of opts.devices) {
+      if (opts.screens) {
+        const r = await captureScreens(browser, base, deviceName, opts);
+        results.push(r);
+        r.screens.forEach(f => console.log(f));
+        if (r.problems.length) console.log(`  (${r.problems.length} console problems)`);
+        continue;
+      }
       for (const mapId of opts.maps) {
         const r = await captureOne(browser, base, deviceName, mapId, opts);
         results.push(r);
@@ -142,7 +236,7 @@ async function main() {
     await new Promise(res => server.httpServer.close(res));
   }
   writeFileSync(join(OUT_DIR, 'report.json'), JSON.stringify(results, null, 2));
-  const bad = results.filter(r => r.problems.length || r.ignoredBuild.length);
+  const bad = results.filter(r => r.problems.length || r.ignoredBuild?.length);
   if (bad.length) console.log(`\n${bad.length} capture(s) logged problems — see ${OUT_DIR}/report.json`);
 }
 
