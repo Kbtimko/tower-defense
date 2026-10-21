@@ -38,3 +38,23 @@ describe('UPGRADES — per-hero branches', () => {
     }
   });
 });
+
+describe('UPGRADES — logistics starting gold', () => {
+  const byId = id => UPGRADES.find(u => u.id === id);
+
+  it('Supply Cache grants 15% and Deep Reserves 25% of starting gold', () => {
+    expect(byId('log_supply_cache').startGoldPct).toBe(0.15);
+    expect(byId('log_deep_reserves').startGoldPct).toBe(0.25);
+  });
+
+  it('only the two logistics gold nodes carry startGoldPct', () => {
+    const ids = UPGRADES.filter(u => u.startGoldPct !== undefined).map(u => u.id).sort();
+    expect(ids).toEqual(['log_deep_reserves', 'log_supply_cache']);
+  });
+
+  it('effect text states the same percentage the game applies', () => {
+    for (const u of UPGRADES.filter(n => n.startGoldPct !== undefined)) {
+      expect(u.effect).toBe(`+${Math.round(u.startGoldPct * 100)}% starting gold`);
+    }
+  });
+});

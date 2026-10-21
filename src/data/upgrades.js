@@ -46,9 +46,9 @@ export const UPGRADES = [
 
   // ─── Logistics ───
   { id: 'log_supply_cache',  branch: 'logistics', name: 'Supply Cache',
-    effect: '+40 starting gold',         cost: 2, requires: null },
+    effect: '+15% starting gold',        cost: 2, requires: null,               startGoldPct: 0.15 },
   { id: 'log_deep_reserves', branch: 'logistics', name: 'Deep Reserves',
-    effect: '+80 starting gold',         cost: 3, requires: 'log_supply_cache' },
+    effect: '+25% starting gold',        cost: 3, requires: 'log_supply_cache', startGoldPct: 0.25 },
   { id: 'log_bounty',        branch: 'logistics', name: 'Bounty Protocol',
     effect: '+20% gold from kills',      cost: 4, requires: 'log_supply_cache' },
   { id: 'log_garrison',      branch: 'logistics', name: 'Garrison Command',
