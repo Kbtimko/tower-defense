@@ -11,6 +11,12 @@
 // falls back to the entity's Graphics drawing. Adding art = drop the PNG under
 // assets/sprites/ + add one entry here (see assets/sprites/PROMPTS.md).
 //
+// `ground` is the art's measured silhouette for the contact shadow (1.2):
+// footY = lowest opaque pixel (alpha > 32) below the anchor across the first
+// state's frames, width = median silhouette width, both x `scale` in display
+// px. Measured from the cell, not assumed from it — a 96px cell can hold a
+// 36px-wide tower. Re-measure whenever a sheet or its scale changes.
+//
 // Example entry shape (kept as a comment until real art lands):
 //   {
 //     category: 'enemy', type: 'drone',
@@ -31,6 +37,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'enemy', type: 'drone',
     scale: 0.59, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 15.9, width: 30.7 },
     states: {
       move:  { path: 'assets/sprites/enemies/drone_move.png',
                frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 12 },
@@ -42,6 +49,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'enemy', type: 'skitter',
     scale: 0.52, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 15.1, width: 23.4 },
     states: {
       move:  { path: 'assets/sprites/enemies/skitter_move.png',
                frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 16 },
@@ -53,6 +61,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'enemy', type: 'brute',
     scale: 0.91, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 26.4, width: 30.0 },
     states: {
       move:  { path: 'assets/sprites/enemies/brute_move.png',
                frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 9 },
@@ -65,6 +74,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'enemy', type: 'colossus',
     scale: 0.56, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 24.1, width: 38.6 },
     states: {
       move:  { path: 'assets/sprites/enemies/colossus_move.png',
                frameWidth: 96, frameHeight: 96, frames: 8, frameRate: 8 },
@@ -77,6 +87,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'enemy', type: 'phantom',
     scale: 0.58, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 8.7, width: 29.0 },
     states: {
       move:  { path: 'assets/sprites/enemies/phantom_move.png',
                frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 14 },
@@ -89,6 +100,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'enemy', type: 'titan',
     scale: 1.08, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 61.6, width: 50.8 },
     states: {
       move:  { path: 'assets/sprites/enemies/titan_move.png',
                frameWidth: 128, frameHeight: 128, frames: 8, frameRate: 8 },
@@ -105,6 +117,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'tower', type: 'archer',
     scale: 1.03, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 41.2, width: 36.1 },
     states: {
       idle:   { path: 'assets/sprites/towers/archer_idle.png',
                 frameWidth: 96, frameHeight: 96, frames: 1 },
@@ -119,6 +132,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'tower', type: 'mage',
     scale: 0.86, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 34.4, width: 32.7 },
     states: {
       idle:   { path: 'assets/sprites/towers/mage_idle.png',
                 frameWidth: 96, frameHeight: 96, frames: 1 },
@@ -129,6 +143,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'tower', type: 'cannon',
     scale: 0.86, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 23.2, width: 32.7 },
     states: {
       idle:   { path: 'assets/sprites/towers/cannon_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 1 },
@@ -139,6 +154,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'tower', type: 'ice',
     scale: 0.88, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 23.8, width: 31.7 },
     states: {
       idle:   { path: 'assets/sprites/towers/ice_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 1 },
@@ -149,6 +165,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'tower', type: 'sniper',
     scale: 0.82, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 22.1, width: 31.2 },
     states: {
       idle:   { path: 'assets/sprites/towers/sniper_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 1 },
@@ -161,6 +178,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'tower', type: 'barracks',
     scale: 0.86, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 22.4, width: 32.7 },
     states: {
       idle: { path: 'assets/sprites/towers/barracks_idle.png',
               frameWidth: 64, frameHeight: 64, frames: 1 },
@@ -173,6 +191,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'hero', type: 'rael',
     scale: 0.76, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 20.5, width: 25.1 },
     states: {
       idle:   { path: 'assets/sprites/heroes/rael_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 6, frameRate: 8 },
@@ -185,6 +204,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'hero', type: 'engineer',
     scale: 0.78, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 20.3, width: 22.6 },
     states: {
       idle:   { path: 'assets/sprites/heroes/engineer_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 6, frameRate: 8 },
@@ -197,6 +217,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'hero', type: 'scout',
     scale: 0.76, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 20.5, width: 25.8 },
     states: {
       idle:   { path: 'assets/sprites/heroes/scout_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 6, frameRate: 8 },
@@ -209,6 +230,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'hero', type: 'pyro',
     scale: 0.78, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 21.1, width: 29.6 },
     states: {
       idle:   { path: 'assets/sprites/heroes/pyro_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 6, frameRate: 8 },
@@ -225,6 +247,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'soldier', type: 'default',
     scale: 0.36, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 7.2, width: 9.0 },
     states: {
       idle:   { path: 'assets/sprites/soldiers/default_idle.png',
                 frameWidth: 48, frameHeight: 48, frames: 6, frameRate: 8 },
@@ -235,6 +258,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'sentry', type: 'default',
     scale: 0.58, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 11.6, width: 12.8 },
     states: {
       idle:   { path: 'assets/sprites/sentry/default_idle.png',
                 frameWidth: 48, frameHeight: 48, frames: 6, frameRate: 8 },

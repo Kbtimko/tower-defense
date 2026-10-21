@@ -12,11 +12,18 @@ vi.mock('../data/sprites.js', () => ({
             attack: { path: 'y.png', frameWidth: 16, frameHeight: 16, frames: 3, frameRate: 8 },
           },
         }
+      : category === 'enemy' && type === 'phantom'
+      ? {
+          category: 'enemy', type: 'phantom', scale: 1, anchor: { x: 0.5, y: 0.5 },
+          ground: { footY: 10, width: 20 },
+          states: { move: { path: 'p.png', frameWidth: 16, frameHeight: 16, frames: 4, frameRate: 8 } },
+        }
       : null,
   SPRITE_MANIFEST: [],
 }));
 
 import { EntitySprite } from './EntitySprite.js';
+import { shadowSpec } from './grounding.js';
 
 function makeSpriteStub() {
   const s = {
@@ -33,11 +40,22 @@ function makeSpriteStub() {
   return s;
 }
 
+function makeImageStub() {
+  const img = {
+    setPosition: vi.fn((x, y) => { img.x = x; img.y = y; return img; }),
+    setDisplaySize: vi.fn((w, h) => { img.w = w; img.h = h; return img; }),
+    setAlpha: vi.fn((a) => { img.alpha = a; return img; }),
+    destroy: vi.fn(),
+  };
+  return img;
+}
+
 function makeScene(registeredKeys) {
   const sprite = makeSpriteStub();
   return {
     sprite,
-    add: { sprite: vi.fn(() => sprite) },
+    add: { sprite: vi.fn(() => sprite), image: vi.fn(() => makeImageStub()) },
+    textures: { exists: vi.fn(() => true) },
     anims: { exists: vi.fn(() => false), create: vi.fn(), generateFrameNumbers: vi.fn(() => []) },
     game: { registry: { get: vi.fn(() => registeredKeys) } },
   };
@@ -143,5 +161,44 @@ describe('EntitySprite.setFlash', () => {
     const scene = makeScene([]);
     const es = new EntitySprite(makeContainer(), scene, { category: 'enemy', type: 'drone' });
     expect(() => es.setFlash(true)).not.toThrow();
+  });
+});
+
+describe('EntitySprite contact shadow', () => {
+  const keys = ['sprite-enemy-phantom-move', 'sprite-enemy-drone-move'];
+
+  it('adds a shadow below the sprite, placed by shadowSpec', () => {
+    const scene = makeScene(keys);
+    const c = makeContainer();
+    new EntitySprite(c, scene, { category: 'enemy', type: 'phantom', initialState: 'move' });
+    const spec = shadowSpec({ footY: 10, width: 20 });
+    const shadow = c.children[0];
+    expect(c.children[1]).toBe(scene.sprite);
+    expect(shadow).toMatchObject({ x: spec.x, y: spec.y, w: spec.width, h: spec.height, alpha: spec.alpha });
+  });
+
+  it('detaches and fades the shadow for a flyer', () => {
+    const scene = makeScene(keys);
+    const c = makeContainer();
+    new EntitySprite(c, scene, { category: 'enemy', type: 'phantom', initialState: 'move', flying: true });
+    const spec = shadowSpec({ footY: 10, width: 20 }, { flying: true });
+    expect(c.children[0]).toMatchObject({ y: spec.y, alpha: spec.alpha });
+  });
+
+  it('adds no shadow when the art has no ground metrics', () => {
+    const scene = makeScene(keys);
+    const c = makeContainer();
+    new EntitySprite(c, scene, { category: 'enemy', type: 'drone', initialState: 'move' });
+    expect(scene.add.image).not.toHaveBeenCalled();
+    expect(c.children).toEqual([scene.sprite]);
+  });
+
+  it('destroys the shadow with the sprite', () => {
+    const scene = makeScene(keys);
+    const c = makeContainer();
+    const es = new EntitySprite(c, scene, { category: 'enemy', type: 'phantom', initialState: 'move' });
+    const shadow = c.children[0];
+    es.destroy();
+    expect(shadow.destroy).toHaveBeenCalled();
   });
 });

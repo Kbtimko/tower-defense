@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { EntitySprite } from '../systems/EntitySprite.js';
+import { unitDepth } from '../systems/grounding.js';
 import { pointAtProgress } from '../systems/pathGeometry.js';
 import { drawUnitHpBar } from '../systems/hpBar.js';
 import {
@@ -31,7 +32,8 @@ export class Soldier extends Phaser.GameObjects.Container {
     this._hpBar = scene.add.graphics();
     this.add([this._body, this._hpBar]);
     scene.add.existing(this);
-    this.setDepth(13); // above the static road/build-pad layer (depth 10)
+    // Y-sorted inside the unit band so a lower unit draws in front.
+    this.setDepth(unitDepth(this.y));
 
     this._drawBody();
     this._sprite = new EntitySprite(this, scene, {
@@ -91,6 +93,7 @@ export class Soldier extends Phaser.GameObjects.Container {
   }
 
   update(dt) {
+    this.setDepth(unitDepth(this.y));
     if (tickSoldier(this, dt)) this.respawn();
   }
 }

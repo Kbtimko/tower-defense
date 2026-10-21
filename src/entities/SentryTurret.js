@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { Projectile } from './Projectile.js';
 import { EntitySprite } from '../systems/EntitySprite.js';
+import { unitDepth } from '../systems/grounding.js';
 
 const RANGE     = 100;
 const DAMAGE    = 15;
@@ -21,7 +22,8 @@ export class SentryTurret extends Phaser.GameObjects.Container {
     this.add(this._body);
     this._drawBody();
     scene.add.existing(this);
-    this.setDepth(13); // above the static road/build-pad layer (depth 10)
+    // Y-sorted inside the unit band so a lower unit draws in front.
+    this.setDepth(unitDepth(this.y));
     this._sprite = new EntitySprite(this, scene, {
       category: 'sentry', type: 'default', initialState: 'idle',
     });
