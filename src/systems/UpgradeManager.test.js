@@ -1,5 +1,5 @@
 import { SaveManager }    from './SaveManager.js';
-import { UpgradeManager } from './UpgradeManager.js';
+import { UpgradeManager, startingGold } from './UpgradeManager.js';
 
 // Helper: a SaveManager with `total` stars spread across maps (3 per map).
 function saveWithStars(total) {
@@ -129,18 +129,36 @@ describe('UpgradeManager — getModifiers', () => {
     const um = new UpgradeManager(saveWithStars(0));
     expect(um.getModifiers('rael')).toEqual({
       heroMaxHpBonus: 0, heroStartLevel: 1, heroRespawnDelta: 0,
-      startGoldBonus: 0, killGoldMult: 1.0, startLivesBonus: 0,
+      startGoldPct: 0, killGoldMult: 1.0, startLivesBonus: 0,
       towerCostMult: 1.0, towerRangeMult: 1.0, towerDamageMult: 1.0,
       soldierMaxHpBonus: 0, soldierRespawnMult: 1.0,
     });
   });
 
-  it('aggregates additive starting gold from both logistics nodes', () => {
-    const sm = saveWithStars(10);
-    const um = new UpgradeManager(sm);
+  it('Supply Cache alone grants 15% starting gold', () => {
+    const um = new UpgradeManager(saveWithStars(10));
+    um.purchase('log_supply_cache');
+    expect(um.getModifiers('rael').startGoldPct).toBeCloseTo(0.15, 10);
+  });
+
+  it('both logistics nodes add to 40% starting gold', () => {
+    const um = new UpgradeManager(saveWithStars(10));
     um.purchase('log_supply_cache');
     um.purchase('log_deep_reserves');
-    expect(um.getModifiers('rael').startGoldBonus).toBe(120);
+    expect(um.getModifiers('rael').startGoldPct).toBeCloseTo(0.40, 10);
+  });
+
+  it('Deep Reserves owned alone (legacy save) grants 25%', () => {
+    const sm = saveWithStars(10);
+    sm.setPurchasedUpgrades(['log_deep_reserves']);
+    expect(new UpgradeManager(sm).getModifiers('rael').startGoldPct).toBeCloseTo(0.25, 10);
+  });
+
+  it('nodes without a starting-gold percentage contribute nothing', () => {
+    const um = new UpgradeManager(saveWithStars(20));
+    um.purchase('rael_hp');
+    um.purchase('ars_munitions');
+    expect(um.getModifiers('rael').startGoldPct).toBe(0);
   });
 
   it('Elite Commander beats Veteran Commander for heroStartLevel', () => {
@@ -186,5 +204,19 @@ describe('UpgradeManager — heroUnlock + heroId scoping', () => {
     expect(mgr.getModifiers('rael').heroMaxHpBonus).toBe(50);
     expect(mgr.getModifiers('engineer').heroMaxHpBonus).toBe(40);
     expect(mgr.getModifiers('scout').heroMaxHpBonus).toBe(0);
+  });
+});
+
+describe('startingGold', () => {
+  it('returns the base unchanged at 0%', () => {
+    expect(startingGold(180, 0)).toBe(180);
+  });
+  it('adds the rounded percentage of the base', () => {
+    expect(startingGold(180, 0.40)).toBe(252);
+    expect(startingGold(300, 0.40)).toBe(420);   // map 9: same as today's 300 + 120
+  });
+  it('rounds a half-gold bonus to a whole number', () => {
+    expect(startingGold(130, 0.15)).toBe(150);   // 19.5 -> 20
+    expect(Number.isInteger(startingGold(210, 0.15))).toBe(true);
   });
 });

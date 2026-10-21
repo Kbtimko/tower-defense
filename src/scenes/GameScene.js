@@ -13,7 +13,7 @@ import { Enemy } from '../entities/Enemy.js';
 import { Projectile } from '../entities/Projectile.js';
 import { Hero } from '../entities/Hero.js';
 import { SaveManager } from '../systems/SaveManager.js';
-import { UpgradeManager } from '../systems/UpgradeManager.js';
+import { UpgradeManager, startingGold } from '../systems/UpgradeManager.js';
 import { StoryManager }    from '../systems/StoryManager.js';
 import { StoryDialogOverlay } from '../ui/StoryDialogOverlay.js';
 import { DamageNumberOverlay } from '../systems/DamageNumberOverlay.js';
@@ -84,7 +84,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.pathMgr  = new PathManager(map.waypoints, map.towerSlots, width, height);
     this.economy  = new EconomyManager(
-      map.startGold  + mods.startGoldBonus,
+      startingGold(map.startGold, mods.startGoldPct),
       map.startLives + mods.startLivesBonus,
       this.events,
     );
