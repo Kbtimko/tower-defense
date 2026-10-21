@@ -1,0 +1,188 @@
+# Last Light — Art Bible
+
+**Status:** DRAFT, awaiting gate **G1** (Keith). Seeded from Appendix A of
+`docs/superpowers/plans/2026-10-21-visual-overhaul-roadmap.md`, then checked
+against what the game ships today (measurements dated 2026-10-21, see §9).
+Items marked **[G1?]** are the calls that need a human decision.
+
+Every visual task in the roadmap (1.2 grounding, 1.3 normalization, 1.4
+grading, 1.5–1.6 FX, 3.x UI, 4.x art) is judged against this page. Where a
+number here becomes code, it lives in `src/data/` (or a script constant for
+offline tools), never hardcoded in entity logic.
+
+---
+
+## 1. Camera & light
+
+| Rule | Value |
+|---|---|
+| Camera | High-angle top-down, ~60° pitch ("top-down 3/4"). Units show their top and a sliver of their front face. |
+| Facing | Art is authored facing **right** (`baseFacing: 'right'`); the game mirrors for left. Never author a left-facing reference. |
+| Key light | Upper-left. Lit faces point up-left; rim light on the upper-left edge. |
+| Shadows | Fall lower-right. Contact shadow is a **soft ellipse, ~35 % black**, width ≈ 0.8× the silhouette width, height ≈ 0.3× that, offset +2 px x / +3 px y (1× design px). |
+| Flyers | Detached shadow: 50 % of the ground opacity, offset by the hover height (≈ 12 px down), no contact with the sprite. |
+| Baked shadows | **Forbidden** in sprite art. The game draws every shadow so they all agree; a generator's ground shadow gets cut out (rembg `isnet-general-use`). |
+
+## 2. Palettes
+
+### Factions
+| Faction | Base | Accent | Notes |
+|---|---|---|---|
+| **Human** (towers, heroes, soldiers, sentries) | Cool steel `#5b6b7a` → `#a9b6c2`, teal hull `#2f6f78` | Amber lights `#ffb000` | Saturation stays low (0.20–0.35): humans read as engineered metal. Per-tower identity comes from the accent emissive, not the hull. |
+| **Veth** (enemies) | Dark chitin `#1c1a22` → `#3a3442` | Per-type emissive (below) | Saturation runs high on the emissive only (0.35–0.70 mean). Veth glow; humans reflect. |
+
+**Veth emissives** — the source of truth is `color` in `src/data/enemies.js`; this table must match it.
+
+| Enemy | Emissive | Role |
+|---|---|---|
+| drone | `#33ff66` | baseline swarm |
+| skitter | `#ff6600` | fast |
+| brute | `#667766` | armoured — **[G1?]** the only desaturated emissive; it reads as "no glow" next to the others. Keep it, or move to a dull bronze `#9a7b4f`? |
+| colossus | `#880044` | heavy |
+| phantom | `#9b59b6` | flyer |
+| titan | `#e74c3c` | boss |
+
+### Tower accent emissives
+One hue per tower, used for muzzle flashes, projectile cores and tier glow (1.5).
+Archer `#ffb000` (amber), Mage `#dd00ff` (violet), Cannon `#ff7a2f` (ember),
+Ice `#00eeff` (cyan), Sniper `#ff3355` (red tracer), Barracks `#ffd34d` (gold).
+Compared with today's `PROJ_COLORS` in `GameScene`, mage and ice keep their
+hues. Archer moves from tan `#cd853f` to amber, and cannon moves from grey
+`#888888` to ember so its shells read against the ground.
+
+### Status-effect colour language
+Shared by FX, damage numbers and UI icons, and never reused for anything else:
+**slow** = cyan `#7fe9ff` with frost crystals, **burn** = orange `#ff8a1f`,
+**stun** = yellow `#ffe14d` with stars, **armour absorbed** = steel `#9fb3c8`,
+**heal/regen** = green `#5dff9a`, **gold** = `#ffd700`.
+
+### UI
+| Token | Value | Use |
+|---|---|---|
+| panel | `#0f1424` | deep navy panel fill |
+| panel-edge | `#2a3a4a` | 1 px bevel/border (already common in `index.html`) |
+| accent | `#4fc3f7` | cyan-teal: focus, selection, links (already the HUD accent) |
+| currency | `#ffd700` | gold only (already the HUD gold) |
+| danger | `#f07a7a` | lives lost, sell, defeat |
+| text | `#e8e0d0` | body text (current `body` colour) |
+
+Fonts are decided in 3.1 (bundled OFL via `@fontsource`; the roadmap proposes
+Orbitron headings + Rajdhani/Exo 2 body). Georgia is the stopgap.
+
+### Biome moods (feeds 1.4 grading and 1.9 ambient FX)
+| Map | Name | Ambient family | Grade direction |
+|---|---|---|---|
+| 0 | Outpost Sigma | dust | warm, low contrast, clean — the tutorial should feel safe |
+| 1 | Lunar Gate | dust | cool grey, high-key |
+| 2 | The Crater | dust | cool grey, deeper shadows |
+| 3 | Orbital Station | electrical | teal/steel, crisp |
+| 4 | Asteroid Belt | stars | neutral, dark vignette |
+| 5 | Titan's Reach | dust | amber haze |
+| 6 | Deep Space Corridor | electrical | blue-violet, cold |
+| 7 | The Void Frontier | stars | near-black, strong vignette |
+| 8 | Enemy Homeworld | bio-pulse | magenta-green, organic, sickly |
+| 9 | Last Light | embers | red-black, hot highlights — the finale |
+
+## 3. Outline
+
+- **1.5 px dark navy `#0b1020` at 1×** (3 px on 2× source art), outside the
+  silhouette, fully opaque. It separates a unit from any background, so it's
+  what keeps a dark sprite readable on map 9 lava or map 7 void.
+- The outline is applied by `scripts/art/normalize.py` (1.3), not drawn by the
+  generator. Prompts ask for "no outline".
+- **[G1?]** Enemies' outline could take a 20 % tint of their emissive so the
+  silhouette itself signals the faction. Default: no tint, plain navy.
+
+## 4. On-screen size
+
+**Footprint** = the longest side of the opaque silhouette at 1× design
+resolution (1280×720), **not** the frame cell. A 96 px cell that holds a 36 px
+wide tower is a 36 px-wide tower.
+
+Note: the HTML HUD bars take ~136 px of the window today, so FIT scaling draws
+the 1280×720 canvas at about **0.81×** in a 1280×720 browser window and much
+smaller on phones (see §9). Sizes below are design px; the touch rule in §6 is
+checked after scaling.
+
+| Entity | Target (Appendix A) | Today (measured W×H) | Gap |
+|---|---|---|---|
+| drone | 44 | 31×29 | −30 % |
+| skitter | 38 | 23×28 | −26 % |
+| brute | 54 | 30×48 | −11 % |
+| colossus | 72 | 39×44 | **−39 %, and shorter than the brute** — breaks the size hierarchy |
+| phantom | 46 | 29×21 | −37 % |
+| titan | 104 | 53×112 | +8 % (fine) |
+| towers | ~80 | archer 36×81; others 31–33 × 43–67 | archer is tall; the other five are ~45 px |
+| heroes | ~56 | 23–30 × 40–41 | −27 % |
+| soldiers | ~36 | 9×14 | **−61 %, barely visible** |
+| sentries | ~36 | 13×23 | −36 % |
+
+Hierarchy rule (must hold whatever the final numbers are):
+skitter < drone ≈ phantom < brute < colossus < titan, and soldier < hero < tower.
+
+**[G1?]** Adopt the Appendix A targets as written? They mean scaling most units
+up 25–60 %, which needs the 2× re-bake (4.1) to stay crisp, and may crowd
+narrow paths on maps 7–9. Recommended: adopt them, and fix the colossus
+inversion and soldier size first because they hurt readability most.
+
+## 5. Tone targets (for normalization, 1.3)
+
+Measured over each sprite's opaque pixels (luminance 0–1; "contrast" = std-dev
+of luminance; saturation = HSV mean). Today's outliers are in bold.
+
+| Metric | Target | Today's outliers |
+|---|---|---|
+| Mean luminance | 0.22–0.40 | **titan 0.11, colossus 0.12, scout 0.15, archer 0.17**; ice 0.48 is high |
+| Contrast | ≥ 0.12 | **archer 0.07, colossus 0.07, titan 0.08, scout 0.08** |
+| Saturation, human | 0.20–0.35 | **cannon 0.13** (the "washed-out cannon"); heroes run hot at 0.52–0.60, which is OK because they're named characters |
+| Saturation, Veth | 0.35–0.70 | **brute 0.17** (see the emissive question in §2) |
+
+## 6. Touch & legibility
+
+- Minimum touch target: **44 px after FIT scaling on a 390 px-high
+  viewport** (iPhone 14 landscape), for anything tappable: pads, towers, HUD
+  buttons, ability buttons.
+- Legibility means **contrast against the pad and the map**, not size alone.
+  Always judge sprites on a dark background and on map 9 (dark) and map 5
+  (bright).
+- Health bars, damage numbers and status icons must stay readable at 0.5×
+  canvas scale.
+
+## 7. Generation style (Draw Things, FLUX.1 [schnell])
+
+Settings: 1024×1024, 4 steps, CFG 0, Euler a.
+
+FLUX at CFG 0 **ignores negative prompts** and does **not** understand A1111
+weighting such as `(…:1.2)`; it reads it as literal text. The current anchor in
+`public/assets/sprites/PROMPTS.md` uses both. Proposed replacement, to adopt in
+4.0 (put exclusions in the positive prompt):
+
+```
+high-angle top-down game sprite of {subject}, sci-fi tower defense, painterly
+vector shading, bold readable silhouette, lit from the upper left with a rim
+light, single subject centered, plain flat mid-grey background, no ground
+shadow, no outline, no text, no lettering
+```
+
+Review checklist per candidate: one subject; faces right; no stray lettering;
+no baked shadow; silhouette reads at 32 px; palette matches §2.
+
+## 8. Motion (summary; details in 1.5–1.9)
+
+Animation is transforms + FX (`scripts/build-sprite-sheets.py`): bob, rock,
+squash, flash. There's no limb articulation. Heavy hits get a squash and a
+brief hit-stop. Deaths scale with size class (pop → burst + debris → boss
+sequence). Ambient motion stays under the gameplay layers and below 20 %
+opacity so it never reads as an enemy.
+
+## 9. Measurement notes
+
+- Sizes and tones were measured from frame 0 of each sheet listed in
+  `src/data/sprites.js` (alpha > 32), times the manifest `scale`.
+- Captures: `npm run capture -- --devices desktop,iphone,pixel,ipad`
+  (roadmap 0.1). Playwright's iPhone 14 landscape viewport is 750×340 CSS px
+  (browser chrome included). There the canvas renders about 360 CSS px wide
+  between the HUD bars, roughly **0.28× design scale**, so a 45 px tower is
+  about 13 CSS px on screen and a 44 px touch target would need ~157 design
+  px. That's the main input to 2.2 (HUD to canvas) and to the size decision in
+  §4.

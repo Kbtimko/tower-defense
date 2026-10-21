@@ -24,6 +24,9 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 
 **The most valuable next thing is a human playtest (#30).** Every difficulty number in this project is simulated, against a model that is pessimistic by construction. #78 just shipped a balance change to production on that basis.
 
+## NEEDS HUMAN (visual roadmap gates)
+- **G1 — approve `docs/art-bible.md`** (roadmap 0.2, drafted 2026-10-21). Four calls marked **[G1?]**: (1) adopt Appendix A footprints (most units +25-60%; colossus is currently *shorter than the brute*, soldiers are 9x14 px); (2) brute emissive `#667766` reads as no glow, so keep it or move to bronze; (3) tint enemy outlines with their emissive or not; (4) the FLUX style anchor in `public/assets/sprites/PROMPTS.md` uses `(…:1.2)` weighting and a negative prompt, which FLUX at CFG 0 ignores; the bible proposes a replacement for 4.0. Tasks 1.2/1.3 use the bible's numbers as tunables and can proceed, but they change if G1 changes them.
+
 ## Blockers
 - None active
 
