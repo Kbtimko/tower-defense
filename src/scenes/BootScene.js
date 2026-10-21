@@ -7,6 +7,10 @@ import { SPRITE_MANIFEST } from '../data/sprites.js';
 import { spriteTextureKey } from '../systems/spriteKeys.js';
 import { STORY_SPEAKERS } from '../data/story.js';
 import { portraitPath, registerPortraits } from '../systems/portraitFallback.js';
+import { parseDebugParams } from '../systems/debugCapture.js';
+import { MAP_WAVES } from '../data/waves.js';
+import { TOWER_DEFS } from '../data/towers.js';
+import { HERO_ORDER } from '../data/heroes.js';
 
 // Distinct portrait keys across all story speakers (deduped: two speakers may
 // legitimately share a portrait).
@@ -80,6 +84,16 @@ export default class BootScene extends Phaser.Scene {
         Number.parseInt(params.get('map') ?? '0', 10) || 0));
       this.scene.start('MapEditorScene', { mapId });
       return;
+    }
+    // Screenshot harness entry (scripts/capture.mjs): straight into a level.
+    if (import.meta.env.DEV || import.meta.env.MODE === 'capture') {
+      const debug = parseDebugParams(window.location.search, {
+        maps: MAPS, waves: MAP_WAVES, towerTypes: Object.keys(TOWER_DEFS), heroes: HERO_ORDER,
+      });
+      if (debug) {
+        this.scene.start('GameScene', { mapId: debug.mapId, heroId: debug.heroId, debug });
+        return;
+      }
     }
     this.scene.start('MenuScene');
   }
