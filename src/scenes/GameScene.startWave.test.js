@@ -57,6 +57,7 @@ function makeScene({ isEarlyEligible = false, active = false, currentWave = 1, e
   scene.game = { registry: { get: () => null } };
   scene._toast = vi.fn();
   scene._updateWaveButton = vi.fn();
+  scene._updateHUD = vi.fn();
   return scene;
 }
 
@@ -127,5 +128,16 @@ describe('GameScene._startWave', () => {
     GameScene.prototype._startWave.call(scene);
     expect(scene.economy.earn).toHaveBeenCalledWith(15);
     expect(scene._toast).toHaveBeenCalledWith('+15g');
+  });
+
+  // The wave counter used to lag at the previous wave until the next kill:
+  // nothing refreshed the HUD on a wave start that earned no gold.
+  it('refreshes the HUD after advancing the wave', () => {
+    const scene = makeScene({ isEarlyEligible: false, active: false });
+    const order = [];
+    scene.waveMgr.startWave = () => order.push('startWave');
+    scene._updateHUD = () => order.push('hud');
+    GameScene.prototype._startWave.call(scene);
+    expect(order).toEqual(['startWave', 'hud']);
   });
 });

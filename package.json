@@ -10,13 +10,15 @@
     "test:watch": "vitest",
     "balance": "node scripts/balance.mjs",
     "assets": "node scripts/assets.mjs",
-    "art": "node scripts/generate-art.mjs"
+    "art": "node scripts/generate-art.mjs",
+    "capture": "node scripts/capture.mjs"
   },
   "dependencies": {
     "phaser": "^3.88.0"
   },
   "devDependencies": {
     "jsdom": "^25.0.0",
+    "playwright": "^1.64.1",
     "vite": "^5.4.0",
     "vitest": "^2.1.0"
   }

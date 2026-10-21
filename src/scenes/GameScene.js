@@ -37,6 +37,7 @@ import { AmbientBackgroundLayer } from '../systems/AmbientBackgroundLayer.js';
 import { computeBlockerPlacements } from '../systems/BlockerPlacement.js';
 import { BLOCKER_TYPES } from '../data/blockerTypes.js';
 import { previewRange } from '../systems/rangePreview.js';
+import { applyDebugBuild } from '../systems/debugCapture.js';
 import { SFX_KEYS } from '../systems/AudioManager.js';
 import { towerFireSfxKey } from '../systems/sfxKeys.js';
 import { WavePreviewPopover } from '../ui/WavePreviewPopover.js';
@@ -47,12 +48,40 @@ import { buildCatalog, progressFromSave } from '../systems/codexCatalog.js';
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const WAVE_CLEAR_BONUS   = 38;
 
+// Scripted state for scripts/capture.mjs. Module-level, not a method, so the
+// production build drops it along with its only (dead) call site.
+// window.__capture.simMs lets the harness wait in game time, which stays
+// meaningful when a slow headless browser drops frames.
+function applyDebugCapture(scene) {
+  const { build, wave, errors } = scene._debug;
+  applyDebugBuild(build, {
+    economy: scene.economy,
+    placementManager: scene.placementManager,
+    scene,
+    onPlaced: (tower) => {
+      if (tower.type !== 'barracks') return;
+      tower.soldierPathProgress = scene.pathMgr.getNearestPathProgress(tower.x, tower.y);
+      tower.spawnSoldiers(scene, scene.pathMgr.getPathPoints());
+    },
+  });
+  scene._repaintStaticLayers();
+  scene._updateHUD();
+  if (wave) {
+    scene.waveMgr.currentWave = wave - 1;
+    scene._startWave();
+  }
+  if (errors.length) console.warn('[capture] ignored:', errors.join('; '));
+  window.__capture = { simMs: 0, enemies: 0, errors };
+}
+
 export default class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
 
   init(data) {
     this.mapId  = data?.mapId  ?? 0;
     this.heroId = data?.heroId ?? 'rael';
+    // Only BootScene's capture-hook branch passes this; normal entry clears it.
+    this._debug = (import.meta.env.DEV || import.meta.env.MODE === 'capture') ? (data?.debug ?? null) : null;
   }
 
   create() {
@@ -217,11 +246,12 @@ export default class GameScene extends Phaser.Scene {
 
     // Pre-battle briefing (once per map). Combat hasn't started; the wave button waits.
     const briefId = briefKey(map.storyKey);
-    if (STORY_SEQUENCES[briefId] && !this.saveMgr.hasSeenBeat(briefId)) {
+    if (!this._debug && STORY_SEQUENCES[briefId] && !this.saveMgr.hasSeenBeat(briefId)) {
       this._storyDialog.play(briefId, () => this.saveMgr.markBeatSeen(briefId));
     }
 
     if (import.meta.env.DEV) window.__game = this;
+    if ((import.meta.env.DEV || import.meta.env.MODE === 'capture') && this._debug) applyDebugCapture(this);
   }
 
   _bindDOMEvents() {
@@ -375,6 +405,11 @@ export default class GameScene extends Phaser.Scene {
   // ─── Update loop ───────────────────────────────────────────────────────────
 
   update(time, delta) {
+    // Before the game-over return so a capture of a lost level still finishes.
+    if ((import.meta.env.DEV || import.meta.env.MODE === 'capture') && this._debug) {
+      window.__capture.simMs += delta * this.speed;
+      window.__capture.enemies = this.enemies.filter(e => !e.dead).length;
+    }
     if (this.over || this.won) return;
     const dt    = (delta / 1000) * this.speed;
     const dtMs  = delta * this.speed;
@@ -414,6 +449,7 @@ export default class GameScene extends Phaser.Scene {
     const am = this.game.registry.get('audio');
     if (am) am.playSfx('wave-start');
     this.waveMgr.startWave();
+    this._updateHUD();
     this._wavePreview?.hide();
     this._updateWaveButton();
   }
