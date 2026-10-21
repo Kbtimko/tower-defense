@@ -4,6 +4,7 @@ import { HEROES, HERO_REGEN_DELAY, HERO_REGEN_RATE } from '../data/heroes.js';
 import { totalEnemyHpForMap } from '../data/waves.js';
 import { heroLevelForDamage, heroAttackDamage, heroMaxHp, heroXpProgress } from '../systems/heroLeveling.js';
 import { EntitySprite } from '../systems/EntitySprite.js';
+import { unitDepth } from '../systems/grounding.js';
 import { pointAtProgress } from '../systems/pathGeometry.js';
 import { drawUnitHpBar } from '../systems/hpBar.js';
 
@@ -68,7 +69,8 @@ export class Hero extends Phaser.GameObjects.Container {
     this._hpBar = scene.add.graphics();
     this.add([this._body, this._hpBar]);
     scene.add.existing(this);
-    this.setDepth(15); // above the static road/build-pad layer (depth 10)
+    // Y-sorted inside the unit band so a lower unit draws in front.
+    this.setDepth(unitDepth(this.y));
     this.def.draw(this._body);
     this._sprite = new EntitySprite(this, scene, {
       category: 'hero', type: heroId, initialState: 'idle',
@@ -225,6 +227,7 @@ export class Hero extends Phaser.GameObjects.Container {
   }
 
   update(dt, enemies) {
+    this.setDepth(unitDepth(this.y));
     for (const slot of ['q','w','e']) {
       if (this._timers[slot] > 0) this._timers[slot] = Math.max(0, this._timers[slot] - dt);
     }

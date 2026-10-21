@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { TOWER_DEFS } from '../data/towers.js';
 import { EntitySprite } from '../systems/EntitySprite.js';
+import { unitDepth } from '../systems/grounding.js';
 import { setBaseFireRate } from '../systems/fireRateMods.js';
 
 export class Tower extends Phaser.GameObjects.Container {
@@ -28,7 +29,8 @@ export class Tower extends Phaser.GameObjects.Container {
 
     this.add([this._bg, this._rangeRing, this._icon]);
     scene.add.existing(this);
-    this.setDepth(12); // above the static road/build-pad layer (depth 10)
+    // Y-sorted inside the unit band so a lower unit draws in front.
+    this.setDepth(unitDepth(this.y));
     this._rangeRing.setVisible(false);
     this._redraw();
     this._sprite = new EntitySprite(this, scene, {

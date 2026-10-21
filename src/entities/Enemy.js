@@ -4,6 +4,7 @@ import { armourAbsorption } from '../systems/armourLegibility.js';
 import { SFX_KEYS } from '../systems/AudioManager.js';
 import { enemyHitSfxKey } from '../systems/sfxKeys.js';
 import { EntitySprite } from '../systems/EntitySprite.js';
+import { unitDepth } from '../systems/grounding.js';
 import { hpBarFillWidth, hpBarGeometry } from '../systems/hpBar.js';
 
 // Long enough to read at 1x, short enough not to smear at 2x (update() is fed
@@ -38,13 +39,14 @@ export class Enemy extends Phaser.GameObjects.Container {
     this._hpBar   = scene.add.graphics();
     this.add([this._body, this._flash, this._overlay, this._hpBar]);
     scene.add.existing(this);
-    this.setDepth(14); // above the static road/build-pad layer (depth 10)
+    // Y-sorted inside the unit band so a lower unit draws in front.
+    this.setDepth(unitDepth(this.y));
     this._redrawBody();
     this._redrawStatusOverlay();
     this._redrawHpBar();
 
     this._sprite = new EntitySprite(this, scene, {
-      category: 'enemy', type: def.type, initialState: 'move',
+      category: 'enemy', type: def.type, initialState: 'move', flying: !!def.flying,
     });
     if (this._sprite.active) this._body.setVisible(false);
   }
@@ -72,6 +74,7 @@ export class Enemy extends Phaser.GameObjects.Container {
   }
 
   update(dt) {
+    this.setDepth(unitDepth(this.y));
     if (this.hitFlash.active) {
       this.hitFlash.timer -= dt;
       if (this.hitFlash.timer <= 0) this.hitFlash = { active: false, timer: 0 };

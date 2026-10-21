@@ -5,16 +5,36 @@
 // passed-in `scene`, so it is unit-testable with a plain scene stub.
 import { getSpriteConfig } from '../data/sprites.js';
 import { spriteTextureKey, registeredStates } from './spriteKeys.js';
+import { shadowSpec } from './grounding.js';
 
 const LOOPING = new Set(['idle', 'move']);
+const SHADOW_KEY = 'fx-contact-shadow';
+
+// One soft radial blob shared by every shadow; stretched per entity. Drawn in
+// code so grounding needs no art.
+function ensureShadowTexture(scene) {
+  if (scene.textures.exists(SHADOW_KEY)) return;
+  const size = 64;
+  const tex = scene.textures.createCanvas(SHADOW_KEY, size, size);
+  const ctx = tex.getContext();
+  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  // Flat core, short falloff: reads as a contact shadow, not a glow.
+  g.addColorStop(0, 'rgba(0,0,0,1)');
+  g.addColorStop(0.6, 'rgba(0,0,0,0.9)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  tex.refresh();
+}
 
 export class EntitySprite {
-  constructor(container, scene, { category, type, initialState = 'idle' }) {
+  constructor(container, scene, { category, type, initialState = 'idle', flying = false }) {
     this.scene    = scene;
     this.category = category;
     this.type     = type;
     this.active   = false;
     this.sprite   = null;
+    this.shadow   = null;
     this._busy    = false; // true while a one-shot (attack/death) anim is playing
     this._flashed = false;
 
@@ -32,6 +52,17 @@ export class EntitySprite {
     this.sprite.setOrigin(anchor.x, anchor.y);
     if (config.scale != null) this.sprite.setScale(config.scale);
     container.addAt(this.sprite, 0); // below the entity's overlay/HP-bar graphics
+
+    // Shadow is not flipped or animated with the sprite: the light is fixed.
+    const shadow = shadowSpec(config.ground, { flying });
+    if (shadow) {
+      ensureShadowTexture(scene);
+      this.shadow = scene.add.image(0, 0, SHADOW_KEY)
+        .setPosition(shadow.x, shadow.y)
+        .setDisplaySize(shadow.width, shadow.height)
+        .setAlpha(shadow.alpha);
+      container.addAt(this.shadow, 0); // under the sprite
+    }
 
     for (const st of states) {
       const def = config.states[st];
@@ -112,6 +143,7 @@ export class EntitySprite {
 
   destroy() {
     if (this.sprite) { this.sprite.destroy(); this.sprite = null; }
+    if (this.shadow) { this.shadow.destroy(); this.shadow = null; }
     this.active = false;
   }
 }
