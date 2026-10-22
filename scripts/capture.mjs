@@ -5,7 +5,7 @@
 //
 //   npm run capture -- [--maps 0,3,5,9] [--wave N] [--seconds 6]
 //                      [--build "archer@0:3,mage@4:4b"] [--hero rael]
-//                      [--devices desktop,iphone,pixel,ipad] [--video [secs]]
+//                      [--devices desktop,desktop1440,desktop1080,iphone,pixel,ipad] [--video [secs]]
 //                      [--no-build] [--screens]
 //
 // --screens shoots the non-gameplay screens instead (first-run story, map
