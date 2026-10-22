@@ -4,6 +4,7 @@ import { MAPS } from '../data/maps.js';
 import { renderPath } from '../systems/PathRenderer.js';
 import { renderPlatforms } from '../systems/PlatformRenderer.js';
 import { serializeMapArrays, slotInPathCorridor } from '../systems/mapEditorUtils.js';
+import { WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH } from '../data/layout.js';
 
 /**
  * Dev-only overlay editor. Activated by BootScene when the URL has
@@ -22,14 +23,16 @@ export default class MapEditorScene extends Phaser.Scene {
   }
 
   create() {
-    const { width, height } = this.scale;
-    this.W = width; this.H = height;
+    // Same world viewport as GameScene, so pointer.worldX/Y and the
+    // normalized coords the editor exports are world coordinates.
+    this.W = WORLD_WIDTH; this.H = WORLD_HEIGHT;
     const map = MAPS[this.mapId];
 
+    this.cameras.main.setViewport(RAIL_WIDTH, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.cameras.main.setBackgroundColor(map.background);
     const bgKey = `bg_map_${map.id}`;
     if (this.textures.exists(bgKey)) {
-      this.add.image(width / 2, height / 2, bgKey).setDisplaySize(width, height).setDepth(0);
+      this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, bgKey).setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT).setDepth(0);
     }
 
     this.layer = this.add.graphics().setDepth(10);   // curve + platforms + corridor
@@ -46,20 +49,7 @@ export default class MapEditorScene extends Phaser.Scene {
     this.drag = null; // { kind: 'wp'|'slot', index }
     this.input.mouse?.disableContextMenu();
 
-    this.input.on('pointerdown', (pointer) => {
-      const { worldX: x, worldY: y } = pointer;
-      const hit = this._hitTest(x, y);
-      if (pointer.rightButtonDown()) {
-        if (hit?.kind === 'wp' && this.waypoints.length > 2) {
-          this.waypoints.splice(hit.index, 1);
-          this._render();
-        }
-        return;
-      }
-      if (hit) { this.drag = hit; return; }
-      // Click on empty space near the path inserts a waypoint there.
-      this._insertWaypointAt(x, y);
-    });
+    this.input.on('pointerdown', this._onPointerDown, this);
 
     this.input.on('pointermove', (pointer) => {
       if (!this.drag) return;
@@ -73,6 +63,23 @@ export default class MapEditorScene extends Phaser.Scene {
     this.input.on('pointerup', () => { this.drag = null; });
 
     this.input.keyboard?.on('keydown-E', () => this._export());
+  }
+
+  _onPointerDown(pointer) {
+    // Over a HUD rail Phaser fires with no camera and a stale worldX/Y.
+    if (!pointer.camera) return;
+    const { worldX: x, worldY: y } = pointer;
+    const hit = this._hitTest(x, y);
+    if (pointer.rightButtonDown()) {
+      if (hit?.kind === 'wp' && this.waypoints.length > 2) {
+        this.waypoints.splice(hit.index, 1);
+        this._render();
+      }
+      return;
+    }
+    if (hit) { this.drag = hit; return; }
+    // Click on empty space near the path inserts a waypoint there.
+    this._insertWaypointAt(x, y);
   }
 
   // Normalized [x,y] -> pixel {x,y}.

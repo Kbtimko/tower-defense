@@ -5,6 +5,8 @@
 // The ellipse is CENTRED on the contact point: a shadow whose bottom edge sat
 // at the feet was almost entirely hidden behind the unit's own body (first
 // capture of 1.2), so half of it now extends below the art.
+import { WORLD_HEIGHT } from './layout.js';
+
 export const SHADOW = {
   widthRatio:  1.0,   // ellipse width / silhouette width
   heightRatio: 0.35,  // ellipse height / ellipse width (the ~60° camera squash)
@@ -23,4 +25,4 @@ export const FLYER_SHADOW = {
 // Units (towers, soldiers, sentries, enemies, hero) are y-sorted inside this
 // band: above the static road/pad layer (10) and below projectiles (16), so a
 // unit lower on screen draws in front of one behind it.
-export const UNIT_DEPTH = { min: 11, max: 15.9, worldHeight: 720 };
+export const UNIT_DEPTH = { min: 11, max: 15.9, worldHeight: WORLD_HEIGHT };

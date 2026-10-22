@@ -7,7 +7,7 @@ import { SPRITE_MANIFEST } from '../data/sprites.js';
 import { spriteTextureKey } from '../systems/spriteKeys.js';
 import { STORY_SPEAKERS } from '../data/story.js';
 import { portraitPath, registerPortraits } from '../systems/portraitFallback.js';
-import { backgroundUrl, pickBackgroundVariant } from '../systems/backgroundAsset.js';
+import { backgroundUrl, pickBackgroundVariant, mapCssWidth } from '../systems/backgroundAsset.js';
 import { attachLoadingBar } from '../ui/loadingBar.js';
 import { resolveMapGrade } from '../systems/mapGrade.js';
 import { parseDebugParams } from '../systems/debugCapture.js';
@@ -49,7 +49,7 @@ export default class BootScene extends Phaser.Scene {
     // Missing files log a 404 but don't crash — GameScene falls back to the
     // solid map.background color.
     const bgVariant = pickBackgroundVariant({
-      canvasCssWidth: this.game.canvas?.getBoundingClientRect().width,
+      mapCssWidth: mapCssWidth(this.game.canvas?.getBoundingClientRect().width),
       dpr: window.devicePixelRatio,
     });
     for (const m of MAPS) {

@@ -17,6 +17,7 @@ vi.mock('../entities/Projectile.js', () => ({
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import GameScene from './GameScene.js';
+import { RAIL_WIDTH } from '../data/layout.js';
 
 function setupDOM() {
   document.body.replaceChildren();
@@ -337,6 +338,24 @@ describe('openPanel honours clearBuild', () => {
     s._selectTowerType('archer', btn('archer'));
     s._runTapAction({ type: 'openPanel', tower: {} }, 0, 0, {});
     expect(s.selectedType).toBe('archer');
+  });
+});
+
+describe('_openPanelFromTap', () => {
+  beforeEach(setupDOM);
+
+  it('anchors the panel at the tapped world point, rail offset and FIT scale applied', () => {
+    const s = makeScene({
+      _openTowerPanel: vi.fn(),
+      scale: { canvasBounds: { x: 30, y: 8 }, displayScale: { x: 2, y: 2 } },
+    });
+    const game = Object.assign(document.createElement('div'), { id: 'game' });
+    game.getBoundingClientRect = () => ({ left: 20, top: 8, width: 900, height: 400 });
+    document.body.appendChild(game);
+    const tower = {};
+    s._openPanelFromTap(tower, 100, 50);
+    // page x = 30 + (100 + RAIL_WIDTH) / 2, then made relative to #game.
+    expect(s._openTowerPanel).toHaveBeenCalledWith(tower, 30 + (100 + RAIL_WIDTH) / 2 - 20, 8 + 25 - 8);
   });
 });
 

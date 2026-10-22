@@ -58,13 +58,13 @@ function el(tag, attrs, parent) {
 
 function setupFullDOM() {
   document.body.replaceChildren();
-  el('div', { id: 'hud', display: 'flex' });
+  el('div', { id: 'hud-layer', display: 'block' });
   el('div', { id: 'tower-panel', display: 'block' });
   const gameMsg = el('div', { id: 'game-msg', display: 'block' });
   el('button', { id: 'msg-btn' }, gameMsg);
   el('button', { id: 'msg-cancel-btn' }, gameMsg);
   el('div', { id: 'paused-overlay', className: 'shown' });
-  const bar = el('div', { id: 'bottom-bar', display: 'flex' });
+  const bar = el('div', { id: 'rail-right' });
   el('button', { className: 'tower-btn' }, bar);
   el('button', { id: 'exit-btn' }, bar);
   const wrap = el('span', {}, bar);

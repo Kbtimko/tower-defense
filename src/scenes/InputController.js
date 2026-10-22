@@ -19,6 +19,15 @@ import { classifyGesture } from '../systems/inputGesture.js';
 //    inspect gesture: it resolves as a normal tap at release (a deliberate,
 //    unhurried placement must still work). Mouse gets no long-press: hover
 //    already peeks, and a slow click must stay a click.
+//
+// Phaser still fires canvas events over the side rails, outside every camera
+// viewport, but then leaves pointer.camera unset and worldX/Y stale from the
+// last in-map event — so a rail press is ignored and a rail release counts as
+// released off the canvas.
+function overMap(pointer) {
+  return !!pointer.camera;
+}
+
 export class InputController {
   constructor(scene) {
     this.scene = scene;
@@ -56,19 +65,23 @@ export class InputController {
     // Also covers a second finger landing while a long-press peek is held.
     this._hidePeek();
     this._clearLongPress();
+    if (!overMap(pointer)) { this._press = null; return; }
     this._setBuildCursor(pointer);
+    // x/y stay canvas px: they only feed the slop delta, measured in one space.
     this._press = {
       id: pointer.id, x: pointer.x, y: pointer.y,
       downMs: Date.now(), movedPx: 0, consumed: false, target: null,
     };
     if (!pointer.wasTouch) return;
-    this._press.target = this.scene.inspector?.inspectableAt(pointer.x, pointer.y) ?? null;
+    this._press.target = this.scene.inspector?.inspectableAt(pointer.worldX, pointer.worldY) ?? null;
     this._longPressTimer = setTimeout(this._onLongPress, LONG_PRESS_MS);
   }
 
   _onMove(pointer) {
-    this._setBuildCursor(pointer);
-    if (!pointer.wasTouch) this.scene.inspector?.onPointerMove(pointer.worldX, pointer.worldY);
+    if (overMap(pointer)) {
+      this._setBuildCursor(pointer);
+      if (!pointer.wasTouch) this.scene.inspector?.onPointerMove(pointer.worldX, pointer.worldY);
+    }
 
     const press = this._press;
     if (!press || press.id !== pointer.id) return;
@@ -80,12 +93,13 @@ export class InputController {
   }
 
   _onUp(pointer) {
+    if (!overMap(pointer)) { this._onUpOutside(pointer); return; }
     const press = this._takePress(pointer);
     if (!press) return;
     if (press.consumed) { this._startLinger(); return; }
     // Phaser reports a touchcancel as an ordinary up; the OS took that touch.
     if (pointer.event?.type === 'touchcancel') return;
-    this.scene._onTap(pointer.x, pointer.y);
+    this.scene._onTap(pointer.worldX, pointer.worldY);
   }
 
   // Released off the canvas: nothing resolves, but a peek still lingers.

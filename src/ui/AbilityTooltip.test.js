@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { LONG_PRESS_MS, PEEK_LINGER_MS, PANEL_EDGE_MARGIN } from '../data/input.js';
+import { LONG_PRESS_MS, PEEK_LINGER_MS, PANEL_EDGE_MARGIN, PEEK_GAP_PX } from '../data/input.js';
 import { AbilityTooltip } from './AbilityTooltip.js';
 import { describeAbility } from '../systems/entityDescriptors.js';
 import { HEROES } from '../data/heroes.js';
@@ -92,9 +92,10 @@ describe('AbilityTooltip', () => {
   });
 
   // I1: the card is display:none until shown, so it must be measured AFTER the
-  // shown class lands, and clamped into the viewport on every edge.
+  // shown class lands, and clamped into the viewport on every edge. The ability
+  // buttons live in the LEFT rail, so the card opens to their right, over the map.
   describe('positioning', () => {
-    const rect = (r) => { dom.anchor.getBoundingClientRect = () => ({ left: 0, top: 0, ...r }); };
+    const rect = (r) => { dom.anchor.getBoundingClientRect = () => ({ left: 40, top: 150, width: 45, height: 45, ...r }); };
     const stubSize = (w, h) => {
       // offsetWidth/Height read 0 unless the card is shown (mimics display:none).
       Object.defineProperty(dom.card, 'offsetHeight', { configurable: true, get: () => dom.card.classList.contains('shown') ? h : 0 });
@@ -107,28 +108,24 @@ describe('AbilityTooltip', () => {
     });
     const hover = () => dom.anchor.dispatchEvent(Object.assign(new Event('pointerenter'), { pointerType: 'mouse' }));
 
-    it('measures the shown card: sits above the anchor by its real height', () => {
-      rect({ left: 300, top: 350 });
+    it('opens to the right of the anchor, vertically centred on it by its real height', () => {
+      rect({});
       hover();
-      expect(dom.card.style.top).toBe(`${350 - 120 - 10}px`);
+      expect(dom.card.style.left).toBe(`${40 + 45 + PEEK_GAP_PX}px`);
+      expect(dom.card.style.top).toBe(`${150 + (45 - 120) / 2}px`);
     });
     it('clamps the bottom edge (anchor low, card cannot go below)', () => {
-      rect({ left: 300, top: 5000 });
+      rect({ top: 5000 });
       hover();
       expect(dom.card.style.top).toBe(`${400 - 120 - PANEL_EDGE_MARGIN}px`);
     });
     it('clamps the top edge', () => {
-      rect({ left: 300, top: 20 });
+      rect({ top: 0 });
       hover();
       expect(dom.card.style.top).toBe(`${PANEL_EDGE_MARGIN}px`);
     });
-    it('clamps the left edge', () => {
-      rect({ left: -50, top: 300 });
-      hover();
-      expect(dom.card.style.left).toBe(`${PANEL_EDGE_MARGIN}px`);
-    });
     it('clamps the right edge', () => {
-      rect({ left: 790, top: 300 });
+      rect({ left: 790 });
       hover();
       expect(dom.card.style.left).toBe(`${800 - 200 - PANEL_EDGE_MARGIN}px`);
     });

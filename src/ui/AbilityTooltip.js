@@ -1,6 +1,8 @@
 import { attachLongPress } from './longPress.js';
-import { PEEK_LINGER_MS, PANEL_EDGE_MARGIN } from '../data/input.js';
+import { PEEK_LINGER_MS, PANEL_EDGE_MARGIN, PEEK_GAP_PX } from '../data/input.js';
 import { isKeyboardFocus } from './keyboardFocus.js';
+import { placeRightOf } from '../systems/viewport.js';
+import { railAnchorRect } from './hudLayer.js';
 
 // One shared hover card, reused by every ability anchor on the page.
 //
@@ -99,16 +101,19 @@ export class AbilityTooltip {
     this._position(anchor);
   }
 
-  // Positioned above the anchor, clamped on all four edges into the viewport.
-  // Must run on the shown element so its size is real.
+  // The abilities sit in the left HUD rail, so the card opens to their right,
+  // over the map, clamped into the viewport. Must run on the shown element so
+  // its size is real.
   _position(anchor) {
-    const r  = anchor.getBoundingClientRect();
-    const w  = this._el.offsetWidth;
-    const h  = this._el.offsetHeight;
-    const m  = PANEL_EDGE_MARGIN;
-    const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, Math.max(lo, hi)));
-    this._el.style.left = `${clamp(r.left, m, window.innerWidth - w - m)}px`;
-    this._el.style.top  = `${clamp(r.top - h - 10, m, window.innerHeight - h - m)}px`;
+    const { left, top } = placeRightOf({
+      anchor: railAnchorRect(anchor),
+      size: { width: this._el.offsetWidth, height: this._el.offsetHeight },
+      area: { width: window.innerWidth, height: window.innerHeight },
+      gap: PEEK_GAP_PX,
+      margin: PANEL_EDGE_MARGIN,
+    });
+    this._el.style.left = `${left}px`;
+    this._el.style.top  = `${top}px`;
   }
 
   hide() {

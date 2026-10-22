@@ -13,6 +13,15 @@
 import { formatCounters } from './matchupText.js';
 import { attachLongPress } from './longPress.js';
 import { isKeyboardFocus } from './keyboardFocus.js';
+import { clampCentredTop } from '../systems/viewport.js';
+import { PANEL_EDGE_MARGIN } from '../data/input.js';
+
+// Layout offsets ignore CSS transforms, so this is in the HUD layer's game px.
+function offsetTopWithin(el, ancestor) {
+  let y = 0;
+  for (let n = el; n && n !== ancestor; n = n.offsetParent) y += n.offsetTop;
+  return y;
+}
 
 export class WavePreviewPopover {
   constructor() {
@@ -56,6 +65,7 @@ export class WavePreviewPopover {
     if (!this._el) return;
     if (!summary) { this.hide(); this._el.replaceChildren(); return; }
     this._render(summary);
+    if (this._el.classList.contains('shown')) this._positionVertically();
   }
 
   _render(summary) {
@@ -106,6 +116,22 @@ export class WavePreviewPopover {
     if (!this._el || !this._summary) return;
     this._el.classList.add('shown');
     this._el.setAttribute('aria-hidden', 'false');
+    this._positionVertically();
+  }
+
+  // CSS opens the popover left of Send Wave; only its height is unknown until
+  // it is shown, so the vertical centring and clamp into the layer happen here.
+  _positionVertically() {
+    const layer = this._wrap?.closest('#hud-layer');
+    if (!layer) return;
+    const wrapTop = offsetTopWithin(this._wrap, layer);
+    const top = clampCentredTop({
+      anchor: { top: wrapTop, height: this._wrap.offsetHeight },
+      height: this._el.offsetHeight,
+      areaHeight: layer.offsetHeight,
+      margin: PANEL_EDGE_MARGIN,
+    });
+    this._el.style.top = `${top - wrapTop}px`;
   }
 
   hide() {

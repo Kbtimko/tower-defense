@@ -3,6 +3,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 vi.mock('../entities/Hero.js', () => ({}));
 
 import { InspectController } from './InspectController.js';
+import { RAIL_WIDTH, CANVAS_WIDTH, WORLD_WIDTH, WORLD_HEIGHT } from '../data/layout.js';
+import { PANEL_EDGE_MARGIN } from '../data/input.js';
 
 // Build the inspector DOM scaffolding (createElement/appendChild — no innerHTML).
 function setupDom() {
@@ -492,7 +494,8 @@ describe('InspectController — panel positioning', () => {
     const ctrl = new InspectController(makeScene());
     ctrl.pin({ kind: 'enemy', target: enemy });
     const panel = document.getElementById('enemy-inspector');
-    expect(panel.style.left).toBe('224px');
+    // World x sits RAIL_WIDTH into the canvas; anchor adds +24.
+    expect(panel.style.left).toBe(`${200 + RAIL_WIDTH + 24}px`);
   });
 
   it('pin converts target game coords through the scale transform', () => {
@@ -502,9 +505,76 @@ describe('InspectController — panel positioning', () => {
     const ctrl = new InspectController(scene);
     ctrl.pin({ kind: 'enemy', target: enemy });
     const panel = document.getElementById('enemy-inspector');
-    // displayScale 2 = 2 game px per CSS px: game (200,300) -> page (100,150);
-    // anchor adds +24 to left
-    expect(panel.style.left).toBe('124px');
+    // displayScale 2 = 2 canvas px per CSS px: world x 200 is canvas x
+    // 200 + RAIL_WIDTH, so page x (200 + RAIL_WIDTH) / 2; anchor adds +24.
+    expect(panel.style.left).toBe(`${(200 + RAIL_WIDTH) / 2 + 24}px`);
+  });
+
+  it('peek converts the target world coords through the rail offset and scale', () => {
+    const enemy = makeEnemy({ x: 200, y: 300 });
+    const scene = { enemies: [enemy], hero: null,
+      scale: { canvasBounds: { x: 10, y: 0 }, displayScale: { x: 2, y: 2 } } };
+    const ctrl = new InspectController(scene);
+    ctrl.onPointerMove(200, 300);
+    const peek = document.getElementById('inspect-peek');
+    expect(peek.style.display).toBe('block');
+    expect(peek.style.left).toBe(`${10 + (200 + RAIL_WIDTH) / 2 + 24}px`);
+  });
+});
+
+// Inspector cards are body-level and z40, so a card over a rail eats the tap.
+// phone844: canvas 844x372 at y 8, rails 91 CSS px each; the page is offset by
+// a 10px #game left so the clamp must work in PAGE (not #game-local) coords.
+describe('InspectController — clamp to the map', () => {
+  const GAME_LEFT = 10;
+  const scale = 844 / CANVAS_WIDTH;
+  const map = {
+    left: GAME_LEFT + RAIL_WIDTH * scale, top: 8,
+    width: WORLD_WIDTH * scale, height: WORLD_HEIGHT * scale,
+  };
+  const size = (el, w, h) => {
+    Object.defineProperty(el, 'offsetWidth', { configurable: true, get: () => w });
+    Object.defineProperty(el, 'offsetHeight', { configurable: true, get: () => h });
+  };
+  beforeEach(() => {
+    setupDom();
+    const game = document.createElement('div');
+    game.id = 'game';
+    const canvas = document.createElement('canvas');
+    game.appendChild(canvas);
+    document.body.appendChild(game);
+    game.getBoundingClientRect = () => ({ left: GAME_LEFT, top: 0, width: 844, height: 390 });
+    canvas.getBoundingClientRect = () => ({ left: GAME_LEFT, top: 8, width: 844, height: 372 });
+  });
+
+  it('keeps a pinned card left of the right rail and above the bottom edge', () => {
+    const ctrl = new InspectController(makeScene());
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    size(el, 200, 150);
+    ctrl._positionPanel(el, map.left + map.width - 20, map.top + map.height - 5);
+    expect(parseFloat(el.style.left) + 200).toBeLessThanOrEqual(map.left + map.width - PANEL_EDGE_MARGIN);
+    expect(parseFloat(el.style.top)).toBeCloseTo(map.top + map.height - 150 - PANEL_EDGE_MARGIN, 6);
+  });
+
+  it('never sits left of the map (left rail) or above it', () => {
+    const ctrl = new InspectController(makeScene());
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    size(el, 200, 150);
+    ctrl._positionPanel(el, 0, 0);
+    expect(parseFloat(el.style.left)).toBeCloseTo(map.left + PANEL_EDGE_MARGIN, 6);
+    expect(parseFloat(el.style.top)).toBeCloseTo(map.top + PANEL_EDGE_MARGIN, 6);
+  });
+
+  it('the peek is clamped the same way', () => {
+    const peek = document.getElementById('inspect-peek');
+    size(peek, 180, 60);
+    const enemy = makeEnemy({ x: WORLD_WIDTH - 5, y: 100 });
+    const scene = { enemies: [enemy], hero: null,
+      scale: { canvasBounds: { x: GAME_LEFT, y: 8 }, displayScale: { x: 1 / scale, y: 1 / scale } } };
+    new InspectController(scene).onPointerMove(WORLD_WIDTH - 5, 100);
+    expect(parseFloat(peek.style.left) + 180).toBeLessThanOrEqual(map.left + map.width - PANEL_EDGE_MARGIN);
   });
 });
 

@@ -2,13 +2,14 @@
 // The harness gathers the metrics in a real browser; this decides what is wrong,
 // so the rules are unit-testable without one.
 
+import { CANVAS_WIDTH, WORLD_HEIGHT, HUD_CELL, MIN_TOUCH_PX, MIN_TOUCH_PX_SMALL_PHONE } from '../data/layout.js';
+
 const EDGE_TOLERANCE_PX = 1;
+// DPR rounding can shave a fraction off a nominally-44px control.
+const TOUCH_SUBPIXEL_SLACK_PX = 0.5;
 const ZOOM_TOLERANCE = 0.01;
 // A control mostly inside its overflow-hidden ancestor is still tappable; below this it is not.
 const MIN_VISIBLE_FRACTION = 0.9;
-// The bar is align-items:center, so controls of different heights share a vertical centre, not a top;
-// a wrapped row's centre is a whole button-height away.
-const SAME_ROW_TOLERANCE_PX = 2;
 
 const area = r => (r ? Math.max(0, r.width) * Math.max(0, r.height) : 0);
 const fmt = r => `[${[r.left, r.top, r.right, r.bottom].map(n => Math.round(n)).join(',')}]`;
@@ -33,12 +34,46 @@ function targetProblems(t, innerWidth, innerHeight) {
   return problems;
 }
 
-// m.barRects: rects of the visible tower buttons, exit and wave buttons. On a phone the
-// bar must stay ONE row (the flex-wrap in the compact block is a safety net, not a layout).
-function barWrapProblems(barRects) {
-  if (!barRects?.length) return [];
-  const centres = barRects.map(r => (r.top + r.bottom) / 2);
-  return Math.max(...centres) - Math.min(...centres) > SAME_ROW_TOLERANCE_PX ? ['bottom bar wraps'] : [];
+// The HUD is scaled with the canvas (FIT), so a phone's touch size is HUD_CELL x that scale.
+// Below 44 only when the geometry physically cannot reach it (iphone 750x340).
+export function minTouchFor({ vw, vh }) {
+  const scale = Math.min(vw / CANVAS_WIDTH, vh / WORLD_HEIGHT);
+  return scale * HUD_CELL < MIN_TOUCH_PX ? MIN_TOUCH_PX_SMALL_PHONE : MIN_TOUCH_PX;
+}
+
+const insideRect = (r, rail) => r.left >= rail.left - EDGE_TOLERANCE_PX && r.right <= rail.right + EDGE_TOLERANCE_PX
+  && r.top >= rail.top - EDGE_TOLERANCE_PX && r.bottom <= rail.bottom + EDGE_TOLERANCE_PX;
+
+// A touch target must be at least minTouchPx in both dimensions. Absent/hidden targets are
+// layoutProblems' job (missing/hidden), so they are skipped here. Shared by the rail audit
+// (floor scales with the canvas) and the DOM-overlay audit (CSS px, floor always MIN_TOUCH_PX).
+export function targetSizeProblems(targets, minTouchPx) {
+  const problems = [];
+  for (const t of targets) {
+    if (!t.rect || !t.visible) continue;
+    if (t.rect.width < minTouchPx - TOUCH_SUBPIXEL_SLACK_PX || t.rect.height < minTouchPx - TOUCH_SUBPIXEL_SLACK_PX) {
+      problems.push(`${t.name} too small ${Math.round(t.rect.width)}x${Math.round(t.rect.height)}`);
+    }
+  }
+  return problems;
+}
+
+// Every HUD control must live fully inside one rail; on touch devices it must also be tappable.
+export function railProblems({ device, rails, targets, minTouchPx }) {
+  if (!rails?.left || !rails?.right) return ['rails missing'];
+  const problems = [];
+  for (const t of targets) {
+    if (!t.rect || !t.visible) continue;
+    if (!insideRect(t.rect, rails.left) && !insideRect(t.rect, rails.right)) problems.push(`${t.name} outside rails`);
+  }
+  if (device.hasTouch) problems.push(...targetSizeProblems(targets, minTouchPx));
+  return problems;
+}
+
+// DOM overlays live in CSS px outside the scaled canvas, so geometry never excuses a small
+// control: the floor is always MIN_TOUCH_PX. Mouse devices have no size rule.
+export function overlayProblems({ device, targets }) {
+  return device.hasTouch ? targetSizeProblems(targets, MIN_TOUCH_PX) : [];
 }
 
 export function layoutProblems(m) {
@@ -49,6 +84,5 @@ export function layoutProblems(m) {
   }
   if (m.scrollWidth > m.innerWidth) problems.push(`page overflows: scrollWidth ${m.scrollWidth} > innerWidth ${m.innerWidth}`);
   for (const t of m.targets) problems.push(...targetProblems(t, m.innerWidth, m.innerHeight));
-  problems.push(...barWrapProblems(m.barRects));
   return problems;
 }

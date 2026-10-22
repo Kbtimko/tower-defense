@@ -1,6 +1,7 @@
 import { COIN_FLY, GOLD_POP } from '../data/juice.js';
 import { arcPoint } from './juiceMath.js';
-import { pageToGame } from './viewport.js';
+import { pageToWorld } from './viewport.js';
+import { WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH } from '../data/layout.js';
 import { pulseClass } from '../ui/pulse.js';
 
 const PULSE_CLASS = 'gold-gain-pulse';
@@ -54,20 +55,23 @@ export class CoinFx {
     pulseClass(this._hudEl(), PULSE_CLASS);
   }
 
-  // HUD counter centre in game px, clamped onto the canvas: the counter sits
-  // above and beside the letterboxed play area, so coins fly to just inside the
-  // nearest edge and exit past the top rather than piling into a corner.
+  // HUD counter centre in world px, clamped onto the canvas (world x runs
+  // -RAIL_WIDTH..WORLD_WIDTH + RAIL_WIDTH across it): a counter above the
+  // canvas makes coins exit past the top rather than pile into a corner. The
+  // main camera only draws the map viewport, so a coin bound for a rail is
+  // clipped at the map edge — it reads as flying off toward the counter.
   _resolveTarget() {
     const to = this._to;
     if (this._targetFresh) return to;
     this._targetFresh = true;
     const el = this._hudEl();
-    const { width, height } = this._scene.scale;
-    if (!el) { to.x = width / 2; to.y = COIN_FLY.exitY; return to; }
+    if (!el) { to.x = WORLD_WIDTH / 2; to.y = COIN_FLY.exitY; return to; }
     const r = el.getBoundingClientRect();
-    const g = pageToGame(this._scene.scale, r.left + r.width / 2, r.top + r.height / 2);
-    to.x = Math.min(width - COIN_FLY.edgeInset, Math.max(COIN_FLY.edgeInset, g.x));
-    to.y = g.y < 0 ? COIN_FLY.exitY : Math.min(height, g.y);
+    const w = pageToWorld(this._scene.scale, r.left + r.width / 2, r.top + r.height / 2);
+    const minX = -RAIL_WIDTH + COIN_FLY.edgeInset;
+    const maxX = WORLD_WIDTH + RAIL_WIDTH - COIN_FLY.edgeInset;
+    to.x = Math.min(maxX, Math.max(minX, w.x));
+    to.y = w.y < 0 ? COIN_FLY.exitY : Math.min(WORLD_HEIGHT, w.y);
     return to;
   }
 

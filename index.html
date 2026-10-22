@@ -10,73 +10,105 @@
     /* Coarse pointers only: on desktop this would disable trackpad swipe-back. */
     @media (pointer: coarse) { html, body { overscroll-behavior: none; } }
     body { background: #1a1a2e; font-family: 'Georgia', serif; color: #e8e0d0;
-           overflow: hidden; display: flex; flex-direction: column; height: 100vh; height: 100dvh;
+           overflow: hidden; height: 100vh; height: 100dvh;
            touch-action: manipulation; -webkit-tap-highlight-color: transparent;
            padding: env(safe-area-inset-top) env(safe-area-inset-right)
                     env(safe-area-inset-bottom) env(safe-area-inset-left); }
-    #hud { display: none; align-items: center; gap: 14px; padding: 7px 14px;
-           background: #0f0f1e; border-bottom: 2px solid #8b6914; flex-shrink: 0; }
-    .hud-stat { display: flex; align-items: center; gap: 5px; font-size: 13px; }
-    .hud-val { font-weight: bold; color: #ffd700; font-size: 15px; }
-    .hud-lbl { color: #aaa; font-size: 11px; }
-    /* Speed and Pause used to carry byte-identical styling and sat flush against
-       the stat cluster, so the control you reach for in a hurry looked exactly
-       like the one beside it. They are now separated from the stats (margin-left
-       on the first of them) and from each other: speed stays a quiet green
-       toggle, pause takes the HUD's gold accent and a larger hit area, because
+    /* ── Side-rail HUD (roadmap 2.2) ─────────────────────────────────────────
+       #hud-layer is laid out in GAME px (the canvas is CANVAS_WIDTH x WORLD_HEIGHT,
+       sizes from src/data/layout.js via custom properties) and src/ui/hudLayer.js
+       scales it over the canvas with one transform, so every px below shrinks
+       with the FIT factor exactly like the map. Each rail is a 2-column grid of
+       full HUD_CELL squares: a cell is the touch target (88 game px = 44 CSS px
+       on a 360-px-tall phone), so the visual gap between buttons is a
+       transparent border INSIDE each button, never a grid gap that would shrink
+       the target. Text is >= 24 game px (11 CSS px at the 0.46 iPhone scale). */
+    /* Condensed faces so 24-px labels fit an 82-px button face: macOS/iOS ship
+       Avenir Next Condensed, Office installs Arial Narrow, Android maps
+       sans-serif-condensed to Roboto Condensed, Windows 10+ has Bahnschrift.
+       Anything wider is shrunk to fit by src/ui/fitLabels.js. */
+    #hud-layer { --hud-label-inset: 4px; /* label clearance from the 2px ring; fitLabels reads the real padding */
+                 --hud-label-font: "Avenir Next Condensed", "Arial Narrow", "Roboto Condensed",
+                   sans-serif-condensed, "Bahnschrift SemiCondensed", "Helvetica Neue", Arial, sans-serif;
+                 display: none; position: absolute; left: 0; top: 0; z-index: 6;
+                 width: var(--canvas-w); height: var(--world-h);
+                 transform-origin: 0 0; pointer-events: none; }
+    .hud-rail { position: absolute; top: 0; width: var(--rail-w); height: 100%;
+                pointer-events: auto; background: #0f0f1e;
+                display: flex; flex-direction: column; align-items: center; }
+    #rail-left { left: 0; justify-content: space-evenly; box-shadow: inset -3px 0 0 #8b6914; }
+    #rail-right { right: 0; justify-content: center; gap: 28px; box-shadow: inset 3px 0 0 #8b6914; }
+    .rail-grid { display: grid; grid-template-columns: repeat(2, var(--hud-cell));
+                 grid-auto-rows: var(--hud-cell); }
+    /* :where() keeps this at zero specificity so every control's own rule wins.
+       The face colour is background-color (a `background` shorthand would reset
+       background-clip and paint over the gutter); the ring is --edge. */
+    :where(.hud-rail) button { width: 100%; height: 100%; margin: 0; padding: 0 var(--hud-label-inset);
+      border: 3px solid transparent; background-clip: padding-box; border-radius: 12px;
+      box-shadow: inset 0 0 0 2px var(--edge, #444);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+      font-family: var(--hud-label-font); font-stretch: condensed;
+      font-size: 24px; line-height: 1.05; text-align: center;
+      color: #e8e0d0; background-color: #1a1a3a; cursor: pointer;
+      transition: background-color 0.12s, box-shadow 0.12s, color 0.12s; }
+    .hud-stat { display: flex; flex-direction: column; align-items: center; justify-content: center;
+                gap: 1px; line-height: 1.05; font-size: 24px; }
+    .hud-val { font-weight: bold; color: #ffd700; font-size: 28px; }
+    .hud-lbl { color: #aaa; font-size: 24px; }
+    /* Speed is a quiet green toggle; pause takes the HUD's gold accent, because
        it is the one button a player needs to find without looking for it. */
-    #speed-btn { background: #1a2a1a; border: 1px solid #4a6a4a; color: #aaddaa;
-                 padding: 4px 9px; border-radius: 4px; cursor: pointer; font-size: 12px;
-                 margin-left: auto; transition: background 0.12s, border-color 0.12s; }
-    #speed-btn:hover { background: #243824; border-color: #6a8a6a; }
+    #speed-btn { --edge: #4a6a4a; background-color: #1a2a1a; color: #aaddaa; }
+    #speed-btn:hover { --edge: #6a8a6a; background-color: #243824; }
     /* Exit for build/aim/reposition modes (a finger has no Escape key). It lives
-       in the HUD, not over the field, so it can never sit on a pad or the path.
-       GameScene toggles [hidden]; while shown it takes over the auto margin that
-       separates the controls from the stats, so nothing else moves. */
-    #cancel-btn { background: #3a1212; border: 1px solid #c04040; color: #ffb0b0;
-                  padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px;
-                  font-weight: bold; margin-left: auto; }
-    #cancel-btn:hover { background: #4d1818; border-color: #f07a7a; }
+       in the rail, not over the field, so it can never sit on a pad or the path.
+       GameScene toggles [hidden]; its cell stays reserved so nothing moves. */
+    #cancel-btn { --edge: #c04040; background-color: #3a1212; color: #ffb0b0; font-weight: bold; }
+    #cancel-btn:hover { --edge: #f07a7a; background-color: #4d1818; }
     #cancel-btn[hidden] { display: none; }
-    #cancel-btn:not([hidden]) + #speed-btn { margin-left: 0; }
 
-    #pause-btn { background: #3a2c08; border: 1px solid #8b6914; color: #ffd700;
-                 padding: 6px 16px; border-radius: 4px; cursor: pointer;
-                 font-size: 13px; font-weight: bold; letter-spacing: 0.3px;
-                 transition: background 0.12s, border-color 0.12s, color 0.12s; }
-    #pause-btn:hover { background: #4d3a0b; border-color: #c39a1d; }
-    #pause-btn:focus-visible { outline: 2px solid #ffd700; outline-offset: 2px; }
+    #pause-btn { --edge: #8b6914; background-color: #3a2c08; color: #ffd700; font-weight: bold; }
+    #pause-btn:hover { --edge: #c39a1d; background-color: #4d3a0b; }
+    #pause-btn:focus-visible { outline: 2px solid #ffd700; outline-offset: -3px; }
     /* Paused is a state you can get stuck in, so the way back out is the
-       brightest thing in the bar rather than the same pill with new text. */
-    #pause-btn.paused { background: #ffd700; border-color: #ffd700; color: #241a00; }
-    #pause-btn.paused:hover { background: #ffe34d; border-color: #ffe34d; }
+       brightest thing in the rail rather than the same tile with new text. */
+    #pause-btn.paused { --edge: #ffd700; background-color: #ffd700; color: #241a00; }
+    #pause-btn.paused:hover { --edge: #ffe34d; background-color: #ffe34d; }
+    #open-codex { --edge: #4fc3f7; background-color: #1a2a3a; color: #4fc3f7; }
+    #open-codex:hover { background-color: #223344; }
 
     #pause-btn.disabled, #exit-btn.disabled {
-                 background: #2a2a2a; border-color: #444; color: #666;
+                 --edge: #444; background-color: #2a2a2a; color: #666;
                  cursor: not-allowed; pointer-events: none; }
-    #game { flex: 1; position: relative; min-height: 0; overflow: hidden;
-            display: flex; align-items: center; justify-content: center; }
+    /* #game is the whole safe-area box: the canvas FITs inside it and the HUD
+       rails are part of the canvas footprint. Block, not flex-centred: Phaser's
+       CENTER_BOTH already centres the canvas with margins, and a flex centre on
+       top of those pushed it off-centre by half the letterbox. */
+    #game { position: relative; width: 100%; height: 100%; overflow: hidden; }
     /* Canvas only: DOM overlays inside #game (story log, codex) must still scroll. */
     #game canvas { display: block; touch-action: none; }
     /* Danger red from the art bible. The frame glow is an overlay rather than an
        inset box-shadow on #game, because the canvas would paint over a shadow on
        the element's own background. */
-    #game::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+    /* z-index above #hud-layer so the frame still reads at the rails' outer edge. */
+    #game::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 7;
                    opacity: 0; box-shadow: inset 0 0 36px 6px #f07a7a; }
     #game.life-lost-frame::after { animation: life-lost-frame 450ms ease-out; }
     /* Wave banner + boss warning: top-centre of the play area (below the HUD bar,
        which sits outside #game). Never intercepts input. Animations end at opacity 0
        so no JS timer hides them; durations arrive as custom properties from juice.js. */
-    #wave-banner, #wave-banner-boss { position: absolute; left: 50%; z-index: 5;
+    /* Over the map, not #game: --map-* (CSS px, set by src/ui/hudLayer.js) skip
+       the rails and the letterbox; the fallbacks are the old #game anchoring. */
+    #wave-banner, #wave-banner-boss { position: absolute; z-index: 5;
+      left: calc(var(--map-left, 0px) + var(--map-width, 100%) / 2);
       transform: translateX(-50%); opacity: 0; pointer-events: none; white-space: nowrap;
       text-shadow: 0 2px 4px #000; }
-    #wave-banner { top: 10px; font-size: 20px; font-weight: bold; color: #fff;
+    #wave-banner { top: calc(var(--map-top, 0px) + 10px); font-size: 20px; font-weight: bold; color: #fff;
       background: rgba(0,0,0,0.45); padding: 4px 16px; border-radius: 4px; }
-    #wave-banner-boss { top: 48px; font-size: 15px; font-weight: bold; color: var(--boss-warning-color, #ff4d4d);
+    #wave-banner-boss { top: calc(var(--map-top, 0px) + 48px); font-size: 15px; font-weight: bold; color: var(--boss-warning-color, #ff4d4d);
       background: rgba(0,0,0,0.55); padding: 3px 12px; border-radius: 4px; }
     #wave-banner.show { animation: wave-banner var(--wave-banner-ms, 1800ms) ease-out forwards; }
     #wave-banner-boss.show { animation: wave-banner var(--boss-warning-ms, 2400ms) ease-out forwards; }
-    #boss-frame { position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0;
+    #boss-frame { position: absolute; inset: 0; z-index: 7; pointer-events: none; opacity: 0;
       box-shadow: inset 0 0 48px 8px var(--boss-warning-color, #ff4d4d); }
     #boss-frame.show { animation: boss-frame var(--boss-warning-ms, 2400ms) ease-in-out forwards; }
     @keyframes wave-banner {
@@ -129,23 +161,16 @@
         100% { text-shadow: 0 0 0 transparent; }
       }
     }
-    /* No overflow on the bar: any non-visible overflow-x makes it a clipping scroll
-       container and would cut off the wave-preview popover that opens above it.
-       Zoom-out is prevented by the viewport meta; the compact block wraps instead. */
-    #bottom-bar { display: none; align-items: center; gap: 8px; padding: 8px 14px;
-                  background: #0f0f1e; border-top: 2px solid #8b6914; flex-shrink: 0; }
-    .tower-btn { background: #1a1a3a; border: 2px solid #444; border-radius: 6px;
-                 padding: 6px 10px; cursor: pointer; display: flex; flex-direction: column;
-                 align-items: center; gap: 2px; transition: all 0.15s; color: #e8e0d0; }
-    .tower-btn:hover { border-color: #ffd700; background: #252545; }
-    .tower-btn.selected { border-color: #ffd700; background: #2a2a1a; }
-    .tower-btn .t-icon { font-size: 20px; }
-    .tower-btn .t-cost { font-size: 11px; color: #ffd700; }
-    .tower-btn .t-name { font-size: 10px; color: #aaa; }
+    .tower-btn { --edge: #444; background-color: #1a1a3a; color: #e8e0d0; gap: 0; }
+    .tower-btn:hover { --edge: #ffd700; background-color: #252545; }
+    .tower-btn.selected { --edge: #ffd700; background-color: #2a2a1a; }
+    .tower-btn .t-icon { font-size: 30px; }
+    .tower-btn .t-cost { font-size: 24px; color: #ffd700; }
+    .tower-btn .t-name { font-size: 24px; color: #aaa; }
     #tower-tooltip { position: absolute; display: none; z-index: 50;
                      background: #0f0f1e; border: 1px solid #8b6914; border-radius: 5px;
                      padding: 6px 8px; font-size: 11px; color: #ddd;
-                     pointer-events: none; white-space: nowrap; max-width: 220px; }
+                     pointer-events: none; max-width: 220px; }
     #tower-tooltip strong { display: block; margin-bottom: 3px; color: #ffd700; }
     #tower-tooltip .tt-line-good { display: block; color: #6f6; }
     #tower-tooltip .tt-line-bad  { display: block; color: #f88; }
@@ -160,15 +185,16 @@
     .branch-card .branch-armour { color: #aaa; font-size: 10px; margin-bottom: 3px; }
     .branch-card .branch-armour .ar-heavy { color: #fc6; }
     .branch-card .branch-armour .ar-floor { color: #f66; font-weight: bold; }
-    #wave-btn { background: #8b1a1a; border: 2px solid #cc3333;
-                color: #fff; padding: 8px 16px; border-radius: 6px; cursor: pointer;
-                font-size: 13px; font-weight: bold; }
-    #wave-btn:hover { background: #aa2222; }
-    #wave-btn:disabled { background: #333; border-color: #555; color: #666; cursor: not-allowed; }
-    #exit-btn { margin-left: auto; background: #2a1a1a; border: 1px solid #6a4a4a;
-                color: #ddaaaa; padding: 8px 14px; border-radius: 6px; cursor: pointer;
-                font-size: 13px; }
-    #exit-btn:hover { background: #3a2222; border-color: #8a5a5a; }
+    #wave-btn { --edge: #cc3333; background-color: #8b1a1a; color: #fff;
+                font-size: 26px; font-weight: bold; }
+    #wave-btn:hover { background-color: #aa2222; }
+    #wave-btn:disabled { --edge: #555; background-color: #333; color: #666; cursor: not-allowed; }
+    #exit-btn { --edge: #6a4a4a; background-color: #2a1a1a; color: #ddaaaa; }
+    #exit-btn:hover { --edge: #8a5a5a; background-color: #3a2222; }
+    /* GameScene clamps the panel to the map with PANEL_EDGE_MARGIN (6) each
+       side; a panel (with branch picker) taller than a phone's map scrolls
+       instead of hiding Sell. */
+    #tower-panel { max-height: calc(var(--map-height, 100%) - 12px); overflow-y: auto; }
     #tower-panel { position: absolute; background: #0f0f1e; border: 2px solid #8b6914;
                    border-radius: 8px; padding: 11px; width: 170px; z-index: 10; display: none; }
     #tower-panel .panel-name { font-size: 13px; font-weight: bold; color: #ffd700; margin-bottom: 5px; }
@@ -217,11 +243,21 @@
     #game-msg button { background: #8b6914; border: none; color: #fff; padding: 9px 22px;
                        border-radius: 6px; cursor: pointer; font-size: 14px; }
     #game-msg #msg-cancel-btn { background: #333; margin-left: 8px; }
-    .story-banner { position:absolute; top:-130px; left:5%; right:5%; background:linear-gradient(135deg,#0a1a2a,#0a2a1a);
+    /* Spans the middle 90% of the map; hidden, it sits wholly above #game
+       (overflow hidden) wherever the map's top edge is. */
+    .story-banner { position:absolute; top:calc(var(--map-top, 0px) + 15px);
+                    left:calc(var(--map-left, 0px) + var(--map-width, 100%) * 0.05);
+                    width:calc(var(--map-width, 100%) * 0.9);
+                    transform:translateY(calc(-100% - var(--map-top, 0px) - 20px)); background:linear-gradient(135deg,#0a1a2a,#0a2a1a);
                     border:1px solid #2a5a3a; border-radius:8px; padding:12px 16px; z-index:25;
                     display:flex; align-items:flex-start; gap:12px;
                     transition:transform 0.35s ease; pointer-events:none; }
-    .story-banner.visible { transform:translateY(145px); pointer-events:auto; }
+    .story-banner.visible { transform:none; pointer-events:auto; }
+    .game-toast { position: absolute; z-index: 30; pointer-events: none;
+                  top: calc(var(--map-top, 0px) + 16px);
+                  left: calc(var(--map-left, 0px) + var(--map-width, 100%) / 2);
+                  transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #f39c12;
+                  padding: 6px 16px; border-radius: 6px; font-size: 13px; white-space: nowrap; }
     #paused-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.55);
                       display: none; z-index: 30; pointer-events: none;
                       align-items: center; justify-content: center;
@@ -302,42 +338,42 @@
     .map-row.locked { background:#111; border:1px dashed #333; color:#555; }
     .map-row-name { font-size:12px; font-weight:bold; }
     .map-row-stars { font-size:11px; color:#ffd700; min-height:16px; }
-    #hero-section { display:flex; align-items:center; gap:6px; }
-    #hero-portrait { width:30px; height:30px; border-radius:50%; background:#1a2a4a;
-                     border:2px solid #4fc3f7; display:flex; align-items:center;
-                     justify-content:center; font-size:13px; color:#4fc3f7; font-weight:bold; }
-    #hero-info { display:flex; flex-direction:column; gap:3px; }
-    #hero-level { font-size:10px; color:#4fc3f7; }
-    #hero-hp-bg { width:52px; height:5px; background:#333; border-radius:2px; overflow:hidden; }
-    #hero-hp-fill { height:100%; background:#4fc3f7; border-radius:2px; transition:width 0.15s; }
-    #hero-xp-bg { width:52px; height:4px; background:#332b12; border-radius:2px; overflow:hidden; }
-    #hero-xp-fill { height:100%; width:0%; background:#ffd700; border-radius:2px; transition:width 0.15s; }
+    /* Hero card: one full-width rail row. */
+    #hero-section { display:flex; align-items:center; gap:10px; padding:0 10px;
+                    width:var(--rail-w); height:var(--hud-cell); }
+    #hero-portrait { width:56px; height:56px; flex:0 0 56px; border-radius:50%; background:#1a2a4a;
+                     border:3px solid #4fc3f7; display:flex; align-items:center;
+                     justify-content:center; font-size:28px; color:#4fc3f7; font-weight:bold; }
+    #hero-info { display:flex; flex-direction:column; gap:5px; flex:1; min-width:0; }
+    #hero-level { font-size:24px; line-height:1.05; color:#4fc3f7; overflow-wrap:anywhere; }
+    #hero-hp-bg { width:100%; height:10px; background:#333; border-radius:3px; overflow:hidden; }
+    #hero-hp-fill { height:100%; background:#4fc3f7; border-radius:3px; transition:width 0.15s; }
+    #hero-xp-bg { width:100%; height:8px; background:#332b12; border-radius:3px; overflow:hidden; }
+    #hero-xp-fill { height:100%; width:0%; background:#ffd700; border-radius:3px; transition:width 0.15s; }
     /* Wraps each ability button so the hover card still works once the button
-       goes disabled (locked / on cooldown) — same reason as #wave-btn-wrap. */
-    .ability-btn-wrap { position: relative; display: inline-block; }
-    .ability-btn { background:#1a2a3a; border:2px solid #4fc3f7; border-radius:5px;
-                   padding:4px 7px; cursor:pointer; display:flex; flex-direction:column;
-                   align-items:center; gap:1px; color:#4fc3f7; font-family:'Georgia',serif; }
-    .ability-btn.locked { background:#111; border-color:#333; color:#444; cursor:default; }
+       goes disabled (locked / on cooldown) — same reason as #wave-btn-wrap. The
+       wrapper is the grid cell; the button fills it. */
+    .ability-btn-wrap { position: relative; display: block; width: 100%; height: 100%; }
+    .ability-btn { --edge: #4fc3f7; background-color:#1a2a3a; color:#4fc3f7; gap:0; }
+    .ability-btn.locked { --edge: #333; background-color:#111; color:#444; cursor:default; }
     .ability-btn:disabled { opacity:0.45; cursor:not-allowed; }
     /* --cd (1 -> 0) is set by UIScene; the dark wedge shrinks as the cooldown runs out. */
     .ability-btn { position:relative; }
-    .ability-btn::after { content:''; position:absolute; inset:0; border-radius:3px; pointer-events:none;
+    .ability-btn::after { content:''; position:absolute; inset:0; border-radius:9px; pointer-events:none;
                           background:conic-gradient(rgba(0,0,0,0.6) calc(var(--cd, 0) * 360deg), transparent 0); }
     /* Keep the key/name/countdown above the cooldown wedge. */
     .ability-btn > span { position:relative; z-index:1; }
-    .ability-btn:not(:disabled):not(.locked):hover { background:#253a4a; }
-    .ability-key  { font-size:11px; font-weight:bold; letter-spacing:1px; }
-    .ability-name { font-size:12px; }
-    .ability-cd   { font-size:9px; color:#aaa; min-height:11px; }
-    .bar-divider  { width:1px; height:36px; background:#333; flex-shrink:0; }
+    .ability-btn:not(:disabled):not(.locked):hover { background-color:#253a4a; }
+    .ability-key  { font-size:24px; font-weight:bold; letter-spacing:1px; }
+    .ability-name { font-size:28px; }
+    .ability-cd   { font-size:24px; color:#aaa; min-height:24px; }
     #map-meta-bar { display:flex; align-items:center; justify-content:center; gap:18px;
                     margin-bottom:14px; }
     #total-stars { font-size:18px; color:#ffd700; font-weight:bold; letter-spacing:1px; }
-    #open-upgrades { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
+    #open-upgrades, #open-story-log, #open-codex-ms { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
                      padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
                      font-family:'Georgia',serif; }
-    #open-upgrades:hover { background:#223344; }
+    #open-upgrades:hover, #open-story-log:hover, #open-codex-ms:hover { background:#223344; }
     #open-heroes { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
                    padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
                    font-family:'Georgia',serif; }
@@ -358,9 +394,6 @@
                        color:#e8e8ff; font-family:'Georgia',serif; font-size:20px; text-align:center;
                        padding:24px; }
       #rotate-prompt-glyph { font-size:72px; color:#4fc3f7; }
-      /* The prompt covers the HUD, but the document must still be no wider than the
-         viewport, so the bars wrap rather than size the page to their content. */
-      #hud, #bottom-bar { flex-wrap: wrap; }
     }
     #lifetime-stats { display:flex; justify-content:center; gap:10px; margin-top:14px;
                       flex-wrap:wrap; }
@@ -461,22 +494,27 @@
     .settings-row .settings-val { width:34px; text-align:right; color:#8ab; }
     .settings-mute { margin-top:12px; font-size:12px; color:#cfd8e8; }
 
-    /* Wave preview popover */
-    #wave-btn-wrap { position: relative; display: inline-block; }
-    .wave-preview { display: none; position: absolute; bottom: calc(100% + 10px); right: 0;
-      min-width: 240px; max-width: 320px; max-height: 50vh; overflow-y: auto;
-      background: #0a1018; border: 2px solid #4fc3f7; border-radius: 6px;
-      padding: 10px 12px; z-index: 19; text-align: left; box-shadow: 0 4px 18px rgba(0,0,0,0.6); }
+    /* Wave preview popover. Inside the HUD layer, so in game px: it opens LEFT
+       of Send Wave, over the map; WavePreviewPopover sets its top (centred on
+       the button, clamped into the layer by PANEL_EDGE_MARGIN = 6 each side,
+       hence the 12px in max-height). */
+    #wave-btn-wrap { position: relative; display: block;
+                     width: calc(2 * var(--hud-cell)); height: var(--hud-cell); }
+    .wave-preview { display: none; position: absolute; right: calc(100% + var(--peek-gap)); top: 0;
+      width: max-content; min-width: 440px; max-width: 600px;
+      max-height: calc(var(--world-h) - 12px); overflow-y: auto;
+      background: #0a1018; border: 3px solid #4fc3f7; border-radius: 10px;
+      padding: 16px 20px; z-index: 19; text-align: left; box-shadow: 0 6px 28px rgba(0,0,0,0.6); }
     .wave-preview.shown { display: block; }
-    .wp-title { color: #ffd700; font-size: 13px; font-weight: bold; margin-bottom: 8px; }
-    .wp-row { display: flex; gap: 8px; align-items: baseline; margin-bottom: 7px; }
-    .wp-icon { font-size: 17px; }
-    .wp-name { font-size: 12px; color: #dde; flex: 1; }
-    .wp-count { font-size: 13px; color: #ffd700; font-weight: bold; }
-    .wp-stats { font-size: 10px; color: #8aa; margin: 0 0 3px 25px; }
-    .wp-match { font-size: 10px; color: #7c9; margin: 0 0 3px 25px; }
+    .wp-title { color: #ffd700; font-size: 28px; font-weight: bold; margin-bottom: 12px; }
+    .wp-row { display: flex; gap: 12px; align-items: baseline; margin-bottom: 8px; }
+    .wp-icon { font-size: 30px; }
+    .wp-name { font-size: 26px; color: #dde; flex: 1; }
+    .wp-count { font-size: 28px; color: #ffd700; font-weight: bold; }
+    .wp-stats { font-size: 24px; color: #8aa; margin: 0 0 4px 42px; }
+    .wp-match { font-size: 24px; color: #7c9; margin: 0 0 4px 42px; }
     .wp-match.resist { color: #c87; }
-    .wp-empty { font-size: 11px; color: #789; }
+    .wp-empty { font-size: 24px; color: #789; }
 
     /* Codex overlay */
     #codex-overlay { display: none; position: absolute; inset: 0; z-index: 20;
@@ -558,9 +596,9 @@
                     max-width: 220px; }
     #inspect-peek strong { display: block; color: #ffd700; margin-bottom: 2px; }
 
-    /* Compact landscape (phones). Stopgap until roadmap 2.2 designs the real mobile
-       HUD: shrinks padding/fonts so the map-select PLAY button and the whole tower
-       bar fit a ~340 px tall viewport. Desktop (>500 px tall) never matches. */
+    /* Compact landscape (phones): shrinks map-select padding/fonts so PLAY fits a
+       ~340 px tall viewport. The in-level HUD needs nothing here: the rails scale
+       with the canvas. Desktop (>500 px tall) never matches. */
     @media (max-height: 500px) {
       #map-select { padding: 8px; }
       #map-select-title { font-size: 20px; margin-bottom: 6px; letter-spacing: 3px; }
@@ -575,47 +613,121 @@
       #featured-tier { font-size: 12px; margin-bottom: 8px; }
       #featured-play { padding: 10px 24px; font-size: 15px; }
       #lifetime-stats { display: none; }
-      /* 40 px touch-target floor for every button the audit covers (2.2 takes it to 44). */
-      #featured-play, #map-meta-bar button, #speed-btn, #pause-btn, #open-codex,
-      #exit-btn, #wave-btn, #cancel-btn { min-height: 40px; }
+      /* 40 px touch-target floor for the map-select buttons the audit covers. */
+      #featured-play, #map-meta-bar button { min-height: 40px; }
+    }
 
-      #hud { padding: 4px 8px; gap: 8px; }
-      .hud-stat { font-size: 11px; gap: 3px; }
-      .hud-val { font-size: 13px; }
-      .hud-lbl { font-size: 10px; }
-      #speed-btn { padding: 8px 8px; font-size: 11px; }
-      #cancel-btn { padding: 8px 8px; font-size: 12px; }
-      #pause-btn { padding: 8px 10px; font-size: 12px; }
-      #open-codex { padding: 8px 8px; font-size: 12px; }
-      #bottom-bar { gap: 4px; padding: 4px 8px; flex-wrap: wrap; }
-      .tower-btn { padding: 4px 6px; gap: 1px; }
-      .tower-btn .t-icon { font-size: 16px; }
-      .tower-btn .t-cost { font-size: 10px; }
-      .tower-btn .t-name { font-size: 9px; }
-      #hero-section { gap: 4px; }
-      .ability-btn { padding: 3px 5px; }
-      .ability-key { font-size: 10px; }
-      .ability-name { font-size: 10px; }
-      .bar-divider { height: 28px; }
-      #exit-btn, #wave-btn { padding: 6px 10px; font-size: 12px; }
-      /* Stopgap until 2.2: the panel (and branch picker) is taller than a phone's
-         game area, so cap it to #game and let it scroll instead of hiding Sell. */
-      #tower-panel { max-height: calc(100% - 12px); overflow-y: auto; }
+    /* Touch-sized DOM overlays (roadmap 2.2). Overlays are real CSS px, not part of the scaled
+       canvas, so every control gets the full 44 px. Kept LAST so it beats the compact block above
+       at equal specificity: on a phone coarse must win over the compact shrink. */
+    @media (pointer: coarse) {
+      .codex-tab, #codex-close, .codex-entry, #settings-close, .story-dialog-actions button,
+      #story-dismiss, .story-log-entry, #story-log-close, #hero-mgmt-close, .ho-ability,
+      #upgrade-close, .upgrade-node-refund, #game-msg button, #map-meta-bar button,
+      #tower-panel .upgrade-btn, #tower-panel .sell-btn, #tower-panel .reposition-btn,
+      #tower-panel .branch-choose-btn { min-height: 44px; min-width: 44px; }
+      /* The glyph stays small; the button grows around it, bleeding into the header's
+         padding rather than stretching the panel. */
+      .inspector-close { min-width: 44px; min-height: 44px; margin: -8px -4px -8px 0; }
+      /* A native slider's hit box is its whole <input>; a fat thumb makes that visible. */
+      .settings-row input[type=range] { -webkit-appearance: none; appearance: none; height: 44px;
+        background: transparent; }
+      .settings-row input[type=range]::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: #2a3a4e; }
+      .settings-row input[type=range]::-moz-range-track { height: 8px; border-radius: 4px; background: #2a3a4e; }
+      .settings-row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px;
+        margin-top: -10px; border-radius: 50%; background: #4fc3f7; border: 2px solid #0a1018; }
+      .settings-row input[type=range]::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%;
+        background: #4fc3f7; border: 2px solid #0a1018; }
+      .settings-mute label { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+      .settings-mute input[type=checkbox] { width: 24px; height: 24px; flex: 0 0 24px; }
+      #settings-overlay-inner { max-height: 100%; overflow-y: auto; }
+    }
+    /* A landscape phone is too short for 44-px rows stacked in one column (the settings card
+       would pass 340 px): sliders left, toggles right. */
+    @media (pointer: coarse) and (max-height: 500px) {
+      #settings-overlay { padding: 8px; }
+      #settings-overlay-inner { max-width: 680px; padding: 10px 16px; display: grid;
+        grid-template-columns: 1fr 1fr; column-gap: 24px; grid-auto-flow: row dense; }
+      #settings-overlay-header { grid-column: 1 / -1; margin-bottom: 4px; }
+      .settings-row { grid-column: 1; margin: 2px 0; }
+      .settings-mute { grid-column: 2; margin-top: 0; }
     }
   </style>
 </head>
 <body>
-  <div id="hud">
-    <div class="hud-stat"><span>❤️</span><span class="hud-val" id="stat-lives">20</span><span class="hud-lbl">Lives</span></div>
-    <div class="hud-stat"><span>💰</span><span class="hud-val" id="stat-gold">150</span><span class="hud-lbl">Gold</span></div>
-    <div class="hud-stat"><span>🌊</span><span class="hud-val" id="stat-wave">0/10</span><span class="hud-lbl">Wave</span></div>
-    <div class="hud-stat"><span>💀</span><span class="hud-val" id="stat-kills">0</span><span class="hud-lbl">Kills</span></div>
-    <button id="cancel-btn" type="button" hidden>✕ Cancel</button>
-    <button id="speed-btn">⏩ 2x</button>
-    <button id="pause-btn" title="Pause the level (Spacebar)">⏸ Pause</button>
-    <button id="open-codex" title="Codex (towers, heroes, enemies)">📚 Codex</button>
-  </div>
   <div id="game">
+    <!-- The HUD in game px (CANVAS_WIDTH x WORLD_HEIGHT), scaled over the canvas
+         by src/ui/hudLayer.js. Floating cards (#tower-tooltip, #ability-card,
+         inspectors) stay outside it: a transformed ancestor would re-base their
+         position:fixed/absolute and their rect units. -->
+    <div id="hud-layer">
+      <div id="rail-left" class="hud-rail">
+        <div class="rail-grid" id="hud-stats">
+          <div class="hud-stat"><span class="hud-ico">❤️</span><span class="hud-val" id="stat-lives">20</span><span class="hud-lbl">Lives</span></div>
+          <div class="hud-stat"><span class="hud-ico">💰</span><span class="hud-val" id="stat-gold">150</span><span class="hud-lbl">Gold</span></div>
+          <div class="hud-stat"><span class="hud-ico">🌊</span><span class="hud-val" id="stat-wave">0/10</span><span class="hud-lbl">Wave</span></div>
+          <div class="hud-stat"><span class="hud-ico">💀</span><span class="hud-val" id="stat-kills">0</span><span class="hud-lbl">Kills</span></div>
+        </div>
+        <div id="hero-section">
+          <div id="hero-portrait">R</div>
+          <div id="hero-info">
+            <div id="hero-level">Rael L1</div>
+            <div id="hero-hp-bg"><div id="hero-hp-fill"></div></div>
+            <div id="hero-xp-bg"><div id="hero-xp-fill"></div></div>
+          </div>
+        </div>
+        <div class="rail-grid">
+          <span class="ability-btn-wrap" id="ability-q-wrap" tabindex="0">
+            <button class="ability-btn" id="ability-q" disabled title="Overcharge — +50% tower fire rate 6s">
+              <span class="ability-key">Q</span><span class="ability-name">⚡</span><span class="ability-cd"></span>
+            </button>
+          </span>
+          <span class="ability-btn-wrap" id="ability-w-wrap" tabindex="0">
+            <button class="ability-btn locked" id="ability-w" disabled title="Airstrike — AoE damage on target area">
+              <span class="ability-key">W</span><span class="ability-name">🎯</span><span class="ability-cd"></span>
+            </button>
+          </span>
+          <span class="ability-btn-wrap" id="ability-e-wrap" tabindex="0">
+            <button class="ability-btn locked" id="ability-e" disabled title="EMP Pulse — stuns all aliens 3s">
+              <span class="ability-key">E</span><span class="ability-name">💥</span><span class="ability-cd"></span>
+            </button>
+          </span>
+          <button id="cancel-btn" type="button" hidden>✕ Cancel</button>
+        </div>
+        <div class="rail-grid">
+          <button id="pause-btn" title="Pause the level (Spacebar)">⏸ Pause</button>
+          <button id="speed-btn">⏩ 2x</button>
+          <button id="open-codex" title="Codex (towers, heroes, enemies)">📚 Codex</button>
+          <button id="exit-btn">⏻ Exit</button>
+        </div>
+      </div>
+      <div id="rail-right" class="hud-rail">
+        <div class="rail-grid">
+          <button class="tower-btn" data-type="archer">
+            <span class="t-icon">🏹</span><span class="t-cost">60g</span><span class="t-name">Archer</span>
+          </button>
+          <button class="tower-btn" data-type="mage">
+            <span class="t-icon">🔮</span><span class="t-cost">90g</span><span class="t-name">Mage</span>
+          </button>
+          <button class="tower-btn" data-type="cannon">
+            <span class="t-icon">💣</span><span class="t-cost">110g</span><span class="t-name">Cannon</span>
+          </button>
+          <button class="tower-btn" data-type="ice">
+            <span class="t-icon">❄️</span><span class="t-cost">80g</span><span class="t-name">Ice</span>
+          </button>
+          <button class="tower-btn" data-type="sniper">
+            <span class="t-icon">🎯</span><span class="t-cost">120g</span><span class="t-name">Sniper</span>
+          </button>
+          <button class="tower-btn" data-type="barracks">
+            <span class="t-icon">⚔️</span><span class="t-cost">100g</span><span class="t-name">Barracks</span>
+          </button>
+        </div>
+        <span id="wave-btn-wrap" tabindex="0">
+          <button id="wave-btn">▶ Send Wave 1</button>
+          <div id="wave-preview" class="wave-preview" role="tooltip" aria-hidden="true"></div>
+        </span>
+      </div>
+    </div>
     <div id="paused-overlay">PAUSED</div>
     <div id="wave-banner"></div>
     <div id="wave-banner-boss"></div>
@@ -770,55 +882,6 @@
         </div>
       </div>
     </div>
-  </div>
-  <div id="bottom-bar">
-    <div id="hero-section">
-      <div id="hero-portrait">R</div>
-      <div id="hero-info">
-        <div id="hero-level">Rael L1</div>
-        <div id="hero-hp-bg"><div id="hero-hp-fill"></div></div>
-        <div id="hero-xp-bg"><div id="hero-xp-fill"></div></div>
-      </div>
-      <span class="ability-btn-wrap" id="ability-q-wrap" tabindex="0">
-        <button class="ability-btn" id="ability-q" disabled title="Overcharge — +50% tower fire rate 6s">
-          <span class="ability-key">Q</span><span class="ability-name">⚡</span><span class="ability-cd"></span>
-        </button>
-      </span>
-      <span class="ability-btn-wrap" id="ability-w-wrap" tabindex="0">
-        <button class="ability-btn locked" id="ability-w" disabled title="Airstrike — AoE damage on target area">
-          <span class="ability-key">W</span><span class="ability-name">🎯</span><span class="ability-cd"></span>
-        </button>
-      </span>
-      <span class="ability-btn-wrap" id="ability-e-wrap" tabindex="0">
-        <button class="ability-btn locked" id="ability-e" disabled title="EMP Pulse — stuns all aliens 3s">
-          <span class="ability-key">E</span><span class="ability-name">💥</span><span class="ability-cd"></span>
-        </button>
-      </span>
-    </div>
-    <div class="bar-divider"></div>
-    <button class="tower-btn" data-type="archer">
-      <span class="t-icon">🏹</span><span class="t-cost">60g</span><span class="t-name">Archer</span>
-    </button>
-    <button class="tower-btn" data-type="mage">
-      <span class="t-icon">🔮</span><span class="t-cost">90g</span><span class="t-name">Mage</span>
-    </button>
-    <button class="tower-btn" data-type="cannon">
-      <span class="t-icon">💣</span><span class="t-cost">110g</span><span class="t-name">Cannon</span>
-    </button>
-    <button class="tower-btn" data-type="ice">
-      <span class="t-icon">❄️</span><span class="t-cost">80g</span><span class="t-name">Ice</span>
-    </button>
-    <button class="tower-btn" data-type="sniper">
-      <span class="t-icon">🎯</span><span class="t-cost">120g</span><span class="t-name">Sniper</span>
-    </button>
-    <button class="tower-btn" data-type="barracks">
-      <span class="t-icon">⚔️</span><span class="t-cost">100g</span><span class="t-name">Barracks</span>
-    </button>
-    <button id="exit-btn">⏻ Exit</button>
-    <span id="wave-btn-wrap" tabindex="0">
-      <button id="wave-btn">▶ Send Wave 1</button>
-      <div id="wave-preview" class="wave-preview" role="tooltip" aria-hidden="true"></div>
-    </span>
   </div>
   <div id="tower-tooltip"></div>
   <div id="enemy-inspector" class="inspector-panel" style="display:none">

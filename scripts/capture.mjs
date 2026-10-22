@@ -23,7 +23,8 @@ import { chromium, devices } from 'playwright';
 import { MAPS } from '../src/data/maps.js';
 import { MAP_WAVES } from '../src/data/waves.js';
 import { defaultCaptureBuild } from '../src/systems/debugCapture.js';
-import { layoutProblems } from '../src/systems/layoutAudit.js';
+import { layoutProblems, railProblems, overlayProblems, minTouchFor } from '../src/systems/layoutAudit.js';
+import { RAIL_WIDTH, CANVAS_WIDTH, WORLD_HEIGHT } from '../src/data/layout.js';
 
 const OUT_DIR   = '.art-cache/captures';
 const DIST_DIR  = '.art-cache/capture-dist';
@@ -33,8 +34,18 @@ const MIN_ENEMIES = 3;
 // Landscape presets: the game is landscape-only, so portrait shots would only
 // show the letterboxing. `portrait` names the same device upright, for the
 // rotate-the-phone audit (a player always starts holding it upright).
+// Playwright ships no 844x390 / 932x430 descriptors; these are the iPhone 14 landscape
+// emulation resized to the common modern-phone viewports.
+const phone = (width, height) => ({
+  ...devices['iPhone 14 landscape'],
+  viewport: { width, height },
+  portrait: { ...devices['iPhone 14'], viewport: { width: height, height: width } },
+});
+
 const DEVICES = {
   desktop: { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 },
+  phone844: phone(844, 390),
+  phone932: phone(932, 430),
   iphone:  { ...devices['iPhone 14 landscape'], portrait: 'iPhone 14' },
   pixel:   { ...devices['Pixel 7 landscape'], portrait: 'Pixel 7' },
   ipad:    { ...devices['iPad Pro 11 landscape'], portrait: 'iPad Pro 11' },
@@ -42,7 +53,16 @@ const DEVICES = {
 
 // Controls a phone player must be able to reach on each screen.
 const MAP_SELECT_TARGETS = ['#featured-play'];
-const IN_GAME_TARGETS = ['#pause-btn', '#speed-btn', '#open-codex', '.tower-btn', '#exit-btn', '#wave-btn'];
+const IN_GAME_TARGETS = ['#pause-btn', '#speed-btn', '#open-codex', '.tower-btn', '#exit-btn', '#wave-btn', '.ability-btn-wrap'];
+// DOM overlays opened from map select. Their controls are in CSS px (not the scaled canvas), so
+// touch devices hold them to the full 44 px. Labels, not checkboxes: the label row is the target.
+// Only the first codex entries: the list scrolls, and every entry shares one rule.
+const CODEX_TARGETS = ['#codex-close', '.codex-tab', '#codex-list .codex-entry:nth-child(-n+3)'];
+const SETTINGS_TARGETS = ['#settings-close', '#settings-overlay input[type=range]', '.settings-mute label'];
+const OVERLAY_AUDITS = new Set([CODEX_TARGETS, SETTINGS_TARGETS]);
+// Real HUD control that is hidden by design until a tower is armed: held to the rail rules
+// when visible, but never reported as `hidden` by layoutProblems.
+const RAIL_ONLY_TARGETS = ['#cancel-btn'];
 
 // Playwright rejects unknown context options, so strip ours before newContext.
 function contextOptions(device) {
@@ -115,16 +135,26 @@ async function shootBusiestFrame(page, waitMs, file) {
   return { errors, towers, enemies: best, simMs: shotSimMs };
 }
 
-// Game-space (1280x720) point -> page point, through the FIT-scaled canvas.
+// World point -> page point: the map sits RAIL_WIDTH into the FIT-scaled canvas.
 async function clickGamePoint(page, x, y) {
   const box = await page.locator('#game canvas').boundingBox();
-  await page.mouse.click(box.x + (x * box.width) / 1280, box.y + (y * box.height) / 720);
+  await page.mouse.click(
+    box.x + ((x + RAIL_WIDTH) * box.width) / CANVAS_WIDTH,
+    box.y + (y * box.height) / WORLD_HEIGHT,
+  );
+}
+
+// A real pointer event (Phaser/DOM handlers ignore synthetic ones): touch devices tap.
+async function tap(page, deviceName, selector) {
+  const locator = page.locator(selector);
+  if (DEVICES[deviceName].hasTouch) await locator.tap();
+  else await locator.click();
 }
 
 // Collects layout metrics inside the page and returns { device, label, problems }.
 // getBoundingClientRect ignores ancestor clipping, so each target also gets
 // visibleRect: its rect intersected with every overflow-clipping ancestor.
-async function audit(page, deviceName, label, selectors) {
+async function audit(page, deviceName, label, selectors, railOnly = []) {
   const metrics = await page.evaluate(sels => {
     const clipRect = el => {
       const r = el.getBoundingClientRect();
@@ -147,20 +177,42 @@ async function audit(page, deviceName, label, selectors) {
         const visible = el.checkVisibility
           ? el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
           : getComputedStyle(el).visibility !== 'hidden' && el.getClientRects().length > 0;
-        targets.push({ name: sel.startsWith('#') ? sel : `${sel}[${i}]`, rect: plain(el.getBoundingClientRect()), visibleRect: clipRect(el), visible });
+        targets.push({ name: /^#[\w-]+$/.test(sel) ? sel : `${sel}[${i}]`, rect: plain(el.getBoundingClientRect()), visibleRect: clipRect(el), visible });
       });
     }
-    // Only audits that list the bar controls get the one-row check (portrait is meant to wrap).
-    const barSels = ['.tower-btn', '#exit-btn', '#wave-btn'].filter(sel => sels.includes(sel));
-    const barRects = barSels.flatMap(sel => [...document.querySelectorAll(sel)]
-      .filter(el => el.getClientRects().length > 0)
-      .map(el => plain(el.getBoundingClientRect())));
+    const rect = sel => { const el = document.querySelector(sel); return el ? plain(el.getBoundingClientRect()) : null; };
     return {
       innerWidth: window.innerWidth, innerHeight: window.innerHeight,
-      scale: window.visualViewport.scale, scrollWidth: document.documentElement.scrollWidth, targets, barRects,
+      scale: window.visualViewport.scale, scrollWidth: document.documentElement.scrollWidth, targets,
+      rails: { left: rect('#rail-left'), right: rect('#rail-right') },
     };
-  }, selectors);
-  return { device: deviceName, label, problems: layoutProblems({ ...metrics, device: page.viewportSize() }) };
+  }, [...selectors, ...railOnly]);
+  const viewport = page.viewportSize();
+  const problems = layoutProblems({ ...metrics, device: viewport, targets: metrics.targets.filter(t => !railOnly.includes(t.name)) });
+  // Rails only exist in-game; the map-select audits list no HUD controls.
+  if (selectors === IN_GAME_TARGETS) {
+    const device = DEVICES[deviceName];
+    problems.push(...railProblems({
+      device: { hasTouch: !!device.hasTouch }, rails: metrics.rails, targets: metrics.targets,
+      minTouchPx: minTouchFor({ vw: viewport.width, vh: viewport.height }),
+    }));
+  }
+  if (OVERLAY_AUDITS.has(selectors)) {
+    problems.push(...overlayProblems({ device: { hasTouch: !!DEVICES[deviceName].hasTouch }, targets: metrics.targets }));
+  }
+  return { device: deviceName, label, problems };
+}
+
+// Opens a map-select overlay with a real tap, audits + shoots it, closes it with a real tap.
+async function auditOverlay(page, deviceName, { open, root, close, targets, label, file }) {
+  await tap(page, deviceName, open);
+  await page.locator(root).waitFor({ state: 'visible', timeout: 5_000 });
+  await page.waitForTimeout(400);
+  const result = await audit(page, deviceName, label, targets);
+  await shoot(page, file);
+  await tap(page, deviceName, close);
+  await page.locator(root).waitFor({ state: 'hidden', timeout: 5_000 });
+  return { result, file };
 }
 
 async function shoot(page, file) {
@@ -191,6 +243,14 @@ async function captureScreens(browser, base, deviceName, opts) {
     await page.waitForTimeout(800);
     files.push(await shoot(page, join(dir, '02-map-select.png')));
     layout.push(await audit(page, deviceName, 'map-select', MAP_SELECT_TARGETS));
+    for (const o of [
+      { open: '#open-codex-ms', root: '#codex-overlay', close: '#codex-close', targets: CODEX_TARGETS, label: 'codex', file: join(dir, '08-codex.png') },
+      { open: '#open-settings', root: '#settings-overlay', close: '#settings-close', targets: SETTINGS_TARGETS, label: 'settings', file: join(dir, '09-settings.png') },
+    ]) {
+      const { result, file } = await auditOverlay(page, deviceName, o);
+      layout.push(result);
+      files.push(file);
+    }
     problems.push(...p1);
     await page.close();
 
@@ -199,7 +259,13 @@ async function captureScreens(browser, base, deviceName, opts) {
     await page.goto(base + path);
     const cap = await shootBusiestFrame(page, opts.seconds * 1000, join(dir, '03-in-game.png'));
     files.push(join(dir, '03-in-game.png'));
-    layout.push(await audit(page, deviceName, 'in-game', IN_GAME_TARGETS));
+    layout.push(await audit(page, deviceName, 'in-game', IN_GAME_TARGETS, RAIL_ONLY_TARGETS));
+    // A real tap arms a tower, which is the only way #cancel-btn becomes visible.
+    await tap(page, deviceName, '.tower-btn[data-type="archer"]');
+    await page.locator('#cancel-btn').waitFor({ state: 'visible', timeout: 5_000 });
+    layout.push(await audit(page, deviceName, 'in-game-armed', IN_GAME_TARGETS, RAIL_ONLY_TARGETS));
+    await tap(page, deviceName, '#cancel-btn');
+    await page.locator('#cancel-btn').waitFor({ state: 'hidden', timeout: 5_000 });
     const tower = cap.towers[0];
     if (tower) {
       await clickGamePoint(page, tower.x, tower.y);
@@ -249,7 +315,7 @@ async function captureRotation(browser, base, deviceName, levelPath, dir) {
   const files = [];
   const layout = [];
   const problems = [];
-  const upright = () => browser.newContext(contextOptions(devices[device.portrait]));
+  const upright = () => browser.newContext(contextOptions(typeof device.portrait === 'string' ? devices[device.portrait] : device.portrait));
   const rotate = async page => {
     await page.setViewportSize(landscape);
     await page.waitForTimeout(800);
@@ -279,7 +345,7 @@ async function captureRotation(browser, base, deviceName, levelPath, dir) {
     if (entered) {
       await page.waitForTimeout(1500);
       files.push(await shoot(page, join(dir, '03b-in-game-rotated.png')));
-      layout.push(await audit(page, deviceName, 'rotated-in-game', IN_GAME_TARGETS));
+      layout.push(await audit(page, deviceName, 'rotated-in-game', IN_GAME_TARGETS, RAIL_ONLY_TARGETS));
     } else {
       layout.push({ device: deviceName, label: 'rotated-in-game', problems: ['level never started after PLAY'] });
     }
@@ -298,7 +364,7 @@ async function captureRotation(browser, base, deviceName, levelPath, dir) {
     layout.push(await audit(page, deviceName, 'portrait-mid-level', []));
     await rotate(page);
     files.push(await shoot(page, join(dir, '03c-mid-level-rotated.png')));
-    layout.push(await audit(page, deviceName, 'rotated-mid-level', IN_GAME_TARGETS));
+    layout.push(await audit(page, deviceName, 'rotated-mid-level', IN_GAME_TARGETS, RAIL_ONLY_TARGETS));
     problems.push(...p5);
   } finally {
     await context.close();

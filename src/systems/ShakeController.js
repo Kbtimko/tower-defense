@@ -1,4 +1,4 @@
-const SHAKES = {
+export const SHAKES = {
   'boss-died':        { duration: 600, intensity: 0.020 },
   'airstrike-impact': { duration: 250, intensity: 0.012 },
   'emp-pulse':        { duration: 200, intensity: 0.008 },

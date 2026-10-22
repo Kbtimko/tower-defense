@@ -3,6 +3,9 @@
 // Gap kept between a floating panel and the edge of #game when it is clamped in.
 export const PANEL_EDGE_MARGIN = 6;
 
+// Gap between a rail control and the peek card that opens beside it.
+export const PEEK_GAP_PX = 10;
+
 // Held this long without release becomes a long-press (peek). Long enough that a
 // deliberate tap never trips it, short enough to feel responsive on touch.
 export const LONG_PRESS_MS = 450;

@@ -1,8 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { AmbientBackgroundLayer, resolveAmbientMotion } from './AmbientBackgroundLayer.js';
 import { AMBIENT_LAYERS } from '../data/ambient.js';
 import { FX_FAMILIES, MAX_ELEMENTS } from './ambientFxFamilies.js';
 import { SeededRandom } from './SeededRandom.js';
+import { WORLD_WIDTH, WORLD_HEIGHT } from '../data/layout.js';
 
 function makeGfx() {
   const calls = [];
@@ -54,6 +55,16 @@ describe('resolveAmbientMotion', () => {
 });
 
 describe('AmbientBackgroundLayer', () => {
+  // scale is the CANVAS (world + HUD rails); ambient motion fills the world only.
+  it('seeds every layer over the world size, not the canvas size', () => {
+    const init = vi.spyOn(FX_FAMILIES.dust, 'init');
+    const { scene } = makeMultiScene(true);
+    new AmbientBackgroundLayer(scene, { family: 'dust', seed: 7341 });
+    expect(init).toHaveBeenCalledTimes(AMBIENT_LAYERS.length);
+    for (const call of init.mock.calls) expect(call.slice(1)).toEqual([WORLD_WIDTH, WORLD_HEIGHT]);
+    init.mockRestore();
+  });
+
   it('throws on an unknown family', () => {
     expect(() => new AmbientBackgroundLayer(makeScene(makeGfx(), true), { family: 'nope', seed: 1 }))
       .toThrow(/unknown family/);
@@ -112,7 +123,7 @@ describe('AmbientBackgroundLayer', () => {
     new AmbientBackgroundLayer(scene, { family: 'dust', seed: 7341 }).update(50);
     const [far, near] = AMBIENT_LAYERS;
     const expected = (layer) => {
-      const st = FX_FAMILIES.dust.init(new SeededRandom(7341 + layer.seedOffset), 800, 600);
+      const st = FX_FAMILIES.dust.init(new SeededRandom(7341 + layer.seedOffset), WORLD_WIDTH, WORLD_HEIGHT);
       FX_FAMILIES.dust.step(st, 50 * layer.speed);
       const g = makeGfx();
       FX_FAMILIES.dust.draw(g, st);

@@ -25,11 +25,13 @@ import { SOLDIER_MUZZLE, HIT_STOP } from '../data/fx.js';
 import { BUILD_POP, UPGRADE_POP, SELL_FX, SELECTION_RING, PAD_GLOW, RETICLE } from '../data/juice.js';
 import { deathClass, isHeavyHit, canHitStop } from '../systems/hitFx.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
-import { gameToPageCss, clampPanel } from '../systems/viewport.js';
+import { worldToPageCss, clampPanelWithin, placeLeftOf } from '../systems/viewport.js';
+import { WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH } from '../data/layout.js';
 import {
-  PANEL_EDGE_MARGIN, TAP_TOWER_RADIUS, TAP_SLOT_RADIUS, TAP_PATH_RADIUS, REPOSITION_SNAP_RADIUS,
+  PANEL_EDGE_MARGIN, TAP_TOWER_RADIUS, TAP_SLOT_RADIUS, TAP_PATH_RADIUS, REPOSITION_SNAP_RADIUS, PEEK_GAP_PX,
 } from '../data/input.js';
 import { pulseClass } from '../ui/pulse.js';
+import { railAnchorRect, mapRectIn } from '../ui/hudLayer.js';
 import { WaveBanner } from '../ui/WaveBanner.js';
 import { bossWarning, padGlowAlpha } from '../systems/juiceMath.js';
 import { PAD_BEACON } from '../data/ambient.js';
@@ -57,7 +59,10 @@ import { BLOCKER_TYPES } from '../data/blockerTypes.js';
 import { previewRange } from '../systems/rangePreview.js';
 import { applyDebugBuild } from '../systems/debugCapture.js';
 import { gradeMatrix } from '../systems/mapGrade.js';
-import { VIGNETTE_RADIUS } from '../data/gradeSettings.js';
+import {
+  VIGNETTE_RADIUS, VIGNETTE_DEPTH, VIGNETTE_MARGIN, VIGNETTE_TEXTURE_SCALE,
+} from '../data/gradeSettings.js';
+import { fillVignette, vignetteTextureKey } from '../systems/vignette.js';
 import { SFX_KEYS } from '../systems/AudioManager.js';
 import { towerFireSfxKey } from '../systems/sfxKeys.js';
 import { WavePreviewPopover } from '../ui/WavePreviewPopover.js';
@@ -139,7 +144,6 @@ export default class GameScene extends Phaser.Scene {
     this._bossMusicTriggered = false;
 
     const map = MAPS[this.mapId];
-    const { width, height } = this.scale;
 
     // Systems
     this.saveMgr     = new SaveManager();
@@ -149,7 +153,7 @@ export default class GameScene extends Phaser.Scene {
     this.rewardMult = map.rewardMult ?? 1;
     this._towerRangeMult = mods.towerRangeMult ?? 1;
 
-    this.pathMgr  = new PathManager(map.waypoints, map.towerSlots, width, height);
+    this.pathMgr  = new PathManager(map.waypoints, map.towerSlots, WORLD_WIDTH, WORLD_HEIGHT);
     this.economy  = new EconomyManager(
       startingGold(map.startGold, mods.startGoldPct),
       map.startLives + mods.startLivesBonus,
@@ -208,13 +212,16 @@ export default class GameScene extends Phaser.Scene {
     this.repositionMode        = false;
     this.repositioningBarracks = null;
 
-    // Solid-color fallback (visible if the bitmap PNG isn't present)
+    // The map renders between the HUD rails; scroll stays 0, so world coords are
+    // unchanged and only the viewport moves. The background colour (solid
+    // fallback if the bitmap PNG isn't present) fills that viewport only.
+    this.cameras.main.setViewport(RAIL_WIDTH, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.cameras.main.setBackgroundColor(map.background);
 
     // Bitmap backdrop (depth 0) — Phaser logs 404 if PNG missing; game still runs.
     const bgKey = `bg_map_${map.id}`;
     const backdrop = this.textures.exists(bgKey)
-      ? this.add.image(width / 2, height / 2, bgKey).setDisplaySize(width, height).setDepth(0)
+      ? this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, bgKey).setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT).setDepth(0)
       : null;
     this._applyGrade(map, backdrop);
 
@@ -250,9 +257,8 @@ export default class GameScene extends Phaser.Scene {
     this._sinceHitStop = HIT_STOP.cooldown;
 
     // Show DOM UI
-    document.getElementById('hud').style.display        = 'flex';
-    document.getElementById('bottom-bar').style.display = 'flex';
-    document.getElementById('game-msg').style.display   = 'none';
+    document.getElementById('hud-layer').style.display = 'block';
+    document.getElementById('game-msg').style.display  = 'none';
     // Clear .disabled left over from a previous game-over (shutdown clones the
     // node but cloneNode preserves classes — without this, a second play in
     // the same tab opens with Exit + Pause permanently dead).
@@ -294,14 +300,39 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // Per-map mood (roadmap 1.4). The colour grade goes on the backdrop only, so
-  // units keep their normalized art; the vignette is on the camera. preFX is
-  // null under Canvas, which is the guard against a toggle forcing it on there.
+  // units keep their normalized art; the vignette covers the whole world. preFX
+  // is null under Canvas, which is the guard against a toggle forcing it on there.
   _applyGrade(map, backdrop) {
-    const cam = this.cameras.main;
-    cam.postFX?.clear();
+    this._vignette = null;
     if (!this.game.registry.get('mapGrade') || !map.grade || !backdrop?.preFX) return;
     backdrop.preFX.addColorMatrix().set(gradeMatrix(map.grade));
-    if (map.grade.vignette > 0) cam.postFX.addVignette(0.5, 0.5, VIGNETTE_RADIUS, map.grade.vignette);
+    if (map.grade.vignette > 0) this._addVignette(map.grade.vignette);
+  }
+
+  // A camera postFX vignette would span the rails too, skewing its falloff, so
+  // the same shader maths is baked in map UV into a texture over the world.
+  // Textures survive shutdown, so a replay reuses the bake.
+  _addVignette(strength) {
+    const color = this.game.config.backgroundColor.color;
+    const key = vignetteTextureKey(VIGNETTE_RADIUS, strength, color);
+    const fullW = WORLD_WIDTH + 2 * VIGNETTE_MARGIN;
+    const fullH = WORLD_HEIGHT + 2 * VIGNETTE_MARGIN;
+    if (!this.textures.exists(key)) {
+      const w = Math.round(fullW * VIGNETTE_TEXTURE_SCALE);
+      const h = Math.round(fullH * VIGNETTE_TEXTURE_SCALE);
+      const tex = this.textures.createCanvas(key, w, h);
+      const ctx = tex.getContext();
+      const img = ctx.createImageData(w, h);
+      fillVignette(img.data, w, h, {
+        radius: VIGNETTE_RADIUS, strength, color,
+        u0: -VIGNETTE_MARGIN / WORLD_WIDTH, u1: 1 + VIGNETTE_MARGIN / WORLD_WIDTH,
+        v0: -VIGNETTE_MARGIN / WORLD_HEIGHT, v1: 1 + VIGNETTE_MARGIN / WORLD_HEIGHT,
+      });
+      ctx.putImageData(img, 0, 0);
+      tex.refresh();
+    }
+    this._vignette = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, key)
+      .setDisplaySize(fullW, fullH).setDepth(VIGNETTE_DEPTH);
   }
 
   _bindDOMEvents() {
@@ -532,8 +563,7 @@ export default class GameScene extends Phaser.Scene {
     const cancelBtn = document.getElementById('cancel-btn');
     if (cancelBtn) cancelBtn.hidden = true;
     document.querySelectorAll('.tower-btn').forEach(btn => btn.replaceWith(btn.cloneNode(true)));
-    document.getElementById('hud').style.display          = 'none';
-    document.getElementById('bottom-bar').style.display   = 'none';
+    document.getElementById('hud-layer').style.display    = 'none';
     document.getElementById('tower-panel').style.display  = 'none';
     document.getElementById('game-msg').style.display     = 'none';
     document.getElementById('paused-overlay').classList.remove('shown');
@@ -1270,7 +1300,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _openPanelFromTap(tower, mx, my) {
-    const panelCss = gameToPageCss(this.scale, mx, my);
+    const panelCss = worldToPageCss(this.scale, mx, my);
     const gRect = document.getElementById('game').getBoundingClientRect();
     this._openTowerPanel(tower, panelCss.x - gRect.left, panelCss.y - gRect.top);
   }
@@ -1404,14 +1434,18 @@ export default class GameScene extends Phaser.Scene {
       line.textContent = `Weak vs: ${renderEnemyNames(m.weak)}`;
       tt.appendChild(line);
     }
-    const rect = btn.getBoundingClientRect();
-    tt.style.left = `${rect.left}px`;
-    tt.style.top  = `${rect.top - tt.offsetHeight - 6}px`;
+    // Shown before measuring: display:none has no size. The tower buttons sit
+    // in the right HUD rail, so the tooltip opens to their left, over the map.
     tt.style.display = 'block';
-    // After display:block, offsetHeight is now real; reposition once.
-    requestAnimationFrame(() => {
-      tt.style.top = `${rect.top - tt.offsetHeight - 6}px`;
+    const { left, top } = placeLeftOf({
+      anchor: railAnchorRect(btn),
+      size: { width: tt.offsetWidth, height: tt.offsetHeight },
+      area: { width: window.innerWidth, height: window.innerHeight },
+      gap: PEEK_GAP_PX,
+      margin: PANEL_EDGE_MARGIN,
     });
+    tt.style.left = `${left}px`;
+    tt.style.top  = `${top}px`;
   }
 
   _deselectButtons() {
@@ -1493,14 +1527,16 @@ export default class GameScene extends Phaser.Scene {
       '💰 Sell (' + Math.floor(tower.totalCost * 0.6) + 'g)';
 
     const gameRect = document.getElementById('game').getBoundingClientRect();
+    const canvas   = document.querySelector('#game canvas');
     const panel    = document.getElementById('tower-panel');
     // Measure only once populated and displayed (display:none reports 0), so the
     // clamp uses the real size: the branch picker makes the panel much taller.
+    // Clamped to the map, not #game, so it never covers a rail or the letterbox.
     panel.style.display = 'block';
-    const spot = clampPanel(
+    const spot = clampPanelWithin(
       { left: mx + 10, top: my - 10 },
       { width: panel.offsetWidth, height: panel.offsetHeight },
-      { width: gameRect.width, height: gameRect.height },
+      mapRectIn({ gameRect, canvasRect: canvas?.getBoundingClientRect() ?? null }),
       PANEL_EDGE_MARGIN,
     );
     panel.style.left = spot.left + 'px';
@@ -1833,7 +1869,8 @@ export default class GameScene extends Phaser.Scene {
 
   _toast(msg) {
     const el = document.createElement('div');
-    el.style.cssText = 'position:absolute;top:16px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:#f39c12;padding:6px 16px;border-radius:6px;font-size:13px;z-index:30;pointer-events:none;';
+    // .game-toast positions over the map (CSS --map-* vars), not the rails.
+    el.className = 'game-toast';
     el.textContent = msg;
     document.getElementById('game').appendChild(el);
     setTimeout(() => el.remove(), 1500);
@@ -1862,11 +1899,10 @@ export default class GameScene extends Phaser.Scene {
     // Explicit per-map blockers at fixed normalized positions — pinch-point
     // mounds that channel the single path on open terrain. Same vocab as the
     // auto-placements, but hand-authored coords ({ type, x, y, scale? }).
-    const { width, height } = this.scale;
     for (const b of map.blockers ?? []) {
       const type = BLOCKER_TYPES[b.type];
       if (!type) continue;
-      type.draw(g, b.x * width, b.y * height, b.scale ?? 1, type.defaultTint(map.id));
+      type.draw(g, b.x * WORLD_WIDTH, b.y * WORLD_HEIGHT, b.scale ?? 1, type.defaultTint(map.id));
     }
 
     // Platforms
@@ -1887,12 +1923,11 @@ export default class GameScene extends Phaser.Scene {
       this.add.text(p[p.length-1].x, p[p.length-1].y, 'OUT', { fontSize: '10px', color: '#fff', fontFamily: 'Georgia', fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
       return;
     }
-    const { width, height } = this.scale;
     const key = bakeRoad(this, {
       key: `road_map_${map.id}`, waypoints: this.pathMgr.waypoints,
-      styleKey: map.pathRenderStyle, seed: map.blockerSeed, width, height,
+      styleKey: map.pathRenderStyle, seed: map.blockerSeed, width: WORLD_WIDTH, height: WORLD_HEIGHT,
     });
-    this._roadImage = this.add.image(width / 2, height / 2, key).setDepth(ROAD_DEPTH);
+    this._roadImage = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, key).setDepth(ROAD_DEPTH);
     this._endpoints = new PathEndpoints(this, {
       start: p[0], end: p[p.length - 1], family: ROAD_STYLES[map.pathRenderStyle].family,
     });

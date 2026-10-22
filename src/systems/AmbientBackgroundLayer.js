@@ -1,6 +1,7 @@
 import { FX_FAMILIES } from './ambientFxFamilies.js';
 import { SeededRandom } from './SeededRandom.js';
 import { AMBIENT_LAYERS } from '../data/ambient.js';
+import { WORLD_WIDTH, WORLD_HEIGHT } from '../data/layout.js';
 
 /**
  * Resolve the effective ambient-motion flag. An explicit saved boolean always
@@ -28,10 +29,8 @@ export class AmbientBackgroundLayer {
     if (!this._family) {
       throw new Error(`AmbientBackgroundLayer: unknown family "${ambientFx.family}"`);
     }
-    const w = scene.scale.width;
-    const h = scene.scale.height;
     this._layers = AMBIENT_LAYERS.map((layer) => {
-      const state = this._family.init(new SeededRandom(ambientFx.seed + layer.seedOffset), w, h);
+      const state = this._family.init(new SeededRandom(ambientFx.seed + layer.seedOffset), WORLD_WIDTH, WORLD_HEIGHT);
       const gfx = scene.add.graphics().setDepth(layer.depth).setAlpha(layer.alpha);
       if (this._family.blendMode) gfx.setBlendMode(this._family.blendMode);
       // Allocated once so update() never creates per-frame objects.
