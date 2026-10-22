@@ -2,6 +2,7 @@
 // SeededRandom instance. init() builds element state; step() advances it in
 // place; draw() issues only Phaser.Graphics primitive calls. The owning
 // AmbientBackgroundLayer sets the gfx blend mode once from family.blendMode.
+// draw(gfx, s, { sizeMult }) scales radii/line widths only, never positions.
 
 export const MAX_ELEMENTS = 90;
 const TWO_PI = Math.PI * 2;
@@ -40,11 +41,11 @@ export const FX_FAMILIES = {
         m.y = wrap(m.y + s.driftY * dtMs, s.h);
       }
     },
-    draw(gfx, s) {
+    draw(gfx, s, { sizeMult = 1 } = {}) {
       for (const m of s.motes) {
         const sway = Math.sin(s.t * m.swayFreq + m.phase) * m.swayAmp;
         gfx.fillStyle(s.color, m.baseAlpha);
-        gfx.fillCircle(wrap(m.x + sway, s.w), m.y, m.r);
+        gfx.fillCircle(wrap(m.x + sway, s.w), m.y, m.r * sizeMult);
       }
     },
   },
@@ -78,12 +79,12 @@ export const FX_FAMILIES = {
         if (e.y < -10) e.y += s.h + 20;
       }
     },
-    draw(gfx, s) {
+    draw(gfx, s, { sizeMult = 1 } = {}) {
       for (const e of s.embers) {
         const sway = Math.sin(s.t * e.swayFreq + e.phase) * e.swayAmp;
         const a = e.baseAlpha * Math.max(0, Math.min(1, e.y / s.h));
         gfx.fillStyle(e.color, a);
-        gfx.fillCircle(wrap(e.x + sway, s.w), e.y, e.r);
+        gfx.fillCircle(wrap(e.x + sway, s.w), e.y, e.r * sizeMult);
       }
     },
   },
@@ -116,11 +117,11 @@ export const FX_FAMILIES = {
       for (const p of s.far) p.x = wrap(p.x + s.driftFar * dtMs, s.w);
       for (const p of s.near) p.x = wrap(p.x + s.driftNear * dtMs, s.w);
     },
-    draw(gfx, s) {
+    draw(gfx, s, { sizeMult = 1 } = {}) {
       const drawPoint = (p) => {
         const a = p.baseAlpha * (0.6 + 0.4 * Math.sin(s.t * p.twFreq + p.phase));
         gfx.fillStyle(p.color, Math.max(0, a));
-        gfx.fillCircle(p.x, p.y, p.r);
+        gfx.fillCircle(p.x, p.y, p.r * sizeMult);
       };
       for (const p of s.far) drawPoint(p);
       for (const p of s.near) drawPoint(p);
@@ -160,16 +161,16 @@ export const FX_FAMILIES = {
     step(s, dtMs) {
       s.t += dtMs;
     },
-    draw(gfx, s) {
+    draw(gfx, s, { sizeMult = 1 } = {}) {
       for (const l of s.lights) {
         const a = l.baseAlpha * (0.5 + 0.5 * Math.sin(s.t * (TWO_PI / l.period) + l.phase));
         gfx.fillStyle(s.color, Math.max(0, a));
-        gfx.fillCircle(l.x, l.y, l.r);
+        gfx.fillCircle(l.x, l.y, l.r * sizeMult);
       }
       for (const c of s.conduits) {
         const spark = Math.sin(s.t * (TWO_PI / c.period) + c.phase);
         if (spark > 0.9) {
-          gfx.lineStyle(2, s.color, 0.7);
+          gfx.lineStyle(2 * sizeMult, s.color, 0.7);
           gfx.lineBetween(c.x1, c.y1, c.x2, c.y2);
         }
       }
@@ -201,10 +202,10 @@ export const FX_FAMILIES = {
       s.t += dtMs;
       for (const b of s.blobs) b.x = wrap(b.x + b.driftX * dtMs, s.w);
     },
-    draw(gfx, s) {
+    draw(gfx, s, { sizeMult = 1 } = {}) {
       for (const b of s.blobs) {
         const pulse = 0.5 + 0.5 * Math.sin(s.t * (TWO_PI / b.period) + b.phase);
-        const r = b.baseR * (0.8 + 0.4 * pulse);
+        const r = b.baseR * (0.8 + 0.4 * pulse) * sizeMult;
         const a = b.baseAlpha * (0.5 + 0.5 * pulse);
         gfx.fillStyle(b.color, a);
         gfx.fillCircle(b.x, b.y, r);
