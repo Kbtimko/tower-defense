@@ -14,21 +14,39 @@ export function fittedFontPx({ fontPx, naturalWidth, available }) {
 
 const computedFontPx = el => parseFloat(getComputedStyle(el).fontSize);
 
-// A plain-text button is measured by its scroll width (its widest word); a span
+const horizontalPadding = el => {
+  const cs = getComputedStyle(el);
+  return (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+};
+
+// The text's own width in the button's untransformed px. scrollWidth cannot do
+// this once the button has horizontal padding: a centred label that fits the
+// padding box but not the padded content box overflows nothing it can see, so
+// it would touch the ring the padding exists to clear.
+export function textWidthOf(el) {
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const shown = el.getBoundingClientRect().width;
+  if (!shown) return 0;
+  return (range.getBoundingClientRect().width * el.offsetWidth) / shown;
+}
+
+// A plain-text button is measured by its text width against its padded content
+// box; a span
 // label by its own box against its button / stat cell. Offsets ignore the HUD
 // layer's transform, so this works in game px.
 // Text is only nearly linear (an emoji glyph, hinting), so a pass that lands a
 // hair wide re-measures; a few passes always converge.
 const MAX_PASSES = 4;
 
-export function fitLabels(els, { baseFontPx = computedFontPx } = {}) {
+export function fitLabels(els, { baseFontPx = computedFontPx, measureText = textWidthOf } = {}) {
   for (const el of els) el.style.removeProperty('font-size');
   for (const el of els) {
     const plain = el.tagName === 'BUTTON';
     let fontPx = baseFontPx(el);
     for (let pass = 0; pass < MAX_PASSES; pass++) {
-      const naturalWidth = plain ? el.scrollWidth : el.offsetWidth;
-      const available = plain ? el.clientWidth : el.parentElement.clientWidth;
+      const naturalWidth = plain ? measureText(el) : el.offsetWidth;
+      const available = plain ? el.clientWidth - horizontalPadding(el) : el.parentElement.clientWidth;
       const px = fittedFontPx({ fontPx, naturalWidth, available });
       if (px === fontPx) break;
       fontPx = px;

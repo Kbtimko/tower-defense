@@ -27,7 +27,8 @@
        Avenir Next Condensed, Office installs Arial Narrow, Android maps
        sans-serif-condensed to Roboto Condensed, Windows 10+ has Bahnschrift.
        Anything wider is shrunk to fit by src/ui/fitLabels.js. */
-    #hud-layer { --hud-label-font: "Avenir Next Condensed", "Arial Narrow", "Roboto Condensed",
+    #hud-layer { --hud-label-inset: 4px; /* label clearance from the 2px ring; fitLabels reads the real padding */
+                 --hud-label-font: "Avenir Next Condensed", "Arial Narrow", "Roboto Condensed",
                    sans-serif-condensed, "Bahnschrift SemiCondensed", "Helvetica Neue", Arial, sans-serif;
                  display: none; position: absolute; left: 0; top: 0; z-index: 6;
                  width: var(--canvas-w); height: var(--world-h);
@@ -42,7 +43,7 @@
     /* :where() keeps this at zero specificity so every control's own rule wins.
        The face colour is background-color (a `background` shorthand would reset
        background-clip and paint over the gutter); the ring is --edge. */
-    :where(.hud-rail) button { width: 100%; height: 100%; margin: 0; padding: 0;
+    :where(.hud-rail) button { width: 100%; height: 100%; margin: 0; padding: 0 var(--hud-label-inset);
       border: 3px solid transparent; background-clip: padding-box; border-radius: 12px;
       box-shadow: inset 0 0 0 2px var(--edge, #444);
       display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
