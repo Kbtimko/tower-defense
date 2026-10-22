@@ -117,10 +117,11 @@
         100% { text-shadow: 0 0 0 transparent; }
       }
     }
-    /* min-width/overflow: on a phone narrower than the bar, the bar scrolls instead of
-       widening the page (which made the browser shrink-to-fit and stay zoomed out). */
+    /* No overflow on the bar: any non-visible overflow-x makes it a clipping scroll
+       container and would cut off the wave-preview popover that opens above it.
+       Zoom-out is prevented by the viewport meta; the compact block wraps instead. */
     #bottom-bar { display: none; align-items: center; gap: 8px; padding: 8px 14px;
-                  min-width: 0; overflow-x: auto; background: #0f0f1e; border-top: 2px solid #8b6914; flex-shrink: 0; }
+                  min-width: 0; background: #0f0f1e; border-top: 2px solid #8b6914; flex-shrink: 0; }
     .tower-btn { background: #1a1a3a; border: 2px solid #444; border-radius: 6px;
                  padding: 6px 10px; cursor: pointer; display: flex; flex-direction: column;
                  align-items: center; gap: 2px; transition: all 0.15s; color: #e8e0d0; }
@@ -543,7 +544,7 @@
       #speed-btn { padding: 8px 8px; font-size: 11px; }
       #pause-btn { padding: 8px 10px; font-size: 12px; }
       #open-codex { padding: 8px 8px; font-size: 12px; }
-      #bottom-bar { gap: 4px; padding: 4px 8px; }
+      #bottom-bar { gap: 4px; padding: 4px 8px; flex-wrap: wrap; }
       .tower-btn { padding: 4px 6px; gap: 1px; }
       .tower-btn .t-icon { font-size: 16px; }
       .tower-btn .t-cost { font-size: 10px; }
