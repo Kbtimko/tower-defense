@@ -46,6 +46,10 @@ export class PathEndpoints {
     const bd = fx.beacon.radius * 2;
     this._beaconGlow = make(b, 'fx-glow', fx.beacon.color, bd * look.beaconGlow.scale);
     this._beaconRing = make(b, 'fx-ring', fx.beacon.color, bd * look.beaconRing.scale).setAlpha(look.beaconRing.alpha);
+    // setScale() overwrites the scale setDisplaySize derived from the texture, so pulse
+    // around a base captured here (Image.width is the frame width).
+    this._portalGlowBase = pd * look.portalGlow.scale / this._portalGlow.width;
+    this._beaconGlowBase = bd * look.beaconGlow.scale / this._beaconGlow.width;
     this._images = [this._outer, this._inner, this._portalGlow, this._beaconGlow, this._beaconRing];
   }
 
@@ -58,10 +62,10 @@ export class PathEndpoints {
     this._outer.setRotation(spin);
     this._inner.setRotation(-spin);
     const pk = pulse01(t, this._portalFx.pulse);
-    this._portalGlow.setAlpha(lerp(look.portalGlow.alpha, pk)).setScale(1 + look.portalGlow.swing * (pk - 0.5) * 2);
+    this._portalGlow.setAlpha(lerp(look.portalGlow.alpha, pk)).setScale(this._portalGlowBase * (1 + look.portalGlow.swing * (pk - 0.5) * 2));
 
     const bk = pulse01(t, this._beaconFx.pulse);
-    this._beaconGlow.setAlpha(lerp(look.beaconGlow.alpha, bk)).setScale(1 + look.beaconGlow.swing * (bk - 0.5) * 2);
+    this._beaconGlow.setAlpha(lerp(look.beaconGlow.alpha, bk)).setScale(this._beaconGlowBase * (1 + look.beaconGlow.swing * (bk - 0.5) * 2));
     this._beaconRing.setRotation(look.beaconRing.spin * t);
   }
 

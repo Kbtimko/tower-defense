@@ -8,7 +8,7 @@ function stubScene() {
     images,
     add: {
       image(x, y, key) {
-        const im = { x, y, key, rotation: 0, scale: 1, alpha: 1, destroyed: false };
+        const im = { x, y, key, width: 64, rotation: 0, scale: 1, alpha: 1, destroyed: false };
         for (const m of ['setDepth', 'setTint', 'setBlendMode', 'setDisplaySize', 'setRotation', 'setScale', 'setAlpha']) {
           im[m] = (v) => {
             if (m === 'setDepth') im.depth = v;
@@ -16,7 +16,7 @@ function stubScene() {
             if (m === 'setRotation') im.rotation = v;
             if (m === 'setScale') im.scale = v;
             if (m === 'setAlpha') im.alpha = v;
-            if (m === 'setDisplaySize') im.size = v;
+            if (m === 'setDisplaySize') im.scale = v / im.width;
             return im;
           };
         }
@@ -64,6 +64,22 @@ describe('PathEndpoints', () => {
     expect(inner.rotation).toBeLessThan(0);
   });
 
+  it.each(['planet', 'space'])('glows keep their intended diameter while pulsing (%s)', (family) => {
+    const s = stubScene();
+    const e = mk(s, { family });
+    const { portal, beacon } = ENDPOINT_FX[family];
+    const L = ENDPOINT_LOOK;
+    const cases = [[s.images[2], portal.radius * 2 * L.portalGlow.scale, L.portalGlow.swing],
+      [s.images[3], beacon.radius * 2 * L.beaconGlow.scale, L.beaconGlow.swing]];
+    for (let i = 0; i < 40; i++) {
+      e.update(0.037);
+      for (const [im, d, swing] of cases) {
+        expect(im.scale * im.width).toBeGreaterThanOrEqual(d * (1 - swing) - 1e-9);
+        expect(im.scale * im.width).toBeLessThanOrEqual(d * (1 + swing) + 1e-9);
+      }
+    }
+  });
+
   it('destroy destroys every image', () => {
     const s = stubScene();
     mk(s).destroy();
@@ -76,6 +92,7 @@ describe('PathEndpoints', () => {
     const { portal, beacon } = ENDPOINT_FX.planet;
     const [p0] = s.images;
     expect(p0.x).toBe(portal.radius);
+    expect(p0.y).toBe(360);
     const beaconImg = s.images[s.images.length - 1];
     expect(beaconImg.x).toBe(1280 - beacon.radius);
     expect(beaconImg.y).toBe(720 - beacon.radius);
