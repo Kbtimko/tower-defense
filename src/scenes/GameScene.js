@@ -41,6 +41,8 @@ import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
 import { describeTowerArmour, armourRowLabel } from '../systems/armourLegibility.js';
 import { shortEnemyName } from '../systems/entityDescriptors.js';
 import { InspectController } from './InspectController.js';
+import { InputController } from './InputController.js';
+import { resolveTap, hasMode } from '../systems/tapResolve.js';
 import { SentryTurret } from '../entities/SentryTurret.js';
 import { renderPath } from '../systems/PathRenderer.js';
 import { bakeRoad } from '../systems/RoadRenderer.js';
@@ -230,14 +232,8 @@ export default class GameScene extends Phaser.Scene {
     this._setupRoad(map);
 
     this.inspector = new InspectController(this);
-    this.input.on('pointermove', (p) => {
-      this._buildCursorX = p.worldX;
-      this._buildCursorY = p.worldY;
-      this.inspector.onPointerMove(p.worldX, p.worldY);
-    });
-
-    // Phaser input
-    this.input.on('pointerdown', this._onPointerDown, this);
+    // Taps resolve on release through _onTap; long-press peeks (touch).
+    this._inputCtl = new InputController(this);
 
     // Scene events from systems. Wired as a pair with _unwireSceneEvents so
     // registration and removal cannot drift apart — see the comment there.
@@ -260,6 +256,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Wire DOM buttons (use once-registered named functions; shutdown() cleans up via clone)
     this._bindDOMEvents();
+    this._syncCancelButton();
     this._wavePreview = new WavePreviewPopover();
     this._updateHUD();
     this._updateWaveButton();
@@ -279,6 +276,7 @@ export default class GameScene extends Phaser.Scene {
     // Wire ability dispatch
     this.game.events.on('ui:ability', this._onAbility, this);
     this.game.events.on('ui:pause-toggle', this._onPauseToggle, this);
+    this.game.events.on('ui:cancel', this._onUiCancel, this);
 
     // Pre-battle briefing (once per map). Combat hasn't started; the wave button waits.
     const briefId = briefKey(map.storyKey);
@@ -327,6 +325,7 @@ export default class GameScene extends Phaser.Scene {
     });
     document.getElementById('pause-btn').addEventListener('click', () => this._onPauseToggle());
     document.getElementById('open-codex')?.addEventListener('click', () => this._openCodex());
+    this._bindCancelButton();
     this._wireShellListeners();
   }
 
@@ -491,15 +490,22 @@ export default class GameScene extends Phaser.Scene {
     this._codexOverlay?.close();
     this._codexOverlay = null;
     this._storyDialog?.close();
+    this._inputCtl?.destroy();
+    this._inputCtl = null;
     this.inspector?.destroy();
     if (import.meta.env.DEV) window.__game = null;
     this.game.events.off('ui:ability', this._onAbility, this);
     this.game.events.off('ui:pause-toggle', this._onPauseToggle, this);
+    this.game.events.off('ui:cancel', this._onUiCancel, this);
     // Remove all DOM listeners without tracking refs: clone replaces the node
-    ['wave-btn','speed-btn','pause-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','msg-cancel-btn','exit-btn','panel-reposition-btn','story-dismiss','open-codex'].forEach(id => {
+    ['wave-btn','speed-btn','pause-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','msg-cancel-btn','exit-btn','panel-reposition-btn','story-dismiss','open-codex','cancel-btn'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.replaceWith(el.cloneNode(true));
     });
+    // The clone keeps an inline display; a mode left armed at exit would show it
+    // over the map select.
+    const cancelBtn = document.getElementById('cancel-btn');
+    if (cancelBtn) cancelBtn.style.display = 'none';
     document.querySelectorAll('.tower-btn').forEach(btn => btn.replaceWith(btn.cloneNode(true)));
     document.getElementById('hud').style.display          = 'none';
     document.getElementById('bottom-bar').style.display   = 'none';
@@ -813,6 +819,7 @@ export default class GameScene extends Phaser.Scene {
       this.aimMode  = true;
       this._aimSlot = slot;
       this.game.events.emit('hero:aim-mode');
+      this._syncCancelButton();
       return;
     }
 
@@ -856,6 +863,7 @@ export default class GameScene extends Phaser.Scene {
     this._aimSlot = null;
     this.aimMode  = false;
     this.game.events.emit('hero:aim-cancel');
+    this._syncCancelButton();
     if (!result) return;
     this._applyAbilityResult(slot, result);
   }
@@ -1160,101 +1168,139 @@ export default class GameScene extends Phaser.Scene {
 
   // ─── Input ─────────────────────────────────────────────────────────────────
 
-  _onPointerDown(pointer) {
-    const mx = pointer.x, my = pointer.y;
+  // Canvas tap entry point: InputController calls this on release. The order
+  // (aim -> reposition -> tower -> inspect -> build -> hero) lives in resolveTap.
+  _onTap(mx, my) {
+    const hits = this._tapHits(mx, my);
+    this._runTapAction(resolveTap(this._modeState(), hits), mx, my, hits);
+    this._syncCancelButton();
+  }
 
-    // 1. Aim mode takes priority
-    if (this.aimMode) {
-      this._triggerAimAbility(mx, my);
-      return;
-    }
+  _modeState() {
+    return {
+      aimSlot:       this.aimMode ? this._aimSlot : null,
+      repositioning: !!(this.repositionMode && this.repositioningBarracks),
+      selectedType:  this.selectedType,
+      heroDead:      !!this.hero?.dead,
+    };
+  }
 
-    // 2. Barracks reposition mode
-    if (this.repositionMode && this.repositioningBarracks) {
-      const barracks = this.repositioningBarracks;
-      // Use getNearestSlot (added in Task 11) with requireFree=true and a
-      // 60px reposition snap range (looser than the 22px placement radius
-      // because the player is dragging, not single-clicking a target).
-      const slot = this.placementManager.getNearestSlot(mx, my, 60, true);
-      if (!slot) {
-        // No valid target — cancel reposition silently
-        this.repositionMode = false;
-        this.repositioningBarracks = null;
-        return;
-      }
-      // Free the old slot, occupy the new one, move barracks.
-      const zones = this.placementManager.getZones();
-      zones[barracks.zoneIndex].occupied = false;
-      zones[slot.slotIndex].occupied = true;
-      barracks.zoneIndex = slot.slotIndex;
-      barracks.setPosition(slot.x, slot.y);
-      this._repaintStaticLayers();
-      this.repositionMode = false;
-      this.repositioningBarracks = null;
-      return;
-    }
+  // Today's radii: tower 22px, build slot 22px, path 40px. inspectableAt does
+  // not pin, so asking it costs nothing when an earlier step wins.
+  _tapHits(mx, my) {
+    return {
+      tower:       this.placementManager.getTowers().find(t => Math.hypot(t.x - mx, t.y - my) < 22) ?? null,
+      slot:        this.placementManager.getNearestSlot(mx, my, 22, true),
+      onPath:      this.pathMgr.isOnPath(mx, my, 40),
+      inspectable: this.inspector?.inspectableAt(mx, my) ?? null,
+    };
+  }
 
-    // 3. Tower click
-    for (const tower of this.placementManager.getTowers()) {
-      if (Math.hypot(tower.x - mx, tower.y - my) < 22) {
-        this.selectedType = null;
-        this._deselectButtons();
-        const panelCss = gameToPageCss(this.scale, mx, my);
-        const gRect = document.getElementById('game').getBoundingClientRect();
-        this._openTowerPanel(tower, panelCss.x - gRect.left, panelCss.y - gRect.top);
-        return;
-      }
-    }
-    // No tower hit — dismiss any open panel before continuing
-    this._closeTowerPanel();
-
-    // 4. Inspect click (enemy or hero)
-    if (this.inspector?.tryClickInspect(mx, my)) return;
-
-    // 5. Tower placement — snap to the nearest free slot within disc radius
-    if (this.selectedType) {
-      const slot = this.placementManager.getNearestSlot(mx, my, 22, true);
-      if (!slot) {
+  _runTapAction(action, mx, my, hits) {
+    if (action.closePanel) this._closeTowerPanel();
+    switch (action.type) {
+      case 'fireAim':     this._triggerAimAbility(mx, my); break;
+      case 'reposition':  this._repositionTo(mx, my); break;
+      case 'openPanel':   this._openPanelFromTap(action.tower, mx, my); break;
+      // tryClickInspect agrees with inspectableAt (same hit test), so a pin
+      // decision is always consumed — a same-target tap dismisses, as today.
+      case 'pin':         this.inspector.tryClickInspect(mx, my); break;
+      case 'place':       this._placeAt(hits.slot); break;
+      case 'cancelBuild':
         // Nothing to build on here. Cancel the armed selection instead of
         // swallowing the click: leaving it armed made every subsequent click a
-        // silent no-op too, because this branch returns before the hero-move
-        // case below. A player who clicked a tower button to see what it did
-        // could then never move the hero again, with nothing on screen saying
-        // why.
+        // silent no-op too, because the build step wins before the hero move.
+        // A player who clicked a tower button to see what it did could then
+        // never move the hero again, with nothing on screen saying why.
         this.selectedType = null;
         this._deselectButtons();
         this._toast('No build slot there — build cancelled');
-        return;
-      }
-      const tower = this.placementManager.placeTower(slot.slotIndex, this.selectedType, this);
-      if (!tower) { this._toast('Not enough gold!'); return; }
-      this._playTowerPop(tower, BUILD_POP);
-      this._repaintStaticLayers();
-      if (this.selectedType === 'barracks') {
-        tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(slot.x, slot.y);
-        tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
-      }
-      return;
-    }
-
-    // 6. Move hero (path-constrained)
-    if (!this.hero.dead) {
-      if (this.pathMgr.isOnPath(mx, my, 40)) {
-        const progress = this.pathMgr.getNearestPathProgress(mx, my);
-        this.hero.moveToProgress(progress);
-      } else {
-        this._toast('Hero can only move along the path');
-      }
+        break;
+      case 'moveHero':    this.hero.moveToProgress(this.pathMgr.getNearestPathProgress(mx, my)); break;
+      case 'offPath':     this._toast('Hero can only move along the path'); break;
+      // 'none': a dead hero ignores the tap.
     }
   }
 
-  _selectTowerType(type, btn) {
-    if (this.selectedType === type) { this.selectedType = null; this._deselectButtons(); return; }
-    this.selectedType = type;
-    this.selectedTower = null;
-    this._closeTowerPanel();
+  _repositionTo(mx, my) {
+    const barracks = this.repositioningBarracks;
+    // requireFree=true with a 60px reposition snap range (looser than the 22px
+    // placement radius because the player is dragging, not single-clicking).
+    const slot = this.placementManager.getNearestSlot(mx, my, 60, true);
+    this.repositionMode = false;
+    this.repositioningBarracks = null;
+    // No valid target — cancel reposition silently.
+    if (!slot) return;
+    // Free the old slot, occupy the new one, move barracks.
+    const zones = this.placementManager.getZones();
+    zones[barracks.zoneIndex].occupied = false;
+    zones[slot.slotIndex].occupied = true;
+    barracks.zoneIndex = slot.slotIndex;
+    barracks.setPosition(slot.x, slot.y);
+    this._repaintStaticLayers();
+  }
+
+  _openPanelFromTap(tower, mx, my) {
+    this.selectedType = null;
     this._deselectButtons();
-    btn.classList.add('selected');
+    const panelCss = gameToPageCss(this.scale, mx, my);
+    const gRect = document.getElementById('game').getBoundingClientRect();
+    this._openTowerPanel(tower, panelCss.x - gRect.left, panelCss.y - gRect.top);
+  }
+
+  _placeAt(slot) {
+    const tower = this.placementManager.placeTower(slot.slotIndex, this.selectedType, this);
+    if (!tower) { this._toast('Not enough gold!'); return; }
+    this._playTowerPop(tower, BUILD_POP);
+    this._repaintStaticLayers();
+    if (this.selectedType === 'barracks') {
+      tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(slot.x, slot.y);
+      tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
+    }
+  }
+
+  // ─── Modes (build / aim / reposition) ──────────────────────────────────────
+
+  _cancelMode() {
+    const wasAiming = this.aimMode;
+    this.selectedType = null;
+    this._deselectButtons();
+    this.aimMode  = false;
+    this._aimSlot = null;
+    if (wasAiming) this.game.events.emit('hero:aim-cancel');
+    this.repositionMode = false;
+    this.repositioningBarracks = null;
+    this._syncCancelButton();
+  }
+
+  // Escape arrives here for every press; with no mode it must not swallow it,
+  // so the inspector and overlays keep their own Escape handling.
+  _onUiCancel() {
+    if (hasMode(this._modeState())) this._cancelMode();
+  }
+
+  _bindCancelButton() {
+    document.getElementById('cancel-btn').addEventListener('click', () => this._cancelMode());
+  }
+
+  // Unit tests drive mode changes against partial DOMs, hence the null guard.
+  _syncCancelButton() {
+    const btn = document.getElementById('cancel-btn');
+    if (btn) btn.style.display = hasMode(this._modeState()) ? 'block' : 'none';
+  }
+
+  _selectTowerType(type, btn) {
+    if (this.selectedType === type) {
+      this.selectedType = null;
+      this._deselectButtons();
+    } else {
+      this.selectedType = type;
+      this.selectedTower = null;
+      this._closeTowerPanel();
+      this._deselectButtons();
+      btn.classList.add('selected');
+    }
+    this._syncCancelButton();
   }
 
   _showTowerTooltip(btn) {
@@ -1380,6 +1426,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.selectedType = null;
     document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('selected'));
+    this._syncCancelButton();
   }
 
   // Flat armour is subtracted before any multiplier, so a tower at or below an
@@ -1560,6 +1607,7 @@ export default class GameScene extends Phaser.Scene {
     document.getElementById('tower-panel').style.display = 'none';
     this.repositionMode = true;
     this.repositioningBarracks = barracks;
+    this._syncCancelButton();
     this._redrawZones();
     this._toast('Click on the path within Barracks range to reposition soldiers');
   }

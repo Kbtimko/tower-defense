@@ -72,3 +72,29 @@ describe('UIScene Space key', () => {
     expect(emit).toHaveBeenCalledWith('ui:ability', { slot: 'e' });
   });
 });
+
+describe('UIScene Escape key', () => {
+  beforeEach(setupMinimalDOM);
+
+  it('Escape keydown emits ui:cancel', () => {
+    const { scene, emit } = makeUIScene();
+    scene._bindDOMEvents();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+
+    expect(emit).toHaveBeenCalledWith('ui:cancel');
+    document.removeEventListener('keydown', scene._onKeyDown);
+  });
+
+  it('Escape in an INPUT does not emit ui:cancel', () => {
+    const { scene, emit } = makeUIScene();
+    scene._bindDOMEvents();
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+    expect(emit).not.toHaveBeenCalledWith('ui:cancel');
+    document.removeEventListener('keydown', scene._onKeyDown);
+  });
+});

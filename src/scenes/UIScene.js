@@ -73,6 +73,11 @@ export default class UIScene extends Phaser.Scene {
         this.game.events.emit('ui:pause-toggle');
         return;
       }
+      // GameScene ignores this unless a build/aim/reposition mode is active.
+      if (e.key === 'Escape') {
+        this.game.events.emit('ui:cancel');
+        return;
+      }
       const key = e.key.toLowerCase();
       if (['q', 'w', 'e'].includes(key)) {
         this.game.events.emit('ui:ability', { slot: key });

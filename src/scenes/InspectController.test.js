@@ -685,3 +685,51 @@ describe('InspectController — hero XP progress on the card', () => {
     expect(document.getElementById('hi-xp-label').textContent).toBe('0 / 650 to Level 4');
   });
 });
+
+// The tap pipeline decides "pin" from inspectableAt BEFORE it calls
+// tryClickInspect, so the two must agree or a pin decision could fall through.
+describe('InspectController — side-effect-free hit test and touch peek', () => {
+  beforeEach(setupDom);
+
+  it('inspectableAt reports enemy before hero and pins nothing', () => {
+    const enemy = makeEnemy({ x: 50, y: 50 });
+    const ctrl = new InspectController(makeScene([enemy], makeHero()));
+    expect(ctrl.inspectableAt(50, 50)).toEqual({ kind: 'enemy', target: enemy });
+    expect(ctrl.pinned).toBeNull();
+  });
+
+  it('inspectableAt reports the hero, and null over empty space', () => {
+    const hero = makeHero();
+    const ctrl = new InspectController(makeScene([], hero));
+    expect(ctrl.inspectableAt(50, 50)).toEqual({ kind: 'hero', target: hero });
+    expect(ctrl.inspectableAt(500, 500)).toBeNull();
+  });
+
+  it('tryClickInspect still reports consumed when it dismisses the same target', () => {
+    const enemy = makeEnemy();
+    const ctrl = new InspectController(makeScene([enemy]));
+    ctrl.tryClickInspect(100, 100);
+    expect(ctrl.tryClickInspect(100, 100)).toBe(true);
+    expect(ctrl.pinned).toBeNull();
+  });
+
+  it('peekAt shows the peek over an enemy and returns true', () => {
+    const ctrl = new InspectController(makeScene([makeEnemy()]));
+    expect(ctrl.peekAt(100, 100)).toBe(true);
+    expect(document.getElementById('inspect-peek').style.display).toBe('block');
+  });
+
+  it('peekAt over empty space returns false and leaves the peek hidden', () => {
+    const ctrl = new InspectController(makeScene([makeEnemy()]));
+    expect(ctrl.peekAt(500, 500)).toBe(false);
+    expect(document.getElementById('inspect-peek').style.display).toBe('none');
+  });
+
+  it('hidePeek hides a shown peek', () => {
+    const ctrl = new InspectController(makeScene([makeEnemy()]));
+    ctrl.peekAt(100, 100);
+    ctrl.hidePeek();
+    expect(document.getElementById('inspect-peek').style.display).toBe('none');
+    expect(ctrl.peekTarget).toBeNull();
+  });
+});

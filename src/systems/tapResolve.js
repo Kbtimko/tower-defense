@@ -1,4 +1,4 @@
-// Pure mirror of GameScene._onPointerDown's priority chain:
+// Pure mirror of GameScene._onTap's priority chain (formerly _onPointerDown):
 //   aim -> reposition -> tower -> (close panel) -> inspect -> build -> hero.
 // `closePanel: true` marks every outcome that today runs _closeTowerPanel() first
 // (everything after the tower-hit check). `clearBuild: true` on openPanel means the

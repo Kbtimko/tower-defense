@@ -18,22 +18,33 @@ export class InspectController {
     window.addEventListener('keydown', this._onKeyDown);
   }
 
-  // Called by GameScene._onPointerDown. Returns true if click was consumed.
-  tryClickInspect(mx, my) {
+  // Side-effect-free: the tap pipeline asks this before deciding to pin.
+  inspectableAt(mx, my) {
     const enemy = this._hitTestEnemy(mx, my);
-    if (enemy) { this.pin({ kind: 'enemy', target: enemy }); return true; }
-    if (this._hitTestHero(mx, my)) {
-      this.pin({ kind: 'hero', target: this.scene.hero });
-      return true;
-    }
-    return false;
+    if (enemy) return { kind: 'enemy', target: enemy };
+    if (this._hitTestHero(mx, my)) return { kind: 'hero', target: this.scene.hero };
+    return null;
+  }
+
+  // Called by GameScene._onTap. Returns true if the tap was consumed — including
+  // a same-target dismiss — so it agrees with inspectableAt by construction.
+  tryClickInspect(mx, my) {
+    const hit = this.inspectableAt(mx, my);
+    if (!hit) return false;
+    this.pin(hit);
+    return true;
   }
 
   onPointerMove(mx, my) {
-    const enemy = this._hitTestEnemy(mx, my);
-    if (enemy) { this._showPeek('enemy', enemy, mx, my); return; }
-    if (this._hitTestHero(mx, my)) { this._showPeek('hero', this.scene.hero, mx, my); return; }
-    this._hidePeek();
+    this.peekAt(mx, my);
+  }
+
+  // Mouse hover and touch long-press share this. Returns whether a peek is shown.
+  peekAt(mx, my) {
+    const hit = this.inspectableAt(mx, my);
+    if (!hit) { this.hidePeek(); return false; }
+    this._showPeek(hit.kind, hit.target, mx, my);
+    return true;
   }
 
   refresh() {
@@ -56,7 +67,7 @@ export class InspectController {
       return;
     }
     this.pinned = spec;
-    this._hidePeek();
+    this.hidePeek();
     this._showPanel(spec.kind);
     if (spec.kind === 'enemy') this._renderEnemyPanel(spec.target);
     else                       this._renderHeroPanel(spec.target);
@@ -290,7 +301,7 @@ export class InspectController {
     peek.style.display = 'block';
   }
 
-  _hidePeek() {
+  hidePeek() {
     this.peekTarget = null;
     document.getElementById('inspect-peek').style.display = 'none';
   }

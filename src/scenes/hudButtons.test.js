@@ -18,7 +18,7 @@ import { TOWER_DEFS } from '../data/towers.js';
 
 const BUTTON_IDS = [
   'wave-btn', 'speed-btn', 'pause-btn', 'panel-upgrade-btn', 'panel-sell-btn',
-  'panel-reposition-btn', 'msg-btn', 'msg-cancel-btn', 'exit-btn',
+  'panel-reposition-btn', 'msg-btn', 'msg-cancel-btn', 'exit-btn', 'cancel-btn',
   'ability-q', 'ability-w', 'ability-e',
 ];
 const TEXT_IDS = ['stat-lives', 'stat-gold', 'stat-wave', 'stat-kills', 'tower-tooltip'];
