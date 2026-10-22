@@ -186,6 +186,24 @@ describe('GameScene leak marking', () => {
     expect(e.leaked).toBeUndefined();
     expect(s.economy.loseLife).toHaveBeenCalledOnce(); // pre-existing behaviour, deliberately unchanged
   });
+
+  it('pulses the lives HUD and the game frame when a life is lost', () => {
+    document.body.innerHTML = '<div class="hud-stat"><span id="stat-lives">20</span></div><div id="game"></div>';
+    try {
+      sceneWith([walker({})])._updateEnemies(0.016);
+      expect(document.querySelector('.hud-stat').classList.contains('life-lost-pulse')).toBe(true);
+      expect(document.getElementById('game').classList.contains('life-lost-frame')).toBe(true);
+    } finally {
+      document.body.innerHTML = '';
+    }
+  });
+
+  it('a leak with no HUD in the DOM still completes the frame', () => {
+    document.body.innerHTML = '';
+    const s = sceneWith([walker({})]);
+    expect(() => s._updateEnemies(0.016)).not.toThrow();
+    expect(s.economy.loseLife).toHaveBeenCalledOnce();
+  });
 });
 
 describe('GameScene damage-dealt wiring', () => {

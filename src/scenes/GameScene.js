@@ -24,6 +24,7 @@ import { SOLDIER_MUZZLE, HIT_STOP } from '../data/fx.js';
 import { deathClass, isHeavyHit, canHitStop } from '../systems/hitFx.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
 import { gameToPageCss } from '../systems/viewport.js';
+import { pulseClass } from '../ui/pulse.js';
 import { STORY_PANELS, briefKey, victorySequenceId, STORY_SEQUENCES } from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
 import { soldierSource, heroAbilitySource } from '../data/sourceBuilders.js';
@@ -621,6 +622,7 @@ export default class GameScene extends Phaser.Scene {
         const am = this.game.registry.get('audio');
         if (am) am.playSfx('life-lost');
         this.economy.loseLife();
+        this._pulseLifeLost();
       }
     }
     const dying = this.enemies.filter(e => e.dead);
@@ -635,6 +637,14 @@ export default class GameScene extends Phaser.Scene {
       }
       this._updateWaveButton();
     }
+  }
+
+  // DOM-only feedback: the HUD sits outside the canvas, so the lives counter and
+  // the game frame are pulsed through CSS rather than a Phaser tween.
+  _pulseLifeLost() {
+    const lives = document.getElementById('stat-lives');
+    pulseClass(lives?.parentElement, 'life-lost-pulse');
+    pulseClass(document.getElementById('game'), 'life-lost-frame');
   }
 
   _fadeOutDeadEnemy(enemy) {
