@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('phaser', () => ({ default: { Geom: { Circle: class { constructor(x, y, r) { this.x = x; this.y = y; this.r = r; } } } } }));
 
 import { ParticleSpawner } from './ParticleSpawner.js';
-import { TRAIL_FX, MUZZLE_FX, IMPACT_FX, SOLDIER_MUZZLE, STATUS_FX, STATUS_EMIT_FX } from '../data/fx.js';
+import { TRAIL_FX, MUZZLE_FX, IMPACT_FX, SOLDIER_MUZZLE, STATUS_FX, STATUS_EMIT_FX, DEATH_FX } from '../data/fx.js';
 import { projectileFx } from './fxResolve.js';
 
 function makeScene() {
@@ -12,6 +12,7 @@ function makeScene() {
     config: null,
     explode: vi.fn(),
     emitParticleAt: vi.fn(),
+    setParticleTint: vi.fn(),
     setDepth: vi.fn(function () { return this; }),
     stop: vi.fn(),
     startFollow: vi.fn(),
@@ -202,5 +203,55 @@ describe('ParticleSpawner', () => {
     const sp = new ParticleSpawner(scene);
     sp.spawnHeroAbilityVFX('overcharge', 50, 50, 0);
     expect(scene.add.graphics).not.toHaveBeenCalled();
+  });
+
+  describe('spawnDeath', () => {
+    const layerCount = (key) => (Array.isArray(IMPACT_FX[key]) ? IMPACT_FX[key].length : 1);
+
+    it('plays every immediate step now and schedules each delayed step exactly once', () => {
+      for (const cls of Object.keys(DEATH_FX)) {
+        const scene = makeScene();
+        const calls = [];
+        scene.time.delayedCall = vi.fn((ms, cb) => calls.push({ ms, cb }));
+        const sp = new ParticleSpawner(scene);
+        sp.spawnDeath(cls, 10, 20, 0xff0000);
+
+        const immediate = DEATH_FX[cls].filter((s) => s.delay === 0);
+        const delayed = DEATH_FX[cls].filter((s) => s.delay > 0);
+        const explodesNow = immediate.reduce((n, s) => n + layerCount(s.effect), 0);
+        expect(scene._emitter.explode).toHaveBeenCalledTimes(explodesNow);
+        expect(calls.map((c) => c.ms)).toEqual(delayed.map((s) => s.delay));
+
+        calls.forEach((c) => c.cb());
+        const all = DEATH_FX[cls].reduce((n, s) => n + layerCount(s.effect), 0);
+        expect(scene._emitter.explode).toHaveBeenCalledTimes(all);
+      }
+    });
+
+    it('explodes at the death position', () => {
+      const scene = makeScene();
+      new ParticleSpawner(scene).spawnDeath('small', 33, 44, 0x00ff00);
+      expect(scene._emitter.explode).toHaveBeenCalledWith(IMPACT_FX.pop.quantity, 33, 44);
+    });
+
+    it('tints the pop with the enemy colour before exploding', () => {
+      const scene = makeScene();
+      new ParticleSpawner(scene).spawnDeath('small', 1, 2, 0x12ab34);
+      expect(scene._emitter.setParticleTint).toHaveBeenCalledWith(0x12ab34);
+      expect(scene._emitter.setParticleTint.mock.invocationCallOrder[0])
+        .toBeLessThan(scene._emitter.explode.mock.invocationCallOrder[0]);
+    });
+
+    it('leaves non-pop effects untinted', () => {
+      const scene = makeScene();
+      new ParticleSpawner(scene).spawnDeath('large', 1, 2, 0x12ab34);
+      expect(scene._emitter.setParticleTint).not.toHaveBeenCalled();
+    });
+
+    it('does nothing for an unknown class', () => {
+      const scene = makeScene();
+      new ParticleSpawner(scene).spawnDeath('nope', 1, 2, 0);
+      expect(scene._emitter.explode).not.toHaveBeenCalled();
+    });
   });
 });

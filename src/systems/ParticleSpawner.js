@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { TRAIL_FX, MUZZLE_FX, IMPACT_FX, STATUS_FX, STATUS_EMIT_FX } from '../data/fx.js';
+import { TRAIL_FX, MUZZLE_FX, IMPACT_FX, STATUS_FX, STATUS_EMIT_FX, DEATH_FX } from '../data/fx.js';
 import { projectileFx } from './fxResolve.js';
 
 // Just above projectiles (depth 16) so effects read over the shot.
@@ -13,6 +13,12 @@ function emitterConfig(def) {
   if (gravityY !== undefined) config.gravityY = gravityY;
   return config;
 }
+
+// Neutral-white effects tinted per spawn with the dying enemy's colour. Safe on
+// a shared emitter: Phaser reads the tint when each particle is emitted
+// (Particle.fire -> EmitterOp.staticValueEmit) and never rewrites it after,
+// so live particles from an earlier death keep their own colour.
+const TINT_AT_SPAWN = new Set(['pop']);
 
 export class ParticleSpawner {
   constructor(scene) {
@@ -45,6 +51,22 @@ export class ParticleSpawner {
     layers.forEach((def, i) => {
       this._emitter(`impact:${impactKey}:${i}`, def).explode(def.quantity, x, y);
     });
+  }
+
+  // Plays the class's DEATH_FX steps. Delayed steps (the boss sequence) use
+  // one delayedCall each, which is a per-death cost, not a per-frame one.
+  spawnDeath(cls, x, y, color) {
+    const steps = DEATH_FX[cls];
+    if (!steps) return;
+    for (const { effect, delay } of steps) {
+      if (delay > 0) this._scene.time.delayedCall(delay, () => this._playDeathStep(effect, x, y, color));
+      else this._playDeathStep(effect, x, y, color);
+    }
+  }
+
+  _playDeathStep(effect, x, y, color) {
+    if (TINT_AT_SPAWN.has(effect)) this._emitter(`impact:${effect}:0`, IMPACT_FX[effect]).setParticleTint(color);
+    this.spawnImpact(effect, x, y);
   }
 
   // Emits at the drawn position (ground y plus the art's arc lift) so smoke

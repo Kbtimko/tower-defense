@@ -20,7 +20,8 @@ import { StoryDialogOverlay } from '../ui/StoryDialogOverlay.js';
 import { DamageNumberOverlay } from '../systems/DamageNumberOverlay.js';
 import { ShakeController }    from '../systems/ShakeController.js';
 import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
-import { SOLDIER_MUZZLE } from '../data/fx.js';
+import { SOLDIER_MUZZLE, HIT_STOP } from '../data/fx.js';
+import { deathClass, isHeavyHit, canHitStop } from '../systems/hitFx.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
 import { gameToPageCss } from '../systems/viewport.js';
 import { STORY_PANELS, briefKey, victorySequenceId, STORY_SEQUENCES } from '../data/story.js';
@@ -221,6 +222,9 @@ export default class GameScene extends Phaser.Scene {
     this._wireSceneEvents();
 
     this._userPaused = false;
+    // Start at the cooldown so the first heavy hit of a level can stop.
+    this._hitStopTimer = 0;
+    this._sinceHitStop = HIT_STOP.cooldown;
 
     // Show DOM UI
     document.getElementById('hud').style.display        = 'flex';
@@ -374,6 +378,7 @@ export default class GameScene extends Phaser.Scene {
     this.events.on('economy:update', this._updateHUD,      this);
     this.events.on('game:defeat',    this._onDefeat,       this);
     this.events.on('hero:level-up',  this._onHeroLevelUp,  this);
+    this.events.on('damage-dealt',   this._onDamageDealt,  this);
   }
 
   _unwireSceneEvents() {
@@ -381,6 +386,30 @@ export default class GameScene extends Phaser.Scene {
     this.events.off('economy:update', this._updateHUD,      this);
     this.events.off('game:defeat',    this._onDefeat,       this);
     this.events.off('hero:level-up',  this._onHeroLevelUp,  this);
+    this.events.off('damage-dealt',   this._onDamageDealt,  this);
+  }
+
+  // Hit-stop: a few tens of ms where the whole simulation freezes so a big hit
+  // lands with weight. Rate-limited, and never while paused/over/reduced-motion.
+  _tryHitStop() {
+    if (this.over || this.won) return;
+    const allowed = canHitStop({
+      sinceLast: this._sinceHitStop,
+      paused: this._userPaused,
+      reducedMotion: this.game.registry.get('ambientMotion') === false,
+    });
+    if (!allowed) return;
+    this._hitStopTimer = HIT_STOP.duration;
+    this._sinceHitStop = 0;
+  }
+
+  // `target.def` filters out the hero and soldiers, which share this event.
+  _onDamageDealt({ target, amount }) {
+    if (!target?.def) return;
+    const heavy = isHeavyHit({
+      damage: amount, maxHp: target.maxHp, killed: target.dead, type: target.def.type,
+    });
+    if (heavy) this._tryHitStop();
   }
 
   // Relay hero scene events to the game bus for UIScene.
@@ -435,6 +464,12 @@ export default class GameScene extends Phaser.Scene {
       window.__capture.enemies = this.enemies.filter(e => !e.dead).length;
     }
     if (this.over || this.won) return;
+    // Real delta, not speed-scaled: the freeze is a feel effect, not game time.
+    if (this._hitStopTimer > 0) {
+      this._hitStopTimer -= delta / 1000;
+      return;
+    }
+    this._sinceHitStop += delta / 1000;
     const dt    = (delta / 1000) * this.speed;
     const dtMs  = delta * this.speed;
     this._ambient?.update(dtMs);
@@ -571,6 +606,8 @@ export default class GameScene extends Phaser.Scene {
       // leftward delta and would mirror the sprite mid-stride (see facing.js).
       enemy._sprite?.setFacing(facingDirX(path[aheadIdx].x - enemy.x));
       if (enemy.waypointIndex >= path.length - 1) {
+        // Death FX must not play for an enemy that reached the base.
+        enemy.leaked = true;
         enemy.dead = true;
         const am = this.game.registry.get('audio');
         if (am) am.playSfx('life-lost');
@@ -592,6 +629,12 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _fadeOutDeadEnemy(enemy) {
+    if (!enemy.leaked) {
+      const type = enemy.def.type;
+      this.particleSpawner.spawnDeath(deathClass(type), enemy.x, enemy.y, enemy.def.color);
+      // Kills can come from the hero/soldiers, which emit no damage-dealt.
+      if (isHeavyHit({ damage: 0, maxHp: enemy.maxHp, killed: true, type })) this._tryHitStop();
+    }
     // Death art, when present, replaces the fade entirely: the entity has to
     // survive until animationcomplete or the one-shot never finishes.
     if (enemy.hasDeathAnimation?.()) {
