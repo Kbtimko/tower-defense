@@ -35,6 +35,24 @@ describe('resolveTap branches', () => {
   });
 });
 
+describe('resolveTap dead hero', () => {
+  const dead = { ...idle, heroDead: true };
+  it('dead hero + onPath is a no-op that closes the panel', () => {
+    expect(resolveTap(dead, { ...none, onPath: true })).toEqual({ type: 'none', closePanel: true });
+  });
+  it('dead hero + offPath is a no-op that closes the panel', () => {
+    expect(resolveTap(dead, none)).toEqual({ type: 'none', closePanel: true });
+  });
+  it('heroDead does not affect earlier branches', () => {
+    expect(resolveTap({ ...dead, aimSlot: 0 }, none).type).toBe('fireAim');
+    expect(resolveTap({ ...dead, repositioning: true }, none).type).toBe('reposition');
+    expect(resolveTap(dead, { ...none, tower: T }).type).toBe('openPanel');
+    expect(resolveTap(dead, { ...none, inspectable: {} }).type).toBe('pin');
+    expect(resolveTap({ ...dead, selectedType: 'a' }, { ...none, slot: {} }).type).toBe('place');
+    expect(resolveTap({ ...dead, selectedType: 'a' }, none).type).toBe('cancelBuild');
+  });
+});
+
 describe('resolveTap priority', () => {
   const all = { tower: T, slot: {}, onPath: true, inspectable: {} };
   it('aim beats everything', () => {

@@ -13,8 +13,11 @@ describe('classifyGesture', () => {
   it('tap on release just under LONG_PRESS_MS', () => {
     expect(classifyGesture({ ...base, nowMs: 1000 + LONG_PRESS_MS - 1, released: true })).toBe('tap');
   });
-  it('release at exactly LONG_PRESS_MS is neither tap nor longpress (pending)', () => {
-    expect(classifyGesture({ ...base, nowMs: 1000 + LONG_PRESS_MS, released: true })).toBe('pending');
+  it('release at exactly LONG_PRESS_MS is a longpress, never pending', () => {
+    expect(classifyGesture({ ...base, nowMs: 1000 + LONG_PRESS_MS, released: true })).toBe('longpress');
+  });
+  it('release at LONG_PRESS_MS + 1 is a longpress', () => {
+    expect(classifyGesture({ ...base, nowMs: 1000 + LONG_PRESS_MS + 1, released: true })).toBe('longpress');
   });
   it('movement at exactly slop is not a drag', () => {
     expect(classifyGesture({ ...base, movedPx: TAP_SLOP_PX, nowMs: 1100, released: true })).toBe('tap');

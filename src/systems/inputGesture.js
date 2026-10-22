@@ -8,7 +8,7 @@ export function classifyGesture({
 }) {
   if (movedPx > slopPx) return 'drag';
   const held = nowMs - downMs;
-  if (!released && held >= longPressMs) return 'longpress';
-  if (released && held < longPressMs) return 'tap';
-  return 'pending';
+  // A released press is never 'pending': it is a long-press or a tap.
+  if (held >= longPressMs) return 'longpress';
+  return released ? 'tap' : 'pending';
 }
