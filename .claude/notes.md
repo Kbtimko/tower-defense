@@ -3,7 +3,9 @@
 ## Goal
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
-## Current Status (2026-10-21)
+## Current Status (2026-10-22)
+
+**2026-10-22: VISUAL ROADMAP PHASE 1 COMPLETE — all merged into `visual/integration` (PRs #86-#99; nothing on `main` yet).** 0.1 capture harness, 0.2 art bible (G1 signed off), 0.3 baseline, 1.1 WebP backdrops, 1.2 grounding, 1.3 sprite normalization, 1.4 grading, 1.5 FX foundation, 1.6 hit/death/status FX, 1.7 procedural road, 1.8 feedback juice, 1.9 ambient life; plus the Veth rename (#92). 1915 tests. **Next is gate G3 (phone + desktop playtest), but the phone half is blocked:** the map-select PLAY button is unreachable in landscape — confirmed by the user on a real phone 2026-10-22 (and in iPhone 14 / Pixel 7 emulation). Starting in portrait reaches PLAY, but rotating afterwards leaves a broken layout. Decision for the next session: run G3 on desktop only, or pull Phase 2 task 2.3 (mobile shell) / 2.2 (HUD) forward first.
 
 **2026-10-21: visual roadmap 1.3 — sprite normalization, PR into `visual/integration`.** `python3 scripts/art/normalize.py` reads ORIGINAL sheets from `assets-src/sprites/` (moved there; `build-sprite-sheets.py` now writes there too) and writes shipped sheets to `public/assets/sprites/`: alpha cleanup, tone into art-bible §5 bands (capped), upper-left rim light, 1.5 display-px navy outline. Idempotent (39 sheets byte-identical on rerun). `ground` metrics in `sprites.js` re-measured on the normalized sheets. **Rebuild order is now build-sprite-sheets -> normalize -> assets.** Known: outline reaches the cell edge on skitter/phantom move, soldier idle/attack and death sheets (art sits 1-2 px from the edge); engineer/scout originals carry a baked ground shadow (art bible forbids) -> 4.1/4.5.
 **2026-10-21: visual roadmap 1.4 — map grading, PR into `visual/integration` (stacked on 1.3).** Per-map `grade` in `maps.js` (tint/contrast/saturation/brightness/vignette); colour matrix on the BACKDROP only (`preFX`, so units keep normalized colours), vignette on the camera; matrix built by pure `src/systems/mapGrade.js`. Setting `mapGrade` (null = auto: on for WebGL + fine pointer, off on touch/Canvas) with a settings checkbox; verified desktop on / iPhone off. Vignette capped at 0.5 (0.6 dimmed edge pads on map 7). Bloom skipped (optional; mobile cost). No measurable FPS cost in headless software-GL A/B; real-device numbers belong to G3/6.1.
@@ -35,7 +37,7 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 **The most valuable next thing is a human playtest (#30).** Every difficulty number in this project is simulated, against a model that is pessimistic by construction. #78 just shipped a balance change to production on that basis.
 
 ## NEEDS HUMAN (visual roadmap gates)
-- **G3 — phone + desktop playtest of Phase 1** (2026-10-22): merge #96 -> #97 -> #98 -> #99 into `visual/integration`, then play its Vercel preview on a phone and desktop; list what feels wrong in `docs/visual-baseline.md`. Known going in: the phone PLAY button is unreachable in landscape (task 2.2/2.3), and the new FX are small at 1x scale.
+- **G3 — phone + desktop playtest of Phase 1** (PRs #96-#99 merged 2026-10-22): play the `visual/integration` preview; list what feels wrong in `docs/visual-baseline.md`. **Phone half blocked** by the landscape PLAY bug (confirmed on a real phone) — decide: desktop-only G3 now, or pull 2.3/2.2 forward. Also judge whether the new FX read at 1x scale.
 - ~~G1 — art bible~~ **approved 2026-10-21**: adopt Appendix A sizes; brute emissive -> bronze `#9a7b4f`; plain navy outlines for all; shadow 50% as shipped. FLUX anchor replacement still to land in 4.0.
 - ~~Enemy name~~ **resolved 2026-10-21: "Veth"** everywhere (story text, speaker key `veth`, `portrait-veth.png`).
 - **Draw Things API server off** (2026-10-21): app running but not listening. Enable Advanced -> API Server in HTTP mode (not gRPC) before any LOCAL task.
@@ -44,16 +46,14 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 - None active
 
 ## Known Bugs
+- **Phones: map-select PLAY unreachable in landscape** (confirmed on a real phone 2026-10-22). `#featured-play` sits below its clipped panel and `body` is `overflow: hidden`; also live on production. Fix belongs to roadmap 2.2/2.3.
+- **A corpse reaching the base in the same frame still costs a life** (backlog #38).
 - None active. Three shipped bugs were found and fixed this session (#66, #67, #68) — see Current Status. All three were invisible to a green suite and were caught by playing the game and by code review.
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
-**PR open: `balance/percent-logistics-gold` (backlog #31) — awaiting review/merge.** Spec `docs/superpowers/specs/2026-10-21-percent-logistics-gold-design.md`, plan `docs/superpowers/plans/2026-10-21-percent-logistics-gold.md`. Next decisions: #35 (map 5), #36 (map 2), #37 (map 9/8); then playtest (#30).
-
-Last shipped (2026-09-22), newest first:
-- **PR #78 — campaign economy ramp (backlog #16).** Two derived constants replace fourteen undocumented numbers in `src/data/maps.js`. New `src/data/mapsEconomy.test.js` guards the SHAPE (board-scaled opening floor, gold-per-HP monotonicity, spread band, maps 0-2 pinned). `depthBoardCost` promoted into `src/sim/economy.js` and printed by `npm run balance`.
-- **PR #77 — matchup-aware build policy (backlog #15).** New pure `src/sim/matchupValue.js`; `waveScaleFactor` extracted from `WaveManager`; `waves` threaded into the simulator's build context; a `Matchup sensitivity` A/B column added to the balance report for one release.
-- **PR #76 — armour legibility (backlog #17).** New pure `src/systems/armourLegibility.js`; `applyArmour` extracted from `computeDamage`; `absorbedBand` added to the existing `damage-dealt` payload; `DamageNumberOverlay` gained one exemption to its sub-30 gate plus a per-enemy `WeakMap` throttle.
+- Nothing in flight. All visual PRs merged into `visual/integration` (#86-#99). `visual/integration` -> `main` is the user's call after G3.
+- Preview for playtesting: `https://tower-defense-git-visual-integration-kbtimko-5183s-projects.vercel.app` (verified 2026-10-22; Vercel SSO-protected — sign in on the device or use the dashboard Share link).
 
 ## Loose ends
 - **`chore/session-log` (local + remote) and its worktree `.claude/worktrees/uiscene` still exist** — its only commit (3fdea37) was cherry-picked into PR #84; deleting them was blocked by permissions on 2026-10-13. Run: `git worktree remove .claude/worktrees/uiscene && git branch -D chore/session-log && git push origin --delete chore/session-log`.
