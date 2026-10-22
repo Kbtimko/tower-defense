@@ -36,14 +36,21 @@ export class InspectController {
   }
 
   onPointerMove(mx, my) {
-    this.peekAt(mx, my);
+    const hit = this.inspectableAt(mx, my);
+    if (hit) this._showPeek(hit.kind, hit.target, mx, my);
+    else     this.hidePeek();
   }
 
-  // Mouse hover and touch long-press share this. Returns whether a peek is shown.
-  peekAt(mx, my) {
-    const hit = this.inspectableAt(mx, my);
-    if (!hit) { this.hidePeek(); return false; }
-    this._showPeek(hit.kind, hit.target, mx, my);
+  // Touch long-press: `hit` was taken at the press, so a target that walked out
+  // of its hit radius during the hold is still the one shown — at where it is
+  // now. Returns false (no peek) if it died or left the field meanwhile.
+  peekHit(hit) {
+    const t = hit.target;
+    const live = hit.kind === 'enemy'
+      ? !t.dead && this.scene.enemies.includes(t)
+      : !t.dead;
+    if (!live) return false;
+    this._showPeek(hit.kind, t, t.x, t.y);
     return true;
   }
 

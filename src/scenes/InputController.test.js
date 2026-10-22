@@ -26,7 +26,8 @@ function makeScene(displayScale = 1) {
     scale: { displayScale: { x: displayScale, y: displayScale } },
     inspector: {
       onPointerMove: vi.fn(),
-      peekAt: vi.fn(() => true),
+      inspectableAt: vi.fn(() => HIT),
+      peekHit: vi.fn(() => true),
       hidePeek: vi.fn(),
     },
     _onTap: vi.fn(),
@@ -34,6 +35,8 @@ function makeScene(displayScale = 1) {
     _buildCursorY: 0,
   };
 }
+
+const HIT = { kind: 'enemy', target: { x: 100, y: 100 } };
 
 const ptr = (x, y, { touch = false, id = 1, eventType } = {}) => ({
   id, x, y, worldX: x, worldY: y, wasTouch: touch,
@@ -74,7 +77,7 @@ describe('InputController', () => {
       press(100, 100, { touch: true });
       vi.advanceTimersByTime(LONG_PRESS_MS - 1);
       release(100, 100, { touch: true });
-      expect(scene.inspector.peekAt).not.toHaveBeenCalled();
+      expect(scene.inspector.peekHit).not.toHaveBeenCalled();
       expect(scene._onTap).toHaveBeenCalledWith(100, 100);
     });
 
@@ -82,7 +85,7 @@ describe('InputController', () => {
       press(100, 100);
       vi.advanceTimersByTime(LONG_PRESS_MS * 2);
       release(100, 100);
-      expect(scene.inspector.peekAt).not.toHaveBeenCalled();
+      expect(scene.inspector.peekHit).not.toHaveBeenCalled();
       expect(scene._onTap).toHaveBeenCalledWith(100, 100);
     });
 
@@ -109,7 +112,7 @@ describe('InputController', () => {
       vi.advanceTimersByTime(LONG_PRESS_MS);
       release(100, 100, { touch: true });
       expect(scene._onTap).not.toHaveBeenCalled();
-      expect(scene.inspector.peekAt).not.toHaveBeenCalled();
+      expect(scene.inspector.peekHit).not.toHaveBeenCalled();
     });
   });
 
@@ -117,7 +120,7 @@ describe('InputController', () => {
     it('peeks at the press point and swallows the release', () => {
       press(100, 100, { touch: true });
       vi.advanceTimersByTime(LONG_PRESS_MS);
-      expect(scene.inspector.peekAt).toHaveBeenCalledWith(100, 100);
+      expect(scene.inspector.peekHit).toHaveBeenCalledWith(HIT);
       release(100, 100, { touch: true });
       expect(scene._onTap).not.toHaveBeenCalled();
     });
@@ -132,12 +135,39 @@ describe('InputController', () => {
       expect(scene.inspector.hidePeek).toHaveBeenCalledTimes(1);
     });
 
-    it('a long-press over nothing inspectable still resolves the release as a tap', () => {
-      scene.inspector.peekAt.mockReturnValue(false);
+    it('hit-tests at the press, so an enemy that moves away is still peeked', () => {
+      press(100, 100, { touch: true });
+      expect(scene.inspector.inspectableAt).toHaveBeenCalledWith(100, 100);
+      HIT.target.x = 160; // walked 60px during the hold, far outside its hit radius
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      expect(scene.inspector.peekHit).toHaveBeenCalledWith(HIT);
+      release(100, 100, { touch: true });
+      expect(scene._onTap).not.toHaveBeenCalled();
+      HIT.target.x = 100;
+    });
+
+    it('a long-press on empty ground is consumed: the release does nothing', () => {
+      scene.inspector.inspectableAt.mockReturnValue(null);
+      press(100, 100, { touch: true });
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      expect(scene.inspector.peekHit).not.toHaveBeenCalled();
+      release(100, 100, { touch: true });
+      expect(scene._onTap).not.toHaveBeenCalled();
+    });
+
+    it('a target gone by the time it fires shows no peek but still consumes the press', () => {
+      scene.inspector.peekHit.mockReturnValue(false);
       press(100, 100, { touch: true });
       vi.advanceTimersByTime(LONG_PRESS_MS);
       release(100, 100, { touch: true });
-      expect(scene._onTap).toHaveBeenCalledWith(100, 100);
+      expect(scene._onTap).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(PEEK_LINGER_MS);
+      expect(scene.inspector.hidePeek).not.toHaveBeenCalled();
+    });
+
+    it('a mouse press never runs the long-press hit test', () => {
+      press(100, 100);
+      expect(scene.inspector.inspectableAt).not.toHaveBeenCalled();
     });
 
     it('the next press hides a lingering peek straight away', () => {
@@ -165,7 +195,7 @@ describe('InputController', () => {
       move(150, 100, { touch: true });
       vi.advanceTimersByTime(LONG_PRESS_MS * 2);
       release(150, 100, { touch: true });
-      expect(scene.inspector.peekAt).not.toHaveBeenCalled();
+      expect(scene.inspector.peekHit).not.toHaveBeenCalled();
       expect(scene._onTap).toHaveBeenCalledWith(150, 100);
     });
 
@@ -173,7 +203,7 @@ describe('InputController', () => {
       press(100, 100, { touch: true });
       move(100 + TAP_SLOP_PX, 100, { touch: true });
       vi.advanceTimersByTime(LONG_PRESS_MS);
-      expect(scene.inspector.peekAt).toHaveBeenCalledWith(100, 100);
+      expect(scene.inspector.peekHit).toHaveBeenCalledWith(HIT);
     });
 
     it('measures slop in CSS px, so a scaled-up canvas does not tighten it', () => {
@@ -184,7 +214,7 @@ describe('InputController', () => {
       // 30 game px at displayScale 3 is 10 CSS px: still within slop.
       move(130, 100, { touch: true });
       vi.advanceTimersByTime(LONG_PRESS_MS);
-      expect(scene.inspector.peekAt).toHaveBeenCalled();
+      expect(scene.inspector.peekHit).toHaveBeenCalled();
     });
 
     it('a scaled drag past slop in CSS px cancels the long-press', () => {
@@ -194,7 +224,7 @@ describe('InputController', () => {
       press(100, 100, { touch: true });
       move(100 + (TAP_SLOP_PX + 1) * 3, 100, { touch: true });
       vi.advanceTimersByTime(LONG_PRESS_MS);
-      expect(scene.inspector.peekAt).not.toHaveBeenCalled();
+      expect(scene.inspector.peekHit).not.toHaveBeenCalled();
     });
   });
 
@@ -222,7 +252,7 @@ describe('InputController', () => {
       press(100, 100, { touch: true });
       release(100, 100, { touch: true });
       vi.advanceTimersByTime(LONG_PRESS_MS * 2);
-      expect(scene.inspector.peekAt).not.toHaveBeenCalled();
+      expect(scene.inspector.peekHit).not.toHaveBeenCalled();
     });
 
     it('destroy removes every listener it added', () => {
@@ -236,7 +266,21 @@ describe('InputController', () => {
       press(100, 100, { touch: true });
       ctl.destroy();
       vi.advanceTimersByTime(LONG_PRESS_MS * 2);
-      expect(scene.inspector.peekAt).not.toHaveBeenCalled();
+      expect(scene.inspector.peekHit).not.toHaveBeenCalled();
+    });
+
+    it('destroy hides a peek still held under the finger', () => {
+      press(100, 100, { touch: true });
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      ctl.destroy();
+      expect(scene.inspector.hidePeek).toHaveBeenCalledTimes(1);
+    });
+
+    it('a second finger down during a held long-press hides its peek', () => {
+      press(100, 100, { touch: true, id: 1 });
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      press(300, 300, { touch: true, id: 2 });
+      expect(scene.inspector.hidePeek).toHaveBeenCalledTimes(1);
     });
 
     it('destroy hides a lingering peek now rather than leaving it up', () => {

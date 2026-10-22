@@ -29,6 +29,16 @@
                  padding: 4px 9px; border-radius: 4px; cursor: pointer; font-size: 12px;
                  margin-left: auto; transition: background 0.12s, border-color 0.12s; }
     #speed-btn:hover { background: #243824; border-color: #6a8a6a; }
+    /* Exit for build/aim/reposition modes (a finger has no Escape key). It lives
+       in the HUD, not over the field, so it can never sit on a pad or the path.
+       GameScene toggles [hidden]; while shown it takes over the auto margin that
+       separates the controls from the stats, so nothing else moves. */
+    #cancel-btn { background: #3a1212; border: 1px solid #c04040; color: #ffb0b0;
+                  padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px;
+                  font-weight: bold; margin-left: auto; }
+    #cancel-btn:hover { background: #4d1818; border-color: #f07a7a; }
+    #cancel-btn[hidden] { display: none; }
+    #cancel-btn:not([hidden]) + #speed-btn { margin-left: 0; }
 
     #pause-btn { background: #3a2c08; border: 1px solid #8b6914; color: #ffd700;
                  padding: 6px 16px; border-radius: 4px; cursor: pointer;
@@ -66,14 +76,6 @@
       background: rgba(0,0,0,0.55); padding: 3px 12px; border-radius: 4px; }
     #wave-banner.show { animation: wave-banner var(--wave-banner-ms, 1800ms) ease-out forwards; }
     #wave-banner-boss.show { animation: wave-banner var(--boss-warning-ms, 2400ms) ease-out forwards; }
-    /* Exit for build/aim/reposition modes: a finger has no Escape key. Below the
-       wave + boss banners; above the tower panel, below dialogs. GameScene owns
-       its display. */
-    #cancel-btn { position: absolute; top: 84px; left: 50%; transform: translateX(-50%);
-      z-index: 12; display: none; min-height: 44px; padding: 0 18px; font-size: 14px;
-      font-weight: bold; color: #fff; background: rgba(120,30,30,0.9);
-      border: 1px solid #f07a7a; border-radius: 22px; cursor: pointer; }
-    #cancel-btn:hover { background: rgba(160,40,40,0.95); }
     #boss-frame { position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0;
       box-shadow: inset 0 0 48px 8px var(--boss-warning-color, #ff4d4d); }
     #boss-frame.show { animation: boss-frame var(--boss-warning-ms, 2400ms) ease-in-out forwards; }
@@ -561,13 +563,14 @@
       #lifetime-stats { display: none; }
       /* 40 px touch-target floor for every button the audit covers (2.2 takes it to 44). */
       #featured-play, #map-meta-bar button, #speed-btn, #pause-btn, #open-codex,
-      #exit-btn, #wave-btn { min-height: 40px; }
+      #exit-btn, #wave-btn, #cancel-btn { min-height: 40px; }
 
       #hud { padding: 4px 8px; gap: 8px; }
       .hud-stat { font-size: 11px; gap: 3px; }
       .hud-val { font-size: 13px; }
       .hud-lbl { font-size: 10px; }
       #speed-btn { padding: 8px 8px; font-size: 11px; }
+      #cancel-btn { padding: 8px 8px; font-size: 12px; }
       #pause-btn { padding: 8px 10px; font-size: 12px; }
       #open-codex { padding: 8px 8px; font-size: 12px; }
       #bottom-bar { gap: 4px; padding: 4px 8px; flex-wrap: wrap; }
@@ -584,8 +587,6 @@
       /* Stopgap until 2.2: the panel (and branch picker) is taller than a phone's
          game area, so cap it to #game and let it scroll instead of hiding Sell. */
       #tower-panel { max-height: calc(100% - 12px); overflow-y: auto; }
-      /* The phone play area is ~220px tall; 84px down would sit mid-field. */
-      #cancel-btn { top: 44px; }
     }
   </style>
 </head>
@@ -595,6 +596,7 @@
     <div class="hud-stat"><span>💰</span><span class="hud-val" id="stat-gold">150</span><span class="hud-lbl">Gold</span></div>
     <div class="hud-stat"><span>🌊</span><span class="hud-val" id="stat-wave">0/10</span><span class="hud-lbl">Wave</span></div>
     <div class="hud-stat"><span>💀</span><span class="hud-val" id="stat-kills">0</span><span class="hud-lbl">Kills</span></div>
+    <button id="cancel-btn" type="button" hidden>✕ Cancel</button>
     <button id="speed-btn">⏩ 2x</button>
     <button id="pause-btn" title="Pause the level (Spacebar)">⏸ Pause</button>
     <button id="open-codex" title="Codex (towers, heroes, enemies)">📚 Codex</button>
@@ -604,7 +606,6 @@
     <div id="wave-banner"></div>
     <div id="wave-banner-boss"></div>
     <div id="boss-frame"></div>
-    <button id="cancel-btn" type="button">✕ Cancel</button>
     <div id="story-banner" class="story-banner">
       <div class="story-content">
         <div id="story-headline"></div>

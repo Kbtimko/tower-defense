@@ -10,18 +10,21 @@ import { classifyGesture } from '../systems/inputGesture.js';
 //    a tap at the release point — press-drag-release places/aims where the
 //    finger lifts. A mouse click is never a drag in practice, so desktop is
 //    unchanged.
-//  - long-press (touch only, held still): peeks the enemy/hero under the press
-//    and swallows the release. Over nothing inspectable the release still taps.
-//    Mouse gets no long-press: hover already peeks, and a slow click must stay
-//    a click.
+//  - long-press (touch only, held still): ALWAYS swallows the release, so a
+//    hold never moves the hero, fires an armed aim or cancels a build. The
+//    target is hit-tested at the press (enemies walk 17-81px in 450ms, well past
+//    their 11-15px hit radius) and peeked where it is when the timer fires; on
+//    empty ground, or if the target died, nothing happens. Mouse gets no
+//    long-press: hover already peeks, and a slow click must stay a click.
 export class InputController {
   constructor(scene) {
     this.scene = scene;
     this._press = null;
     this._longPressTimer = null;
     this._lingerTimer = null;
+    this._peekShown = false;
     this._onLongPress = this._onLongPress.bind(this);
-    this._endLinger = this._endLinger.bind(this);
+    this._hidePeek = this._hidePeek.bind(this);
 
     scene.input.on('pointerdown', this._onDown, this);
     scene.input.on('pointermove', this._onMove, this);
@@ -36,19 +39,22 @@ export class InputController {
     input.off('pointerup', this._onUp, this);
     input.off('pointerupoutside', this._onUpOutside, this);
     this._clearLongPress();
-    this._endLinger();
+    this._hidePeek();
     this._press = null;
   }
 
   _onDown(pointer) {
-    this._endLinger();
+    // Also covers a second finger landing while a long-press peek is held.
+    this._hidePeek();
     this._clearLongPress();
     this._setBuildCursor(pointer);
     this._press = {
       id: pointer.id, x: pointer.x, y: pointer.y,
-      downMs: Date.now(), movedPx: 0, consumed: false,
+      downMs: Date.now(), movedPx: 0, consumed: false, target: null,
     };
-    if (pointer.wasTouch) this._longPressTimer = setTimeout(this._onLongPress, LONG_PRESS_MS);
+    if (!pointer.wasTouch) return;
+    this._press.target = this.scene.inspector?.inspectableAt(pointer.x, pointer.y) ?? null;
+    this._longPressTimer = setTimeout(this._onLongPress, LONG_PRESS_MS);
   }
 
   _onMove(pointer) {
@@ -90,17 +96,21 @@ export class InputController {
   _onLongPress() {
     this._longPressTimer = null;
     const press = this._press;
-    if (press && this.scene.inspector?.peekAt(press.x, press.y)) press.consumed = true;
+    if (!press) return;
+    press.consumed = true;
+    if (press.target) this._peekShown = !!this.scene.inspector?.peekHit(press.target);
   }
 
   _startLinger() {
-    this._lingerTimer = setTimeout(this._endLinger, PEEK_LINGER_MS);
+    if (this._peekShown) this._lingerTimer = setTimeout(this._hidePeek, PEEK_LINGER_MS);
   }
 
-  _endLinger() {
-    if (this._lingerTimer === null) return;
+  // Hides only a peek this controller showed, so the mouse hover peek is untouched.
+  _hidePeek() {
     clearTimeout(this._lingerTimer);
     this._lingerTimer = null;
+    if (!this._peekShown) return;
+    this._peekShown = false;
     this.scene.inspector?.hidePeek();
   }
 

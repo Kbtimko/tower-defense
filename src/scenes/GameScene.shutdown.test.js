@@ -224,7 +224,7 @@ describe('GameScene.shutdown shell listeners', () => {
 describe('GameScene.shutdown input model', () => {
   beforeEach(() => {
     setupDOM();
-    el('button', { id: 'cancel-btn', display: 'block' });
+    el('button', { id: 'cancel-btn', hidden: false });
   });
 
   it('strips the cancel-btn listener by replacing the node, and hides it', () => {
@@ -238,7 +238,7 @@ describe('GameScene.shutdown input model', () => {
     expect(fresh).not.toBe(old);
     fresh.click();
     expect(spy).not.toHaveBeenCalled();
-    expect(fresh.style.display).toBe('none');
+    expect(fresh.hidden).toBe(true);
   });
 
   it('stops listening for ui:cancel', () => {

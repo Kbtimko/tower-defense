@@ -22,7 +22,7 @@ function setupDOM() {
   document.body.replaceChildren();
   const cancel = document.createElement('button');
   cancel.id = 'cancel-btn';
-  cancel.style.display = 'none';
+  cancel.hidden = true;
   document.body.appendChild(cancel);
   for (const type of ['archer', 'cannon']) {
     const b = document.createElement('button');
@@ -31,7 +31,7 @@ function setupDOM() {
   }
 }
 
-const cancelShown = () => document.getElementById('cancel-btn').style.display !== 'none';
+const cancelShown = () => !document.getElementById('cancel-btn').hidden;
 
 function makeScene(overrides = {}) {
   const scene = Object.create(GameScene.prototype);
@@ -239,5 +239,50 @@ describe('_onTap inspect step', () => {
     s._onTap(400, 300);
     expect(s.hero.fireAbility).toHaveBeenCalledWith('w', { x: 400, y: 300 });
     expect(s._openTowerPanel).not.toHaveBeenCalled();
+  });
+});
+
+describe('Cancel button at level end', () => {
+  beforeEach(() => {
+    setupDOM();
+    for (const id of ['msg-title', 'msg-body', 'msg-btn', 'msg-cancel-btn', 'exit-btn', 'pause-btn', 'game-msg']) {
+      document.body.appendChild(Object.assign(document.createElement('div'), { id }));
+    }
+  });
+
+  it('is hidden once the level is lost or won, even with a mode armed', () => {
+    for (const flag of ['over', 'won']) {
+      const s = makeScene();
+      s._selectTowerType('archer', btn('archer'));
+      expect(cancelShown()).toBe(true);
+      s[flag] = true;
+      s._syncCancelButton();
+      expect(cancelShown()).toBe(false);
+    }
+  });
+
+  it('defeat hides it without waiting for another mode change', () => {
+    const s = makeScene({
+      over: false,
+      game: { events: { emit: vi.fn() }, registry: { get: () => null } },
+      waveMgr: { currentWave: 3 },
+      _commitStats: vi.fn(),
+    });
+    s._selectTowerType('archer', btn('archer'));
+    s._onDefeat();
+    expect(cancelShown()).toBe(false);
+  });
+
+  it('victory hides it without waiting for another mode change', () => {
+    const s = makeScene({
+      won: false, mapId: 0, kills: 0,
+      game: { events: { emit: vi.fn() }, registry: { get: () => null } },
+      economy: { lives: 20 },
+      saveMgr: { setStars: vi.fn(), hasSeenBeat: () => true, markBeatSeen: vi.fn() },
+      _commitStats: vi.fn(),
+    });
+    s._selectTowerType('archer', btn('archer'));
+    s._onVictory();
+    expect(cancelShown()).toBe(false);
   });
 });

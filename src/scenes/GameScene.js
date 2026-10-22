@@ -502,10 +502,10 @@ export default class GameScene extends Phaser.Scene {
       const el = document.getElementById(id);
       if (el) el.replaceWith(el.cloneNode(true));
     });
-    // The clone keeps an inline display; a mode left armed at exit would show it
-    // over the map select.
+    // The clone keeps [hidden] as it was; a mode left armed at exit would
+    // otherwise greet the next level with a stale Cancel.
     const cancelBtn = document.getElementById('cancel-btn');
-    if (cancelBtn) cancelBtn.style.display = 'none';
+    if (cancelBtn) cancelBtn.hidden = true;
     document.querySelectorAll('.tower-btn').forEach(btn => btn.replaceWith(btn.cloneNode(true)));
     document.getElementById('hud').style.display          = 'none';
     document.getElementById('bottom-bar').style.display   = 'none';
@@ -1284,9 +1284,11 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // Unit tests drive mode changes against partial DOMs, hence the null guard.
+  // Hidden once the level has ended: a mode left armed is moot on the result screen.
   _syncCancelButton() {
     const btn = document.getElementById('cancel-btn');
-    if (btn) btn.style.display = hasMode(this._modeState()) ? 'block' : 'none';
+    if (!btn) return;
+    btn.hidden = !(hasMode(this._modeState()) && !this.over && !this.won);
   }
 
   _selectTowerType(type, btn) {
@@ -1693,6 +1695,7 @@ export default class GameScene extends Phaser.Scene {
     const am = this.game.registry.get('audio');
     if (am) am.playSfx('victory');
     this.won = true;
+    this._syncCancelButton();
     this._commitStats(true);
     const map   = MAPS[this.mapId];
     const pct   = this.economy.lives / map.startLives;
@@ -1726,6 +1729,7 @@ export default class GameScene extends Phaser.Scene {
     const am = this.game.registry.get('audio');
     if (am) am.playSfx('defeat');
     this.over = true;
+    this._syncCancelButton();
     this._commitStats(false);
     document.getElementById('msg-title').textContent = '💀 Defeat';
     document.getElementById('msg-body').textContent  = `The line did not hold. Wave ${this.waveMgr.currentWave}.`;

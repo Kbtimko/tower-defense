@@ -713,21 +713,41 @@ describe('InspectController — side-effect-free hit test and touch peek', () =>
     expect(ctrl.pinned).toBeNull();
   });
 
-  it('peekAt shows the peek over an enemy and returns true', () => {
-    const ctrl = new InspectController(makeScene([makeEnemy()]));
-    expect(ctrl.peekAt(100, 100)).toBe(true);
+  it('peekHit shows a live enemy at its CURRENT position and returns true', () => {
+    const enemy = makeEnemy();
+    const ctrl = new InspectController(makeScene([enemy]));
+    const hit = ctrl.inspectableAt(100, 100);
+    enemy.x = 300;
+    const spy = vi.spyOn(ctrl, '_showPeek');
+    expect(ctrl.peekHit(hit)).toBe(true);
+    expect(spy).toHaveBeenCalledWith('enemy', enemy, 300, 100);
     expect(document.getElementById('inspect-peek').style.display).toBe('block');
   });
 
-  it('peekAt over empty space returns false and leaves the peek hidden', () => {
-    const ctrl = new InspectController(makeScene([makeEnemy()]));
-    expect(ctrl.peekAt(500, 500)).toBe(false);
+  it('peekHit refuses a dead enemy, or one no longer in the scene', () => {
+    const enemy = makeEnemy();
+    const scene = makeScene([enemy]);
+    const ctrl = new InspectController(scene);
+    const hit = ctrl.inspectableAt(100, 100);
+    enemy.dead = true;
+    expect(ctrl.peekHit(hit)).toBe(false);
+    enemy.dead = false;
+    scene.enemies = [];
+    expect(ctrl.peekHit(hit)).toBe(false);
     expect(document.getElementById('inspect-peek').style.display).toBe('none');
+  });
+
+  it('peekHit refuses a hero who died during the press', () => {
+    const hero = makeHero();
+    const ctrl = new InspectController(makeScene([], hero));
+    const hit = ctrl.inspectableAt(50, 50);
+    hero.dead = true;
+    expect(ctrl.peekHit(hit)).toBe(false);
   });
 
   it('hidePeek hides a shown peek', () => {
     const ctrl = new InspectController(makeScene([makeEnemy()]));
-    ctrl.peekAt(100, 100);
+    ctrl.onPointerMove(100, 100);
     ctrl.hidePeek();
     expect(document.getElementById('inspect-peek').style.display).toBe('none');
     expect(ctrl.peekTarget).toBeNull();
