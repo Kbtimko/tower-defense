@@ -19,7 +19,7 @@ import { HEROES } from '../data/heroes.js';
 function setupHeroDOM() {
   document.body.textContent = '';
 
-  for (const id of ['hud', 'bottom-bar', 'game-msg']) {
+  for (const id of ['hud-layer', 'game-msg']) {
     const d = document.createElement('div');
     d.id = id;
     document.body.appendChild(d);

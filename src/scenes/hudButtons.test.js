@@ -15,6 +15,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import GameScene from './GameScene.js';
 import UIScene from './UIScene.js';
 import { TOWER_DEFS } from '../data/towers.js';
+import { PANEL_EDGE_MARGIN, PEEK_GAP_PX } from '../data/input.js';
 
 const BUTTON_IDS = [
   'wave-btn', 'speed-btn', 'pause-btn', 'panel-upgrade-btn', 'panel-sell-btn',
@@ -146,6 +147,39 @@ describe('tower tooltip across levels', () => {
     btn('ice').dispatchEvent(Object.assign(new Event('pointerenter'), { pointerType: 'mouse' }));
     btn('ice').dispatchEvent(Object.assign(new Event('pointerleave'), { pointerType: 'mouse' }));
     expect(document.getElementById('tower-tooltip').style.display).toBe('none');
+  });
+
+  // Tower buttons live in the RIGHT rail: the tooltip opens to their left, over
+  // the map, centred on the button and kept inside the viewport.
+  describe('placement', () => {
+    const size = (el, w, h) => {
+      Object.defineProperty(el, 'offsetWidth',  { configurable: true, get: () => (el.style.display === 'block' ? w : 0) });
+      Object.defineProperty(el, 'offsetHeight', { configurable: true, get: () => (el.style.display === 'block' ? h : 0) });
+    };
+    const hover = (type) => btn(type).dispatchEvent(Object.assign(new Event('pointerenter'), { pointerType: 'mouse' }));
+    beforeEach(() => {
+      window.innerWidth = 844; window.innerHeight = 390;
+      bindBothScenes();
+      size(document.getElementById('tower-tooltip'), 180, 60);
+    });
+
+    it('sits left of the button by the gap, vertically centred by its real size', () => {
+      btn('ice').getBoundingClientRect = () => ({ left: 754, top: 120, width: 45, height: 45 });
+      hover('ice');
+      const tt = document.getElementById('tower-tooltip');
+      expect(tt.style.left).toBe(`${754 - PEEK_GAP_PX - 180}px`);
+      expect(tt.style.top).toBe(`${120 + (45 - 60) / 2}px`);
+    });
+
+    it('clamps into the viewport at the top and bottom', () => {
+      const tt = document.getElementById('tower-tooltip');
+      btn('ice').getBoundingClientRect = () => ({ left: 754, top: 0, width: 45, height: 20 });
+      hover('ice');
+      expect(tt.style.top).toBe(`${PANEL_EDGE_MARGIN}px`);
+      btn('ice').getBoundingClientRect = () => ({ left: 754, top: 380, width: 45, height: 45 });
+      hover('ice');
+      expect(tt.style.top).toBe(`${390 - 60 - PANEL_EDGE_MARGIN}px`);
+    });
   });
 });
 

@@ -142,7 +142,7 @@ describe('UIScene hero XP tooltip memo correctness', () => {
 
 function setupCreateDOM() {
   document.body.textContent = '';
-  for (const id of ['hud', 'bottom-bar', 'game-msg']) {
+  for (const id of ['hud-layer', 'game-msg']) {
     const d = document.createElement('div');
     d.id = id;
     document.body.appendChild(d);
@@ -194,5 +194,18 @@ describe('UIScene hero XP memo reset on scene relaunch', () => {
     expect(s._heroXpPct).toBeNull();
     expect(s._heroXpAtMax).toBeNull();
     expect(s._heroXpLevel).toBeNull();
+  });
+});
+
+// The rails are one layer now; UIScene shows it for the level and hides it after.
+describe('UIScene HUD layer visibility', () => {
+  beforeEach(setupCreateDOM);
+
+  it('shows #hud-layer on create and hides it on shutdown', () => {
+    const s = makeLaunchableScene();
+    s.create();
+    expect(document.getElementById('hud-layer').style.display).toBe('block');
+    s.shutdown();
+    expect(document.getElementById('hud-layer').style.display).toBe('none');
   });
 });

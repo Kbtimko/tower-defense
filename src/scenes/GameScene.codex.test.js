@@ -41,14 +41,14 @@ function el(tag, attrs, parent) {
 // #codex-overlay block.
 function setupDOM() {
   document.body.textContent = '';
-  el('div', { id: 'hud', display: 'flex' });
+  el('div', { id: 'hud-layer', display: 'block' });
   el('button', { id: 'open-codex' });
   el('div', { id: 'tower-panel', display: 'block' });
   const gameMsg = el('div', { id: 'game-msg', display: 'block' });
   el('button', { id: 'msg-btn' }, gameMsg);
   el('button', { id: 'msg-cancel-btn' }, gameMsg);
   el('div', { id: 'paused-overlay', className: 'shown' });
-  const bar = el('div', { id: 'bottom-bar', display: 'flex' });
+  const bar = el('div', { id: 'rail-right' });
   el('button', { className: 'tower-btn' }, bar);
   el('button', { id: 'exit-btn' }, bar);
   el('button', { id: 'wave-btn' }, bar);

@@ -25,12 +25,13 @@ import { SOLDIER_MUZZLE, HIT_STOP } from '../data/fx.js';
 import { BUILD_POP, UPGRADE_POP, SELL_FX, SELECTION_RING, PAD_GLOW, RETICLE } from '../data/juice.js';
 import { deathClass, isHeavyHit, canHitStop } from '../systems/hitFx.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
-import { worldToPageCss, clampPanel } from '../systems/viewport.js';
+import { worldToPageCss, clampPanel, placeLeftOf } from '../systems/viewport.js';
 import { WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH } from '../data/layout.js';
 import {
-  PANEL_EDGE_MARGIN, TAP_TOWER_RADIUS, TAP_SLOT_RADIUS, TAP_PATH_RADIUS, REPOSITION_SNAP_RADIUS,
+  PANEL_EDGE_MARGIN, TAP_TOWER_RADIUS, TAP_SLOT_RADIUS, TAP_PATH_RADIUS, REPOSITION_SNAP_RADIUS, PEEK_GAP_PX,
 } from '../data/input.js';
 import { pulseClass } from '../ui/pulse.js';
+import { railAnchorRect } from '../ui/hudLayer.js';
 import { WaveBanner } from '../ui/WaveBanner.js';
 import { bossWarning, padGlowAlpha } from '../systems/juiceMath.js';
 import { PAD_BEACON } from '../data/ambient.js';
@@ -256,9 +257,8 @@ export default class GameScene extends Phaser.Scene {
     this._sinceHitStop = HIT_STOP.cooldown;
 
     // Show DOM UI
-    document.getElementById('hud').style.display        = 'flex';
-    document.getElementById('bottom-bar').style.display = 'flex';
-    document.getElementById('game-msg').style.display   = 'none';
+    document.getElementById('hud-layer').style.display = 'block';
+    document.getElementById('game-msg').style.display  = 'none';
     // Clear .disabled left over from a previous game-over (shutdown clones the
     // node but cloneNode preserves classes — without this, a second play in
     // the same tab opens with Exit + Pause permanently dead).
@@ -563,8 +563,7 @@ export default class GameScene extends Phaser.Scene {
     const cancelBtn = document.getElementById('cancel-btn');
     if (cancelBtn) cancelBtn.hidden = true;
     document.querySelectorAll('.tower-btn').forEach(btn => btn.replaceWith(btn.cloneNode(true)));
-    document.getElementById('hud').style.display          = 'none';
-    document.getElementById('bottom-bar').style.display   = 'none';
+    document.getElementById('hud-layer').style.display    = 'none';
     document.getElementById('tower-panel').style.display  = 'none';
     document.getElementById('game-msg').style.display     = 'none';
     document.getElementById('paused-overlay').classList.remove('shown');
@@ -1435,14 +1434,18 @@ export default class GameScene extends Phaser.Scene {
       line.textContent = `Weak vs: ${renderEnemyNames(m.weak)}`;
       tt.appendChild(line);
     }
-    const rect = btn.getBoundingClientRect();
-    tt.style.left = `${rect.left}px`;
-    tt.style.top  = `${rect.top - tt.offsetHeight - 6}px`;
+    // Shown before measuring: display:none has no size. The tower buttons sit
+    // in the right HUD rail, so the tooltip opens to their left, over the map.
     tt.style.display = 'block';
-    // After display:block, offsetHeight is now real; reposition once.
-    requestAnimationFrame(() => {
-      tt.style.top = `${rect.top - tt.offsetHeight - 6}px`;
+    const { left, top } = placeLeftOf({
+      anchor: railAnchorRect(btn),
+      size: { width: tt.offsetWidth, height: tt.offsetHeight },
+      area: { width: window.innerWidth, height: window.innerHeight },
+      gap: PEEK_GAP_PX,
+      margin: PANEL_EDGE_MARGIN,
     });
+    tt.style.left = `${left}px`;
+    tt.style.top  = `${top}px`;
   }
 
   _deselectButtons() {

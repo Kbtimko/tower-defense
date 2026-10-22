@@ -23,7 +23,7 @@ const PANEL_IDS = [
   'panel-matchups', 'panel-armour',
 ];
 const DIV_IDS = [
-  'hud', 'bottom-bar', 'game-msg', 'paused-overlay', 'tower-tooltip', 'tower-panel', 'panel-branch-picker', 'panel-std-stats', 'panel-barracks-stats',
+  'hud-layer', 'game-msg', 'paused-overlay', 'tower-tooltip', 'tower-panel', 'panel-branch-picker', 'panel-std-stats', 'panel-barracks-stats',
 ];
 
 function setupDOM() {

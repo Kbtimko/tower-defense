@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { LONG_PRESS_MS } from '../data/input.js';
+import { LONG_PRESS_MS, PANEL_EDGE_MARGIN } from '../data/input.js';
 import { WavePreviewPopover } from './WavePreviewPopover.js';
 import { summarizeWave } from '../systems/wavePreview.js';
 import { MAP_WAVES }  from '../data/waves.js';
@@ -255,5 +255,49 @@ describe('WavePreviewPopover', () => {
     document.body.replaceChildren();
     const orphan = new WavePreviewPopover();
     expect(() => { orphan.setWave(summarizeWave(0, 0)); orphan.show(); orphan.destroy(); }).not.toThrow();
+  });
+});
+
+// The popover lives inside #wave-btn-wrap in the scaled HUD layer (game px) and
+// opens to the left of Send Wave (CSS); its vertical position is centred on the
+// button and clamped into the layer, which jsdom cannot lay out, so the offsets
+// are stubbed in layer px.
+describe('WavePreviewPopover vertical placement', () => {
+  const LAYER_H = 720;
+  const define = (el, props) => {
+    for (const [k, v] of Object.entries(props)) Object.defineProperty(el, k, { configurable: true, get: typeof v === 'function' ? v : () => v });
+  };
+  let dom, popover;
+  const mount = (wrapTop, popH) => {
+    document.body.replaceChildren();
+    const layer = document.createElement('div');
+    layer.id = 'hud-layer';
+    dom = setupDom();
+    layer.appendChild(dom.wrap);
+    document.body.appendChild(layer);
+    define(layer, { offsetHeight: LAYER_H });
+    define(dom.wrap, { offsetParent: layer, offsetTop: wrapTop, offsetHeight: 88 });
+    define(dom.pop, { offsetHeight: () => (dom.pop.classList.contains('shown') ? popH : 0) });
+    popover = new WavePreviewPopover();
+    popover.setWave(summarizeWave(0, 1));
+  };
+  afterEach(() => popover?.destroy());
+
+  it('centres on the button, measured after it is shown', () => {
+    mount(448, 400);
+    popover.show();
+    expect(dom.pop.style.top).toBe(`${448 + (88 - 400) / 2 - 448}px`);
+  });
+
+  it('clamps a tall popover inside the bottom of the layer', () => {
+    mount(448, 680);
+    popover.show();
+    expect(dom.pop.style.top).toBe(`${LAYER_H - 680 - PANEL_EDGE_MARGIN - 448}px`);
+  });
+
+  it('clamps inside the top of the layer', () => {
+    mount(0, 400);
+    popover.show();
+    expect(dom.pop.style.top).toBe(`${PANEL_EDGE_MARGIN}px`);
   });
 });

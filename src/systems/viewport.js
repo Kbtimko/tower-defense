@@ -40,3 +40,20 @@ export function clampPanel(desired, size, area, margin) {
   const top = Math.max(margin, Math.min(desired.top, area.height - size.height - margin));
   return { left, top };
 }
+
+// A peek card beside a rail control: vertically centred on it, opening over the
+// map (left of the right rail, right of the left rail), clamped like a panel.
+const centredOn = (anchor, size) => anchor.top + (anchor.height - size.height) / 2;
+
+export function placeLeftOf({ anchor, size, area, gap, margin }) {
+  return clampPanel({ left: anchor.left - gap - size.width, top: centredOn(anchor, size) }, size, area, margin);
+}
+
+export function placeRightOf({ anchor, size, area, gap, margin }) {
+  return clampPanel({ left: anchor.left + anchor.width + gap, top: centredOn(anchor, size) }, size, area, margin);
+}
+
+// The vertical half of the above, for a panel whose horizontal side is CSS.
+export function clampCentredTop({ anchor, height, areaHeight, margin }) {
+  return Math.max(margin, Math.min(centredOn(anchor, { height }), areaHeight - height - margin));
+}

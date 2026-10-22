@@ -27,13 +27,13 @@ function el(tag, attrs, parent) {
 
 function setupDOM() {
   document.body.textContent = '';
-  el('div', { id: 'hud', display: 'flex' });
+  el('div', { id: 'hud-layer', display: 'block' });
   el('div', { id: 'tower-panel', display: 'block' });
   const gameMsg = el('div', { id: 'game-msg', display: 'block' });
   el('button', { id: 'msg-btn' }, gameMsg);
   el('button', { id: 'msg-cancel-btn' }, gameMsg);
   el('div', { id: 'paused-overlay', className: 'shown' });
-  const bar = el('div', { id: 'bottom-bar', display: 'flex' });
+  const bar = el('div', { id: 'rail-right' });
   el('button', { className: 'tower-btn' }, bar);
   el('button', { id: 'exit-btn' }, bar);
   el('button', { id: 'wave-btn' }, bar);
@@ -95,10 +95,9 @@ function makeScene() {
 describe('GameScene.shutdown', () => {
   beforeEach(setupDOM);
 
-  it('hides hud/bottom-bar/tower-panel/game-msg and clears the paused-overlay shown class', () => {
+  it('hides the hud layer/tower-panel/game-msg and clears the paused-overlay shown class', () => {
     makeScene().shutdown();
-    expect(document.getElementById('hud').style.display).toBe('none');
-    expect(document.getElementById('bottom-bar').style.display).toBe('none');
+    expect(document.getElementById('hud-layer').style.display).toBe('none');
     expect(document.getElementById('tower-panel').style.display).toBe('none');
     expect(document.getElementById('game-msg').style.display).toBe('none');
     expect(document.getElementById('paused-overlay').classList.contains('shown')).toBe(false);

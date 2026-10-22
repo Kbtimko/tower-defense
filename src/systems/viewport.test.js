@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gameToPageCss, pageToGame, worldToPageCss, pageToWorld, clampPanel } from './viewport.js';
+import { gameToPageCss, pageToGame, worldToPageCss, pageToWorld, clampPanel, placeLeftOf, placeRightOf } from './viewport.js';
 import { RAIL_WIDTH, CANVAS_WIDTH, WORLD_WIDTH, WORLD_HEIGHT } from '../data/layout.js';
 
 describe('gameToPageCss', () => {
@@ -130,5 +130,31 @@ describe('clampPanel', () => {
 
   it('pins a panel taller than the area to the top margin', () => {
     expect(clampPanel({ left: 50, top: 80 }, { width: 170, height: 255 }, area, 6).top).toBe(6);
+  });
+});
+
+// Rail HUD peeks: a right-rail control opens its card over the map to its LEFT,
+// a left-rail control to its RIGHT, both vertically centred on the control.
+describe('placeLeftOf / placeRightOf', () => {
+  const area = { width: 844, height: 390 };
+  const size = { width: 200, height: 100 };
+  const anchor = { left: 760, top: 150, width: 45, height: 45 };
+
+  it('places left of the anchor by the gap, centred vertically', () => {
+    expect(placeLeftOf({ anchor, size, area, gap: 10, margin: 6 })).toEqual({ left: 760 - 10 - 200, top: 150 + (45 - 100) / 2 });
+  });
+  it('places right of the anchor by the gap, centred vertically', () => {
+    const a = { left: 40, top: 150, width: 45, height: 45 };
+    expect(placeRightOf({ anchor: a, size, area, gap: 10, margin: 6 })).toEqual({ left: 40 + 45 + 10, top: 150 + (45 - 100) / 2 });
+  });
+  it('clamps the top edge for an anchor near the top', () => {
+    expect(placeLeftOf({ anchor: { ...anchor, top: 0 }, size, area, gap: 10, margin: 6 }).top).toBe(6);
+  });
+  it('clamps the bottom edge for an anchor near the bottom', () => {
+    expect(placeRightOf({ anchor: { ...anchor, left: 0, top: 380 }, size, area, gap: 10, margin: 6 }).top).toBe(390 - 100 - 6);
+  });
+  it('clamps horizontally when there is no room on the requested side', () => {
+    expect(placeLeftOf({ anchor: { ...anchor, left: 50 }, size, area, gap: 10, margin: 6 }).left).toBe(6);
+    expect(placeRightOf({ anchor: { ...anchor, left: 800 }, size, area, gap: 10, margin: 6 }).left).toBe(844 - 200 - 6);
   });
 });

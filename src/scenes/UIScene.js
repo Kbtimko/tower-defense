@@ -20,9 +20,8 @@ export default class UIScene extends Phaser.Scene {
     this._heroXpAtMax  = null;
     this._heroXpLevel  = null;
 
-    document.getElementById('hud').style.display        = 'flex';
-    document.getElementById('bottom-bar').style.display = 'flex';
-    document.getElementById('game-msg').style.display   = 'none';
+    document.getElementById('hud-layer').style.display = 'block';
+    document.getElementById('game-msg').style.display  = 'none';
 
     this._bindDOMEvents();
     this._subscribeToGameEvents();
@@ -36,8 +35,7 @@ export default class UIScene extends Phaser.Scene {
   }
 
   shutdown() {
-    document.getElementById('hud').style.display        = 'none';
-    document.getElementById('bottom-bar').style.display = 'none';
+    document.getElementById('hud-layer').style.display = 'none';
 
     this.game.events.off('hero:hud-init',      this._onHeroHudInit,       this);
     this.game.events.off('hero:update',        this._onHeroUpdate,        this);
