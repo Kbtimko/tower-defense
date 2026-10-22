@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { TRAIL_FX, MUZZLE_FX, IMPACT_FX } from '../data/fx.js';
+import { TRAIL_FX, MUZZLE_FX, IMPACT_FX, STATUS_FX, STATUS_EMIT_FX, DEATH_FX } from '../data/fx.js';
 import { projectileFx } from './fxResolve.js';
 
 // Just above projectiles (depth 16) so effects read over the shot.
@@ -8,9 +8,19 @@ const FX_DEPTH = 17;
 // Data fields line up with ParticleEmitter config keys; emitting:false keeps
 // the shared emitter idle until explode / emitParticleAt drives it.
 function emitterConfig(def) {
-  const { tint, lifespan, quantity, speed, scale, alpha, blendMode } = def;
-  return { tint, lifespan, quantity, speed, scale, alpha, blendMode, emitting: false };
+  const { tint, lifespan, quantity, speed, scale, alpha, blendMode, gravityY } = def;
+  const config = { tint, lifespan, quantity, speed, scale, alpha, blendMode, emitting: false };
+  if (gravityY !== undefined) config.gravityY = gravityY;
+  return config;
 }
+
+// Neutral-white effects tinted per spawn with the dying enemy's colour. Safe on
+// a shared emitter: Phaser reads the tint when each particle is emitted
+// (Particle.fire -> EmitterOp.staticValueEmit) and never rewrites it after,
+// so live particles from an earlier death keep their own colour.
+// Never list an effect a projectile impact also uses (e.g. burst): the shared
+// emitter would recolour the tower's impact.
+export const TINT_AT_SPAWN = new Set(['pop', 'deathBurst']);
 
 export class ParticleSpawner {
   constructor(scene) {
@@ -45,6 +55,22 @@ export class ParticleSpawner {
     });
   }
 
+  // Plays the class's DEATH_FX steps. Delayed steps (the boss sequence) use
+  // one delayedCall each, which is a per-death cost, not a per-frame one.
+  spawnDeath(cls, x, y, color) {
+    const steps = DEATH_FX[cls];
+    if (!steps) return;
+    for (const { effect, delay } of steps) {
+      if (delay > 0) this._scene.time.delayedCall(delay, () => this._playDeathStep(effect, x, y, color));
+      else this._playDeathStep(effect, x, y, color);
+    }
+  }
+
+  _playDeathStep(effect, x, y, color) {
+    if (TINT_AT_SPAWN.has(effect)) this._emitter(`impact:${effect}:0`, IMPACT_FX[effect]).setParticleTint(color);
+    this.spawnImpact(effect, x, y);
+  }
+
   // Emits at the drawn position (ground y plus the art's arc lift) so smoke
   // follows a lobbed shell rather than its shadow.
   emitTrail(projectile, dt) {
@@ -57,6 +83,21 @@ export class ParticleSpawner {
     projectile._trailAcc -= n;
     this._emitter(`trail:${key}`, def)
       .emitParticleAt(projectile.x, projectile.drawnY, n);
+  }
+
+  // Continuous status particles (burn embers) at the enemy; `enemy._statusAcc`
+  // carries the fractional particle so the rate holds across frame sizes.
+  emitStatus(kind, enemy, dt) {
+    const def = STATUS_EMIT_FX[kind];
+    const rate = STATUS_FX[kind]?.emberRate;
+    if (!def || !rate) return;
+    enemy._statusAcc += rate * dt;
+    const n = Math.floor(enemy._statusAcc);
+    if (n < 1) return;
+    enemy._statusAcc -= n;
+    // Spread across the art so embers read on wide sprites, not just the centre.
+    const dx = (Math.random() * 2 - 1) * enemy._artHalfWidth * (def.spread ?? 0);
+    this._emitter(`status:${kind}`, def).emitParticleAt(enemy.x + dx, enemy.y, n);
   }
 
   destroy() {

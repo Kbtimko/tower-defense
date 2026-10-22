@@ -11,6 +11,7 @@ vi.mock('phaser', () => ({
 }));
 
 import { Enemy } from './Enemy.js';
+import { STATUS_DRAW } from '../data/fx.js';
 
 const makeGraphics = () => ({
   clear() {}, fillStyle() {}, fillCircle() {}, fillRect() {},
@@ -228,14 +229,14 @@ describe('Enemy death presentation', () => {
 
   it('reports a death animation once the sprite has death art', () => {
     const e = new Enemy(makeScene(), { def: makeDef(), startX: 0, startY: 0 });
-    e._sprite = { hasState: (n) => n === 'death', playOnce: vi.fn() };
+    e._sprite = { hasState: (n) => n === 'death', playOnce: vi.fn(), setBaseTint: vi.fn(), setSquash: vi.fn() };
     expect(e.hasDeathAnimation()).toBe(true);
   });
 
   it('hides the HP bar and status rings, then plays the one-shot', () => {
     const e = new Enemy(makeScene(), { def: makeDef(), startX: 0, startY: 0 });
     const playOnce = vi.fn();
-    e._sprite = { hasState: () => true, playOnce };
+    e._sprite = { hasState: () => true, playOnce, setBaseTint: vi.fn(), setSquash: vi.fn() };
     const done = vi.fn();
 
     e.playDeathAnimation(done);
@@ -317,7 +318,7 @@ describe('Enemy hit feedback for chip damage', () => {
 
   it('drops the flash when the death animation takes over', () => {
     const e = makeEnemy();
-    e._sprite = { hasState: () => true, playOnce: vi.fn(), setFlash: vi.fn() };
+    e._sprite = { hasState: () => true, playOnce: vi.fn(), setFlash: vi.fn(), setSquash: vi.fn(), setBaseTint: vi.fn() };
     e.takeDamage(5);
     e.playDeathAnimation(vi.fn());
     expect(e.hitFlash.active).toBe(false);
@@ -341,5 +342,205 @@ describe('Enemy hit feedback for chip damage', () => {
     const e = new Enemy(scene, { def: armouredDef(), startX: 0, startY: 0 });
     const last = scene.rects[scene.rects.length - 1];
     expect(last.w).toBeCloseTo(armouredDef().radius * 2.2);
+  });
+});
+
+describe('Enemy hit squash and status visuals', () => {
+  const squashDef = () => ({
+    hp: 100, speed: 80, armor: 0, reward: 10,
+    radius: 10, color: 0x00ff00, type: 'drone', flying: false,
+  });
+  const trackingGraphics = () => {
+    const g = makeGraphics();
+    g.visible = true;
+    g.calls = [];
+    for (const m of ['fillTriangle', 'strokeCircle', 'clear']) {
+      const orig = g[m];
+      g[m] = (...a) => { g.calls.push(m); return orig.apply(g, a); };
+    }
+    return g;
+  };
+  const build = ({ spawner } = {}) => {
+    const scene = {
+      add: { graphics: trackingGraphics, existing() {} },
+      events: { emit() {} },
+      game: { registry: { get: () => null } },
+      particleSpawner: spawner,
+    };
+    const e = new Enemy(scene, { def: squashDef(), startX: 0, startY: 0 });
+    e._sprite = {
+      active: true, setFlash: vi.fn(), setBaseTint: vi.fn(), setSquash: vi.fn(),
+      getDisplaySize: () => null, hasState: () => false,
+    };
+    return e;
+  };
+
+  it('a non-lethal hit squashes the sprite on the next update, then restores exactly', () => {
+    const e = build();
+    e.takeDamage(5);
+    e.update(0.03);
+    const [x, y] = e._sprite.setSquash.mock.lastCall;
+    expect(x).toBeGreaterThan(1);
+    expect(y).toBeLessThan(1);
+    e.update(1);
+    expect(e._sprite.setSquash).toHaveBeenLastCalledWith(1, 1);
+  });
+
+  it('stops calling setSquash once the squash has finished', () => {
+    const e = build();
+    e.takeDamage(5);
+    e.update(1);
+    e._sprite.setSquash.mockClear();
+    e.update(0.016);
+    expect(e._sprite.setSquash).not.toHaveBeenCalled();
+  });
+
+  it('a lethal hit does not squash, and cancels a squash in progress', () => {
+    const e = build();
+    e.takeDamage(5);
+    e.update(0.03);
+    e.takeDamage(99999);
+    expect(e._sprite.setSquash).toHaveBeenLastCalledWith(1, 1);
+    e._sprite.setSquash.mockClear();
+    e.update(0.03);
+    expect(e._sprite.setSquash).not.toHaveBeenCalled();
+  });
+
+  it('slow tints cyan on start and clears on expiry', () => {
+    const e = build();
+    e.applyStatus({ type: 'slow', duration: 1, factor: 0.5 });
+    expect(e._sprite.setBaseTint).toHaveBeenLastCalledWith(0x7fe9ff);
+    e.update(2);
+    expect(e._sprite.setBaseTint).toHaveBeenLastCalledWith(null);
+  });
+
+  it('stun outranks burn and slow; falls back to the next status on expiry', () => {
+    const e = build();
+    e.applyStatus({ type: 'slow', duration: 5, factor: 0.5 });
+    e.applyStatus({ type: 'burn', duration: 5, dps: 0 });
+    e.applyStatus({ type: 'stun', duration: 1 });
+    expect(e._sprite.setBaseTint).toHaveBeenLastCalledWith(0xffe14d);
+    e.update(1.5);
+    expect(e._sprite.setBaseTint).toHaveBeenLastCalledWith(0xff8a1f);
+  });
+
+  it('draws frost crystals on the overlay for slow', () => {
+    const e = build();
+    e._overlay.calls.length = 0;
+    e.applyStatus({ type: 'slow', duration: 1, factor: 0.5 });
+    expect(e._overlay.calls.filter((c) => c === 'fillTriangle')).toHaveLength(4);
+  });
+
+  it('stun draws 3 stars on the dedicated child each frame and hides them on expiry', () => {
+    const e = build();
+    e.applyStatus({ type: 'stun', duration: 1 });
+    expect(e._stars.visible).toBe(true);
+    e._stars.calls.length = 0;
+    e.update(0.1);
+    expect(e._stars.calls.filter((c) => c === 'fillTriangle').length).toBe(6); // 2 triangles per star
+    e.update(2);
+    expect(e._stars.visible).toBe(false);
+  });
+
+  it('stun no longer draws the white ring on the overlay', () => {
+    const e = build();
+    e._overlay.calls.length = 0;
+    e.applyStatus({ type: 'stun', duration: 1 });
+    expect(e._overlay.calls).not.toContain('strokeCircle');
+  });
+
+  it('burn emits embers through the spawner every update while burning, not after', () => {
+    const spawner = { emitStatus: vi.fn() };
+    const e = build({ spawner });
+    e.applyStatus({ type: 'burn', duration: 1, dps: 0 });
+    e.update(0.1);
+    expect(spawner.emitStatus).toHaveBeenCalledWith('burn', e, 0.1);
+    e.update(2);
+    spawner.emitStatus.mockClear();
+    e.update(0.1);
+    expect(spawner.emitStatus).not.toHaveBeenCalled();
+  });
+
+  it('burn works without a particle spawner', () => {
+    const e = build();
+    e.applyStatus({ type: 'burn', duration: 1, dps: 0 });
+    expect(() => e.update(0.1)).not.toThrow();
+  });
+
+  it('death animation hides the stars', () => {
+    const e = build();
+    e._sprite.playOnce = vi.fn();
+    e.applyStatus({ type: 'stun', duration: 5 });
+    e.playDeathAnimation(vi.fn());
+    expect(e._stars.visible).toBe(false);
+  });
+
+  it('death animation clears the status tint so the corpse is not tinted', () => {
+    const e = build();
+    e._sprite.playOnce = vi.fn();
+    e.applyStatus({ type: 'slow', duration: 5, factor: 0.5 });
+    e.playDeathAnimation(vi.fn());
+    expect(e._sprite.setBaseTint).toHaveBeenLastCalledWith(null);
+  });
+
+  it('a hit landing mid-squash leaves the HP bar geometry unchanged', () => {
+    const e = build();
+    let sx = 1, sy = 1;
+    // Mimics EntitySprite: display size is the unsquashed art times the squash.
+    e._sprite.setSquash = vi.fn((x, y) => { sx = x; sy = y; });
+    e._sprite.getDisplaySize = () => ({ width: 53, height: 112 });
+    const rects = [];
+    e._hpBar.fillRect = (...a) => rects.push(a.slice(0, 3));
+    e.takeDamage(5);
+    const first = rects.splice(0).map((r) => r.join());
+    e.update(0.03);
+    e.takeDamage(5);
+    const second = rects.splice(0).map((r) => r.join());
+    expect(sx).not.toBe(1);
+    expect(second.slice(0, 2)).toEqual(first.slice(0, 2));
+  });
+
+  it('stars orbit above the top of tall art, not inside the body', () => {
+    const e = build();
+    e._sprite.getDisplaySize = () => ({ width: 53, height: 112 });
+    const ys = [];
+    e._stars.fillTriangle = (x1, y1, x2, y2, x3, y3) => ys.push(y1, y2, y3);
+    e.applyStatus({ type: 'stun', duration: 5 });
+    e.update(0.1);
+    expect(ys.length).toBeGreaterThan(0);
+    expect(Math.max(...ys)).toBeLessThan(-56); // art top is -56
+  });
+
+  it('star orbit width follows the unsquashed art width, falling back to def.radius', () => {
+    const reach = (display) => {
+      const e = build();
+      e._sprite.getDisplaySize = () => display;
+      const xs = [];
+      e._stars.fillTriangle = (x1) => xs.push(x1);
+      e.applyStatus({ type: 'stun', duration: 5 });
+      e.update(0.1);
+      return Math.max(...xs.map(Math.abs));
+    };
+    const { orbitRatio } = STATUS_DRAW.star;
+    expect(reach({ width: 120, height: 112 })).toBeGreaterThan(60 * orbitRatio * 0.5);
+    expect(reach({ width: 120, height: 112 })).toBeGreaterThan(reach(null) * 3);
+    expect(reach(null)).toBeLessThanOrEqual(10 * orbitRatio + 1e-9); // def.radius is 10
+  });
+
+  it('each star gets a dark outline', () => {
+    const e = build();
+    const strokes = [];
+    e._stars.strokeTriangle = () => strokes.push(1);
+    e.applyStatus({ type: 'stun', duration: 5 });
+    e.update(0.1);
+    expect(strokes).toHaveLength(6);
+  });
+
+  it('works on the Graphics fallback (inactive sprite) without throwing', () => {
+    const e = build();
+    e._sprite = { active: false, setFlash() {}, setBaseTint() {}, setSquash() {}, getDisplaySize: () => null };
+    e.applyStatus({ type: 'slow', duration: 1, factor: 0.5 });
+    e.takeDamage(5);
+    expect(() => e.update(0.05)).not.toThrow();
   });
 });
