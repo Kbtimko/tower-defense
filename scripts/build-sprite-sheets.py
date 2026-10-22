@@ -33,7 +33,10 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 REF_DIR = ROOT / '.art-cache' / 'sprites'
-SPRITE_ROOT = ROOT / 'public' / 'assets' / 'sprites'
+# Sheets land in assets-src/ as ORIGINALS; scripts/art/normalize.py derives the
+# shipped copies in public/assets/sprites/ (outline, tone, rim light). Run it
+# after every rebuild, or the game keeps the previous normalized sheets.
+SPRITE_ROOT = ROOT / 'assets-src' / 'sprites'
 
 # Output directory per category. These names are what PROMPTS.md documents and
 # what SPRITE_MANIFEST paths point at — do not "tidy" the singular `sentry`.

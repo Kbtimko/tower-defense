@@ -44,11 +44,13 @@ extra limbs, deformed, side view, front portrait view
 
 1. Produce a transparent PNG. For an animation, lay frames out left-to-right in
    a single row (a spritesheet); for a static look, a single frame is fine.
-2. Save it under `public/assets/sprites/<category>/<type>_<state>.png`, e.g.
-   `public/assets/sprites/enemies/drone_move.png`. **It must live under `public/`**
-   or Vite will not copy it into the production build (see the note at the end).
-   The `path` in the manifest stays the site-root-relative URL
-   (`assets/sprites/...`), not the on-disk path.
+2. Save the ORIGINAL under `assets-src/sprites/<category>/<type>_<state>.png`,
+   e.g. `assets-src/sprites/enemies/drone_move.png`, then run
+   `python3 scripts/art/normalize.py`. It writes the shipped copy (outline,
+   tone, rim light) to `public/assets/sprites/...`. Only `public/` ships, so a
+   sheet that was never normalized is missing from the production build (see
+   the note at the end). The `path` in the manifest stays the site-root-relative
+   URL (`assets/sprites/...`), not the on-disk path.
 3. Add an entry to `src/data/sprites.js` `SPRITE_MANIFEST`:
    ```js
    {
@@ -97,7 +99,8 @@ impossible **by construction** rather than merely constrained.
 
 ```
 npm run art -- --kind sprite                  # 1 reference per entity -> .art-cache/
-python3 scripts/build-sprite-sheets.py --all  # cutout -> mirror -> move + death sheets
+python3 scripts/build-sprite-sheets.py --all  # cutout -> mirror -> move + death sheets (assets-src/)
+python3 scripts/art/normalize.py              # outline + tone -> public/; prints new `ground` metrics
 npm run assets                                # confirm sizes match the manifest
 ```
 
