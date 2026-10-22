@@ -39,6 +39,21 @@ describe('BootScene', () => {
     }
   });
 
+  it('picks the backdrop variant by the MAP width, not the wider canvas', () => {
+    const scene = new BootScene();
+    const loaded = [];
+    // 1000 CSS px of canvas would need full size; its map share (~784 px) is
+    // covered by the half variant (829.5 px) at DPR 1.
+    scene.game = { registry: { set() {} }, events: { on() {} }, canvas: { getBoundingClientRect: () => ({ width: 1000 }) } };
+    scene.load = { image: (key, path) => loaded.push({ key, path }), spritesheet() {} };
+    const dpr = window.devicePixelRatio;
+    window.devicePixelRatio = 1;
+    scene.preload();
+    window.devicePixelRatio = dpr;
+    const m = MAPS[0];
+    expect(loaded.find(l => l.key === `bg_map_${m.id}`).path).toBe(backgroundUrl(m.backgroundImage, BACKGROUND_VARIANTS[1]));
+  });
+
   it('still preloads the spark particle texture', () => {
     const scene = new BootScene();
     const loaded = [];

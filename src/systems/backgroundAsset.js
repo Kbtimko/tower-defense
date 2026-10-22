@@ -1,4 +1,5 @@
 import { BACKGROUND_VARIANTS, BACKGROUND_SOURCE_WIDTH } from '../data/backgroundAssets.js';
+import { WORLD_WIDTH, CANVAS_WIDTH } from '../data/layout.js';
 
 // maps.js names the SOURCE png (assets-src/backgrounds/); the shipped file is
 // a WebP derived from it, so the data keeps one name per map.
@@ -7,14 +8,19 @@ export function backgroundUrl(sourceName, variant) {
   return `assets/backgrounds/${stem}${variant.suffix}.webp`;
 }
 
+// The backdrop fills only the map between the HUD rails, not the whole canvas.
+export function mapCssWidth(canvasCssWidth) {
+  return (canvasCssWidth * WORLD_WIDTH) / CANVAS_WIDTH;
+}
+
 /**
- * The smallest variant that still has at least as many pixels as the canvas
+ * The smallest variant that still has at least as many pixels as the map
  * shows on screen, so a backdrop is never upscaled past its art. Picked once
  * at boot: a later resize keeps the variant, which at worst means a slightly
  * soft backdrop after rotating a small screen.
  */
-export function pickBackgroundVariant({ canvasCssWidth, dpr }) {
-  const devicePx = canvasCssWidth * (dpr || 1);
+export function pickBackgroundVariant({ mapCssWidth: cssWidth, dpr }) {
+  const devicePx = cssWidth * (dpr || 1);
   if (!(devicePx > 0)) return BACKGROUND_VARIANTS[0];
   let pick = BACKGROUND_VARIANTS[0];
   for (const v of BACKGROUND_VARIANTS) {
