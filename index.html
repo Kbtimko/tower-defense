@@ -20,14 +20,17 @@
        scales it over the canvas with one transform, so every px below shrinks
        with the FIT factor exactly like the map. Each rail is a 2-column grid of
        full HUD_CELL squares: a cell is the touch target (88 game px = 44 CSS px
-       on a 360-px-tall phone), so the visual gap between buttons is a
-       transparent border INSIDE each button, never a grid gap that would shrink
-       the target. Text is >= 24 game px (11 CSS px at the 0.46 iPhone scale). */
+       on a 360-px-tall phone; 52 game px on a mouse, where rails are narrower),
+       so the visual gap between buttons is a transparent border INSIDE each
+       button, never a grid gap that would shrink the target. Every rail length
+       below is calc(Npx * var(--hud-k)): k is 1 on touch and 52/88 on a mouse,
+       so content shrinks with its cell (src/ui/railCss.test.js enforces it).
+       Text is >= 24 game px on touch (11 CSS px at the 0.46 iPhone scale). */
     /* Condensed faces so 24-px labels fit an 82-px button face: macOS/iOS ship
        Avenir Next Condensed, Office installs Arial Narrow, Android maps
        sans-serif-condensed to Roboto Condensed, Windows 10+ has Bahnschrift.
        Anything wider is shrunk to fit by src/ui/fitLabels.js. */
-    #hud-layer { --hud-label-inset: 4px; /* label clearance from the 2px ring; fitLabels reads the real padding */
+    #hud-layer { --hud-label-inset: calc(4px * var(--hud-k)); /* label clearance from the button ring; fitLabels reads the real padding */
                  --hud-label-font: "Avenir Next Condensed", "Arial Narrow", "Roboto Condensed",
                    sans-serif-condensed, "Bahnschrift SemiCondensed", "Helvetica Neue", Arial, sans-serif;
                  display: none; position: absolute; left: 0; top: 0; z-index: 6;
@@ -36,25 +39,25 @@
     .hud-rail { position: absolute; top: 0; width: var(--rail-w); height: 100%;
                 pointer-events: auto; background: #0f0f1e;
                 display: flex; flex-direction: column; align-items: center; }
-    #rail-left { left: 0; justify-content: space-evenly; box-shadow: inset -3px 0 0 #8b6914; }
-    #rail-right { right: 0; justify-content: center; gap: 28px; box-shadow: inset 3px 0 0 #8b6914; }
+    #rail-left { left: 0; justify-content: space-evenly; box-shadow: inset calc(-3px * var(--hud-k)) 0 0 #8b6914; }
+    #rail-right { right: 0; justify-content: center; gap: calc(28px * var(--hud-k)); box-shadow: inset calc(3px * var(--hud-k)) 0 0 #8b6914; }
     .rail-grid { display: grid; grid-template-columns: repeat(2, var(--hud-cell));
                  grid-auto-rows: var(--hud-cell); }
     /* :where() keeps this at zero specificity so every control's own rule wins.
        The face colour is background-color (a `background` shorthand would reset
        background-clip and paint over the gutter); the ring is --edge. */
     :where(.hud-rail) button { width: 100%; height: 100%; margin: 0; padding: 0 var(--hud-label-inset);
-      border: 3px solid transparent; background-clip: padding-box; border-radius: 12px;
-      box-shadow: inset 0 0 0 2px var(--edge, #444);
-      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+      border: calc(3px * var(--hud-k)) solid transparent; background-clip: padding-box; border-radius: calc(12px * var(--hud-k));
+      box-shadow: inset 0 0 0 calc(2px * var(--hud-k)) var(--edge, #444);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(2px * var(--hud-k));
       font-family: var(--hud-label-font); font-stretch: condensed;
-      font-size: 24px; line-height: 1.05; text-align: center;
+      font-size: calc(24px * var(--hud-k)); line-height: 1.05; text-align: center;
       color: #e8e0d0; background-color: #1a1a3a; cursor: pointer;
       transition: background-color 0.12s, box-shadow 0.12s, color 0.12s; }
     .hud-stat { display: flex; flex-direction: column; align-items: center; justify-content: center;
-                gap: 1px; line-height: 1.05; font-size: 24px; }
-    .hud-val { font-weight: bold; color: #ffd700; font-size: 28px; }
-    .hud-lbl { color: #aaa; font-size: 24px; }
+                gap: calc(1px * var(--hud-k)); line-height: 1.05; font-size: calc(24px * var(--hud-k)); }
+    .hud-val { font-weight: bold; color: #ffd700; font-size: calc(28px * var(--hud-k)); }
+    .hud-lbl { color: #aaa; font-size: calc(24px * var(--hud-k)); }
     /* Speed is a quiet green toggle; pause takes the HUD's gold accent, because
        it is the one button a player needs to find without looking for it. */
     #speed-btn { --edge: #4a6a4a; background-color: #1a2a1a; color: #aaddaa; }
@@ -68,7 +71,7 @@
 
     #pause-btn { --edge: #8b6914; background-color: #3a2c08; color: #ffd700; font-weight: bold; }
     #pause-btn:hover { --edge: #c39a1d; background-color: #4d3a0b; }
-    #pause-btn:focus-visible { outline: 2px solid #ffd700; outline-offset: -3px; }
+    #pause-btn:focus-visible { outline: calc(2px * var(--hud-k)) solid #ffd700; outline-offset: calc(-3px * var(--hud-k)); }
     /* Paused is a state you can get stuck in, so the way back out is the
        brightest thing in the rail rather than the same tile with new text. */
     #pause-btn.paused { --edge: #ffd700; background-color: #ffd700; color: #241a00; }
@@ -164,9 +167,9 @@
     .tower-btn { --edge: #444; background-color: #1a1a3a; color: #e8e0d0; gap: 0; }
     .tower-btn:hover { --edge: #ffd700; background-color: #252545; }
     .tower-btn.selected { --edge: #ffd700; background-color: #2a2a1a; }
-    .tower-btn .t-icon { font-size: 30px; }
-    .tower-btn .t-cost { font-size: 24px; color: #ffd700; }
-    .tower-btn .t-name { font-size: 24px; color: #aaa; }
+    .tower-btn .t-icon { font-size: calc(30px * var(--hud-k)); }
+    .tower-btn .t-cost { font-size: calc(24px * var(--hud-k)); color: #ffd700; }
+    .tower-btn .t-name { font-size: calc(24px * var(--hud-k)); color: #aaa; }
     #tower-tooltip { position: absolute; display: none; z-index: 50;
                      background: #0f0f1e; border: 1px solid #8b6914; border-radius: 5px;
                      padding: 6px 8px; font-size: 11px; color: #ddd;
@@ -186,7 +189,7 @@
     .branch-card .branch-armour .ar-heavy { color: #fc6; }
     .branch-card .branch-armour .ar-floor { color: #f66; font-weight: bold; }
     #wave-btn { --edge: #cc3333; background-color: #8b1a1a; color: #fff;
-                font-size: 26px; font-weight: bold; }
+                font-size: calc(26px * var(--hud-k)); font-weight: bold; }
     #wave-btn:hover { background-color: #aa2222; }
     #wave-btn:disabled { --edge: #555; background-color: #333; color: #666; cursor: not-allowed; }
     #exit-btn { --edge: #6a4a4a; background-color: #2a1a1a; color: #ddaaaa; }
@@ -339,17 +342,17 @@
     .map-row-name { font-size:12px; font-weight:bold; }
     .map-row-stars { font-size:11px; color:#ffd700; min-height:16px; }
     /* Hero card: one full-width rail row. */
-    #hero-section { display:flex; align-items:center; gap:10px; padding:0 10px;
+    #hero-section { display:flex; align-items:center; gap:calc(10px * var(--hud-k)); padding:0 calc(10px * var(--hud-k));
                     width:var(--rail-w); height:var(--hud-cell); }
-    #hero-portrait { width:56px; height:56px; flex:0 0 56px; border-radius:50%; background:#1a2a4a;
-                     border:3px solid #4fc3f7; display:flex; align-items:center;
-                     justify-content:center; font-size:28px; color:#4fc3f7; font-weight:bold; }
-    #hero-info { display:flex; flex-direction:column; gap:5px; flex:1; min-width:0; }
-    #hero-level { font-size:24px; line-height:1.05; color:#4fc3f7; overflow-wrap:anywhere; }
-    #hero-hp-bg { width:100%; height:10px; background:#333; border-radius:3px; overflow:hidden; }
-    #hero-hp-fill { height:100%; background:#4fc3f7; border-radius:3px; transition:width 0.15s; }
-    #hero-xp-bg { width:100%; height:8px; background:#332b12; border-radius:3px; overflow:hidden; }
-    #hero-xp-fill { height:100%; width:0%; background:#ffd700; border-radius:3px; transition:width 0.15s; }
+    #hero-portrait { width:calc(56px * var(--hud-k)); height:calc(56px * var(--hud-k)); flex:0 0 calc(56px * var(--hud-k)); border-radius:50%; background:#1a2a4a;
+                     border:calc(3px * var(--hud-k)) solid #4fc3f7; display:flex; align-items:center;
+                     justify-content:center; font-size:calc(28px * var(--hud-k)); color:#4fc3f7; font-weight:bold; }
+    #hero-info { display:flex; flex-direction:column; gap:calc(5px * var(--hud-k)); flex:1; min-width:0; }
+    #hero-level { font-size:calc(24px * var(--hud-k)); line-height:1.05; color:#4fc3f7; overflow-wrap:anywhere; }
+    #hero-hp-bg { width:100%; height:calc(10px * var(--hud-k)); background:#333; border-radius:calc(3px * var(--hud-k)); overflow:hidden; }
+    #hero-hp-fill { height:100%; background:#4fc3f7; border-radius:calc(3px * var(--hud-k)); transition:width 0.15s; }
+    #hero-xp-bg { width:100%; height:calc(8px * var(--hud-k)); background:#332b12; border-radius:calc(3px * var(--hud-k)); overflow:hidden; }
+    #hero-xp-fill { height:100%; width:0%; background:#ffd700; border-radius:calc(3px * var(--hud-k)); transition:width 0.15s; }
     /* Wraps each ability button so the hover card still works once the button
        goes disabled (locked / on cooldown) — same reason as #wave-btn-wrap. The
        wrapper is the grid cell; the button fills it. */
@@ -359,14 +362,14 @@
     .ability-btn:disabled { opacity:0.45; cursor:not-allowed; }
     /* --cd (1 -> 0) is set by UIScene; the dark wedge shrinks as the cooldown runs out. */
     .ability-btn { position:relative; }
-    .ability-btn::after { content:''; position:absolute; inset:0; border-radius:9px; pointer-events:none;
+    .ability-btn::after { content:''; position:absolute; inset:0; border-radius:calc(9px * var(--hud-k)); pointer-events:none;
                           background:conic-gradient(rgba(0,0,0,0.6) calc(var(--cd, 0) * 360deg), transparent 0); }
     /* Keep the key/name/countdown above the cooldown wedge. */
     .ability-btn > span { position:relative; z-index:1; }
     .ability-btn:not(:disabled):not(.locked):hover { background-color:#253a4a; }
-    .ability-key  { font-size:24px; font-weight:bold; letter-spacing:1px; }
-    .ability-name { font-size:28px; }
-    .ability-cd   { font-size:24px; color:#aaa; min-height:24px; }
+    .ability-key  { font-size:calc(24px * var(--hud-k)); font-weight:bold; letter-spacing:calc(1px * var(--hud-k)); }
+    .ability-name { font-size:calc(28px * var(--hud-k)); }
+    .ability-cd   { font-size:calc(24px * var(--hud-k)); color:#aaa; min-height:calc(24px * var(--hud-k)); }
     #map-meta-bar { display:flex; align-items:center; justify-content:center; gap:18px;
                     margin-bottom:14px; }
     #total-stars { font-size:18px; color:#ffd700; font-weight:bold; letter-spacing:1px; }
