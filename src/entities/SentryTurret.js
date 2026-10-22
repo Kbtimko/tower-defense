@@ -58,11 +58,14 @@ export class SentryTurret extends Phaser.GameObjects.Container {
     if (this._cooldown <= 0) {
       const target = this._nearestEnemyInRange(enemies);
       if (target) {
-        this.scene.projectiles.push(new Projectile(this.scene, {
+        // towerType stays 'archer' (damage source for matchups); fxType is visual only.
+        const shot = {
           x: this.x, y: this.y, target,
           damage: this.damage, splashRadius: 0, pierce: false, slowFactor: 0,
-          color: COLOR, towerType: 'archer', tier: 1, branch: null,
-        }));
+          color: COLOR, towerType: 'archer', fxType: 'sentry', tier: 1, branch: null,
+        };
+        const pool = this.scene._projectilePool;
+        this.scene.projectiles.push(pool ? pool.acquire(shot) : new Projectile(this.scene, shot));
         this._cooldown += 1 / this.rate;
         this._sprite?.setState('attack');
       } else {

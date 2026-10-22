@@ -28,6 +28,7 @@ const makeCtx = (towers, enemies) => ({
   placementManager: { getTowers: () => towers },
   enemies,
   projectiles: [],
+  _projectilePool: { acquire: opts => ({ ...opts }) },
   particleSpawner: null,
   game: { registry: { get: () => null } },
 });

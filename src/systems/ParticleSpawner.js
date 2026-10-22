@@ -1,48 +1,67 @@
 import Phaser from 'phaser';
+import { TRAIL_FX, MUZZLE_FX, IMPACT_FX } from '../data/fx.js';
+import { projectileFx } from './fxResolve.js';
 
-export const MUZZLE_TINTS = {
-  default:  0xffffff,
-  archer:   0xffffff,
-  cannon:   0xffdd66,
-  mage:     0x66ccff,
-  ice:      0xaaddff,
-  sniper:   0xffffff,
-  barracks: 0xffffff,
-};
+// Just above projectiles (depth 16) so effects read over the shot.
+const FX_DEPTH = 17;
 
-const TRAIL_CONFIG = {
-  default: { lifespan: 250, scale: { start: 0.4, end: 0 }, alpha: { start: 1,   end: 0 }, frequency: 16, tint: 0xffffff },
-  rocket:  { lifespan: 250, scale: { start: 0.6, end: 0 }, alpha: { start: 0.8, end: 0 }, frequency: 24, tint: 0xaaaaaa },
-  laser:   { lifespan: 250, scale: { start: 0.5, end: 0 }, alpha: { start: 1,   end: 0 }, frequency: 12, tint: 0x66ccff },
-};
+// Data fields line up with ParticleEmitter config keys; emitting:false keeps
+// the shared emitter idle until explode / emitParticleAt drives it.
+function emitterConfig(def) {
+  const { tint, lifespan, quantity, speed, scale, alpha, blendMode } = def;
+  return { tint, lifespan, quantity, speed, scale, alpha, blendMode, emitting: false };
+}
 
 export class ParticleSpawner {
   constructor(scene) {
     this._scene = scene;
+    // One emitter per effect for the scene's lifetime (no per-shot allocation).
+    this._emitters = new Map();
   }
 
-  spawnMuzzleFlash(x, y, towerType) {
-    const tint = MUZZLE_TINTS[towerType] ?? MUZZLE_TINTS.default;
-    const config = {
-      tint,
-      lifespan: 80,
-      speed: { min: 40, max: 80 },
-      scale: { start: 0.6, end: 0 },
-      quantity: 3,
-      angle: { min: 0, max: 360 },
-      blendMode: 'ADD',
-    };
-    const emitter = this._scene.add.particles(x, y, 'spark', config);
-    if (emitter.explode) emitter.explode(3, x, y);
-    this._scene.time.delayedCall(150, () => emitter.destroy && emitter.destroy());
+  _emitter(cacheKey, def) {
+    let emitter = this._emitters.get(cacheKey);
+    if (!emitter) {
+      emitter = this._scene.add.particles(0, 0, def.texture, emitterConfig(def));
+      emitter.setDepth(FX_DEPTH);
+      this._emitters.set(cacheKey, emitter);
+    }
     return emitter;
   }
 
-  spawnProjectileTrail(projectile, towerType) {
-    const config = TRAIL_CONFIG[towerType] ?? TRAIL_CONFIG.default;
-    const emitter = this._scene.add.particles(projectile.x, projectile.y, 'spark', config);
-    if (emitter.startFollow) emitter.startFollow(projectile);
-    return emitter;
+  // `towerType` may also be a MUZZLE_FX key directly (soldiers have no tower def).
+  spawnMuzzleFlash(x, y, towerType, tier = 1, branch = null) {
+    const key = MUZZLE_FX[towerType] ? towerType : projectileFx(towerType, tier, branch).muzzle;
+    const def = MUZZLE_FX[key];
+    this._emitter(`muzzle:${key}`, def).explode(def.quantity, x, y);
+  }
+
+  spawnImpact(impactKey, x, y) {
+    const fx = IMPACT_FX[impactKey];
+    if (!fx) return;
+    const layers = Array.isArray(fx) ? fx : [fx];
+    layers.forEach((def, i) => {
+      this._emitter(`impact:${impactKey}:${i}`, def).explode(def.quantity, x, y);
+    });
+  }
+
+  // Emits at the drawn position (ground y plus the art's arc lift) so smoke
+  // follows a lobbed shell rather than its shadow.
+  emitTrail(projectile, dt) {
+    const key = projectile.fx.trail;
+    const def = TRAIL_FX[key];
+    if (!def || !def.rate) return;
+    projectile._trailAcc += def.rate * dt;
+    const n = Math.floor(projectile._trailAcc);
+    if (n < 1) return;
+    projectile._trailAcc -= n;
+    this._emitter(`trail:${key}`, def)
+      .emitParticleAt(projectile.x, projectile.drawnY, n);
+  }
+
+  destroy() {
+    for (const emitter of this._emitters.values()) emitter.destroy();
+    this._emitters.clear();
   }
 
   spawnHeroAbilityVFX(ability, x, y, radius) {

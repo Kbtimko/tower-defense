@@ -92,20 +92,13 @@ describe('GameScene._fadeOutDeadEnemy with a death animation', () => {
 });
 
 describe('GameScene._destroyDeadProjectile', () => {
-  it('destroys the trail and the projectile container', () => {
-    const projectile = { destroyTrail: vi.fn(), destroy: vi.fn() };
-
-    GameScene.prototype._destroyDeadProjectile(projectile);
-
-    expect(projectile.destroyTrail).toHaveBeenCalledOnce();
-    expect(projectile.destroy).toHaveBeenCalledOnce();
-  });
-
-  it('still destroys the projectile if destroyTrail is absent', () => {
+  it('returns the projectile to the pool instead of destroying it', () => {
     const projectile = { destroy: vi.fn() };
+    const ctx = { _projectilePool: { release: vi.fn() } };
 
-    GameScene.prototype._destroyDeadProjectile(projectile);
+    GameScene.prototype._destroyDeadProjectile.call(ctx, projectile);
 
-    expect(projectile.destroy).toHaveBeenCalledOnce();
+    expect(ctx._projectilePool.release).toHaveBeenCalledWith(projectile);
+    expect(projectile.destroy).not.toHaveBeenCalled();
   });
 });

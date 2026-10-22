@@ -1,3 +1,7 @@
+// Gameplay: a projectile registers its hit within this many px of the target; the
+// cannon arc visual also lands here so shells never vanish mid-air.
+export const PROJECTILE_HIT_RADIUS = 10;
+
 export const TOWER_DEFS = {
   archer: {
     name: 'Archer', icon: '🏹', cost: 60, color: 0x8B4513,
