@@ -12,6 +12,7 @@
     "assets": "node scripts/assets.mjs",
     "art": "node scripts/generate-art.mjs",
     "capture": "node scripts/capture.mjs",
+    "matrix": "node scripts/capture.mjs --flow",
     "optimize-assets": "node scripts/optimize-assets.mjs"
   },
   "dependencies": {
