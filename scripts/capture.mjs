@@ -23,6 +23,7 @@ import { chromium, devices } from 'playwright';
 import { MAPS } from '../src/data/maps.js';
 import { MAP_WAVES } from '../src/data/waves.js';
 import { defaultCaptureBuild } from '../src/systems/debugCapture.js';
+import { layoutProblems } from '../src/systems/layoutAudit.js';
 
 const OUT_DIR   = '.art-cache/captures';
 const DIST_DIR  = '.art-cache/capture-dist';
@@ -30,13 +31,24 @@ const PORT      = 4188;
 const MIN_ENEMIES = 3;
 
 // Landscape presets: the game is landscape-only, so portrait shots would only
-// show the letterboxing.
+// show the letterboxing. `portrait` names the same device upright, for the
+// rotate-the-phone audit (a player always starts holding it upright).
 const DEVICES = {
   desktop: { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 },
-  iphone:  devices['iPhone 14 landscape'],
-  pixel:   devices['Pixel 7 landscape'],
-  ipad:    devices['iPad Pro 11 landscape'],
+  iphone:  { ...devices['iPhone 14 landscape'], portrait: 'iPhone 14' },
+  pixel:   { ...devices['Pixel 7 landscape'], portrait: 'Pixel 7' },
+  ipad:    { ...devices['iPad Pro 11 landscape'], portrait: 'iPad Pro 11' },
 };
+
+// Controls a phone player must be able to reach on each screen.
+const MAP_SELECT_TARGETS = ['#featured-play'];
+const IN_GAME_TARGETS = ['#pause-btn', '#speed-btn', '#open-codex', '.tower-btn', '#exit-btn', '#wave-btn'];
+
+// Playwright rejects unknown context options, so strip ours before newContext.
+function contextOptions(device) {
+  const { portrait, ...options } = device;
+  return options;
+}
 
 function parseArgs(argv) {
   const opts = { maps: [0, 3, 5, 9], wave: null, seconds: 6, build: null, hero: null,
@@ -109,6 +121,43 @@ async function clickGamePoint(page, x, y) {
   await page.mouse.click(box.x + (x * box.width) / 1280, box.y + (y * box.height) / 720);
 }
 
+// Collects layout metrics inside the page and returns { device, label, problems }.
+// getBoundingClientRect ignores ancestor clipping, so each target also gets
+// visibleRect: its rect intersected with every overflow-clipping ancestor.
+async function audit(page, deviceName, label, selectors) {
+  const metrics = await page.evaluate(sels => {
+    const clipRect = el => {
+      const r = el.getBoundingClientRect();
+      let { left, top, right, bottom } = r;
+      for (let a = el.parentElement; a; a = a.parentElement) {
+        const cs = getComputedStyle(a);
+        const ar = a.getBoundingClientRect();
+        if (cs.overflowX !== 'visible') { left = Math.max(left, ar.left); right = Math.min(right, ar.right); }
+        if (cs.overflowY !== 'visible') { top = Math.max(top, ar.top); bottom = Math.min(bottom, ar.bottom); }
+      }
+      if (right <= left || bottom <= top) return null;
+      return { left, top, right, bottom, width: right - left, height: bottom - top };
+    };
+    const plain = r => ({ left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height });
+    const targets = [];
+    for (const sel of sels) {
+      const els = [...document.querySelectorAll(sel)];
+      if (!els.length) targets.push({ name: sel, rect: null, visible: false });
+      els.forEach((el, i) => {
+        const visible = el.checkVisibility
+          ? el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
+          : getComputedStyle(el).visibility !== 'hidden' && el.getClientRects().length > 0;
+        targets.push({ name: sel.startsWith('#') ? sel : `${sel}[${i}]`, rect: plain(el.getBoundingClientRect()), visibleRect: clipRect(el), visible });
+      });
+    }
+    return {
+      innerWidth: window.innerWidth, innerHeight: window.innerHeight,
+      scale: window.visualViewport.scale, scrollWidth: document.documentElement.scrollWidth, targets,
+    };
+  }, selectors);
+  return { device: deviceName, label, problems: layoutProblems({ ...metrics, device: page.viewportSize() }) };
+}
+
 async function shoot(page, file) {
   await page.screenshot({ path: file });
   return file;
@@ -121,9 +170,10 @@ async function captureScreens(browser, base, deviceName, opts) {
   mkdirSync(dir, { recursive: true });
   const mapId = opts.maps[0];
   const { path } = captureUrl(mapId, opts);
-  const context = await browser.newContext(DEVICES[deviceName]);
+  const context = await browser.newContext(contextOptions(DEVICES[deviceName]));
   const problems = [];
   const files = [];
+  const layout = [];
   try {
     // A fresh context has empty localStorage, so this is a true first run.
     let page = await context.newPage();
@@ -135,6 +185,7 @@ async function captureScreens(browser, base, deviceName, opts) {
     await page.locator('#story-dialog-skip').click();
     await page.waitForTimeout(800);
     files.push(await shoot(page, join(dir, '02-map-select.png')));
+    layout.push(await audit(page, deviceName, 'map-select', MAP_SELECT_TARGETS));
     problems.push(...p1);
     await page.close();
 
@@ -143,6 +194,7 @@ async function captureScreens(browser, base, deviceName, opts) {
     await page.goto(base + path);
     const cap = await shootBusiestFrame(page, opts.seconds * 1000, join(dir, '03-in-game.png'));
     files.push(join(dir, '03-in-game.png'));
+    layout.push(await audit(page, deviceName, 'in-game', IN_GAME_TARGETS));
     const tower = cap.towers[0];
     if (tower) {
       await clickGamePoint(page, tower.x, tower.y);
@@ -174,7 +226,68 @@ async function captureScreens(browser, base, deviceName, opts) {
   } finally {
     await context.close();
   }
-  return { device: deviceName, screens: files, problems };
+  if (DEVICES[deviceName].portrait) {
+    const rotated = await captureRotation(browser, base, deviceName, path, dir);
+    files.push(...rotated.files);
+    layout.push(...rotated.layout);
+  }
+  return { device: deviceName, screens: files, problems, layout };
+}
+
+// A phone starts upright and is then turned: that rotation is where the page
+// zoom and the clipped PLAY button appear, so it needs its own contexts. The
+// portrait descriptor supplies the UA / touch / DPR; setViewportSize is the turn.
+async function captureRotation(browser, base, deviceName, levelPath, dir) {
+  const device = DEVICES[deviceName];
+  const landscape = device.viewport;
+  const files = [];
+  const layout = [];
+  const upright = () => browser.newContext(contextOptions(devices[device.portrait]));
+  const rotate = async page => {
+    await page.setViewportSize(landscape);
+    await page.waitForTimeout(800);
+  };
+
+  let context = await upright();
+  try {
+    const page = await context.newPage();
+    await page.goto(base + '/');
+    await page.locator('#story-dialog-skip').waitFor({ state: 'visible', timeout: 30_000 });
+    await page.waitForTimeout(1500);
+    await page.locator('#story-dialog-skip').click();
+    await page.waitForTimeout(800);
+    files.push(await shoot(page, join(dir, '00-portrait.png')));
+    await rotate(page);
+    files.push(await shoot(page, join(dir, '02b-map-select-rotated.png')));
+    layout.push(await audit(page, deviceName, 'rotated-map-select', MAP_SELECT_TARGETS));
+    // el.click(), not a pointer click: the point is to reach the level even when
+    // the button is clipped, so the in-game half of the audit still runs.
+    await page.evaluate(() => document.querySelector('#featured-play')?.click());
+    const entered = await page.locator('#wave-btn').waitFor({ state: 'visible', timeout: 10_000 }).then(() => true, () => false);
+    if (entered) {
+      await page.waitForTimeout(1500);
+      files.push(await shoot(page, join(dir, '03b-in-game-rotated.png')));
+      layout.push(await audit(page, deviceName, 'rotated-in-game', IN_GAME_TARGETS));
+    } else {
+      layout.push({ device: deviceName, label: 'rotated-in-game', problems: ['level never started after PLAY'] });
+    }
+  } finally {
+    await context.close();
+  }
+
+  context = await upright();
+  try {
+    const page = await context.newPage();
+    await page.goto(base + levelPath);
+    await page.waitForFunction(() => window.__capture, null, { timeout: 30_000 });
+    await page.waitForTimeout(1500);
+    await rotate(page);
+    files.push(await shoot(page, join(dir, '03c-mid-level-rotated.png')));
+    layout.push(await audit(page, deviceName, 'rotated-mid-level', IN_GAME_TARGETS));
+  } finally {
+    await context.close();
+  }
+  return { files, layout };
 }
 
 async function captureOne(browser, base, deviceName, mapId, opts) {
@@ -186,7 +299,7 @@ async function captureOne(browser, base, deviceName, mapId, opts) {
   const device = DEVICES[deviceName];
 
   const context = await browser.newContext({
-    ...device,
+    ...contextOptions(device),
     ...(opts.video ? { recordVideo: { dir: videoDir, size: device.viewport } } : {}),
   });
   const page = await context.newPage();
@@ -238,6 +351,11 @@ async function main() {
   writeFileSync(join(OUT_DIR, 'report.json'), JSON.stringify(results, null, 2));
   const bad = results.filter(r => r.problems.length || r.ignoredBuild?.length);
   if (bad.length) console.log(`\n${bad.length} capture(s) logged problems — see ${OUT_DIR}/report.json`);
+  const layoutLines = results.flatMap(r => (r.layout ?? []).flatMap(l => l.problems.map(p => `LAYOUT ${l.device} ${l.label}: ${p}`)));
+  if (layoutLines.length) {
+    console.log(`\n${layoutLines.join('\n')}`);
+    process.exitCode = 1;
+  }
 }
 
 main().catch(err => { console.error(err); process.exit(1); });
