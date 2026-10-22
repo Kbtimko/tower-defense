@@ -14,6 +14,7 @@ import { parseDebugParams } from '../systems/debugCapture.js';
 import { MAP_WAVES } from '../data/waves.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { HERO_ORDER } from '../data/heroes.js';
+import { generateFxTextures } from '../systems/fxTextures.js';
 
 // Distinct portrait keys across all story speakers (deduped: two speakers may
 // legitimately share a portrait).
@@ -78,6 +79,9 @@ export default class BootScene extends Phaser.Scene {
   }
 
   create() {
+    // Before any scene.start so every later scene (incl. debug/capture entry) has the textures.
+    generateFxTextures(this);
+
     // Record which manifest textures actually loaded so the pure resolver can
     // tell "registered" from "fall back". Textures are guaranteed present by
     // the time create() runs.

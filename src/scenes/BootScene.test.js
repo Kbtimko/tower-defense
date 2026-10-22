@@ -13,6 +13,7 @@ vi.mock('phaser', () => ({
 vi.mock('../systems/SaveManager.js', () => ({
   SaveManager: class { getSettings() { return { ambientMotion: null }; } },
 }));
+vi.mock('../systems/fxTextures.js', () => ({ generateFxTextures() {} }));
 vi.mock('../ui/loadingBar.js', () => ({ attachLoadingBar() {} }));
 vi.mock('../systems/AudioManager.js', () => ({ getOrCreateAudioManager: () => ({ loadAssets() {} }) }));
 vi.mock('../systems/AmbientBackgroundLayer.js', () => ({ resolveAmbientMotion: (saved, _) => saved ?? true }));
