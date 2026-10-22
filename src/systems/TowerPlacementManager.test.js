@@ -72,7 +72,8 @@ describe('TowerPlacementManager', () => {
     const economy = makeEconomy(500);
     const mgr = new TowerPlacementManager([zone], economy, makeFactory());
     const tower = mgr.placeTower(0, 'archer', null); // spends 60g → economy.gold = 440
-    mgr.sellTower(tower);
+    const refund = mgr.sellTower(tower);
+    expect(refund).toBe(36);
     expect(economy.gold).toBe(440 + Math.floor(60 * 0.6)); // 440 + 36 = 476
     expect(zone.occupied).toBe(false);
     expect(mgr.getTowers()).toHaveLength(0);

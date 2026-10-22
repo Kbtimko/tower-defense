@@ -42,6 +42,8 @@ const makeCtx = (overrides = {}) => ({
     getPathPoints: () => [],
   },
   _repaintStaticLayers: vi.fn(),
+  _playTowerPop: vi.fn(),
+  _playSellFx: vi.fn(),
   _closeTowerPanel: vi.fn(),
   _openTowerPanel: vi.fn(),
   _deselectButtons: vi.fn(),

@@ -22,6 +22,7 @@ import { CoinFx } from '../systems/CoinFx.js';
 import { ShakeController }    from '../systems/ShakeController.js';
 import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
 import { SOLDIER_MUZZLE, HIT_STOP } from '../data/fx.js';
+import { BUILD_POP, UPGRADE_POP, SELL_FX } from '../data/juice.js';
 import { deathClass, isHeavyHit, canHitStop } from '../systems/hitFx.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
 import { gameToPageCss } from '../systems/viewport.js';
@@ -980,6 +981,7 @@ export default class GameScene extends Phaser.Scene {
 
   _updateTowers(dt) {
     for (const tower of this.placementManager.getTowers()) {
+      tower.updatePop(dt);
       if (!tower.fireRate) continue;
       tower.cooldown = Math.max(0, tower.cooldown - dt);
       if (tower.cooldown > 0) continue;
@@ -1162,6 +1164,7 @@ export default class GameScene extends Phaser.Scene {
       }
       const tower = this.placementManager.placeTower(slot.slotIndex, this.selectedType, this);
       if (!tower) { this._toast('Not enough gold!'); return; }
+      this._playTowerPop(tower, 'build', BUILD_POP);
       this._repaintStaticLayers();
       if (this.selectedType === 'barracks') {
         tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(slot.x, slot.y);
@@ -1448,13 +1451,31 @@ export default class GameScene extends Phaser.Scene {
     if (tower.type === 'barracks') {
       tower._rebuildSoldiers(this, this.pathMgr.getPathPoints());
     }
+    this._playTowerPop(tower, 'upgrade', UPGRADE_POP);
     const panel = document.getElementById('tower-panel');
     this._openTowerPanel(tower, parseInt(panel.style.left), parseInt(panel.style.top));
   }
 
+  // `pop` is BUILD_POP/UPGRADE_POP: the ring burst always plays, the scale pop
+  // is skipped under reduced motion.
+  _playTowerPop(tower, kind, pop) {
+    this.particleSpawner?.spawnImpact(pop.burstEffect, tower.x, tower.y);
+    if (this.game.registry.get('ambientMotion') === false) return;
+    tower.startPop(kind);
+  }
+
+  _playSellFx(x, y, refund) {
+    this.particleSpawner?.spawnImpact(SELL_FX.burstEffect, x, y);
+    this._coinFx?.spawn(x, y, refund);
+  }
+
   _sellSelectedTower() {
     if (!this.selectedTower) return;
-    this.placementManager.sellTower(this.selectedTower);
+    // Read the position first: sellTower destroys the tower. The tower is still
+    // removed this frame; only the effects play on after it.
+    const { x, y } = this.selectedTower;
+    const refund = this.placementManager.sellTower(this.selectedTower);
+    this._playSellFx(x, y, refund);
     this._repaintStaticLayers();
     this.selectedTower = null;
     this._closeTowerPanel();

@@ -32,6 +32,7 @@ vi.mock('../data/sprites.js', () => ({
 
 import { TOWER_DEFS } from '../data/towers.js';
 import { Tower } from './Tower.js';
+import { BUILD_POP, UPGRADE_POP } from '../data/juice.js';
 
 // Records the calls a Graphics object receives so the test can assert on what
 // was drawn rather than on pixels.
@@ -98,5 +99,55 @@ describe('Tower tier ring with sprite art active', () => {
     expect(t._sprite.active).toBe(false);
     expect(sinceLastClear(t._bg).some(c => c[0] === 'fillCircle')).toBe(true);
     expect(t._icon.visible).toBe(true);
+  });
+});
+
+describe('Tower build/upgrade pop', () => {
+  const popTower = () => {
+    const t = makeTower(makeScene(['sprite-tower-archer-idle', 'sprite-tower-archer-attack']));
+    t._sprite.setSquash = vi.fn();
+    return t;
+  };
+
+  it('is idle until startPop: updatePop leaves the sprite alone', () => {
+    const t = popTower();
+    t.updatePop(0.1);
+    expect(t._sprite.setSquash).not.toHaveBeenCalled();
+  });
+
+  it('scales uniformly toward the build peak, then restores exactly to 1', () => {
+    const t = popTower();
+    t.startPop('build');
+    t.updatePop(BUILD_POP.duration * 0.3);
+    const [x, y] = t._sprite.setSquash.mock.calls.at(-1);
+    expect(x).toBe(y);
+    expect(x).toBeCloseTo(BUILD_POP.peak, 5);
+    t.updatePop(BUILD_POP.duration);
+    expect(t._sprite.setSquash).toHaveBeenLastCalledWith(1, 1);
+    const n = t._sprite.setSquash.mock.calls.length;
+    t.updatePop(0.1);
+    expect(t._sprite.setSquash.mock.calls.length).toBe(n); // finished: no more writes
+  });
+
+  it('upgrade pop uses the upgrade peak', () => {
+    const t = popTower();
+    t.startPop('upgrade');
+    t.updatePop(UPGRADE_POP.duration * 0.3);
+    expect(t._sprite.setSquash.mock.calls.at(-1)[0]).toBeCloseTo(UPGRADE_POP.peak, 5);
+  });
+
+  it('restarting mid-pop begins from the start', () => {
+    const t = popTower();
+    t.startPop('build');
+    t.updatePop(BUILD_POP.duration * 0.9);
+    t.startPop('upgrade');
+    t.updatePop(UPGRADE_POP.duration * 0.3);
+    expect(t._sprite.setSquash.mock.calls.at(-1)[0]).toBeCloseTo(UPGRADE_POP.peak, 5);
+  });
+
+  it('is safe with no sprite art (fallback disc)', () => {
+    const t = makeTower(makeScene([]));
+    t.startPop('build');
+    expect(() => t.updatePop(0.1)).not.toThrow();
   });
 });
