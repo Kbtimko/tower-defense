@@ -1,4 +1,5 @@
-import { CANVAS_WIDTH, WORLD_HEIGHT, RAIL_WIDTH, HUD_CELL } from '../data/layout.js';
+import { CANVAS_WIDTH, WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH, HUD_CELL } from '../data/layout.js';
+import { PEEK_GAP_PX } from '../data/input.js';
 
 // The HUD is DOM laid out in game px (CANVAS_WIDTH x WORLD_HEIGHT) and pinned
 // over the canvas with the same FIT factor, so one transform keeps every rail
@@ -11,16 +12,34 @@ export function hudLayerTransform({ canvasRect, gameRect, canvasWidth }) {
   };
 }
 
+// The map viewport (canvas minus a rail each side) in #game-local CSS px. With
+// no canvas yet it falls back to the whole #game box.
+export function mapRectIn({ gameRect, canvasRect }) {
+  if (!canvasRect) return { left: 0, top: 0, width: gameRect.width, height: gameRect.height };
+  const scale = canvasRect.width / CANVAS_WIDTH;
+  return {
+    left: canvasRect.left - gameRect.left + RAIL_WIDTH * scale,
+    top: canvasRect.top - gameRect.top,
+    width: WORLD_WIDTH * scale,
+    height: WORLD_HEIGHT * scale,
+  };
+}
+
+// Also publishes the map rect on #game, so DOM anchored to #game (toast,
+// banners, tower panel) can sit over the map instead of the rails/letterbox.
 export function fitHudLayer(doc, game) {
   const layer = doc.getElementById('hud-layer');
   const gameEl = doc.getElementById('game');
   if (!layer || !gameEl || !game?.canvas) return;
-  const { left, top, scale } = hudLayerTransform({
-    canvasRect: game.canvas.getBoundingClientRect(),
-    gameRect: gameEl.getBoundingClientRect(),
-    canvasWidth: CANVAS_WIDTH,
-  });
+  const canvasRect = game.canvas.getBoundingClientRect();
+  const gameRect = gameEl.getBoundingClientRect();
+  const { left, top, scale } = hudLayerTransform({ canvasRect, gameRect, canvasWidth: CANVAS_WIDTH });
   layer.style.transform = `translate(${left}px, ${top}px) scale(${scale})`;
+  const map = mapRectIn({ gameRect, canvasRect });
+  gameEl.style.setProperty('--map-left', `${map.left}px`);
+  gameEl.style.setProperty('--map-top', `${map.top}px`);
+  gameEl.style.setProperty('--map-width', `${map.width}px`);
+  gameEl.style.setProperty('--map-height', `${map.height}px`);
 }
 
 // The rail CSS sizes itself from these, so layout.js stays the one source.
@@ -30,6 +49,7 @@ export function applyHudLayerSize(doc) {
   s.setProperty('--world-h', `${WORLD_HEIGHT}px`);
   s.setProperty('--rail-w', `${RAIL_WIDTH}px`);
   s.setProperty('--hud-cell', `${HUD_CELL}px`);
+  s.setProperty('--peek-gap', `${PEEK_GAP_PX}px`);
 }
 
 // Where a peek card should anchor for a rail control: the control's rows, the

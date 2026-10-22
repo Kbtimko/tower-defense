@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gameToPageCss, pageToGame, worldToPageCss, pageToWorld, clampPanel, placeLeftOf, placeRightOf } from './viewport.js';
+import { gameToPageCss, pageToGame, worldToPageCss, pageToWorld, clampPanel, placeLeftOf, placeRightOf, clampPanelWithin } from './viewport.js';
 import { RAIL_WIDTH, CANVAS_WIDTH, WORLD_WIDTH, WORLD_HEIGHT } from '../data/layout.js';
 
 describe('gameToPageCss', () => {
@@ -156,5 +156,20 @@ describe('placeLeftOf / placeRightOf', () => {
   it('clamps horizontally when there is no room on the requested side', () => {
     expect(placeLeftOf({ anchor: { ...anchor, left: 50 }, size, area, gap: 10, margin: 6 }).left).toBe(6);
     expect(placeRightOf({ anchor: { ...anchor, left: 800 }, size, area, gap: 10, margin: 6 }).left).toBe(844 - 200 - 6);
+  });
+});
+
+// The tower panel is clamped to the MAP, which sits inside #game with an offset.
+describe('clampPanelWithin', () => {
+  const rect = { left: 91, top: 8, width: 662, height: 372 };
+  const size = { width: 170, height: 200 };
+  it('keeps an in-bounds spot', () => {
+    expect(clampPanelWithin({ left: 200, top: 100 }, size, rect, 6)).toEqual({ left: 200, top: 100 });
+  });
+  it('clamps off the right rail and the bottom letterbox', () => {
+    expect(clampPanelWithin({ left: 700, top: 300 }, size, rect, 6)).toEqual({ left: 91 + 662 - 170 - 6, top: 8 + 372 - 200 - 6 });
+  });
+  it('clamps off the left rail and the top letterbox', () => {
+    expect(clampPanelWithin({ left: 10, top: 0 }, size, rect, 6)).toEqual({ left: 91 + 6, top: 8 + 6 });
   });
 });

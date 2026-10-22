@@ -23,7 +23,13 @@
        on a 360-px-tall phone), so the visual gap between buttons is a
        transparent border INSIDE each button, never a grid gap that would shrink
        the target. Text is >= 24 game px (11 CSS px at the 0.46 iPhone scale). */
-    #hud-layer { display: none; position: absolute; left: 0; top: 0; z-index: 6;
+    /* Condensed faces so 24-px labels fit an 82-px button face: macOS/iOS ship
+       Avenir Next Condensed, Office installs Arial Narrow, Android maps
+       sans-serif-condensed to Roboto Condensed, Windows 10+ has Bahnschrift.
+       Anything wider is shrunk to fit by src/ui/fitLabels.js. */
+    #hud-layer { --hud-label-font: "Avenir Next Condensed", "Arial Narrow", "Roboto Condensed",
+                   sans-serif-condensed, "Bahnschrift SemiCondensed", "Helvetica Neue", Arial, sans-serif;
+                 display: none; position: absolute; left: 0; top: 0; z-index: 6;
                  width: var(--canvas-w); height: var(--world-h);
                  transform-origin: 0 0; pointer-events: none; }
     .hud-rail { position: absolute; top: 0; width: var(--rail-w); height: 100%;
@@ -40,7 +46,8 @@
       border: 3px solid transparent; background-clip: padding-box; border-radius: 12px;
       box-shadow: inset 0 0 0 2px var(--edge, #444);
       display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-      font-family: 'Georgia', serif; font-size: 24px; line-height: 1.05; text-align: center;
+      font-family: var(--hud-label-font); font-stretch: condensed;
+      font-size: 24px; line-height: 1.05; text-align: center;
       color: #e8e0d0; background-color: #1a1a3a; cursor: pointer;
       transition: background-color 0.12s, box-shadow 0.12s, color 0.12s; }
     .hud-stat { display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -54,14 +61,11 @@
     /* Exit for build/aim/reposition modes (a finger has no Escape key). It lives
        in the rail, not over the field, so it can never sit on a pad or the path.
        GameScene toggles [hidden]; its cell stays reserved so nothing moves. */
-    /* Bold "Cancel" is ~83 game px: tightened to fit the 82-px face. */
-    #cancel-btn { --edge: #c04040; background-color: #3a1212; color: #ffb0b0; font-weight: bold;
-                  letter-spacing: -1px; }
+    #cancel-btn { --edge: #c04040; background-color: #3a1212; color: #ffb0b0; font-weight: bold; }
     #cancel-btn:hover { --edge: #f07a7a; background-color: #4d1818; }
     #cancel-btn[hidden] { display: none; }
 
-    /* Regular weight: "Resume" in bold is ~94 game px, wider than the 82-px face. */
-    #pause-btn { --edge: #8b6914; background-color: #3a2c08; color: #ffd700; letter-spacing: -1px; }
+    #pause-btn { --edge: #8b6914; background-color: #3a2c08; color: #ffd700; font-weight: bold; }
     #pause-btn:hover { --edge: #c39a1d; background-color: #4d3a0b; }
     #pause-btn:focus-visible { outline: 2px solid #ffd700; outline-offset: -3px; }
     /* Paused is a state you can get stuck in, so the way back out is the
@@ -91,12 +95,15 @@
     /* Wave banner + boss warning: top-centre of the play area (below the HUD bar,
        which sits outside #game). Never intercepts input. Animations end at opacity 0
        so no JS timer hides them; durations arrive as custom properties from juice.js. */
-    #wave-banner, #wave-banner-boss { position: absolute; left: 50%; z-index: 5;
+    /* Over the map, not #game: --map-* (CSS px, set by src/ui/hudLayer.js) skip
+       the rails and the letterbox; the fallbacks are the old #game anchoring. */
+    #wave-banner, #wave-banner-boss { position: absolute; z-index: 5;
+      left: calc(var(--map-left, 0px) + var(--map-width, 100%) / 2);
       transform: translateX(-50%); opacity: 0; pointer-events: none; white-space: nowrap;
       text-shadow: 0 2px 4px #000; }
-    #wave-banner { top: 10px; font-size: 20px; font-weight: bold; color: #fff;
+    #wave-banner { top: calc(var(--map-top, 0px) + 10px); font-size: 20px; font-weight: bold; color: #fff;
       background: rgba(0,0,0,0.45); padding: 4px 16px; border-radius: 4px; }
-    #wave-banner-boss { top: 48px; font-size: 15px; font-weight: bold; color: var(--boss-warning-color, #ff4d4d);
+    #wave-banner-boss { top: calc(var(--map-top, 0px) + 48px); font-size: 15px; font-weight: bold; color: var(--boss-warning-color, #ff4d4d);
       background: rgba(0,0,0,0.55); padding: 3px 12px; border-radius: 4px; }
     #wave-banner.show { animation: wave-banner var(--wave-banner-ms, 1800ms) ease-out forwards; }
     #wave-banner-boss.show { animation: wave-banner var(--boss-warning-ms, 2400ms) ease-out forwards; }
@@ -158,8 +165,7 @@
     .tower-btn.selected { --edge: #ffd700; background-color: #2a2a1a; }
     .tower-btn .t-icon { font-size: 30px; }
     .tower-btn .t-cost { font-size: 24px; color: #ffd700; }
-    /* "Barracks" is the widest label: tightened so it fits the 82-px face. */
-    .tower-btn .t-name { font-size: 24px; color: #aaa; letter-spacing: -1.5px; }
+    .tower-btn .t-name { font-size: 24px; color: #aaa; }
     #tower-tooltip { position: absolute; display: none; z-index: 50;
                      background: #0f0f1e; border: 1px solid #8b6914; border-radius: 5px;
                      padding: 6px 8px; font-size: 11px; color: #ddd;
@@ -184,6 +190,10 @@
     #wave-btn:disabled { --edge: #555; background-color: #333; color: #666; cursor: not-allowed; }
     #exit-btn { --edge: #6a4a4a; background-color: #2a1a1a; color: #ddaaaa; }
     #exit-btn:hover { --edge: #8a5a5a; background-color: #3a2222; }
+    /* GameScene clamps the panel to the map with PANEL_EDGE_MARGIN (6) each
+       side; a panel (with branch picker) taller than a phone's map scrolls
+       instead of hiding Sell. */
+    #tower-panel { max-height: calc(var(--map-height, 100%) - 12px); overflow-y: auto; }
     #tower-panel { position: absolute; background: #0f0f1e; border: 2px solid #8b6914;
                    border-radius: 8px; padding: 11px; width: 170px; z-index: 10; display: none; }
     #tower-panel .panel-name { font-size: 13px; font-weight: bold; color: #ffd700; margin-bottom: 5px; }
@@ -232,11 +242,21 @@
     #game-msg button { background: #8b6914; border: none; color: #fff; padding: 9px 22px;
                        border-radius: 6px; cursor: pointer; font-size: 14px; }
     #game-msg #msg-cancel-btn { background: #333; margin-left: 8px; }
-    .story-banner { position:absolute; top:-130px; left:5%; right:5%; background:linear-gradient(135deg,#0a1a2a,#0a2a1a);
+    /* Spans the middle 90% of the map; hidden, it sits wholly above #game
+       (overflow hidden) wherever the map's top edge is. */
+    .story-banner { position:absolute; top:calc(var(--map-top, 0px) + 15px);
+                    left:calc(var(--map-left, 0px) + var(--map-width, 100%) * 0.05);
+                    width:calc(var(--map-width, 100%) * 0.9);
+                    transform:translateY(calc(-100% - var(--map-top, 0px) - 20px)); background:linear-gradient(135deg,#0a1a2a,#0a2a1a);
                     border:1px solid #2a5a3a; border-radius:8px; padding:12px 16px; z-index:25;
                     display:flex; align-items:flex-start; gap:12px;
                     transition:transform 0.35s ease; pointer-events:none; }
-    .story-banner.visible { transform:translateY(145px); pointer-events:auto; }
+    .story-banner.visible { transform:none; pointer-events:auto; }
+    .game-toast { position: absolute; z-index: 30; pointer-events: none;
+                  top: calc(var(--map-top, 0px) + 16px);
+                  left: calc(var(--map-left, 0px) + var(--map-width, 100%) / 2);
+                  transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #f39c12;
+                  padding: 6px 16px; border-radius: 6px; font-size: 13px; white-space: nowrap; }
     #paused-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.55);
                       display: none; z-index: 30; pointer-events: none;
                       align-items: center; justify-content: center;
@@ -479,7 +499,7 @@
        hence the 12px in max-height). */
     #wave-btn-wrap { position: relative; display: block;
                      width: calc(2 * var(--hud-cell)); height: var(--hud-cell); }
-    .wave-preview { display: none; position: absolute; right: calc(100% + 10px); top: 0;
+    .wave-preview { display: none; position: absolute; right: calc(100% + var(--peek-gap)); top: 0;
       width: max-content; min-width: 440px; max-width: 600px;
       max-height: calc(var(--world-h) - 12px); overflow-y: auto;
       background: #0a1018; border: 3px solid #4fc3f7; border-radius: 10px;
@@ -594,10 +614,6 @@
       #lifetime-stats { display: none; }
       /* 40 px touch-target floor for the map-select buttons the audit covers. */
       #featured-play, #map-meta-bar button { min-height: 40px; }
-
-      /* Stopgap until 2.2: the panel (and branch picker) is taller than a phone's
-         game area, so cap it to #game and let it scroll instead of hiding Sell. */
-      #tower-panel { max-height: calc(100% - 12px); overflow-y: auto; }
     }
   </style>
 </head>

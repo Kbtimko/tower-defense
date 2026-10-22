@@ -12,7 +12,8 @@ vi.mock('phaser', () => ({
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import GameScene from './GameScene.js';
 import { TOWER_DEFS } from '../data/towers.js';
-import { LONG_PRESS_MS, PEEK_LINGER_MS, CONFIRM_WINDOW_MS } from '../data/input.js';
+import { LONG_PRESS_MS, PEEK_LINGER_MS, CONFIRM_WINDOW_MS, PANEL_EDGE_MARGIN } from '../data/input.js';
+import { CANVAS_WIDTH, WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH } from '../data/layout.js';
 
 const BUTTON_IDS = [
   'wave-btn', 'speed-btn', 'pause-btn', 'panel-upgrade-btn', 'panel-sell-btn',
@@ -233,6 +234,47 @@ describe('touch two-step confirm', () => {
     expect(up().classList.contains('confirming')).toBe(false);
     expect(up().textContent).toBe('Upgrade 💰120: Longbow');
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+// The panel opens over the MAP: clamped off the rails and the letterbox, not
+// just to #game (phone844: canvas 844x372 at y 8, rails 91 CSS px each).
+describe('tower panel clamp to the map', () => {
+  beforeEach(() => { setupDOM(); });
+
+  it('keeps the panel inside the map rect next to a right-edge tower', () => {
+    const gs = Object.create(GameScene.prototype);
+    gs.mapId = 0;
+    gs._syncCancelButton = () => {};
+    const tower = { id: 1, type: 'archer', level: 1, branch: null, damage: 10, range: 100, fireRate: 1, totalCost: 60 };
+    const canvas = document.createElement('canvas');
+    $('game').appendChild(canvas);
+    $('game').getBoundingClientRect = () => ({ left: 0, top: 0, width: 844, height: 390 });
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 8, width: 844, height: 372 });
+    const panel = $('tower-panel');
+    Object.defineProperty(panel, 'offsetWidth', { configurable: true, get: () => 170 });
+    Object.defineProperty(panel, 'offsetHeight', { configurable: true, get: () => 200 });
+    const scale = 844 / CANVAS_WIDTH;
+    const map = { left: RAIL_WIDTH * scale, top: 8, width: WORLD_WIDTH * scale, height: WORLD_HEIGHT * scale };
+    GameScene.prototype._openTowerPanel.call(gs, tower, 740, 370);
+    expect(parseFloat(panel.style.left)).toBeCloseTo(map.left + map.width - 170 - PANEL_EDGE_MARGIN, 6);
+    expect(parseFloat(panel.style.top)).toBeCloseTo(map.top + map.height - 200 - PANEL_EDGE_MARGIN, 6);
+    GameScene.prototype._openTowerPanel.call(gs, tower, 0, 0);
+    expect(parseFloat(panel.style.left)).toBeCloseTo(map.left + PANEL_EDGE_MARGIN, 6);
+    expect(parseFloat(panel.style.top)).toBeCloseTo(map.top + PANEL_EDGE_MARGIN, 6);
+  });
+});
+
+describe('toast', () => {
+  beforeEach(() => { setupDOM(); vi.useFakeTimers(); });
+  afterEach(() => vi.useRealTimers());
+
+  it('is a .game-toast in #game (CSS places it over the map) and expires', () => {
+    GameScene.prototype._toast.call({}, 'No build slot there');
+    const el = $('game').querySelector('.game-toast');
+    expect(el?.textContent).toBe('No build slot there');
+    vi.advanceTimersByTime(1500);
+    expect($('game').querySelector('.game-toast')).toBeNull();
   });
 });
 

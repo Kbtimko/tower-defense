@@ -8,6 +8,7 @@ import MapEditorScene from './scenes/MapEditorScene.js';
 import { resumeAudio } from './systems/shellLifecycle.js';
 import { CANVAS_WIDTH, WORLD_HEIGHT } from './data/layout.js';
 import { applyHudLayerSize, fitHudLayer } from './ui/hudLayer.js';
+import { watchRailLabels } from './ui/fitLabels.js';
 
 // The canvas is the map world plus a HUD rail each side; GameScene's camera
 // viewport keeps the map itself 1:1 in world coordinates.
@@ -28,18 +29,24 @@ applyHudLayerSize(document);
 const game = new Phaser.Game(config);
 
 // The HUD rails are DOM pinned over the canvas, so they refit on every Phaser
-// resize (it fires after Phaser restyles the canvas) and once the first canvas
-// size is known. A window resize or fullscreen change asks Phaser to refresh on
+// resize (it fires after Phaser restyles the canvas). The first fit needs no
+// hook of its own: the ScaleManager refreshes once on READY, which emits it.
+// A window resize or fullscreen change asks Phaser to re-measure and refresh on
 // the next frame rather than trusting its own resize poll: after a portrait ->
-// landscape turn its poll can record the new parent size yet keep the old
+// landscape turn the poll can record the new parent size yet keep the old
 // canvas size, which the old top/bottom HUD bars only masked by resizing #game
-// on level entry.
+// on level entry. refresh() sizes against the cached parent, so the bounds are
+// re-read first; that keeps this correct whichever of it and the poll runs first.
 const refitHudLayer = () => fitHudLayer(document, game);
-const refreshScale = () => requestAnimationFrame(() => { if (game.isBooted) game.scale.refresh(); });
+const refreshScale = () => requestAnimationFrame(() => {
+  if (!game.isBooted) return;
+  game.scale.getParentBounds();
+  game.scale.refresh();
+});
 game.scale.on(Phaser.Scale.Events.RESIZE, refitHudLayer);
 window.addEventListener('resize', refreshScale);
 document.addEventListener('fullscreenchange', refreshScale);
-game.events.once(Phaser.Core.Events.READY, refitHudLayer);
+watchRailLabels(document);
 
 // Page-lifetime hooks (no scene owns them). `sound.context` exists only for the
 // WebAudio manager, hence the optional chaining.

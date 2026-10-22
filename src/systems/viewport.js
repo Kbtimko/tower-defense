@@ -57,3 +57,10 @@ export function placeRightOf({ anchor, size, area, gap, margin }) {
 export function clampCentredTop({ anchor, height, areaHeight, margin }) {
   return Math.max(margin, Math.min(centredOn(anchor, { height }), areaHeight - height - margin));
 }
+
+// clampPanel inside a rect that is itself offset in the container (the map
+// inside #game), returning container coordinates.
+export function clampPanelWithin(desired, size, rect, margin) {
+  const local = clampPanel({ left: desired.left - rect.left, top: desired.top - rect.top }, size, rect, margin);
+  return { left: local.left + rect.left, top: local.top + rect.top };
+}

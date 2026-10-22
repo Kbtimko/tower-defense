@@ -25,13 +25,13 @@ import { SOLDIER_MUZZLE, HIT_STOP } from '../data/fx.js';
 import { BUILD_POP, UPGRADE_POP, SELL_FX, SELECTION_RING, PAD_GLOW, RETICLE } from '../data/juice.js';
 import { deathClass, isHeavyHit, canHitStop } from '../systems/hitFx.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
-import { worldToPageCss, clampPanel, placeLeftOf } from '../systems/viewport.js';
+import { worldToPageCss, clampPanelWithin, placeLeftOf } from '../systems/viewport.js';
 import { WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH } from '../data/layout.js';
 import {
   PANEL_EDGE_MARGIN, TAP_TOWER_RADIUS, TAP_SLOT_RADIUS, TAP_PATH_RADIUS, REPOSITION_SNAP_RADIUS, PEEK_GAP_PX,
 } from '../data/input.js';
 import { pulseClass } from '../ui/pulse.js';
-import { railAnchorRect } from '../ui/hudLayer.js';
+import { railAnchorRect, mapRectIn } from '../ui/hudLayer.js';
 import { WaveBanner } from '../ui/WaveBanner.js';
 import { bossWarning, padGlowAlpha } from '../systems/juiceMath.js';
 import { PAD_BEACON } from '../data/ambient.js';
@@ -1527,14 +1527,16 @@ export default class GameScene extends Phaser.Scene {
       '💰 Sell (' + Math.floor(tower.totalCost * 0.6) + 'g)';
 
     const gameRect = document.getElementById('game').getBoundingClientRect();
+    const canvas   = document.querySelector('#game canvas');
     const panel    = document.getElementById('tower-panel');
     // Measure only once populated and displayed (display:none reports 0), so the
     // clamp uses the real size: the branch picker makes the panel much taller.
+    // Clamped to the map, not #game, so it never covers a rail or the letterbox.
     panel.style.display = 'block';
-    const spot = clampPanel(
+    const spot = clampPanelWithin(
       { left: mx + 10, top: my - 10 },
       { width: panel.offsetWidth, height: panel.offsetHeight },
-      { width: gameRect.width, height: gameRect.height },
+      mapRectIn({ gameRect, canvasRect: canvas?.getBoundingClientRect() ?? null }),
       PANEL_EDGE_MARGIN,
     );
     panel.style.left = spot.left + 'px';
@@ -1867,7 +1869,8 @@ export default class GameScene extends Phaser.Scene {
 
   _toast(msg) {
     const el = document.createElement('div');
-    el.style.cssText = 'position:absolute;top:16px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:#f39c12;padding:6px 16px;border-radius:6px;font-size:13px;z-index:30;pointer-events:none;';
+    // .game-toast positions over the map (CSS --map-* vars), not the rails.
+    el.className = 'game-toast';
     el.textContent = msg;
     document.getElementById('game').appendChild(el);
     setTimeout(() => el.remove(), 1500);
