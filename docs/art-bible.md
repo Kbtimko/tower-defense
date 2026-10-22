@@ -1,9 +1,9 @@
 # Last Light — Art Bible
 
-**Status:** DRAFT, awaiting gate **G1** (Keith). Seeded from Appendix A of
+**Status:** APPROVED at gate **G1** (Keith, 2026-10-21). Seeded from Appendix A of
 `docs/superpowers/plans/2026-10-21-visual-overhaul-roadmap.md`, then checked
 against what the game ships today (measurements dated 2026-10-21, see §9).
-Items marked **[G1?]** are the calls that need a human decision.
+The G1 decisions are recorded inline as **[G1 ✓]**.
 
 Every visual task in the roadmap (1.2 grounding, 1.3 normalization, 1.4
 grading, 1.5–1.6 FX, 3.x UI, 4.x art) is judged against this page. Where a
@@ -19,8 +19,8 @@ offline tools), never hardcoded in entity logic.
 | Camera | High-angle top-down, ~60° pitch ("top-down 3/4"). Units show their top and a sliver of their front face. |
 | Facing | Art is authored facing **right** (`baseFacing: 'right'`); the game mirrors for left. Never author a left-facing reference. |
 | Key light | Upper-left. Lit faces point up-left; rim light on the upper-left edge. |
-| Shadows | Fall lower-right. Contact shadow is a **soft ellipse, ~35 % black**, width ≈ 0.8× the silhouette width, height ≈ 0.3× that, offset +2 px x / +3 px y (1× design px). |
-| Flyers | Detached shadow: 50 % of the ground opacity, offset by the hover height (≈ 12 px down), no contact with the sprite. |
+| Shadows | Fall lower-right. Contact shadow is a **soft ellipse, 50 % black at its core** **[G1 ✓]**, width = the silhouette width, height = 0.35× that, **centred on the contact point** and offset +3 px x / +1 px y (1× design px). A 35 % ellipse ending at the feet was hidden by the unit's own body in captures. Source of truth: `src/data/grounding.js`. |
+| Flyers | Detached shadow: 0.65× the ground opacity (0.5× vanished on sand), offset by the hover height (12 px down), no contact with the sprite. |
 | Baked shadows | **Forbidden** in sprite art. The game draws every shadow so they all agree; a generator's ground shadow gets cut out (rembg `isnet-general-use`). |
 
 ## 2. Palettes
@@ -37,7 +37,7 @@ offline tools), never hardcoded in entity logic.
 |---|---|---|
 | drone | `#33ff66` | baseline swarm |
 | skitter | `#ff6600` | fast |
-| brute | `#667766` | armoured — **[G1?]** the only desaturated emissive; it reads as "no glow" next to the others. Keep it, or move to a dull bronze `#9a7b4f`? |
+| brute | `#9a7b4f` | armoured — dull bronze **[G1 ✓]**, replacing `#667766`, which read as "no glow" next to the others. |
 | colossus | `#880044` | heavy |
 | phantom | `#9b59b6` | flyer |
 | titan | `#e74c3c` | boss |
@@ -90,8 +90,8 @@ Orbitron headings + Rajdhani/Exo 2 body). Georgia is the stopgap.
   what keeps a dark sprite readable on map 9 lava or map 7 void.
 - The outline is applied by `scripts/art/normalize.py` (1.3), not drawn by the
   generator. Prompts ask for "no outline".
-- **[G1?]** Enemies' outline could take a 20 % tint of their emissive so the
-  silhouette itself signals the faction. Default: no tint, plain navy.
+- **[G1 ✓] Plain navy for every unit**, enemies included. Faction is carried
+  by the emissive colours, not the outline.
 
 ## 4. On-screen size
 
@@ -120,10 +120,10 @@ checked after scaling.
 Hierarchy rule (must hold whatever the final numbers are):
 skitter < drone ≈ phantom < brute < colossus < titan, and soldier < hero < tower.
 
-**[G1?]** Adopt the Appendix A targets as written? They mean scaling most units
-up 25–60 %, which needs the 2× re-bake (4.1) to stay crisp, and may crowd
-narrow paths on maps 7–9. Recommended: adopt them, and fix the colossus
-inversion and soldier size first because they hurt readability most.
+**[G1 ✓] The Appendix A targets are adopted.** Most units scale up 25–60 %,
+which needs the 2× re-bake (4.1) to stay crisp. The colossus inversion and the
+soldier size are fixed first because they hurt readability most. Watch for
+crowding on the narrow paths of maps 7–9 in captures.
 
 ## 5. Tone targets (for normalization, 1.3)
 
@@ -135,7 +135,7 @@ of luminance; saturation = HSV mean). Today's outliers are in bold.
 | Mean luminance | 0.22–0.40 | **titan 0.11, colossus 0.12, scout 0.15, archer 0.17**; ice 0.48 is high |
 | Contrast | ≥ 0.12 | **archer 0.07, colossus 0.07, titan 0.08, scout 0.08** |
 | Saturation, human | 0.20–0.35 | **cannon 0.13** (the "washed-out cannon"); heroes run hot at 0.52–0.60, which is OK because they're named characters |
-| Saturation, Veth | 0.35–0.70 | **brute 0.17** (see the emissive question in §2) |
+| Saturation, Veth | 0.35–0.70 | **brute 0.17** (its art predates the bronze emissive in §2) |
 
 ## 6. Touch & legibility
 
