@@ -18,6 +18,7 @@ import { UpgradeManager, startingGold } from '../systems/UpgradeManager.js';
 import { StoryManager }    from '../systems/StoryManager.js';
 import { StoryDialogOverlay } from '../ui/StoryDialogOverlay.js';
 import { DamageNumberOverlay } from '../systems/DamageNumberOverlay.js';
+import { CoinFx } from '../systems/CoinFx.js';
 import { ShakeController }    from '../systems/ShakeController.js';
 import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
 import { SOLDIER_MUZZLE, HIT_STOP } from '../data/fx.js';
@@ -111,6 +112,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.damageNumbers    = new DamageNumberOverlay(this);
     this.shakeCtl         = new ShakeController(this);
+    this._coinFx          = new CoinFx(this);
     this.particleSpawner  = new ParticleSpawner(this);
     this._enemiesOnPath   = 0;
     this._bossMusicTriggered = false;
@@ -448,6 +450,8 @@ export default class GameScene extends Phaser.Scene {
     const am = this.game.registry.get('audio');
     if (am) am.stopMusic(500);
     if (this.damageNumbers) this.damageNumbers.destroy();
+    this._coinFx?.destroy();
+    this._coinFx = null;
     if (this.shakeCtl)      this.shakeCtl.destroy();
     for (const s of this._sentries) s.destroy();
     this._sentries = [];
@@ -470,6 +474,9 @@ export default class GameScene extends Phaser.Scene {
       window.__capture.simMs += delta * this.speed;
       window.__capture.enemies = this.enemies.filter(e => !e.dead).length;
     }
+    // Real delta and ahead of every early return: coins already in flight should
+    // land (and the HUD pulse fire) through hit-stop and game over, not freeze.
+    this._coinFx?.update(delta / 1000);
     if (this.over || this.won) {
       if (this._hitStopTimer > 0) this._endHitStop();
       return;
@@ -698,7 +705,9 @@ export default class GameScene extends Phaser.Scene {
     this.hero.update(dt, this.enemies);
     for (const e of aliveBeforeHero) {
       if (e.dead) {
-        this.economy.earn(this._killReward(e.reward));
+        const reward = this._killReward(e.reward);
+        this.economy.earn(reward);
+        this._coinFx?.spawn(e.x, e.y, reward);
         this.kills++;
         this._updateHUD();
       }
@@ -1050,7 +1059,9 @@ export default class GameScene extends Phaser.Scene {
   _dealDamage(enemy, damage, pierce, opts = {}) {
     enemy.takeDamage(damage, { pierce, ...opts });
     if (enemy.dead) {
-      this.economy.earn(this._killReward(enemy.reward));
+      const reward = this._killReward(enemy.reward);
+      this.economy.earn(reward);
+      this._coinFx?.spawn(enemy.x, enemy.y, reward);
       this.kills++;
       this._updateHUD();
       // Central flash

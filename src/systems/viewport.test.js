@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gameToPageCss } from './viewport.js';
+import { gameToPageCss, pageToGame } from './viewport.js';
 
 describe('gameToPageCss', () => {
   it('applies displayScale and canvas offset (identity transform)', () => {
@@ -25,5 +25,19 @@ describe('gameToPageCss', () => {
   it('returns coords unchanged when the scale transform is unavailable', () => {
     expect(gameToPageCss({}, 200, 300)).toEqual({ x: 200, y: 300 });
     expect(gameToPageCss(undefined, 200, 300)).toEqual({ x: 200, y: 300 });
+  });
+});
+
+describe('pageToGame', () => {
+  it('round-trips with gameToPageCss under scale and letterbox offset', () => {
+    const scale = { canvasBounds: { x: 37, y: 12 }, displayScale: { x: 0.75, y: 0.8 } };
+    const page = gameToPageCss(scale, 321, 123);
+    const back = pageToGame(scale, page.x, page.y);
+    expect(back.x).toBeCloseTo(321);
+    expect(back.y).toBeCloseTo(123);
+  });
+
+  it('is identity without a transform', () => {
+    expect(pageToGame(undefined, 5, 6)).toEqual({ x: 5, y: 6 });
   });
 });

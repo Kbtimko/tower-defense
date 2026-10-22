@@ -8,6 +8,8 @@ export const COIN_FLY = {
   arcHeight: 40,     // px
   maxLive: 24,
   perKill: 3,
+  stagger: 0.08,     // s between coins of one kill
+  depth: 19,
   color: 0xffd700,
   size: 4,           // px radius
 };
@@ -18,6 +20,7 @@ export const GOLD_POP = {
   maxLive: 12,
   fontSize: '14px',
   color: '#ffd700',
+  depth: 20,         // above units, below damage numbers (100)
 };
 
 // burstEffect keys 'ringBurst'/'ringBurstGold' are added to IMPACT_FX by Task 3;

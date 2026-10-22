@@ -54,10 +54,22 @@
       35%  { transform: scale(1.18); text-shadow: 0 0 8px #f07a7a; }
       100% { transform: scale(1);    text-shadow: 0 0 0 transparent; }
     }
+    .hud-stat.gold-gain-pulse { animation: gold-gain-pulse 300ms ease-out; }
+    @keyframes gold-gain-pulse {
+      0%   { transform: scale(1);    text-shadow: 0 0 0 transparent; }
+      35%  { transform: scale(1.12); text-shadow: 0 0 8px #ffd700; }
+      100% { transform: scale(1);    text-shadow: 0 0 0 transparent; }
+    }
     /* Reduced motion keeps the colour cue but drops the scale, so the lives
        counter still reads as a hit without any movement. */
     @media (prefers-reduced-motion: reduce) {
       .hud-stat.life-lost-pulse { animation-name: life-lost-fade; }
+      .hud-stat.gold-gain-pulse { animation-name: gold-gain-fade; }
+      @keyframes gold-gain-fade {
+        0%   { text-shadow: 0 0 0 transparent; }
+        35%  { text-shadow: 0 0 8px #ffd700; }
+        100% { text-shadow: 0 0 0 transparent; }
+      }
       @keyframes life-lost-fade {
         0%   { text-shadow: 0 0 0 transparent; }
         35%  { text-shadow: 0 0 8px #f07a7a; }
