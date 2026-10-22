@@ -6,7 +6,7 @@ const MAP_COUNT   = 10;
 const VERSION     = 4;
 
 function defaultSettings() {
-  return { masterVol: 0.8, sfxVol: 1.0, musicVol: 0.6, muted: false, ambientMotion: null };
+  return { masterVol: 0.8, sfxVol: 1.0, musicVol: 0.6, muted: false, ambientMotion: null, mapGrade: null };
 }
 
 function freshEnvelope() {

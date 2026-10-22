@@ -49,6 +49,19 @@ export class SettingsOverlay {
       ambientCb.addEventListener('change', ambientHandler);
       this._listeners.push({ el: ambientCb, evt: 'change', fn: ambientHandler });
     }
+    // Same shape as ambient motion. Read by GameScene at level start, so a
+    // change shows from the next level on.
+    const gradeCb = document.getElementById('map-grade');
+    if (this._game && gradeCb) {
+      gradeCb.checked = this._game.registry.get('mapGrade') === true;
+      const gradeHandler = (e) => {
+        const v = e.target.checked;
+        this._game.registry.set('mapGrade', v);
+        this._game.registry.get('save')?.setSettings({ mapGrade: v });
+      };
+      gradeCb.addEventListener('change', gradeHandler);
+      this._listeners.push({ el: gradeCb, evt: 'change', fn: gradeHandler });
+    }
     this._closeBtn.addEventListener('click', this._onClose);
     this._overlay.addEventListener('click', this._onBackdrop);
     document.addEventListener('keydown', this._onEsc);

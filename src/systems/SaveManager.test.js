@@ -97,6 +97,7 @@ describe('SaveManager — v2 settings', () => {
       musicVol:  0.6,
       muted:     false,
       ambientMotion: null,
+      mapGrade: null,
     });
   });
 
@@ -109,6 +110,7 @@ describe('SaveManager — v2 settings', () => {
       musicVol:  0.6,
       muted:     true,
       ambientMotion: null,
+      mapGrade: null,
     });
     const env = JSON.parse(localStorage.getItem('lastlight_save'));
     expect(env.version).toBe(4);
@@ -147,6 +149,7 @@ describe('SaveManager — v2 settings', () => {
       musicVol:  0.6,
       muted:     false,
       ambientMotion: null,
+      mapGrade: null,
     });
   });
 });

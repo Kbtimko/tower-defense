@@ -38,6 +38,8 @@ import { computeBlockerPlacements } from '../systems/BlockerPlacement.js';
 import { BLOCKER_TYPES } from '../data/blockerTypes.js';
 import { previewRange } from '../systems/rangePreview.js';
 import { applyDebugBuild } from '../systems/debugCapture.js';
+import { gradeMatrix } from '../systems/mapGrade.js';
+import { VIGNETTE_RADIUS } from '../data/gradeSettings.js';
 import { SFX_KEYS } from '../systems/AudioManager.js';
 import { towerFireSfxKey } from '../systems/sfxKeys.js';
 import { WavePreviewPopover } from '../ui/WavePreviewPopover.js';
@@ -179,11 +181,10 @@ export default class GameScene extends Phaser.Scene {
 
     // Bitmap backdrop (depth 0) — Phaser logs 404 if PNG missing; game still runs.
     const bgKey = `bg_map_${map.id}`;
-    if (this.textures.exists(bgKey)) {
-      this.add.image(width / 2, height / 2, bgKey)
-        .setDisplaySize(width, height)
-        .setDepth(0);
-    }
+    const backdrop = this.textures.exists(bgKey)
+      ? this.add.image(width / 2, height / 2, bgKey).setDisplaySize(width, height).setDepth(0)
+      : null;
+    this._applyGrade(map, backdrop);
 
     // Static layers (depth 10) — blockers → platforms → path. Painted once.
     this._staticLayers = this.add.graphics().setDepth(10);
@@ -258,6 +259,17 @@ export default class GameScene extends Phaser.Scene {
 
     if (import.meta.env.DEV) window.__game = this;
     if ((import.meta.env.DEV || import.meta.env.MODE === 'capture') && this._debug) applyDebugCapture(this);
+  }
+
+  // Per-map mood (roadmap 1.4). The colour grade goes on the backdrop only, so
+  // units keep their normalized art; the vignette is on the camera. preFX is
+  // null under Canvas, which is the guard against a toggle forcing it on there.
+  _applyGrade(map, backdrop) {
+    const cam = this.cameras.main;
+    cam.postFX?.clear();
+    if (!this.game.registry.get('mapGrade') || !map.grade || !backdrop?.preFX) return;
+    backdrop.preFX.addColorMatrix().set(gradeMatrix(map.grade));
+    if (map.grade.vignette > 0) cam.postFX.addVignette(0.5, 0.5, VIGNETTE_RADIUS, map.grade.vignette);
   }
 
   _bindDOMEvents() {
