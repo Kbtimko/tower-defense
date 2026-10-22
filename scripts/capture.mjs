@@ -23,8 +23,9 @@ import { chromium, devices } from 'playwright';
 import { MAPS } from '../src/data/maps.js';
 import { MAP_WAVES } from '../src/data/waves.js';
 import { defaultCaptureBuild } from '../src/systems/debugCapture.js';
-import { layoutProblems, railProblems, overlayProblems, minTouchFor } from '../src/systems/layoutAudit.js';
-import { RAIL_WIDTH, CANVAS_WIDTH, WORLD_HEIGHT } from '../src/data/layout.js';
+import { layoutProblems, railProblems, railGeometryProblems, overlayProblems, minTouchFor } from '../src/systems/layoutAudit.js';
+import { railMetricsFor, WORLD_HEIGHT } from '../src/data/layout.js';
+import { POINTER_FINE_QUERY } from '../src/data/mobile.js';
 
 const OUT_DIR   = '.art-cache/captures';
 const DIST_DIR  = '.art-cache/capture-dist';
@@ -44,6 +45,8 @@ const phone = (width, height) => ({
 
 const DEVICES = {
   desktop: { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 },
+  desktop1440: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 },
+  desktop1080: { viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 },
   phone844: phone(844, 390),
   phone932: phone(932, 430),
   iphone:  { ...devices['iPhone 14 landscape'], portrait: 'iPhone 14' },
@@ -135,11 +138,14 @@ async function shootBusiestFrame(page, waitMs, file) {
   return { errors, towers, enemies: best, simMs: shotSimMs };
 }
 
-// World point -> page point: the map sits RAIL_WIDTH into the FIT-scaled canvas.
+// World point -> page point: the map sits one rail into the FIT-scaled canvas. Rail width depends
+// on the page's pointer class, which this Node process can't see, so ask the page.
 async function clickGamePoint(page, x, y) {
+  const pointerFine = await page.evaluate(q => matchMedia(q).matches, POINTER_FINE_QUERY);
+  const { railWidth, canvasWidth } = railMetricsFor({ pointerFine });
   const box = await page.locator('#game canvas').boundingBox();
   await page.mouse.click(
-    box.x + ((x + RAIL_WIDTH) * box.width) / CANVAS_WIDTH,
+    box.x + ((x + railWidth) * box.width) / canvasWidth,
     box.y + (y * box.height) / WORLD_HEIGHT,
   );
 }
@@ -155,7 +161,7 @@ async function tap(page, deviceName, selector) {
 // getBoundingClientRect ignores ancestor clipping, so each target also gets
 // visibleRect: its rect intersected with every overflow-clipping ancestor.
 async function audit(page, deviceName, label, selectors, railOnly = []) {
-  const metrics = await page.evaluate(sels => {
+  const metrics = await page.evaluate(({ sels, pointerFineQuery }) => {
     const clipRect = el => {
       const r = el.getBoundingClientRect();
       let { left, top, right, bottom } = r;
@@ -185,8 +191,10 @@ async function audit(page, deviceName, label, selectors, railOnly = []) {
       innerWidth: window.innerWidth, innerHeight: window.innerHeight,
       scale: window.visualViewport.scale, scrollWidth: document.documentElement.scrollWidth, targets,
       rails: { left: rect('#rail-left'), right: rect('#rail-right') },
+      canvas: rect('#game canvas'),
+      pointerFine: matchMedia(pointerFineQuery).matches,
     };
-  }, [...selectors, ...railOnly]);
+  }, { sels: [...selectors, ...railOnly], pointerFineQuery: POINTER_FINE_QUERY });
   const viewport = page.viewportSize();
   const problems = layoutProblems({ ...metrics, device: viewport, targets: metrics.targets.filter(t => !railOnly.includes(t.name)) });
   // Rails only exist in-game; the map-select audits list no HUD controls.
@@ -195,6 +203,13 @@ async function audit(page, deviceName, label, selectors, railOnly = []) {
     problems.push(...railProblems({
       device: { hasTouch: !!device.hasTouch }, rails: metrics.rails, targets: metrics.targets,
       minTouchPx: minTouchFor({ vw: viewport.width, vh: viewport.height }),
+    }));
+    problems.push(...railGeometryProblems({
+      device: { name: deviceName, hasTouch: !!device.hasTouch },
+      pointerFine: metrics.pointerFine,
+      canvasRect: metrics.canvas,
+      rails: [['#rail-left', metrics.rails.left], ['#rail-right', metrics.rails.right]]
+        .filter(([, rect]) => rect).map(([id, rect]) => ({ id, width: rect.width })),
     }));
   }
   if (OVERLAY_AUDITS.has(selectors)) {
