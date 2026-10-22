@@ -336,8 +336,11 @@ export default class GameScene extends Phaser.Scene {
     document.addEventListener('visibilitychange', this._onShellChange);
     this._portraitMql = window.matchMedia?.(PHONE_PORTRAIT_QUERY);
     this._portraitMql?.addEventListener('change', this._onShellChange);
-    // A level entered in portrait pauses immediately.
-    this._onShellChange();
+    // A level entered in portrait pauses immediately -- but NOT synchronously: pausing
+    // while CREATING is overwritten by SceneManager (status = RUNNING after create()
+    // returns), leaving the overlay up while the sim keeps running. 'create' fires right
+    // after that; `once` is consumed on fire so it cannot stack across level entries.
+    this.events.once('create', this._onShellChange);
   }
 
   _onShellChange() {

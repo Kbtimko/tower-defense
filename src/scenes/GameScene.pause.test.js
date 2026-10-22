@@ -242,14 +242,21 @@ describe('GameScene._onShellChange (auto-pause)', () => {
 });
 
 describe('GameScene._wireShellListeners', () => {
-  it('registers visibilitychange and the portrait query, and a level started in portrait pauses', () => {
+  it('registers visibilitychange and the portrait query, and defers the portrait check to the create event', () => {
     setupDOM();
     const mql = { matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() };
     window.matchMedia = vi.fn(() => mql);
     const add = vi.spyOn(document, 'addEventListener');
     const scene = makeScene();
+    const createHandlers = [];
+    scene.events = { once: (evt, fn) => createHandlers.push([evt, fn]) };
     scene._onShellChange = scene._onShellChange.bind(scene);
     scene._wireShellListeners();
+    // Not inside create(): Phaser would overwrite a CREATING-time pause with RUNNING.
+    expect(scene._userPaused).toBe(false);
+    expect(scene.scene.pause).not.toHaveBeenCalled();
+    expect(createHandlers).toEqual([['create', scene._onShellChange]]);
+    createHandlers[0][1]();
     expect(window.matchMedia).toHaveBeenCalledWith('(orientation: portrait) and (pointer: coarse)');
     expect(add).toHaveBeenCalledWith('visibilitychange', scene._onShellChange);
     expect(mql.addEventListener).toHaveBeenCalledWith('change', scene._onShellChange);
@@ -262,6 +269,7 @@ describe('GameScene._wireShellListeners', () => {
     setupDOM();
     delete window.matchMedia;
     const scene = makeScene();
+    scene.events = { once: vi.fn() };
     scene._onShellChange = scene._onShellChange.bind(scene);
     expect(() => scene._wireShellListeners()).not.toThrow();
     expect(scene._userPaused).toBe(false);

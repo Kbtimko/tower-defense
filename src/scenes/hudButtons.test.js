@@ -46,6 +46,7 @@ function bindBothScenes() {
   gs.selectedType = null;
   gs.game = { events: gameEvents() };
   gs._closeTowerPanel = () => {};
+  gs.events = { once() {} }; // _bindDOMEvents registers the shell 'create' hook
   gs._bindDOMEvents();
 
   const ui = Object.create(UIScene.prototype);
@@ -130,6 +131,7 @@ describe('tower tooltip across levels', () => {
     const gs = Object.create(GameScene.prototype);
     gs.selectedType = null;
     gs._closeTowerPanel = () => {};
+    gs.events = { once() {} };
     gs._bindDOMEvents();
 
     btn('ice').dispatchEvent(new MouseEvent('mouseenter'));
