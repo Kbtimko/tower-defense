@@ -36,6 +36,9 @@ import { shortEnemyName } from '../systems/entityDescriptors.js';
 import { InspectController } from './InspectController.js';
 import { SentryTurret } from '../entities/SentryTurret.js';
 import { renderPath } from '../systems/PathRenderer.js';
+import { bakeRoad } from '../systems/RoadRenderer.js';
+import { PathEndpoints } from '../systems/PathEndpoints.js';
+import { ROAD_DEPTH, ROAD_STYLES, roadRendererFor } from '../data/roads.js';
 import { renderPlatforms } from '../systems/PlatformRenderer.js';
 import { AmbientBackgroundLayer } from '../systems/AmbientBackgroundLayer.js';
 import { computeBlockerPlacements } from '../systems/BlockerPlacement.js';
@@ -203,10 +206,7 @@ export default class GameScene extends Phaser.Scene {
     // top of the static layer so hover indicators stay visible.
     this.gfx = this.add.graphics().setDepth(30);
 
-    // Static IN/OUT text labels
-    const p = this.pathMgr.path;
-    this.add.text(p[0].x, p[0].y, 'IN',  { fontSize: '10px', color: '#fff', fontFamily: 'Georgia', fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
-    this.add.text(p[p.length-1].x, p[p.length-1].y, 'OUT', { fontSize: '10px', color: '#fff', fontFamily: 'Georgia', fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
+    this._setupRoad(map);
 
     this.inspector = new InspectController(this);
     this.input.on('pointermove', (p) => {
@@ -459,6 +459,7 @@ export default class GameScene extends Phaser.Scene {
     this._staticLayers = null;
     this._ambient?.destroy();
     this._ambient = null;
+    this._teardownRoad();
   }
 
   // ─── Update loop ───────────────────────────────────────────────────────────
@@ -483,6 +484,8 @@ export default class GameScene extends Phaser.Scene {
     const dt    = (delta / 1000) * this.speed;
     const dtMs  = delta * this.speed;
     this._ambient?.update(dtMs);
+    // Real dt (not speed-scaled): portal/beacon pulsing is decoration, not game time.
+    this._endpoints?.update(delta / 1000);
 
     this.waveMgr.update(dtMs);
     this._updateEnemies(dt);
@@ -1633,7 +1636,36 @@ export default class GameScene extends Phaser.Scene {
     renderPlatforms(g, this.pathMgr.buildZones, map.id);
 
     // Path on top so it sits above platforms/blockers per spec §4.
-    renderPath(g, this.pathMgr.waypoints, map.pathRenderStyle);
+    // The procedural road is a baked texture at ROAD_DEPTH, not part of this layer.
+    if (roadRendererFor(map) === 'legacy') renderPath(g, this.pathMgr.waypoints, map.pathRenderStyle);
+  }
+
+  // Procedural maps get a baked road image + animated endpoints; legacy maps keep
+  // the static IN/OUT labels. The texture is keyed per map and survives shutdown,
+  // so a replay reuses it (bakeRoad short-circuits) instead of repainting.
+  _setupRoad(map) {
+    const p = this.pathMgr.path;
+    if (roadRendererFor(map) === 'legacy') {
+      this.add.text(p[0].x, p[0].y, 'IN',  { fontSize: '10px', color: '#fff', fontFamily: 'Georgia', fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
+      this.add.text(p[p.length-1].x, p[p.length-1].y, 'OUT', { fontSize: '10px', color: '#fff', fontFamily: 'Georgia', fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
+      return;
+    }
+    const { width, height } = this.scale;
+    const key = bakeRoad(this, {
+      key: `road_map_${map.id}`, waypoints: this.pathMgr.waypoints,
+      styleKey: map.pathRenderStyle, seed: map.blockerSeed, width, height,
+    });
+    this._roadImage = this.add.image(width / 2, height / 2, key).setDepth(ROAD_DEPTH);
+    this._endpoints = new PathEndpoints(this, {
+      start: p[0], end: p[p.length - 1], family: ROAD_STYLES[map.pathRenderStyle].family,
+    });
+  }
+
+  _teardownRoad() {
+    this._endpoints?.destroy();
+    this._endpoints = null;
+    this._roadImage?.destroy();
+    this._roadImage = null;
   }
 
   // The pads are baked into the one-shot static layer, so an occupancy change
@@ -1645,9 +1677,10 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _drawPath() {
-    // Path itself is now drawn by PathRenderer in _renderStaticLayers.
-    // This method only draws the per-frame IN/OUT colored dots (under the
-    // static text labels) on top of the static layer.
+    // The path itself is drawn in _renderStaticLayers. Only legacy-road maps get the
+    // per-frame IN/OUT dots; procedural maps have a portal/beacon (depth 9) that these
+    // depth-30 dots would bury.
+    if (this._endpoints) return;
     const p = this.pathMgr.path;
     this.gfx.fillStyle(0x27ae60, 1); this.gfx.fillCircle(p[0].x, p[0].y, 13);
     this.gfx.fillStyle(0xc0392b, 1); this.gfx.fillCircle(p[p.length-1].x, p[p.length-1].y, 13);
