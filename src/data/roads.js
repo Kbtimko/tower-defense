@@ -1,7 +1,8 @@
 // Tunables for the procedural road (roadmap 1.7). Colours start from the legacy
 // PathRenderer STYLE_SPEC palette so each map keeps its identity.
-// halfWidth is the SOLID bed half-width and must stay <= 13 so tower pads
-// (drawn at depth 10, >= 25 px from the centreline on real maps) never overlap it.
+// halfWidth is the SOLID bed half-width and must stay <= 13 so tower-slot CENTRES
+// (>= halfWidth + ROAD_PAD_GAP from the centreline on real maps) clear the bed; a pad's
+// stud ring may still lap the bed edge by design.
 
 export const ROAD_PAD_GAP = 10;
 // Above backdrop (0), area effects (2), ambient (5); below blockers/pads (10).
@@ -16,10 +17,10 @@ export function roadRendererFor(map) {
 
 const planet = {
   family: 'planet', kind: 'road', halfWidth: 13, feather: 9,
-  base: 0x6b5740, edge: 0x9a8362,
-  noise: { scale: 9, contrast: 1.4, colors: [0x5a4632, 0x8a5a3a] },
-  wear: 0.35,
-  lane: { color: 0x3a2e20, alpha: 0.45, width: 2, dash: 5, gap: 9 },
+  base: 0x6a4230, edge: 0x3a2014,
+  noise: { scale: 9, contrast: 1.4, colors: [0x52301f, 0x8a5236] },
+  wear: 0.3,
+  lane: { color: 0x2e1a10, alpha: 0.5, width: 2, dash: 5, gap: 9 },
 };
 const lunar = {
   family: 'lunar', kind: 'road', halfWidth: 13, feather: 9,
@@ -30,10 +31,10 @@ const lunar = {
 };
 const station = {
   family: 'station', kind: 'road', halfWidth: 12, feather: 7,
-  base: 0x49555f, edge: 0x33414e,
-  noise: { scale: 14, contrast: 0.8, colors: [0x3e4953, 0x56636e] },
-  wear: 0.2,
-  lane: { color: 0x66ccff, alpha: 0.55, width: 2, dash: 6, gap: 10 },
+  base: 0x1f262d, edge: 0x05080b,
+  noise: { scale: 14, contrast: 0.8, colors: [0x181e24, 0x2c353e] },
+  wear: 0.12,
+  lane: { color: 0x7fdcff, alpha: 0.9, width: 2, dash: 6, gap: 10 },
 };
 const space = {
   family: 'space', kind: 'lane', halfWidth: 10, feather: 12,
@@ -51,10 +52,10 @@ const organic = {
 };
 const scorched = {
   family: 'scorched', kind: 'road', halfWidth: 13, feather: 9,
-  base: 0x2a1a16, edge: 0xff7a30,
-  noise: { scale: 8, contrast: 1.5, colors: [0x1c110e, 0x3e2a22] },
-  wear: 0.2,
-  lane: { color: 0xff5522, alpha: 0.5, width: 2, dash: 5, gap: 9 },
+  base: 0x4a4440, edge: 0xff6a20,
+  noise: { scale: 8, contrast: 1.3, colors: [0x35302c, 0x5e5650] },
+  wear: 0.15,
+  lane: { color: 0xffa040, alpha: 0.8, width: 2, dash: 5, gap: 9 },
 };
 
 // Legacy keys (planet-dust, station-strip, space-nav, organic-glow) alias a family.
@@ -73,12 +74,12 @@ export const ROAD_STYLES = {
 
 // Portal = enemy spawn (Veth emissive feel), beacon = player base (human amber).
 export const ENDPOINT_FX = {
-  planet:   { portal: { colors: [0x9b59b6, 0x33ff66], radius: 26, spin: 1.2, pulse: 2.0 }, beacon: { color: 0xffb000, radius: 20, pulse: 1.6 } },
-  lunar:    { portal: { colors: [0x9b59b6, 0xd0b0ff], radius: 26, spin: 1.0, pulse: 1.8 }, beacon: { color: 0xffb000, radius: 20, pulse: 1.6 } },
-  station:  { portal: { colors: [0x33ff66, 0x9b59b6], radius: 24, spin: 1.6, pulse: 2.4 }, beacon: { color: 0xffb000, radius: 20, pulse: 1.8 } },
-  space:    { portal: { colors: [0x9b59b6, 0x33ff66], radius: 28, spin: 0.8, pulse: 1.4 }, beacon: { color: 0xffb000, radius: 22, pulse: 1.4 } },
-  organic:  { portal: { colors: [0x33ff66, 0xe74c3c], radius: 28, spin: 1.4, pulse: 2.2 }, beacon: { color: 0xffb000, radius: 20, pulse: 1.8 } },
-  scorched: { portal: { colors: [0xe74c3c, 0x9b59b6], radius: 28, spin: 1.8, pulse: 2.6 }, beacon: { color: 0xffb000, radius: 22, pulse: 2.0 } },
+  planet:   { portal: { colors: [0x9b59b6, 0x33ff66], radius: 36, spin: 1.2, pulse: 2.0 }, beacon: { color: 0xffb000, radius: 28, pulse: 1.6 } },
+  lunar:    { portal: { colors: [0x9b59b6, 0xd0b0ff], radius: 36, spin: 1.0, pulse: 1.8 }, beacon: { color: 0xffb000, radius: 28, pulse: 1.6 } },
+  station:  { portal: { colors: [0x33ff66, 0x9b59b6], radius: 36, spin: 1.6, pulse: 2.4 }, beacon: { color: 0xffb000, radius: 28, pulse: 1.8 } },
+  space:    { portal: { colors: [0x9b59b6, 0x33ff66], radius: 36, spin: 0.8, pulse: 1.4 }, beacon: { color: 0xffb000, radius: 28, pulse: 1.4 } },
+  organic:  { portal: { colors: [0x33ff66, 0xe74c3c], radius: 36, spin: 1.4, pulse: 2.2 }, beacon: { color: 0xffb000, radius: 28, pulse: 1.8 } },
+  scorched: { portal: { colors: [0xe74c3c, 0x9b59b6], radius: 36, spin: 1.8, pulse: 2.6 }, beacon: { color: 0xffb000, radius: 28, pulse: 2.0 } },
 };
 
 // One sample density for both the painted curve and the pad-clearance check, so the
@@ -102,9 +103,9 @@ export const ROAD_PAINT = {
 export const ENDPOINT_LOOK = {
   depth: 9,                // above the road (8), below pads (10)
   canvas: { width: 1280, height: 720 }, // endpoints are clamped inside this
-  ringAlpha: 0.9,
+  ringAlpha: 1,
   innerRingScale: 0.62,    // inner ring size relative to the outer
-  portalGlow: { scale: 0.9, alpha: [0.45, 0.85], swing: 0.12 }, // alpha range, scale swing (+/-)
-  beaconGlow: { scale: 1.3, alpha: [0.35, 0.8], swing: 0.1 },
-  beaconRing: { scale: 1.0, alpha: 0.7, spin: 0.35 },           // slow, rad/s
+  portalGlow: { scale: 1.4, alpha: [0.6, 1], swing: 0.12 }, // alpha range, scale swing (+/-)
+  beaconGlow: { scale: 1.9, alpha: [0.55, 1], swing: 0.1 },
+  beaconRing: { scale: 1.0, alpha: 0.95, spin: 0.35 },           // slow, rad/s
 };

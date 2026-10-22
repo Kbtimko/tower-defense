@@ -27,7 +27,7 @@ describe('ROAD_STYLES data', () => {
 
 describe('road clearance on real map data', () => {
   for (const map of MAPS) {
-    it(`map ${map.id}: every slot is >= halfWidth + gap from the road`, () => {
+    it(`map ${map.id}: every slot CENTRE is >= halfWidth + gap from the road (stud ring may lap the bed)`, () => {
       const pm = new PathManager(map.waypoints, map.towerSlots, 1280, 720);
       const style = ROAD_STYLES[map.pathRenderStyle];
       expect(style, map.pathRenderStyle).toBeDefined();

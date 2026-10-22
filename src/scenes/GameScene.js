@@ -1677,9 +1677,10 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _drawPath() {
-    // Path itself is now drawn by PathRenderer in _renderStaticLayers.
-    // This method only draws the per-frame IN/OUT colored dots (under the
-    // static text labels) on top of the static layer.
+    // The path itself is drawn in _renderStaticLayers. Only legacy-road maps get the
+    // per-frame IN/OUT dots; procedural maps have a portal/beacon (depth 9) that these
+    // depth-30 dots would bury.
+    if (this._endpoints) return;
     const p = this.pathMgr.path;
     this.gfx.fillStyle(0x27ae60, 1); this.gfx.fillCircle(p[0].x, p[0].y, 13);
     this.gfx.fillStyle(0xc0392b, 1); this.gfx.fillCircle(p[p.length-1].x, p[p.length-1].y, 13);

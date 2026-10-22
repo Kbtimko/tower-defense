@@ -100,6 +100,23 @@ describe('procedural road in GameScene', () => {
   });
 });
 
+describe('_drawPath legacy IN/OUT dots', () => {
+  it('draws no dots on a procedural map (they would bury the portal and beacon)', () => {
+    const { ctx } = makeScene();
+    ctx.gfx = { fillStyle: vi.fn(), fillCircle: vi.fn() };
+    ctx._setupRoad(map);
+    ctx._drawPath();
+    expect(ctx.gfx.fillCircle).not.toHaveBeenCalled();
+  });
+  it('draws two dots on a legacy map', () => {
+    const { ctx } = makeScene();
+    ctx.gfx = { fillStyle: vi.fn(), fillCircle: vi.fn() };
+    ctx._setupRoad({ ...map, roadRenderer: 'legacy' });
+    ctx._drawPath();
+    expect(ctx.gfx.fillCircle).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('legacy road in GameScene', () => {
   const legacy = { ...map, roadRenderer: 'legacy' };
   it('calls renderPath, bakes nothing, keeps IN/OUT labels', () => {

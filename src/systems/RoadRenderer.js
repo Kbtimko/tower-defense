@@ -107,6 +107,8 @@ function makeTileCanvas(seed, style) {
 export function bakeRoad(scene, { key, waypoints, styleKey, seed, width, height }) {
   if (scene.textures.exists(key)) return key;
   const style = ROAD_STYLES[styleKey];
+  // Throw before createCanvas so an unknown key never leaves a blank texture registered.
+  if (!style) throw new Error(`bakeRoad: unknown road style "${styleKey}"`);
   const texture = scene.textures.createCanvas(key, width, height);
   const ctx = texture.getContext();
   // jsdom (tests) has no canvas 2D; the texture still exists, just blank.

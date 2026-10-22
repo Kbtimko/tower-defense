@@ -186,6 +186,12 @@ describe('bakeRoad', () => {
     return { canvas, putImageData };
   }
 
+  it('throws on an unknown style before creating any canvas (no blank texture left registered)', () => {
+    const { scene, createCanvas } = makeScene();
+    expect(() => bakeRoad(scene, { ...opts, styleKey: 'nope' })).toThrow(/nope/);
+    expect(createCanvas).not.toHaveBeenCalled();
+  });
+
   it('reuses an existing texture key without creating a second canvas', () => {
     const { scene, createCanvas } = makeScene({ exists: true });
     expect(bakeRoad(scene, opts)).toBe('road_map_1');
