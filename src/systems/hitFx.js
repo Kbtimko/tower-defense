@@ -21,13 +21,16 @@ export function deathClass(type) {
   return DEATH_CLASS[type] ?? 'small';
 }
 
-export function isHeavyHit({ damage, maxHp, killed, type }) {
+// Positional args: runs on every enemy hit, so no per-call options object.
+// Small enemies never qualify: ordinary shots would otherwise stop the game
+// several times a second.
+export function isHeavyHit(damage, maxHp, killed, type) {
   if (!(maxHp > 0)) return false;
-  if (killed && deathClass(type) !== 'small') return true;
-  return damage >= HIT_STOP.heavyFraction * maxHp;
+  if (deathClass(type) === 'small') return false;
+  return killed || damage >= HIT_STOP.heavyFraction * maxHp;
 }
 
-export function canHitStop({ sinceLast, paused, reducedMotion }) {
+export function canHitStop(sinceLast, paused, reducedMotion) {
   if (paused || reducedMotion) return false;
   return sinceLast >= HIT_STOP.cooldown;
 }

@@ -79,31 +79,39 @@ describe('deathClass', () => {
 
 describe('isHeavyHit', () => {
   const f = HIT_STOP.heavyFraction;
-  it('damage threshold is inclusive', () => {
-    expect(isHeavyHit({ damage: 100 * f, maxHp: 100, killed: false, type: 'drone' })).toBe(true);
-    expect(isHeavyHit({ damage: 100 * f - 1, maxHp: 100, killed: false, type: 'drone' })).toBe(false);
+  const typeOf = (cls) => Object.keys(DEATH_CLASS).find((t) => DEATH_CLASS[t] === cls);
+  const [small, large, boss] = ['small', 'large', 'boss'].map(typeOf);
+  it('large/boss damage threshold is inclusive', () => {
+    for (const t of [large, boss]) {
+      expect(isHeavyHit(100 * f, 100, false, t)).toBe(true);
+      expect(isHeavyHit(100 * f - 1, 100, false, t)).toBe(false);
+    }
   });
-  it('kills of large/boss always qualify; small kills do not', () => {
-    expect(isHeavyHit({ damage: 1, maxHp: 1000, killed: true, type: 'brute' })).toBe(true);
-    expect(isHeavyHit({ damage: 1, maxHp: 1000, killed: true, type: 'titan' })).toBe(true);
-    expect(isHeavyHit({ damage: 1, maxHp: 1000, killed: true, type: 'drone' })).toBe(false);
-    expect(isHeavyHit({ damage: 1, maxHp: 1000, killed: false, type: 'titan' })).toBe(false);
+  it('kills of large/boss always qualify', () => {
+    for (const t of [large, boss]) {
+      expect(isHeavyHit(1, 1000, true, t)).toBe(true);
+      expect(isHeavyHit(1, 1000, false, t)).toBe(false);
+    }
+  });
+  it('small enemies are never heavy, even for a huge hit or a kill; unknown types count as small', () => {
+    expect(isHeavyHit(1000, 100, false, small)).toBe(false);
+    expect(isHeavyHit(1000, 100, true, small)).toBe(false);
+    expect(isHeavyHit(1000, 100, true, 'mystery')).toBe(false);
   });
   it('non-positive maxHp is never heavy', () => {
-    expect(isHeavyHit({ damage: 50, maxHp: 0, killed: false, type: 'drone' })).toBe(false);
-    expect(isHeavyHit({ damage: 50, maxHp: -5, killed: true, type: 'titan' })).toBe(false);
+    expect(isHeavyHit(50, 0, false, large)).toBe(false);
+    expect(isHeavyHit(50, -5, true, boss)).toBe(false);
   });
 });
 
 describe('canHitStop', () => {
-  const base = { sinceLast: HIT_STOP.cooldown, paused: false, reducedMotion: false };
   it('allows at exactly the cooldown, blocks just under', () => {
-    expect(canHitStop(base)).toBe(true);
-    expect(canHitStop({ ...base, sinceLast: HIT_STOP.cooldown - 0.001 })).toBe(false);
+    expect(canHitStop(HIT_STOP.cooldown, false, false)).toBe(true);
+    expect(canHitStop(HIT_STOP.cooldown - 0.001, false, false)).toBe(false);
   });
   it('blocks when paused or reduced motion', () => {
-    expect(canHitStop({ ...base, paused: true })).toBe(false);
-    expect(canHitStop({ ...base, reducedMotion: true })).toBe(false);
+    expect(canHitStop(HIT_STOP.cooldown, true, false)).toBe(false);
+    expect(canHitStop(HIT_STOP.cooldown, false, true)).toBe(false);
   });
 });
 

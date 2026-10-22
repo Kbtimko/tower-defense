@@ -21,8 +21,10 @@ function makeScene({ ambient = true, userPaused = false, over = false, won = fal
   s.game = { registry: { get: (k) => (k === 'ambientMotion' ? ambient : undefined) } };
   s.particleSpawner = { spawnDeath: vi.fn() };
   s.tweens = { add: vi.fn() };
+  s.time = { paused: false };
   return s;
 }
+const LARGE = typeOf('large');
 const enemy = (type, extra = {}) => ({
   x: 5, y: 6, maxHp: 100, dead: true, destroy: vi.fn(),
   def: { type, color: 0xabcdef }, ...extra,
@@ -31,21 +33,27 @@ const enemy = (type, extra = {}) => ({
 describe('GameScene hit-stop', () => {
   it('a heavy hit starts the timer and resets the cooldown', () => {
     const s = makeScene();
-    s._onDamageDealt({ target: enemy('x', { dead: false }), amount: 30 });
+    s._onDamageDealt({ target: enemy(LARGE, { dead: false }), amount: 30 });
     expect(s._hitStopTimer).toBe(HIT_STOP.duration);
     expect(s._sinceHitStop).toBe(0);
   });
 
+  it('even a huge hit on a small enemy never stops the game', () => {
+    const s = makeScene();
+    s._onDamageDealt({ target: enemy(typeOf('small'), { dead: false }), amount: 99 });
+    expect(s._hitStopTimer).toBe(0);
+  });
+
   it('a light hit does not', () => {
     const s = makeScene();
-    s._onDamageDealt({ target: enemy('x', { dead: false }), amount: 5 });
+    s._onDamageDealt({ target: enemy(LARGE, { dead: false }), amount: 5 });
     expect(s._hitStopTimer).toBe(0);
   });
 
   it('respects the cooldown, pause, reduced motion and game over', () => {
     for (const opts of [{ since: 0.1 }, { userPaused: true }, { ambient: false }, { over: true }, { won: true }]) {
       const s = makeScene(opts);
-      s._onDamageDealt({ target: enemy('x', { dead: false }), amount: 99 });
+      s._onDamageDealt({ target: enemy(LARGE, { dead: false }), amount: 99 });
       expect(s._hitStopTimer).toBe(0);
     }
   });
@@ -67,6 +75,36 @@ describe('GameScene hit-stop', () => {
     expect(s._hitStopTimer).toBeCloseTo(0.02, 6); // 30ms real, not x3
     expect(s.waveMgr.update).not.toHaveBeenCalled();
     expect(s._ambient.update).not.toHaveBeenCalled();
+  });
+
+  it('pauses the scene Clock for the stop and resumes it when the stop ends', () => {
+    const s = makeScene();
+    s.speed = 1;
+    s._onDamageDealt({ target: enemy(LARGE, { dead: false }), amount: 30 });
+    expect(s.time.paused).toBe(true);
+    s.update(0, 30);
+    expect(s.time.paused).toBe(true);
+    s.update(0, 30); // 60ms total > 50ms duration
+    expect(s._hitStopTimer).toBe(0);
+    expect(s.time.paused).toBe(false);
+  });
+
+  it('game over during a stop un-pauses the Clock', () => {
+    const s = makeScene();
+    s._onDamageDealt({ target: enemy(LARGE, { dead: false }), amount: 30 });
+    s.over = true;
+    s.update(0, 16);
+    expect(s.time.paused).toBe(false);
+    expect(s._hitStopTimer).toBe(0);
+  });
+
+  it('shutdown mid-stop leaves no paused Clock for the next level', () => {
+    const s = makeScene();
+    s._unwireSceneEvents = vi.fn();
+    s._onDamageDealt({ target: enemy(LARGE, { dead: false }), amount: 30 });
+    try { s.shutdown(); } catch { /* the rest of shutdown needs a full DOM/scene */ }
+    expect(s.time.paused).toBe(false);
+    expect(s._hitStopTimer).toBe(0);
   });
 
   it('update advances the cooldown clock by real delta when running', () => {
@@ -111,6 +149,42 @@ describe('GameScene._fadeOutDeadEnemy death effects', () => {
     const s = makeScene();
     s._fadeOutDeadEnemy(enemy(typeOf('small')));
     expect(s._hitStopTimer).toBe(0);
+  });
+});
+
+describe('GameScene leak marking', () => {
+  const path = [{ x: 0, y: 0 }, { x: 10, y: 0 }];
+  const sceneWith = (enemies) => {
+    const s = makeScene();
+    s.pathMgr = { path };
+    s.enemies = enemies;
+    s._enemiesOnPath = enemies.length;
+    s.hero = null;
+    s.placementManager = { getTowers: () => [] };
+    s.game.registry.get = () => undefined;
+    s.economy = { loseLife: vi.fn() };
+    s._updateWaveButton = vi.fn();
+    s._fadeOutDeadEnemy = vi.fn();
+    return s;
+  };
+  const walker = (extra) => ({
+    x: 10, y: 0, waypointIndex: 1, currentSpeed: 0, dead: false,
+    statusEffects: { stun: { active: false } }, update: vi.fn(), def: {}, ...extra,
+  });
+
+  it('marks a live enemy that reaches the end as leaked', () => {
+    const e = walker({});
+    sceneWith([e])._updateEnemies(0.016);
+    expect(e.leaked).toBe(true);
+    expect(e.dead).toBe(true);
+  });
+
+  it('does not mark a tower-killed corpse that reaches the end the same frame', () => {
+    const e = walker({ dead: true });
+    const s = sceneWith([e]);
+    s._updateEnemies(0.016);
+    expect(e.leaked).toBeUndefined();
+    expect(s.economy.loseLife).toHaveBeenCalledOnce(); // pre-existing behaviour, deliberately unchanged
   });
 });
 

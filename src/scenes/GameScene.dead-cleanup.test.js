@@ -94,6 +94,37 @@ describe('GameScene._fadeOutDeadEnemy with a death animation', () => {
   });
 });
 
+describe('GameScene._fadeOutDeadEnemy for a killed (not leaked) enemy', () => {
+  const makeCtx = () => ({
+    tweens: { add: vi.fn() },
+    particleSpawner: { spawnDeath: vi.fn() },
+    _tryHitStop: vi.fn(),
+  });
+  const killed = (extra) => ({
+    x: 1, y: 2, maxHp: 10, destroy: vi.fn(), def: { type: 'drone', color: 0x123456 }, ...extra,
+  });
+
+  it('spawns death FX and still fades then destroys', () => {
+    const ctx = makeCtx();
+    const enemy = killed();
+    GameScene.prototype._fadeOutDeadEnemy.call(ctx, enemy);
+    expect(ctx.particleSpawner.spawnDeath).toHaveBeenCalledOnce();
+    expect(ctx.tweens.add).toHaveBeenCalledOnce();
+    ctx.tweens.add.mock.calls[0][0].onComplete();
+    expect(enemy.destroy).toHaveBeenCalledOnce();
+  });
+
+  it('spawns death FX and still plays the death animation then destroys', () => {
+    const ctx = makeCtx();
+    const enemy = killed({ hasDeathAnimation: () => true, playDeathAnimation: vi.fn() });
+    GameScene.prototype._fadeOutDeadEnemy.call(ctx, enemy);
+    expect(ctx.particleSpawner.spawnDeath).toHaveBeenCalledOnce();
+    expect(ctx.tweens.add).not.toHaveBeenCalled();
+    enemy.playDeathAnimation.mock.calls[0][0]();
+    expect(enemy.destroy).toHaveBeenCalledOnce();
+  });
+});
+
 describe('GameScene._destroyDeadProjectile', () => {
   it('returns the projectile to the pool instead of destroying it', () => {
     const projectile = { destroy: vi.fn() };

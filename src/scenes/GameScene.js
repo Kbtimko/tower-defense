@@ -393,23 +393,26 @@ export default class GameScene extends Phaser.Scene {
   // lands with weight. Rate-limited, and never while paused/over/reduced-motion.
   _tryHitStop() {
     if (this.over || this.won) return;
-    const allowed = canHitStop({
-      sinceLast: this._sinceHitStop,
-      paused: this._userPaused,
-      reducedMotion: this.game.registry.get('ambientMotion') === false,
-    });
-    if (!allowed) return;
+    const reducedMotion = this.game.registry.get('ambientMotion') === false;
+    if (!canHitStop(this._sinceHitStop, this._userPaused, reducedMotion)) return;
     this._hitStopTimer = HIT_STOP.duration;
     this._sinceHitStop = 0;
+    // Clock-driven timers (hero buff reverts, delayed death steps) must freeze
+    // with the rest of the simulation or they drift against it.
+    this.time.paused = true;
+  }
+
+  // Every exit path (stop elapsed, game over, shutdown) goes through here so
+  // the scene Clock is never left paused.
+  _endHitStop() {
+    this._hitStopTimer = 0;
+    if (this.time) this.time.paused = false;
   }
 
   // `target.def` filters out the hero and soldiers, which share this event.
   _onDamageDealt({ target, amount }) {
     if (!target?.def) return;
-    const heavy = isHeavyHit({
-      damage: amount, maxHp: target.maxHp, killed: target.dead, type: target.def.type,
-    });
-    if (heavy) this._tryHitStop();
+    if (isHeavyHit(amount, target.maxHp, target.dead, target.def.type)) this._tryHitStop();
   }
 
   // Relay hero scene events to the game bus for UIScene.
@@ -419,6 +422,7 @@ export default class GameScene extends Phaser.Scene {
 
   shutdown() {
     this._unwireSceneEvents();
+    this._endHitStop();
     this._wavePreview?.destroy();
     this._wavePreview = null;
     this._codexOverlay?.close();
@@ -463,10 +467,14 @@ export default class GameScene extends Phaser.Scene {
       window.__capture.simMs += delta * this.speed;
       window.__capture.enemies = this.enemies.filter(e => !e.dead).length;
     }
-    if (this.over || this.won) return;
+    if (this.over || this.won) {
+      if (this._hitStopTimer > 0) this._endHitStop();
+      return;
+    }
     // Real delta, not speed-scaled: the freeze is a feel effect, not game time.
     if (this._hitStopTimer > 0) {
       this._hitStopTimer -= delta / 1000;
+      if (this._hitStopTimer <= 0) this._endHitStop();
       return;
     }
     this._sinceHitStop += delta / 1000;
@@ -607,7 +615,8 @@ export default class GameScene extends Phaser.Scene {
       enemy._sprite?.setFacing(facingDirX(path[aheadIdx].x - enemy.x));
       if (enemy.waypointIndex >= path.length - 1) {
         // Death FX must not play for an enemy that reached the base.
-        enemy.leaked = true;
+        // A tower-killed corpse finishing the path the same frame keeps its FX.
+        if (!enemy.dead) enemy.leaked = true;
         enemy.dead = true;
         const am = this.game.registry.get('audio');
         if (am) am.playSfx('life-lost');
@@ -633,7 +642,7 @@ export default class GameScene extends Phaser.Scene {
       const type = enemy.def.type;
       this.particleSpawner.spawnDeath(deathClass(type), enemy.x, enemy.y, enemy.def.color);
       // Kills can come from the hero/soldiers, which emit no damage-dealt.
-      if (isHeavyHit({ damage: 0, maxHp: enemy.maxHp, killed: true, type })) this._tryHitStop();
+      if (isHeavyHit(0, enemy.maxHp, true, type)) this._tryHitStop();
     }
     // Death art, when present, replaces the fade entirely: the entity has to
     // survive until animationcomplete or the one-shot never finishes.

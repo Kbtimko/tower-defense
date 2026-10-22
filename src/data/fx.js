@@ -156,7 +156,7 @@ export const HIT_SQUASH = { duration: 0.12, amount: 0.18 }; // seconds
 
 // Hit-stop: a brief whole-scene freeze on heavy hits (>= heavyFraction of maxHp,
 // or any kill of a large/boss enemy), rate-limited by cooldown. Seconds.
-export const HIT_STOP = { duration: 0.05, cooldown: 0.4, heavyFraction: 0.25 };
+export const HIT_STOP = { duration: 0.05, cooldown: 0.6, heavyFraction: 0.25 };
 
 export const DEATH_CLASS = {
   drone: 'small', skitter: 'small', phantom: 'small',
