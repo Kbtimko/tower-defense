@@ -27,6 +27,8 @@ import { deathClass, isHeavyHit, canHitStop } from '../systems/hitFx.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
 import { gameToPageCss } from '../systems/viewport.js';
 import { pulseClass } from '../ui/pulse.js';
+import { WaveBanner } from '../ui/WaveBanner.js';
+import { bossWarning } from '../systems/juiceMath.js';
 import { STORY_PANELS, briefKey, victorySequenceId, STORY_SEQUENCES } from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
 import { soldierSource, heroAbilitySource } from '../data/sourceBuilders.js';
@@ -114,6 +116,7 @@ export default class GameScene extends Phaser.Scene {
     this.damageNumbers    = new DamageNumberOverlay(this);
     this.shakeCtl         = new ShakeController(this);
     this._coinFx          = new CoinFx(this);
+    this._waveBanner      = new WaveBanner();
     this.particleSpawner  = new ParticleSpawner(this);
     this._enemiesOnPath   = 0;
     this._bossMusicTriggered = false;
@@ -383,6 +386,7 @@ export default class GameScene extends Phaser.Scene {
     this.events.on('game:defeat',    this._onDefeat,       this);
     this.events.on('hero:level-up',  this._onHeroLevelUp,  this);
     this.events.on('damage-dealt',   this._onDamageDealt,  this);
+    this.events.on('wave:start',     this._onWaveStart,    this);
   }
 
   _unwireSceneEvents() {
@@ -391,6 +395,15 @@ export default class GameScene extends Phaser.Scene {
     this.events.off('game:defeat',    this._onDefeat,       this);
     this.events.off('hero:level-up',  this._onHeroLevelUp,  this);
     this.events.off('damage-dealt',   this._onDamageDealt,  this);
+    this.events.off('wave:start',     this._onWaveStart,    this);
+  }
+
+  _onWaveStart({ waveNum }) {
+    this._waveBanner?.show({
+      waveNum,
+      waveCount: MAPS[this.mapId].waveCount,
+      bossType: bossWarning(this.waveMgr.waves[waveNum - 1]),
+    });
   }
 
   // Hit-stop: a few tens of ms where the whole simulation freezes so a big hit
@@ -453,6 +466,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.damageNumbers) this.damageNumbers.destroy();
     this._coinFx?.destroy();
     this._coinFx = null;
+    this._waveBanner = null;
     if (this.shakeCtl)      this.shakeCtl.destroy();
     for (const s of this._sentries) s.destroy();
     this._sentries = [];

@@ -47,6 +47,42 @@
     #game::after { content: ''; position: absolute; inset: 0; pointer-events: none;
                    opacity: 0; box-shadow: inset 0 0 36px 6px #f07a7a; }
     #game.life-lost-frame::after { animation: life-lost-frame 450ms ease-out; }
+    /* Wave banner + boss warning: top-centre of the play area (below the HUD bar,
+       which sits outside #game). Never intercepts input. Animations end at opacity 0
+       so no JS timer hides them; durations arrive as custom properties from juice.js. */
+    #wave-banner, #wave-banner-boss { position: absolute; left: 50%; z-index: 5;
+      transform: translateX(-50%); opacity: 0; pointer-events: none; white-space: nowrap;
+      text-shadow: 0 2px 4px #000; }
+    #wave-banner { top: 10px; font-size: 20px; font-weight: bold; color: #fff;
+      background: rgba(0,0,0,0.45); padding: 4px 16px; border-radius: 4px; }
+    #wave-banner-boss { top: 48px; font-size: 15px; font-weight: bold; color: #ff4d4d;
+      background: rgba(0,0,0,0.55); padding: 3px 12px; border-radius: 4px; }
+    #wave-banner.show { animation: wave-banner var(--wave-banner-ms, 1800ms) ease-out forwards; }
+    #wave-banner-boss.show { animation: wave-banner var(--boss-warning-ms, 2400ms) ease-out forwards; }
+    #boss-frame { position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0;
+      box-shadow: inset 0 0 48px 8px #ff4d4d; }
+    #boss-frame.show { animation: boss-frame var(--boss-warning-ms, 2400ms) ease-in-out forwards; }
+    @keyframes wave-banner {
+      0%   { opacity: 0; transform: translateX(-50%) translateY(-12px); }
+      12%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+      80%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+      100% { opacity: 0; transform: translateX(-50%) translateY(0); }
+    }
+    @keyframes boss-frame {
+      0%, 40%, 80% { opacity: 0.85; }
+      20%, 60%, 100% { opacity: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #wave-banner.show, #wave-banner-boss.show { animation-name: wave-banner-fade; }
+      #boss-frame.show { animation-name: boss-frame-fade; }
+      @keyframes boss-frame-fade { 0% { opacity: 0.85; } 100% { opacity: 0; } }
+      @keyframes wave-banner-fade {
+        0%   { opacity: 0; transform: translateX(-50%); }
+        12%  { opacity: 1; transform: translateX(-50%); }
+        80%  { opacity: 1; transform: translateX(-50%); }
+        100% { opacity: 0; transform: translateX(-50%); }
+      }
+    }
     .hud-stat.life-lost-pulse { animation: life-lost-pulse 450ms ease-out; }
     @keyframes life-lost-frame { from { opacity: 0.9; } to { opacity: 0; } }
     @keyframes life-lost-pulse {
@@ -478,6 +514,9 @@
   </div>
   <div id="game">
     <div id="paused-overlay">PAUSED</div>
+    <div id="wave-banner"></div>
+    <div id="wave-banner-boss"></div>
+    <div id="boss-frame"></div>
     <div id="story-banner" class="story-banner">
       <div class="story-content">
         <div id="story-headline"></div>
