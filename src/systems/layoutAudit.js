@@ -2,7 +2,7 @@
 // The harness gathers the metrics in a real browser; this decides what is wrong,
 // so the rules are unit-testable without one.
 
-import { CANVAS_WIDTH, WORLD_HEIGHT, HUD_CELL, MIN_TOUCH_PX, MIN_TOUCH_PX_SMALL_PHONE } from '../data/layout.js';
+import { WORLD_HEIGHT, MIN_TOUCH_PX, MIN_TOUCH_PX_SMALL_PHONE, railMetricsFor } from '../data/layout.js';
 
 const EDGE_TOLERANCE_PX = 1;
 // DPR rounding can shave a fraction off a nominally-44px control.
@@ -36,9 +36,12 @@ function targetProblems(t, innerWidth, innerHeight) {
 
 // The HUD is scaled with the canvas (FIT), so a phone's touch size is HUD_CELL x that scale.
 // Below 44 only when the geometry physically cannot reach it (iphone 750x340).
+// Touch floors only apply to coarse devices, so use the coarse metrics explicitly: the
+// module constants follow the environment's pointer class and would shift with it.
 export function minTouchFor({ vw, vh }) {
-  const scale = Math.min(vw / CANVAS_WIDTH, vh / WORLD_HEIGHT);
-  return scale * HUD_CELL < MIN_TOUCH_PX ? MIN_TOUCH_PX_SMALL_PHONE : MIN_TOUCH_PX;
+  const { canvasWidth, hudCell } = railMetricsFor({ pointerFine: false });
+  const scale = Math.min(vw / canvasWidth, vh / WORLD_HEIGHT);
+  return scale * hudCell < MIN_TOUCH_PX ? MIN_TOUCH_PX_SMALL_PHONE : MIN_TOUCH_PX;
 }
 
 const insideRect = (r, rail) => r.left >= rail.left - EDGE_TOLERANCE_PX && r.right <= rail.right + EDGE_TOLERANCE_PX
@@ -67,6 +70,29 @@ export function railProblems({ device, rails, targets, minTouchPx }) {
     if (!insideRect(t.rect, rails.left) && !insideRect(t.rect, rails.right)) problems.push(`${t.name} outside rails`);
   }
   if (device.hasTouch) problems.push(...targetSizeProblems(targets, minTouchPx));
+  return problems;
+}
+
+const RAIL_WIDTH_TOLERANCE_PX = 1;
+const ASPECT_TOLERANCE = 0.01;
+
+// The canvas size is fixed at boot from the pointer class, so a touch device that reports
+// pointer: fine got the narrow desktop rails; check rails and aspect match that class.
+export function railGeometryProblems({ device, pointerFine, canvasRect, rails }) {
+  const { railWidth, canvasWidth } = railMetricsFor({ pointerFine });
+  const problems = [];
+  if (device.hasTouch && pointerFine) problems.push(`${device.name}: touch device reports pointer: fine`);
+  const expectedAspect = canvasWidth / WORLD_HEIGHT;
+  const aspect = canvasRect.width / canvasRect.height;
+  if (Math.abs(aspect - expectedAspect) > ASPECT_TOLERANCE * expectedAspect) {
+    problems.push(`${device.name}: canvas aspect ${aspect.toFixed(3)} != ${expectedAspect.toFixed(3)}`);
+  }
+  const expectedRail = railWidth * canvasRect.width / canvasWidth;
+  for (const r of rails) {
+    if (Math.abs(r.width - expectedRail) > RAIL_WIDTH_TOLERANCE_PX) {
+      problems.push(`${device.name}: rail ${r.id} width ${r.width.toFixed(1)} != ${expectedRail.toFixed(1)}`);
+    }
+  }
   return problems;
 }
 
