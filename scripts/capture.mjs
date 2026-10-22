@@ -23,7 +23,7 @@ import { chromium, devices } from 'playwright';
 import { MAPS } from '../src/data/maps.js';
 import { MAP_WAVES } from '../src/data/waves.js';
 import { defaultCaptureBuild } from '../src/systems/debugCapture.js';
-import { layoutProblems, railProblems, minTouchFor } from '../src/systems/layoutAudit.js';
+import { layoutProblems, railProblems, overlayProblems, minTouchFor } from '../src/systems/layoutAudit.js';
 import { RAIL_WIDTH, CANVAS_WIDTH, WORLD_HEIGHT } from '../src/data/layout.js';
 
 const OUT_DIR   = '.art-cache/captures';
@@ -54,6 +54,12 @@ const DEVICES = {
 // Controls a phone player must be able to reach on each screen.
 const MAP_SELECT_TARGETS = ['#featured-play'];
 const IN_GAME_TARGETS = ['#pause-btn', '#speed-btn', '#open-codex', '.tower-btn', '#exit-btn', '#wave-btn', '.ability-btn-wrap'];
+// DOM overlays opened from map select. Their controls are in CSS px (not the scaled canvas), so
+// touch devices hold them to the full 44 px. Labels, not checkboxes: the label row is the target.
+// Only the first codex entries: the list scrolls, and every entry shares one rule.
+const CODEX_TARGETS = ['#codex-close', '.codex-tab', '#codex-list .codex-entry:nth-child(-n+3)'];
+const SETTINGS_TARGETS = ['#settings-close', '#settings-overlay input[type=range]', '.settings-mute label'];
+const OVERLAY_AUDITS = new Set([CODEX_TARGETS, SETTINGS_TARGETS]);
 // Real HUD control that is hidden by design until a tower is armed: held to the rail rules
 // when visible, but never reported as `hidden` by layoutProblems.
 const RAIL_ONLY_TARGETS = ['#cancel-btn'];
@@ -171,7 +177,7 @@ async function audit(page, deviceName, label, selectors, railOnly = []) {
         const visible = el.checkVisibility
           ? el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
           : getComputedStyle(el).visibility !== 'hidden' && el.getClientRects().length > 0;
-        targets.push({ name: sel.startsWith('#') ? sel : `${sel}[${i}]`, rect: plain(el.getBoundingClientRect()), visibleRect: clipRect(el), visible });
+        targets.push({ name: /^#[\w-]+$/.test(sel) ? sel : `${sel}[${i}]`, rect: plain(el.getBoundingClientRect()), visibleRect: clipRect(el), visible });
       });
     }
     const rect = sel => { const el = document.querySelector(sel); return el ? plain(el.getBoundingClientRect()) : null; };
@@ -191,7 +197,22 @@ async function audit(page, deviceName, label, selectors, railOnly = []) {
       minTouchPx: minTouchFor({ vw: viewport.width, vh: viewport.height }),
     }));
   }
+  if (OVERLAY_AUDITS.has(selectors)) {
+    problems.push(...overlayProblems({ device: { hasTouch: !!DEVICES[deviceName].hasTouch }, targets: metrics.targets }));
+  }
   return { device: deviceName, label, problems };
+}
+
+// Opens a map-select overlay with a real tap, audits + shoots it, closes it with a real tap.
+async function auditOverlay(page, deviceName, { open, root, close, targets, label, file }) {
+  await tap(page, deviceName, open);
+  await page.locator(root).waitFor({ state: 'visible', timeout: 5_000 });
+  await page.waitForTimeout(400);
+  const result = await audit(page, deviceName, label, targets);
+  await shoot(page, file);
+  await tap(page, deviceName, close);
+  await page.locator(root).waitFor({ state: 'hidden', timeout: 5_000 });
+  return { result, file };
 }
 
 async function shoot(page, file) {
@@ -222,6 +243,14 @@ async function captureScreens(browser, base, deviceName, opts) {
     await page.waitForTimeout(800);
     files.push(await shoot(page, join(dir, '02-map-select.png')));
     layout.push(await audit(page, deviceName, 'map-select', MAP_SELECT_TARGETS));
+    for (const o of [
+      { open: '#open-codex-ms', root: '#codex-overlay', close: '#codex-close', targets: CODEX_TARGETS, label: 'codex', file: join(dir, '08-codex.png') },
+      { open: '#open-settings', root: '#settings-overlay', close: '#settings-close', targets: SETTINGS_TARGETS, label: 'settings', file: join(dir, '09-settings.png') },
+    ]) {
+      const { result, file } = await auditOverlay(page, deviceName, o);
+      layout.push(result);
+      files.push(file);
+    }
     problems.push(...p1);
     await page.close();
 

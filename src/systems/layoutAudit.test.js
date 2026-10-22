@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { layoutProblems, railProblems, minTouchFor } from './layoutAudit.js';
+import { layoutProblems, railProblems, minTouchFor, targetSizeProblems, overlayProblems } from './layoutAudit.js';
 
 const rect = (left, top, right, bottom) => ({ left, top, right, bottom, width: right - left, height: bottom - top });
 
@@ -139,5 +139,34 @@ describe('railProblems', () => {
   it('skips absent or hidden targets (layoutProblems reports those)', () => {
     expect(run({ rect: null, visible: false })).toEqual([]);
     expect(run({ visible: false, rect: rect(200, 10, 250, 60) })).toEqual([]);
+  });
+});
+
+describe('targetSizeProblems', () => {
+  const t = (name, r, extra = {}) => ({ name, visible: true, rect: r, ...extra });
+  it('reports each undersized target, in either dimension, with its size', () => {
+    expect(targetSizeProblems([t('#a', rect(0, 0, 43, 50)), t('#b', rect(0, 0, 50, 43)), t('#c', rect(0, 0, 50, 50))], 44))
+      .toEqual(['#a too small 43x50', '#b too small 50x43']);
+  });
+  it('accepts exactly the floor and 0.5px of slack, rejects more', () => {
+    expect(targetSizeProblems([t('#a', rect(0, 0, 44, 44)), t('#b', rect(0, 0, 43.6, 44))], 44)).toEqual([]);
+    expect(targetSizeProblems([t('#a', rect(0, 0, 43.4, 44))], 44)).toEqual(['#a too small 43x44']);
+  });
+  it('skips absent and hidden targets', () => {
+    expect(targetSizeProblems([t('#a', null), t('#b', rect(0, 0, 5, 5), { visible: false })], 44)).toEqual([]);
+  });
+});
+
+describe('overlayProblems', () => {
+  const small = [{ name: '#codex-close', visible: true, rect: rect(0, 0, 60, 28) }];
+  it('holds overlay controls to 44px on touch devices', () => {
+    expect(overlayProblems({ device: { hasTouch: true }, targets: small })).toEqual(['#codex-close too small 60x28']);
+  });
+  it('never relaxes the floor to the small-phone 40', () => {
+    const t40 = [{ name: '#x', visible: true, rect: rect(0, 0, 40, 40) }];
+    expect(overlayProblems({ device: { hasTouch: true }, targets: t40 })).toEqual(['#x too small 40x40']);
+  });
+  it('applies no size rule without touch', () => {
+    expect(overlayProblems({ device: { hasTouch: false }, targets: small })).toEqual([]);
   });
 });

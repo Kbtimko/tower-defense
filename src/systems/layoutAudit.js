@@ -44,19 +44,36 @@ export function minTouchFor({ vw, vh }) {
 const insideRect = (r, rail) => r.left >= rail.left - EDGE_TOLERANCE_PX && r.right <= rail.right + EDGE_TOLERANCE_PX
   && r.top >= rail.top - EDGE_TOLERANCE_PX && r.bottom <= rail.bottom + EDGE_TOLERANCE_PX;
 
+// A touch target must be at least minTouchPx in both dimensions. Absent/hidden targets are
+// layoutProblems' job (missing/hidden), so they are skipped here. Shared by the rail audit
+// (floor scales with the canvas) and the DOM-overlay audit (CSS px, floor always MIN_TOUCH_PX).
+export function targetSizeProblems(targets, minTouchPx) {
+  const problems = [];
+  for (const t of targets) {
+    if (!t.rect || !t.visible) continue;
+    if (t.rect.width < minTouchPx - TOUCH_SUBPIXEL_SLACK_PX || t.rect.height < minTouchPx - TOUCH_SUBPIXEL_SLACK_PX) {
+      problems.push(`${t.name} too small ${Math.round(t.rect.width)}x${Math.round(t.rect.height)}`);
+    }
+  }
+  return problems;
+}
+
 // Every HUD control must live fully inside one rail; on touch devices it must also be tappable.
-// Absent/hidden targets are layoutProblems' job (missing/hidden), so they are skipped here.
 export function railProblems({ device, rails, targets, minTouchPx }) {
   if (!rails?.left || !rails?.right) return ['rails missing'];
   const problems = [];
   for (const t of targets) {
     if (!t.rect || !t.visible) continue;
     if (!insideRect(t.rect, rails.left) && !insideRect(t.rect, rails.right)) problems.push(`${t.name} outside rails`);
-    if (device.hasTouch && (t.rect.width < minTouchPx - TOUCH_SUBPIXEL_SLACK_PX || t.rect.height < minTouchPx - TOUCH_SUBPIXEL_SLACK_PX)) {
-      problems.push(`${t.name} too small ${Math.round(t.rect.width)}x${Math.round(t.rect.height)}`);
-    }
   }
+  if (device.hasTouch) problems.push(...targetSizeProblems(targets, minTouchPx));
   return problems;
+}
+
+// DOM overlays live in CSS px outside the scaled canvas, so geometry never excuses a small
+// control: the floor is always MIN_TOUCH_PX. Mouse devices have no size rule.
+export function overlayProblems({ device, targets }) {
+  return device.hasTouch ? targetSizeProblems(targets, MIN_TOUCH_PX) : [];
 }
 
 export function layoutProblems(m) {

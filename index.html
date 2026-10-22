@@ -369,10 +369,10 @@
     #map-meta-bar { display:flex; align-items:center; justify-content:center; gap:18px;
                     margin-bottom:14px; }
     #total-stars { font-size:18px; color:#ffd700; font-weight:bold; letter-spacing:1px; }
-    #open-upgrades { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
+    #open-upgrades, #open-story-log, #open-codex-ms { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
                      padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
                      font-family:'Georgia',serif; }
-    #open-upgrades:hover { background:#223344; }
+    #open-upgrades:hover, #open-story-log:hover, #open-codex-ms:hover { background:#223344; }
     #open-heroes { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
                    padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
                    font-family:'Georgia',serif; }
@@ -614,6 +614,42 @@
       #lifetime-stats { display: none; }
       /* 40 px touch-target floor for the map-select buttons the audit covers. */
       #featured-play, #map-meta-bar button { min-height: 40px; }
+    }
+
+    /* Touch-sized DOM overlays (roadmap 2.2). Overlays are real CSS px, not part of the scaled
+       canvas, so every control gets the full 44 px. Kept LAST so it beats the compact block above
+       at equal specificity: on a phone coarse must win over the compact shrink. */
+    @media (pointer: coarse) {
+      .codex-tab, #codex-close, .codex-entry, #settings-close, .story-dialog-actions button,
+      #story-dismiss, .story-log-entry, #story-log-close, #hero-mgmt-close, .ho-ability,
+      #upgrade-close, .upgrade-node-refund, #game-msg button, #map-meta-bar button,
+      #tower-panel .upgrade-btn, #tower-panel .sell-btn, #tower-panel .reposition-btn,
+      #tower-panel .branch-choose-btn { min-height: 44px; min-width: 44px; }
+      /* The glyph stays small; the button grows around it, bleeding into the header's
+         padding rather than stretching the panel. */
+      .inspector-close { min-width: 44px; min-height: 44px; margin: -8px -4px -8px 0; }
+      /* A native slider's hit box is its whole <input>; a fat thumb makes that visible. */
+      .settings-row input[type=range] { -webkit-appearance: none; appearance: none; height: 44px;
+        background: transparent; }
+      .settings-row input[type=range]::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: #2a3a4e; }
+      .settings-row input[type=range]::-moz-range-track { height: 8px; border-radius: 4px; background: #2a3a4e; }
+      .settings-row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px;
+        margin-top: -10px; border-radius: 50%; background: #4fc3f7; border: 2px solid #0a1018; }
+      .settings-row input[type=range]::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%;
+        background: #4fc3f7; border: 2px solid #0a1018; }
+      .settings-mute label { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+      .settings-mute input[type=checkbox] { width: 24px; height: 24px; flex: 0 0 24px; }
+      #settings-overlay-inner { max-height: 100%; overflow-y: auto; }
+    }
+    /* A landscape phone is too short for 44-px rows stacked in one column (the settings card
+       would pass 340 px): sliders left, toggles right. */
+    @media (pointer: coarse) and (max-height: 500px) {
+      #settings-overlay { padding: 8px; }
+      #settings-overlay-inner { max-width: 680px; padding: 10px 16px; display: grid;
+        grid-template-columns: 1fr 1fr; column-gap: 24px; grid-auto-flow: row dense; }
+      #settings-overlay-header { grid-column: 1 / -1; margin-bottom: 4px; }
+      .settings-row { grid-column: 1; margin: 2px 0; }
+      .settings-mute { grid-column: 2; margin-top: 0; }
     }
   </style>
 </head>
