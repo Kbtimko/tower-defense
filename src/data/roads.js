@@ -89,3 +89,15 @@ export const ROAD_PAINT = {
   laneCore: [{ scale: 1.2, alpha: 0.18 }, { scale: 0.5, alpha: 0.3 }], // nav-lane glow, x halfWidth
   dashGlow: { widthScale: 3, alpha: 0.25 }, // halo under bright lane dashes
 };
+
+// Portal/beacon animation shape. ENDPOINT_FX supplies per-family colour/radius; `spin` is
+// rad/s and `pulse` is Hz. Rings are drawn at radius*2 px (the 64 px texture is ring-in-frame).
+export const ENDPOINT_LOOK = {
+  depth: 9,                // above the road (8), below pads (10)
+  canvas: { width: 1280, height: 720 }, // endpoints are clamped inside this
+  ringAlpha: 0.9,
+  innerRingScale: 0.62,    // inner ring size relative to the outer
+  portalGlow: { scale: 0.9, alpha: [0.45, 0.85], swing: 0.12 }, // alpha range, scale swing (+/-)
+  beaconGlow: { scale: 1.3, alpha: [0.35, 0.8], swing: 0.1 },
+  beaconRing: { scale: 1.0, alpha: 0.7, spin: 0.35 },           // slow, rad/s
+};
