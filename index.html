@@ -187,8 +187,15 @@
                                      font-weight: bold; }
     /* Long-press targets: stop the iOS callout and text selection that would
        otherwise open over the peek card. */
-    .tower-btn, .ability-btn-wrap, #wave-btn-wrap, #tower-panel button {
+    .tower-btn, .ability-btn-wrap, #wave-btn, #tower-panel button {
       -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+    /* Chrome/Safari fire no pointer events on a disabled control, so a press on
+       one never reaches its hover/long-press wrapper. pointer-events:none lets
+       the press fall through to the wrapper; the not-allowed cursor moves there
+       because the button no longer receives hover. */
+    #wave-btn:disabled, .ability-btn:disabled { pointer-events: none; }
+    #wave-btn-wrap:has(> #wave-btn:disabled),
+    .ability-btn-wrap:has(> .ability-btn:disabled) { cursor: not-allowed; }
     .branch-header { font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
                      color: #f0a500; margin-bottom: 7px; }
     .branch-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 8px; }

@@ -88,6 +88,15 @@ describe('attachLongPress', () => {
     expect(ownerClick).toHaveBeenCalledTimes(1);
   });
 
+  it('a MOUSE pointerdown also drops a stale swallower', () => {
+    btn.dispatchEvent(ptr('pointerdown', 'touch'));
+    vi.advanceTimersByTime(LONG_PRESS_MS);
+    btn.dispatchEvent(ptr('pointerup', 'touch'));
+    btn.dispatchEvent(ptr('pointerdown', 'mouse'));
+    btn.dispatchEvent(clickEv());
+    expect(ownerClick).toHaveBeenCalledTimes(1);
+  });
+
   it('pointercancel after a long-press ends it and leaves no swallower', () => {
     btn.dispatchEvent(ptr('pointerdown', 'touch'));
     vi.advanceTimersByTime(LONG_PRESS_MS);

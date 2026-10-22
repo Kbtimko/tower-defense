@@ -81,8 +81,8 @@ const cardText = () => document.getElementById('ability-card').textContent;
 const cardShown = () => document.getElementById('ability-card').classList.contains('shown');
 // Hover the WRAPPER, not the button: that's what a real pointer does, since a
 // disabled button fires no pointer events at all in Chrome/Safari.
-const hover = (slot) => document.getElementById(`ability-${slot}-wrap`).dispatchEvent(new Event('pointerenter'));
-const unhover = (slot) => document.getElementById(`ability-${slot}-wrap`).dispatchEvent(new Event('pointerleave'));
+const hover = (slot) => document.getElementById(`ability-${slot}-wrap`).dispatchEvent(Object.assign(new Event('pointerenter'), { pointerType: 'mouse' }));
+const unhover = (slot) => document.getElementById(`ability-${slot}-wrap`).dispatchEvent(Object.assign(new Event('pointerleave'), { pointerType: 'mouse' }));
 
 describe('UIScene ability hover card', () => {
   beforeEach(setupHeroDOM);
@@ -198,7 +198,7 @@ describe('UIScene ability hover card', () => {
     expect(enterListeners.every(l => l.el !== btn)).toBe(true);
     expect(enterListeners.some(l => l.el === wrap)).toBe(true);
 
-    wrap.dispatchEvent(new Event('pointerenter'));
+    wrap.dispatchEvent(Object.assign(new Event('pointerenter'), { pointerType: 'mouse' }));
 
     expect(cardShown()).toBe(true);
   });

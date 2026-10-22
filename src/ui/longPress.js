@@ -26,10 +26,10 @@ export function attachLongPress(el, { onLongPress, onEnd, ms = LONG_PRESS_MS, sl
   };
 
   const onDown = (e) => {
-    if (!isTouchLike(e)) return;
-    // A stale swallower from a long-press whose click never arrived must not eat
-    // this press's click.
+    // Before the touch guard: a stale swallower (long-press whose click never
+    // arrived) must not eat the click of ANY next press, mouse included.
     el.removeEventListener('click', swallowClick, true);
+    if (!isTouchLike(e)) return;
     clearTimer();
     pressing = true;
     fired = false;

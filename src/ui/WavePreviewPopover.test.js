@@ -90,14 +90,15 @@ describe('WavePreviewPopover', () => {
 
   it('opens on pointerenter of the wrapper and closes on pointerleave', () => {
     popover.setWave(summarizeWave(0, 0));
-    dom.wrap.dispatchEvent(new Event('pointerenter'));
+    dom.wrap.dispatchEvent(Object.assign(new Event('pointerenter'), { pointerType: 'mouse' }));
     expect(dom.pop.classList.contains('shown')).toBe(true);
-    dom.wrap.dispatchEvent(new Event('pointerleave'));
+    dom.wrap.dispatchEvent(Object.assign(new Event('pointerleave'), { pointerType: 'mouse' }));
     expect(dom.pop.classList.contains('shown')).toBe(false);
   });
 
-  it('opens on focusin and closes on focusout', () => {
+  it('opens on KEYBOARD focusin and closes on focusout', () => {
     popover.setWave(summarizeWave(0, 0));
+    dom.wrap.matches = () => true;   // jsdom has no real :focus-visible
     dom.wrap.dispatchEvent(new Event('focusin', { bubbles: true }));
     expect(dom.pop.classList.contains('shown')).toBe(true);
     dom.wrap.dispatchEvent(new Event('focusout', { bubbles: true }));
@@ -108,8 +109,22 @@ describe('WavePreviewPopover', () => {
   // the instant keyboard focus moved from the wrapper onto the button inside
   // it. focusin/focusout bubble, so focus reaching the button must still
   // count as focus "inside" and keep the popover open.
+  it('does not open on a pointer-initiated focusin (a tap focuses the tabindex wrapper)', () => {
+    popover.setWave(summarizeWave(0, 0));
+    dom.wrap.matches = () => false;
+    dom.wrap.dispatchEvent(new Event('focusin', { bubbles: true }));
+    expect(dom.pop.classList.contains('shown')).toBe(false);
+  });
+
+  it('ignores pen pointerenter', () => {
+    popover.setWave(summarizeWave(0, 0));
+    dom.wrap.dispatchEvent(Object.assign(new Event('pointerenter'), { pointerType: 'pen' }));
+    expect(dom.pop.classList.contains('shown')).toBe(false);
+  });
+
   it('opens on a bubbling focusin from the Send Wave button', () => {
     popover.setWave(summarizeWave(0, 0));
+    dom.btn.matches = () => true;
     dom.btn.dispatchEvent(new Event('focusin', { bubbles: true }));
     expect(dom.pop.classList.contains('shown')).toBe(true);
   });
@@ -201,7 +216,7 @@ describe('WavePreviewPopover', () => {
     };
 
     forceShown();
-    dom.wrap.dispatchEvent(new Event('pointerleave'));
+    dom.wrap.dispatchEvent(Object.assign(new Event('pointerleave'), { pointerType: 'mouse' }));
     expect(dom.pop.classList.contains('shown')).toBe(true);
 
     forceShown();
@@ -229,8 +244,9 @@ describe('WavePreviewPopover', () => {
 
     // pointerenter/focusin must not resurrect it either.
     dom.pop.classList.remove('shown');
-    dom.wrap.dispatchEvent(new Event('pointerenter'));
+    dom.wrap.dispatchEvent(Object.assign(new Event('pointerenter'), { pointerType: 'mouse' }));
     expect(dom.pop.classList.contains('shown')).toBe(false);
+    dom.wrap.matches = () => true;
     dom.wrap.dispatchEvent(new Event('focusin', { bubbles: true }));
     expect(dom.pop.classList.contains('shown')).toBe(false);
   });

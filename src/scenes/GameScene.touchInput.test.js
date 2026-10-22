@@ -18,6 +18,10 @@ const BUTTON_IDS = [
   'wave-btn', 'speed-btn', 'pause-btn', 'panel-upgrade-btn', 'panel-sell-btn',
   'panel-reposition-btn', 'msg-btn', 'msg-cancel-btn', 'exit-btn', 'cancel-btn',
 ];
+const PANEL_IDS = [
+  'game', 'panel-name', 'panel-lvl', 'panel-dmg', 'panel-rng', 'panel-spd',
+  'panel-matchups', 'panel-armour',
+];
 const DIV_IDS = [
   'hud', 'bottom-bar', 'game-msg', 'paused-overlay', 'tower-tooltip', 'tower-panel', 'panel-branch-picker', 'panel-std-stats', 'panel-barracks-stats',
 ];
@@ -28,6 +32,9 @@ function setupDOM() {
     const b = document.createElement('button'); b.id = id; document.body.appendChild(b);
   }
   for (const id of DIV_IDS) {
+    const d = document.createElement('div'); d.id = id; document.body.appendChild(d);
+  }
+  for (const id of PANEL_IDS) {
     const d = document.createElement('div'); d.id = id; document.body.appendChild(d);
   }
   for (const type of Object.keys(TOWER_DEFS)) {
@@ -179,6 +186,21 @@ describe('touch two-step confirm', () => {
     expect(up().textContent).toBe('Upgrade 💰120: Longbow');
     press(up(), 'touch');
     expect(gs._upgradeSelectedTower).not.toHaveBeenCalled();
+  });
+
+  it('opening another tower disarms: tower B does not upgrade on one tap with A\'s armed gate', () => {
+    gs.mapId = 0;
+    gs.placementManager = {};
+    const towerB = { id: 2, type: 'archer', level: 1, branch: null, damage: 10, range: 100,
+                     fireRate: 1, totalCost: 60 };
+    press(up(), 'touch');                        // armed on tower A
+    expect(up().classList.contains('confirming')).toBe(true);
+    GameScene.prototype._openTowerPanel.call(gs, towerB, 10, 10);   // REAL panel open
+    expect(up().classList.contains('confirming')).toBe(false);
+    expect(up().textContent).toMatch(/^Upgrade/);
+    press(up(), 'touch');                        // first press on B must arm, not execute
+    expect(gs._upgradeSelectedTower).not.toHaveBeenCalled();
+    expect(up().classList.contains('confirming')).toBe(true);
   });
 
   it('a re-render of the label (post-upgrade cost change) is not clobbered by a stale revert', () => {

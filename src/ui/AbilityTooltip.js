@@ -1,5 +1,6 @@
 import { attachLongPress } from './longPress.js';
-import { PEEK_LINGER_MS } from '../data/input.js';
+import { PEEK_LINGER_MS, PANEL_EDGE_MARGIN } from '../data/input.js';
+import { isKeyboardFocus } from './keyboardFocus.js';
 
 // One shared hover card, reused by every ability anchor on the page.
 //
@@ -28,9 +29,11 @@ export class AbilityTooltip {
     const hide = () => this.hide();
     // A touch fires pointerenter on every tap, which would flash the card on
     // the ability's primary action; touch peeks via long-press instead.
-    const hoverShow = (e) => { if (e.pointerType !== 'touch') show(); };
-    const hoverHide = (e) => { if (e.pointerType !== 'touch') hide(); };
-    for (const [evt, fn] of [['pointerenter', hoverShow], ['pointerleave', hoverHide], ['focusin', show], ['focusout', hide]]) {
+    const hoverShow = (e) => { if (e.pointerType === 'mouse') show(); };
+    const hoverHide = (e) => { if (e.pointerType === 'mouse') hide(); };
+    // Keyboard focus only: a tap focuses the tabindex wrapper too.
+    const focusShow = (e) => { if (isKeyboardFocus(e)) show(); };
+    for (const [evt, fn] of [['pointerenter', hoverShow], ['pointerleave', hoverHide], ['focusin', focusShow], ['focusout', hide]]) {
       anchor.addEventListener(evt, fn);
       this._listeners.push({ el: anchor, evt, fn });
     }
@@ -89,17 +92,23 @@ export class AbilityTooltip {
       this._el.appendChild(lock);
     }
 
-    this._position(anchor);
+    // Shown BEFORE positioning: the card is display:none until then, so its
+    // offsetHeight/Width would measure 0 and it would hang off the viewport.
     this._el.classList.add('shown');
     this._el.setAttribute('aria-hidden', 'false');
+    this._position(anchor);
   }
 
-  // Positioned above the anchor, clamped into the viewport. getBoundingClientRect
-  // returns zeros under jsdom, which is harmless — the tests assert content.
+  // Positioned above the anchor, clamped on all four edges into the viewport.
+  // Must run on the shown element so its size is real.
   _position(anchor) {
-    const r = anchor.getBoundingClientRect();
-    this._el.style.left = `${Math.max(8, r.left)}px`;
-    this._el.style.top  = `${Math.max(8, r.top - this._el.offsetHeight - 10)}px`;
+    const r  = anchor.getBoundingClientRect();
+    const w  = this._el.offsetWidth;
+    const h  = this._el.offsetHeight;
+    const m  = PANEL_EDGE_MARGIN;
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, Math.max(lo, hi)));
+    this._el.style.left = `${clamp(r.left, m, window.innerWidth - w - m)}px`;
+    this._el.style.top  = `${clamp(r.top - h - 10, m, window.innerHeight - h - m)}px`;
   }
 
   hide() {

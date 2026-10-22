@@ -12,6 +12,7 @@
 // shared with CodexOverlay rather than reimplemented as a flat join here.
 import { formatCounters } from './matchupText.js';
 import { attachLongPress } from './longPress.js';
+import { isKeyboardFocus } from './keyboardFocus.js';
 
 export class WavePreviewPopover {
   constructor() {
@@ -21,9 +22,10 @@ export class WavePreviewPopover {
 
     // Touch fires pointerenter on every tap, which would open the popover over
     // a plain Send Wave tap; hover is for mice. Touch opens via long-press.
-    this._onEnter = (e) => { if (e.pointerType !== 'touch') this.show(); };
-    this._onLeave = (e) => { if (e.pointerType !== 'touch') this.hide(); };
-    this._onFocusIn  = () => this.show();
+    this._onEnter = (e) => { if (e.pointerType === 'mouse') this.show(); };
+    this._onLeave = (e) => { if (e.pointerType === 'mouse') this.hide(); };
+    // Keyboard focus only: a tap focuses the tabindex wrapper too.
+    this._onFocusIn  = (e) => { if (isKeyboardFocus(e)) this.show(); };
     this._onFocusOut = () => this.hide();
     this._onEsc   = (e) => { if (e.key === 'Escape') this.hide(); };
 
