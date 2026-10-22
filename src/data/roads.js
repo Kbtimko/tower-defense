@@ -7,6 +7,13 @@ export const ROAD_PAD_GAP = 10;
 // Above backdrop (0), area effects (2), ambient (5); below blockers/pads (10).
 export const ROAD_DEPTH = 8;
 
+// 'procedural' bakes the textured road; 'legacy' keeps the Graphics PathRenderer.
+// A map entry may override with its own `roadRenderer`.
+export const ROAD_RENDERER = 'procedural';
+export function roadRendererFor(map) {
+  return map.roadRenderer ?? ROAD_RENDERER;
+}
+
 const planet = {
   family: 'planet', kind: 'road', halfWidth: 13, feather: 9,
   base: 0x6b5740, edge: 0x9a8362,
