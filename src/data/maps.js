@@ -22,6 +22,8 @@ export const MAPS = [
     storyKey: 'outpost_sigma',
     blurb: "Earth's last forward base. Hold the line or lose everything.",
     backgroundImage: 'map_0_outpost_sigma.png',
+    // Colour grade + vignette (roadmap 1.4; art bible §2 biome moods): warm, soft, clean — the tutorial should feel safe.
+    grade: { tint: [1.04, 1.00, 0.94], contrast: 0.95, saturation: 0.95, brightness: 1.0, vignette: 0.25 },
     // Path renders as the road (terrain-only backdrop pilot) — see specs 2026-06-12-terrain-only-backdrops-road-path.
     pathRenderStyle: 'planet-road',
     // No auto-placed blockers — the painted backdrop already has craters/rock mounds.
@@ -53,6 +55,8 @@ export const MAPS = [
     storyKey: 'lunar_gate',
     blurb: 'The gateway to the moon is under siege. Defend the transit hub.',
     backgroundImage: 'map_1_lunar_gate.png',
+    // Colour grade + vignette (roadmap 1.4; art bible §2 biome moods): cool grey, high-key.
+    grade: { tint: [0.95, 1.00, 1.08], contrast: 1.00, saturation: 0.75, brightness: 1.07, vignette: 0.20 },
     pathRenderStyle: 'lunar-road',
     blockerVocab: [],
     blockerSeed: 4291,
@@ -87,6 +91,8 @@ export const MAPS = [
     storyKey: 'the_crater',
     blurb: 'A lunar crater makes a natural fortress — or a killing field.',
     backgroundImage: 'map_2_the_crater.png',
+    // Colour grade + vignette (roadmap 1.4; art bible §2 biome moods): cool grey, deeper shadows.
+    grade: { tint: [0.95, 0.98, 1.05], contrast: 1.12, saturation: 0.85, brightness: 0.96, vignette: 0.35 },
     pathRenderStyle: 'lunar-road',
     blockerVocab: [],
     blockerSeed: 5582,
@@ -120,6 +126,8 @@ export const MAPS = [
     storyKey: 'orbital_station',
     blurb: 'Enemy forces have boarded our orbital station. Repel them before they reach the core.',
     backgroundImage: 'map_3_orbital_station.png',
+    // Colour grade + vignette (roadmap 1.4; art bible §2 biome moods): teal steel, crisp.
+    grade: { tint: [0.90, 1.03, 1.08], contrast: 1.10, saturation: 1.00, brightness: 1.00, vignette: 0.30 },
     pathRenderStyle: 'station-road',
     blockerVocab: [],
     blockerSeed: 9182,
@@ -153,6 +161,8 @@ export const MAPS = [
     storyKey: 'asteroid_belt',
     blurb: 'Mining platforms in the asteroid belt are now frontline battlefields.',
     backgroundImage: 'map_4_asteroid_belt.png',
+    // Colour grade + vignette (roadmap 1.4; art bible §2 biome moods): neutral, dark edges.
+    grade: { tint: [1.00, 1.00, 1.02], contrast: 1.05, saturation: 0.90, brightness: 0.97, vignette: 0.45 },
     pathRenderStyle: 'space-lane',
     blockerVocab: [],
     blockerSeed: 6453,
@@ -193,6 +203,8 @@ export const MAPS = [
     storyKey: 'titans_reach',
     blurb: "Titan's surface is hostile. So are its new inhabitants — the Titans have arrived.",
     backgroundImage: 'map_5_titans_reach.png',
+    // Colour grade + vignette (roadmap 1.4; art bible §2 biome moods): amber haze.
+    grade: { tint: [1.09, 1.00, 0.85], contrast: 0.92, saturation: 1.05, brightness: 1.02, vignette: 0.30 },
     pathRenderStyle: 'planet-road',
     blockerVocab: [],
     blockerSeed: 1709,
@@ -228,6 +240,8 @@ export const MAPS = [
     storyKey: 'deep_space_corridor',
     blurb: 'The corridor leads deep into alien-controlled space. No rescue is coming.',
     backgroundImage: 'map_6_deep_space_corridor.png',
+    // Colour grade + vignette (roadmap 1.4; art bible §2 biome moods): blue-violet, cold.
+    grade: { tint: [0.94, 0.95, 1.10], contrast: 1.08, saturation: 0.9, brightness: 0.97, vignette: 0.4 },
     pathRenderStyle: 'station-road',
     blockerVocab: [],
     blockerSeed: 8924,
@@ -262,6 +276,8 @@ export const MAPS = [
     storyKey: 'the_void_frontier',
     blurb: 'Beyond the frontier, all navigation beacons are dark. We are alone out here.',
     backgroundImage: 'map_7_the_void_frontier.png',
+    // Colour grade + vignette (roadmap 1.4; art bible §2 biome moods): near-black, cold — 0.6 vignette crushed the nebula and dimmed edge pads.
+    grade: { tint: [0.95, 0.97, 1.04], contrast: 1.08, saturation: 0.95, brightness: 0.97, vignette: 0.45 },
     pathRenderStyle: 'space-lane',
     blockerVocab: [],
     blockerSeed: 3217,
@@ -296,6 +312,8 @@ export const MAPS = [
     storyKey: 'enemy_homeworld',
     blurb: 'We have breached the enemy homeworld. There is no going back.',
     backgroundImage: 'map_8_enemy_homeworld.png',
+    // Colour grade + vignette (roadmap 1.4; art bible §2 biome moods): magenta-green, sickly.
+    grade: { tint: [1.05, 0.97, 1.07], contrast: 1.05, saturation: 1.20, brightness: 0.98, vignette: 0.40 },
     pathRenderStyle: 'organic-road',
     blockerVocab: [],
     blockerSeed: 4827,
@@ -334,6 +352,8 @@ export const MAPS = [
     storyKey: 'last_light',
     blurb: 'This is the last light of humanity. Win, or there is nothing left.',
     backgroundImage: 'map_9_last_light.png',
+    // Colour grade + vignette (roadmap 1.4; art bible §2 biome moods): red-black, hot highlights.
+    grade: { tint: [1.08, 0.96, 0.90], contrast: 1.15, saturation: 1.10, brightness: 0.96, vignette: 0.45 },
     pathRenderStyle: 'scorched-road',
     blockerVocab: [],
     blockerSeed: 6391,

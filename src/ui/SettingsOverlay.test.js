@@ -35,11 +35,16 @@ function setupDom() {
   ambient.type = 'checkbox';
   overlay.appendChild(ambient);
 
+  const grade = document.createElement('input');
+  grade.id = 'map-grade';
+  grade.type = 'checkbox';
+  overlay.appendChild(grade);
+
   document.body.appendChild(overlay);
 }
 
 function makeGame(initial = true) {
-  const store = { ambientMotion: initial, save: { setSettings: vi.fn() } };
+  const store = { ambientMotion: initial, mapGrade: initial, save: { setSettings: vi.fn() } };
   return {
     _store: store,
     registry: {
@@ -178,5 +183,22 @@ describe('SettingsOverlay', () => {
     cb.dispatchEvent(new Event('change', { bubbles: true }));
     expect(game.registry.get('ambientMotion')).toBe(false);
     expect(game._store.save.setSettings).toHaveBeenCalledWith({ ambientMotion: false });
+  });
+
+  it('map-grade checkbox reflects the registry flag on open', () => {
+    const ov = new SettingsOverlay(makeAm(), makeGame(true));
+    ov.open();
+    expect(document.getElementById('map-grade').checked).toBe(true);
+  });
+
+  it('toggling map-grade updates the registry and persists', () => {
+    const game = makeGame(true);
+    const ov = new SettingsOverlay(makeAm(), game);
+    ov.open();
+    const cb = document.getElementById('map-grade');
+    cb.checked = false;
+    cb.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(game.registry.get('mapGrade')).toBe(false);
+    expect(game._store.save.setSettings).toHaveBeenCalledWith({ mapGrade: false });
   });
 });

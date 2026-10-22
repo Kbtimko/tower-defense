@@ -9,6 +9,7 @@ import { STORY_SPEAKERS } from '../data/story.js';
 import { portraitPath, registerPortraits } from '../systems/portraitFallback.js';
 import { backgroundUrl, pickBackgroundVariant } from '../systems/backgroundAsset.js';
 import { attachLoadingBar } from '../ui/loadingBar.js';
+import { resolveMapGrade } from '../systems/mapGrade.js';
 import { parseDebugParams } from '../systems/debugCapture.js';
 import { MAP_WAVES } from '../data/waves.js';
 import { TOWER_DEFS } from '../data/towers.js';
@@ -32,6 +33,13 @@ export default class BootScene extends Phaser.Scene {
       : false;
     this.game.registry.set('ambientMotion',
       resolveAmbientMotion(sm.getSettings().ambientMotion, prefersReduced));
+    // A coarse pointer, not "has touch": touch-screen laptops still grade.
+    const coarse = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      && window.matchMedia('(pointer: coarse)').matches;
+    this.game.registry.set('mapGrade', resolveMapGrade(sm.getSettings().mapGrade, {
+      webgl: this.game.renderer?.type === Phaser.WEBGL,
+      touch: coarse,
+    }));
     const am = getOrCreateAudioManager(this.game, sm);
     am.loadAssets(this);
     this.load.image('spark', 'particles/spark.png');
