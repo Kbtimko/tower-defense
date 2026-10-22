@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { beaconAlpha } from './padBeacon.js';
+import { beaconAlpha, beaconLevel } from './padBeacon.js';
 import { PAD_BEACON } from '../data/ambient.js';
 
 const [lo, hi] = PAD_BEACON.alpha;
@@ -42,5 +42,36 @@ describe('beaconAlpha', () => {
     let on = 0; const n = 4800;
     for (let i = 0; i < n; i++) if (at((i / n) * PAD_BEACON.period) > mid) on++;
     expect(on / n).toBeCloseTo(PAD_BEACON.onFraction, 1);
+  });
+});
+
+describe('beaconLevel', () => {
+  it('is bounded to 0..1 and continuous across the period wrap', () => {
+    let prev = beaconLevel(0, 0, PAD_BEACON);
+    for (let t = 0.002; t < PAD_BEACON.period * 3; t += 0.002) {
+      const l = beaconLevel(t, 0, PAD_BEACON);
+      expect(l).toBeGreaterThanOrEqual(0);
+      expect(l).toBeLessThanOrEqual(1);
+      expect(Math.abs(l - prev)).toBeLessThan(0.1);
+      prev = l;
+    }
+    expect(beaconLevel(PAD_BEACON.period - 1e-6, 0, PAD_BEACON)).toBeCloseTo(beaconLevel(0, 0, PAD_BEACON), 3);
+  });
+  it('reads the ramp from the beacon data', () => {
+    const t = PAD_BEACON.period * PAD_BEACON.onFraction * 0.5 * PAD_BEACON.ramp; // halfway up the ramp
+    const slow = { ...PAD_BEACON, ramp: PAD_BEACON.ramp * 4 };
+    expect(beaconLevel(t, 0, slow)).toBeLessThan(beaconLevel(t, 0, PAD_BEACON));
+  });
+  it('maps linearly onto beaconAlpha', () => {
+    const t = 0.03;
+    const l = beaconLevel(t, 0, PAD_BEACON);
+    expect(beaconAlpha(t, 0, PAD_BEACON)).toBeCloseTo(lo + (hi - lo) * l, 9);
+  });
+});
+
+describe('PAD_BEACON geometry', () => {
+  it('sits on the dark cleared platform inside the padEdge stroke (r*0.8), clear of the stud ring', () => {
+    const { offset, radius, outline } = PAD_BEACON;
+    expect(Math.hypot(offset.x, offset.y) + radius + outline.width).toBeLessThan(22 * 0.8);
   });
 });

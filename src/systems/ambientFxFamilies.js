@@ -11,6 +11,13 @@ function wrap(v, max) {
   return ((v % max) + max) % max;
 }
 
+// Module-level so the stars draw loop allocates no closure per frame.
+function drawStar(gfx, s, p, sizeMult) {
+  const a = p.baseAlpha * (0.6 + 0.4 * Math.sin(s.t * p.twFreq + p.phase));
+  gfx.fillStyle(p.color, Math.max(0, a));
+  gfx.fillCircle(p.x, p.y, p.r * sizeMult);
+}
+
 export const FX_FAMILIES = {
   // Slow warm motes drifting on a shared wind vector with a sinusoidal sway.
   dust: {
@@ -118,13 +125,8 @@ export const FX_FAMILIES = {
       for (const p of s.near) p.x = wrap(p.x + s.driftNear * dtMs, s.w);
     },
     draw(gfx, s, { sizeMult = 1 } = {}) {
-      const drawPoint = (p) => {
-        const a = p.baseAlpha * (0.6 + 0.4 * Math.sin(s.t * p.twFreq + p.phase));
-        gfx.fillStyle(p.color, Math.max(0, a));
-        gfx.fillCircle(p.x, p.y, p.r * sizeMult);
-      };
-      for (const p of s.far) drawPoint(p);
-      for (const p of s.near) drawPoint(p);
+      for (const p of s.far) drawStar(gfx, s, p, sizeMult);
+      for (const p of s.near) drawStar(gfx, s, p, sizeMult);
     },
   },
 

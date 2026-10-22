@@ -7,15 +7,22 @@ export const AMBIENT_LAYERS = [
   { name: 'near', depth: 8.5, speed: 1.8, size: 1.6, alpha: 0.55, seedOffset: 1013 },
 ];
 
-// Blinking amber beacon on each empty build pad (art-bible human amber). The
-// offset sits on the pad's upper-left rim, matching the art bible's light
-// direction; slotPhase desyncs neighbouring pads.
+// Blinking amber beacon on each empty build pad (art-bible human amber). It is a
+// small lamp socketed into the dark cleared platform, inside the padEdge stroke
+// (r*0.8 = 17.6), clear of the stud ring on the rim and the "+" marker.
 export const PAD_BEACON = {
   color: 0xffb000,
-  radius: 2,
-  offset: { x: -15, y: -15 },
-  period: 2.4,
-  onFraction: 0.18,
-  alpha: [0.15, 0.95],
-  slotPhase: 0.37,
+  radius: 3.5, // lit core
+  // Dark socket ring around the core so it reads against any platform tone.
+  outline: { color: 0x0b1020, width: 1.5 },
+  // Soft glow behind the socket; pulses with the blink, steady under reduced motion.
+  halo: { radius: 8, alpha: 0.35, staticAlpha: 0.175 },
+  // Upper-left of centre, matching the art bible's light direction.
+  offset: { x: -8.5, y: -8.5 },
+  period: 2.0, // seconds per blink cycle
+  onFraction: 0.25, // share of the period the lamp is lit
+  ramp: 0.15, // share of the on-window spent ramping in/out (soft, not a strobe)
+  alpha: [0.25, 1], // core alpha at rest / at peak
+  staticAlpha: 0.7, // core alpha under reduced motion (no blink)
+  slotPhase: 0.37, // cycles of offset per pad index, desyncs neighbours
 };
