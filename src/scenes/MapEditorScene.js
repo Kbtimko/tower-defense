@@ -49,20 +49,7 @@ export default class MapEditorScene extends Phaser.Scene {
     this.drag = null; // { kind: 'wp'|'slot', index }
     this.input.mouse?.disableContextMenu();
 
-    this.input.on('pointerdown', (pointer) => {
-      const { worldX: x, worldY: y } = pointer;
-      const hit = this._hitTest(x, y);
-      if (pointer.rightButtonDown()) {
-        if (hit?.kind === 'wp' && this.waypoints.length > 2) {
-          this.waypoints.splice(hit.index, 1);
-          this._render();
-        }
-        return;
-      }
-      if (hit) { this.drag = hit; return; }
-      // Click on empty space near the path inserts a waypoint there.
-      this._insertWaypointAt(x, y);
-    });
+    this.input.on('pointerdown', this._onPointerDown, this);
 
     this.input.on('pointermove', (pointer) => {
       if (!this.drag) return;
@@ -76,6 +63,23 @@ export default class MapEditorScene extends Phaser.Scene {
     this.input.on('pointerup', () => { this.drag = null; });
 
     this.input.keyboard?.on('keydown-E', () => this._export());
+  }
+
+  _onPointerDown(pointer) {
+    // Over a HUD rail Phaser fires with no camera and a stale worldX/Y.
+    if (!pointer.camera) return;
+    const { worldX: x, worldY: y } = pointer;
+    const hit = this._hitTest(x, y);
+    if (pointer.rightButtonDown()) {
+      if (hit?.kind === 'wp' && this.waypoints.length > 2) {
+        this.waypoints.splice(hit.index, 1);
+        this._render();
+      }
+      return;
+    }
+    if (hit) { this.drag = hit; return; }
+    // Click on empty space near the path inserts a waypoint there.
+    this._insertWaypointAt(x, y);
   }
 
   // Normalized [x,y] -> pixel {x,y}.
