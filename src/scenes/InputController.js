@@ -10,12 +10,15 @@ import { classifyGesture } from '../systems/inputGesture.js';
 //    a tap at the release point — press-drag-release places/aims where the
 //    finger lifts. A mouse click is never a drag in practice, so desktop is
 //    unchanged.
-//  - long-press (touch only, held still): ALWAYS swallows the release, so a
-//    hold never moves the hero, fires an armed aim or cancels a build. The
-//    target is hit-tested at the press (enemies walk 17-81px in 450ms, well past
-//    their 11-15px hit radius) and peeked where it is when the timer fires; on
-//    empty ground, or if the target died, nothing happens. Mouse gets no
-//    long-press: hover already peeks, and a slow click must stay a click.
+//  - long-press (touch only, held still): when the press landed on an
+//    inspectable target it swallows the release, so an inspect hold never moves
+//    the hero, fires an armed aim or cancels a build. The target is hit-tested at
+//    the press (enemies walk 17-81px in 450ms, well past their 11-15px hit
+//    radius) and peeked where it is when the timer fires; if it died during the
+//    hold the press is still consumed. A slow press on empty ground is NOT an
+//    inspect gesture: it resolves as a normal tap at release (a deliberate,
+//    unhurried placement must still work). Mouse gets no long-press: hover
+//    already peeks, and a slow click must stay a click.
 export class InputController {
   constructor(scene) {
     this.scene = scene;
@@ -25,11 +28,15 @@ export class InputController {
     this._peekShown = false;
     this._onLongPress = this._onLongPress.bind(this);
     this._hidePeek = this._hidePeek.bind(this);
+    this._onScenePause = this._onScenePause.bind(this);
 
     scene.input.on('pointerdown', this._onDown, this);
     scene.input.on('pointermove', this._onMove, this);
     scene.input.on('pointerup', this._onUp, this);
     scene.input.on('pointerupoutside', this._onUpOutside, this);
+    // Phaser drops pointer events while paused but timers keep running, so the
+    // pause has to reset a half-finished press itself.
+    scene.events.on('pause', this._onScenePause);
   }
 
   destroy() {
@@ -38,6 +45,8 @@ export class InputController {
     input.off('pointermove', this._onMove, this);
     input.off('pointerup', this._onUp, this);
     input.off('pointerupoutside', this._onUpOutside, this);
+    // this.events survives scene shutdown, so an un-removed listener would stack.
+    this.scene.events.off('pause', this._onScenePause);
     this._clearLongPress();
     this._hidePeek();
     this._press = null;
@@ -93,12 +102,18 @@ export class InputController {
     return press;
   }
 
+  _onScenePause() {
+    this._clearLongPress();
+    this._press = null;
+    this._hidePeek();
+  }
+
   _onLongPress() {
     this._longPressTimer = null;
     const press = this._press;
-    if (!press) return;
+    if (!press?.target) return;
     press.consumed = true;
-    if (press.target) this._peekShown = !!this.scene.inspector?.peekHit(press.target);
+    this._peekShown = !!this.scene.inspector?.peekHit(press.target);
   }
 
   _startLinger() {

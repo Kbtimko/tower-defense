@@ -20,9 +20,20 @@ function makeInput() {
   };
 }
 
+function makeEvents() {
+  const handlers = new Map();
+  return {
+    on: vi.fn((evt, fn) => { handlers.set(evt, fn); }),
+    off: vi.fn((evt, fn) => { if (handlers.get(evt) === fn) handlers.delete(evt); }),
+    has: (evt) => handlers.has(evt),
+    emit: (evt) => handlers.get(evt)?.(),
+  };
+}
+
 function makeScene(displayScale = 1) {
   return {
     input: makeInput(),
+    events: makeEvents(),
     scale: { displayScale: { x: displayScale, y: displayScale } },
     inspector: {
       onPointerMove: vi.fn(),
@@ -146,13 +157,36 @@ describe('InputController', () => {
       HIT.target.x = 100;
     });
 
-    it('a long-press on empty ground is consumed: the release does nothing', () => {
+    it('a slow press on empty ground is not an inspect gesture: it taps at release', () => {
       scene.inspector.inspectableAt.mockReturnValue(null);
       press(100, 100, { touch: true });
-      vi.advanceTimersByTime(LONG_PRESS_MS);
+      vi.advanceTimersByTime(LONG_PRESS_MS * 2);
       expect(scene.inspector.peekHit).not.toHaveBeenCalled();
       release(100, 100, { touch: true });
+      expect(scene._onTap).toHaveBeenCalledWith(100, 100);
+    });
+
+    it('a pause mid-hold clears the timer, the press and a shown peek', () => {
+      press(100, 100, { touch: true });
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      expect(scene.inspector.peekHit).toHaveBeenCalledTimes(1);
+      scene.events.emit('pause');
+      expect(scene.inspector.hidePeek).toHaveBeenCalledTimes(1);
+      release(100, 100, { touch: true });
       expect(scene._onTap).not.toHaveBeenCalled();
+    });
+
+    it('a pause before the timer fires means no peek ever shows', () => {
+      press(100, 100, { touch: true });
+      scene.events.emit('pause');
+      vi.advanceTimersByTime(LONG_PRESS_MS * 2);
+      expect(scene.inspector.peekHit).not.toHaveBeenCalled();
+    });
+
+    it('destroy removes the pause listener', () => {
+      expect(scene.events.has('pause')).toBe(true);
+      ctl.destroy();
+      expect(scene.events.has('pause')).toBe(false);
     });
 
     it('a target gone by the time it fires shows no peek but still consumes the press', () => {
