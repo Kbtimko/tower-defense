@@ -29,6 +29,8 @@ import { gameToPageCss } from '../systems/viewport.js';
 import { pulseClass } from '../ui/pulse.js';
 import { WaveBanner } from '../ui/WaveBanner.js';
 import { bossWarning, padGlowAlpha } from '../systems/juiceMath.js';
+import { PAD_BEACON } from '../data/ambient.js';
+import { beaconAlpha, beaconLevel } from '../systems/padBeacon.js';
 import { STORY_PANELS, briefKey, victorySequenceId, STORY_SEQUENCES } from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
 import { soldierSource, heroAbilitySource } from '../data/sourceBuilders.js';
@@ -205,8 +207,8 @@ export default class GameScene extends Phaser.Scene {
     this._staticLayers = this.add.graphics().setDepth(10);
     this._renderStaticLayers(map);
 
-    // Ambient motion layer (depth 5) — between the bitmap and the static
-    // layers, so it reads as deep environment and never overlaps gameplay.
+    // Ambient motion: far layer depth 5 under the road; near layer depth 8.5
+    // above it, faint — both below pads/units so gameplay stays readable.
     this._ambient = map.ambientFx ? new AmbientBackgroundLayer(this, map.ambientFx) : null;
 
     // Per-frame graphics (depth 30) — cleared + redrawn every frame; sits on
@@ -1766,6 +1768,16 @@ export default class GameScene extends Phaser.Scene {
           : padGlowAlpha(this._fxTime, slot * PAD_GLOW.slotPhase, PAD_GLOW);
         glow.fillStyle(PAD_GLOW.color, a);
         glow.fillCircle(zone.cx, zone.cy, zone.radius);
+        // Beacon: halo, dark socket, lit core. Steady (no blink) under reduced motion.
+        const bx = zone.cx + PAD_BEACON.offset.x;
+        const by = zone.cy + PAD_BEACON.offset.y;
+        const { halo, outline } = PAD_BEACON;
+        glow.fillStyle(PAD_BEACON.color, reducedMotion ? halo.staticAlpha : halo.alpha * beaconLevel(this._fxTime, slot, PAD_BEACON));
+        glow.fillCircle(bx, by, halo.radius);
+        glow.fillStyle(outline.color, 1);
+        glow.fillCircle(bx, by, PAD_BEACON.radius + outline.width);
+        glow.fillStyle(PAD_BEACON.color, reducedMotion ? PAD_BEACON.staticAlpha : beaconAlpha(this._fxTime, slot, PAD_BEACON));
+        glow.fillCircle(bx, by, PAD_BEACON.radius);
       }
     }
 

@@ -8,6 +8,8 @@ vi.mock('phaser', () => ({
 import { describe, it, expect } from 'vitest';
 import GameScene from './GameScene.js';
 import { RETICLE, SELECTION_RING, PAD_GLOW } from '../data/juice.js';
+import { PAD_BEACON } from '../data/ambient.js';
+import { beaconAlpha } from '../systems/padBeacon.js';
 
 const makeGfx = () => {
   const calls = [];
@@ -93,5 +95,66 @@ describe('_drawZones pad glow', () => {
     c._drawZones();
     expect(c.gfx.calls.some(x => x[0] === 'fillStyle' && x[1] === PAD_GLOW.color)).toBe(false);
     expect(c.gfx.calls[0]).toEqual(['lineStyle', 2, 0xffd700, 1]);
+  });
+});
+
+describe('_drawZones pad beacon', () => {
+  const zones = [{ occupied: false, cx: 10, cy: 20, radius: 22 }, { occupied: true, cx: 5, cy: 5, radius: 22 },
+                 { occupied: false, cx: 30, cy: 40, radius: 22 }];
+  const reduced = { game: { registry: { get: () => false } } };
+  const run = (o) => { const c = ctx({ placementManager: { getZones: () => zones, getNearestSlot: () => null }, ...o }); c._drawZones(); return c; };
+  const { halo, outline } = PAD_BEACON;
+  const cx0 = 10 + PAD_BEACON.offset.x, cy0 = 20 + PAD_BEACON.offset.y;
+  const cx2 = 30 + PAD_BEACON.offset.x, cy2 = 40 + PAD_BEACON.offset.y;
+  // Pair each fillCircle with the fillStyle that preceded it.
+  const draws = (c) => {
+    const out = []; let style = null;
+    for (const x of c._padGlow.calls) {
+      if (x[0] === 'fillStyle') style = x;
+      else if (x[0] === 'fillCircle') out.push({ x: x[1], y: x[2], r: x[3], color: style[1], alpha: style[2] });
+    }
+    return out;
+  };
+  const at = (c, cx, cy) => draws(c).filter(d => d.x === cx && d.y === cy);
+  const core = (c, cx, cy) => at(c, cx, cy).find(d => d.r === PAD_BEACON.radius);
+
+  it('draws halo, socket, core at the offset on empty pads only, on _padGlow', () => {
+    const c = run();
+    expect(at(c, cx0, cy0).map(d => d.r)).toEqual([halo.radius, PAD_BEACON.radius + outline.width, PAD_BEACON.radius]);
+    expect(at(c, cx2, cy2).map(d => d.r)).toEqual([halo.radius, PAD_BEACON.radius + outline.width, PAD_BEACON.radius]);
+    expect(draws(c).filter(d => d.r === PAD_BEACON.radius)).toHaveLength(2);
+    expect(c.gfx.calls.some(x => x[0] === 'fillStyle' && x[1] === PAD_BEACON.color)).toBe(false);
+  });
+  it('draws the dark socket in outline.color, opaque, before the core', () => {
+    const [, socket, c0] = at(run(), cx0, cy0);
+    expect(socket.color).toBe(outline.color);
+    expect(socket.alpha).toBe(1);
+    expect(c0.color).toBe(PAD_BEACON.color);
+  });
+  it('core alpha follows beaconAlpha by zone index (not empty-pad index)', () => {
+    // t=0.7: zone 2 is mid-window (peak), zone 0 and "empty index 1" are at the floor.
+    const c = run({ _fxTime: 0.7 });
+    expect(core(c, cx0, cy0).alpha).toBeCloseTo(beaconAlpha(0.7, 0, PAD_BEACON));
+    expect(core(c, cx2, cy2).alpha).toBeCloseTo(beaconAlpha(0.7, 2, PAD_BEACON));
+    expect(core(c, cx2, cy2).alpha).toBeCloseTo(PAD_BEACON.alpha[1]);
+    expect(core(c, cx0, cy0).alpha).toBeCloseTo(PAD_BEACON.alpha[0]);
+    expect(core(c, cx2, cy2).alpha).not.toBeCloseTo(beaconAlpha(0.7, 1, PAD_BEACON));
+  });
+  it('halo is invisible off-window and at halo.alpha at peak', () => {
+    const haloOf = (c, cx, cy) => at(c, cx, cy)[0];
+    const c = run({ _fxTime: 0.7 });
+    expect(haloOf(c, cx0, cy0).color).toBe(PAD_BEACON.color);
+    expect(haloOf(c, cx0, cy0).alpha).toBe(0);
+    expect(haloOf(c, cx2, cy2).alpha).toBeCloseTo(halo.alpha);
+  });
+  it('is steady at staticAlpha (core) and halo.staticAlpha under reduced motion', () => {
+    const f = (t) => { const c = run({ _fxTime: t, ...reduced }); return [at(c, cx0, cy0).map(d => d.alpha), at(c, cx2, cy2).map(d => d.alpha)]; };
+    expect(f(0.1)).toEqual([[halo.staticAlpha, 1, PAD_BEACON.staticAlpha], [halo.staticAlpha, 1, PAD_BEACON.staticAlpha]]);
+    expect(f(0.7)).toEqual(f(0.1));
+    expect(f(1.3)).toEqual(f(0.1));
+  });
+  it('draws no beacon in build mode', () => {
+    const c = run({ selectedType: 'archer', economy: { gold: 99999 } });
+    expect(draws(c).filter(d => d.r === PAD_BEACON.radius)).toEqual([]);
   });
 });
