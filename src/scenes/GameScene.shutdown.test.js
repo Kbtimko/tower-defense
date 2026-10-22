@@ -201,3 +201,22 @@ describe('GameScene scene-event wiring survives a replay', () => {
     expect(relayed).toEqual([['hero:level-up', { level: 3 }]]);
   });
 });
+
+describe('GameScene.shutdown shell listeners', () => {
+  beforeEach(setupDOM);
+
+  it('removes the visibilitychange and portrait-query listeners it added', () => {
+    const scene = makeScene();
+    scene._onShellChange = () => {};
+    const mql = { removeEventListener: vi.fn() };
+    scene._portraitMql = mql;
+    const remove = vi.spyOn(document, 'removeEventListener');
+
+    scene.shutdown();
+
+    expect(remove).toHaveBeenCalledWith('visibilitychange', scene._onShellChange);
+    expect(mql.removeEventListener).toHaveBeenCalledWith('change', scene._onShellChange);
+    remove.mockRestore();
+  });
+});
+

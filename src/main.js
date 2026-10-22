@@ -5,6 +5,7 @@ import MapSelectScene from './scenes/MapSelectScene.js';
 import GameScene from './scenes/GameScene.js';
 import UIScene from './scenes/UIScene.js';
 import MapEditorScene from './scenes/MapEditorScene.js';
+import { resumeAudio } from './systems/shellLifecycle.js';
 
 const DESIGN_WIDTH = 1280;
 const DESIGN_HEIGHT = 720;
@@ -22,4 +23,11 @@ const config = {
   scene: [BootScene, MenuScene, MapSelectScene, GameScene, UIScene, MapEditorScene],
 };
 
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
+
+// Page-lifetime hooks (no scene owns them). `sound.context` exists only for the
+// WebAudio manager, hence the optional chaining.
+document.addEventListener('pointerdown', () => resumeAudio(game.sound?.context), true);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) resumeAudio(game.sound?.context);
+});
