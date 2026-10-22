@@ -29,12 +29,23 @@ describe('gameToPageCss', () => {
 });
 
 describe('pageToGame', () => {
-  it('round-trips with gameToPageCss under scale and letterbox offset', () => {
-    const scale = { canvasBounds: { x: 37, y: 12 }, displayScale: { x: 0.75, y: 0.8 } };
-    const page = gameToPageCss(scale, 321, 123);
-    const back = pageToGame(scale, page.x, page.y);
-    expect(back.x).toBeCloseTo(321);
-    expect(back.y).toBeCloseTo(123);
+  // A 1280-wide game shown at 1036 CSS px: Phaser's displayScale is game/css.
+  const scale = {
+    canvasBounds: { x: 37, y: 12 },
+    displayScale: { x: 1280 / 1036, y: 720 / 583 },
+  };
+
+  it('matches Phaser ScaleManager.transformX/Y: (page - bounds) * displayScale', () => {
+    const p = pageToGame(scale, 555, 300);
+    expect(p.x).toBeCloseTo((555 - 37) * (1280 / 1036));
+    expect(p.y).toBeCloseTo((300 - 12) * (720 / 583));
+  });
+
+  it('maps the canvas corners to the game corners', () => {
+    expect(pageToGame(scale, 37, 12)).toEqual({ x: 0, y: 0 });
+    const br = pageToGame(scale, 37 + 1036, 12 + 583);
+    expect(br.x).toBeCloseTo(1280);
+    expect(br.y).toBeCloseTo(720);
   });
 
   it('is identity without a transform', () => {

@@ -80,6 +80,9 @@ export class CoinFx {
   }
 
   update(dt) {
+    // Several coins landing in one frame still read as one pulse; restarting
+    // the CSS animation per coin would force a style flush each time.
+    let landed = false;
     for (const s of this._texts) {
       if (!s.live) continue;
       s.t += dt;
@@ -96,13 +99,14 @@ export class CoinFx {
       if (u >= 1) {
         c.live = false;
         c.img.setVisible(false);
-        pulseClass(this._hudEl(), PULSE_CLASS);
+        landed = true;
         continue;
       }
       arcPoint(u, c.from, c.to, COIN_FLY.arcHeight, this._pos);
       c.img.setPosition(this._pos.x, this._pos.y);
       c.img.setVisible(true);
     }
+    if (landed) pulseClass(this._hudEl(), PULSE_CLASS);
   }
 
   destroy() {

@@ -33,6 +33,45 @@ beforeEach(() => {
 });
 
 describe('CoinFx', () => {
+  const LAND = COIN_FLY.duration + COIN_FLY.stagger * COIN_FLY.perKill + 0.01;
+
+  it('returns landed coins to the pool so later kills fly again', () => {
+    const s = stubScene();
+    const fx = new CoinFx(s);
+    // More sequential kills than the pool holds: only recycling survives this.
+    for (let i = 0; i < COIN_FLY.maxLive; i++) { fx.spawn(0, 0, 1); fx.update(LAND); }
+    expect(s.made.images.some((i) => i.visible)).toBe(false);
+    fx.spawn(50, 60, 1);
+    fx.update(COIN_FLY.duration / 4);
+    const flying = s.made.images.filter((i) => i.visible);
+    expect(flying.length).toBeGreaterThan(0);
+    const x0 = flying[0].x;
+    fx.update(0.05);
+    expect(flying[0].x).not.toBe(x0);
+  });
+
+  it('refills a full coin pool after everything lands', () => {
+    const s = stubScene();
+    const fx = new CoinFx(s);
+    const kills = COIN_FLY.maxLive / COIN_FLY.perKill;
+    for (let i = 0; i < kills; i++) fx.spawn(0, 0, 1);
+    fx.update(LAND * 2);
+    expect(s.made.images.some((i) => i.visible)).toBe(false);
+    fx.spawn(0, 0, 1);
+    fx.update(COIN_FLY.duration / 4);
+    expect(s.made.images.filter((i) => i.visible).length).toBeGreaterThan(0);
+  });
+
+  it('pulses the HUD once per update however many coins land', () => {
+    const s = stubScene();
+    const fx = new CoinFx(s);
+    fx.spawn(0, 0, 1);
+    fx.spawn(0, 0, 1);
+    const add = vi.spyOn(stat.classList, 'add');
+    fx.update(LAND);
+    expect(add).toHaveBeenCalledTimes(1);
+  });
+
   it('creates pools once, sized from the tunables', () => {
     const s = stubScene();
     const fx = new CoinFx(s);

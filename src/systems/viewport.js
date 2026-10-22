@@ -10,11 +10,12 @@ export function gameToPageCss(scale, gameX, gameY) {
   return { x: bounds.x + gameX * ds.x, y: bounds.y + gameY * ds.y };
 }
 
-// Inverse of gameToPageCss. Same identity fallback when the transform is
-// unavailable.
+// Page CSS px -> game px, matching Phaser's ScaleManager.transformX/Y. Note
+// displayScale is GAME px per CSS px, so this multiplies; it is NOT the inverse
+// of gameToPageCss above (which treats displayScale the other way round).
 export function pageToGame(scale, pageX, pageY) {
   const bounds = scale?.canvasBounds;
   const ds = scale?.displayScale;
   if (!bounds || !ds) return { x: pageX, y: pageY };
-  return { x: (pageX - bounds.x) / ds.x, y: (pageY - bounds.y) / ds.y };
+  return { x: (pageX - bounds.x) * ds.x, y: (pageY - bounds.y) * ds.y };
 }
