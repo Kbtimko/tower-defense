@@ -573,6 +573,9 @@
       .ability-name { font-size: 10px; }
       .bar-divider { height: 28px; }
       #exit-btn, #wave-btn { padding: 6px 10px; font-size: 12px; }
+      /* Stopgap until 2.2: the panel (and branch picker) is taller than a phone's
+         game area, so cap it to #game and let it scroll instead of hiding Sell. */
+      #tower-panel { max-height: calc(100% - 12px); overflow-y: auto; }
     }
   </style>
 </head>

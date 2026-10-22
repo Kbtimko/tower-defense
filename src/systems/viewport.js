@@ -18,3 +18,12 @@ export function pageToGame(scale, pageX, pageY) {
   if (!bounds || !ds) return { x: pageX, y: pageY };
   return { x: (pageX - bounds.x) * ds.x, y: (pageY - bounds.y) * ds.y };
 }
+
+// Clamps a floating panel's top-left so the whole panel stays inside `area`
+// (width/height of the container) with `margin` to spare. When the panel is
+// larger than the area the top/left win (margin) so its header stays reachable.
+export function clampPanel(desired, size, area, margin) {
+  const left = Math.max(margin, Math.min(desired.left, area.width - size.width - margin));
+  const top = Math.max(margin, Math.min(desired.top, area.height - size.height - margin));
+  return { left, top };
+}

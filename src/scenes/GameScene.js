@@ -25,7 +25,8 @@ import { SOLDIER_MUZZLE, HIT_STOP } from '../data/fx.js';
 import { BUILD_POP, UPGRADE_POP, SELL_FX, SELECTION_RING, PAD_GLOW, RETICLE } from '../data/juice.js';
 import { deathClass, isHeavyHit, canHitStop } from '../systems/hitFx.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
-import { gameToPageCss } from '../systems/viewport.js';
+import { gameToPageCss, clampPanel } from '../systems/viewport.js';
+import { PANEL_EDGE_MARGIN } from '../data/input.js';
 import { pulseClass } from '../ui/pulse.js';
 import { WaveBanner } from '../ui/WaveBanner.js';
 import { bossWarning, padGlowAlpha } from '../systems/juiceMath.js';
@@ -1365,9 +1366,17 @@ export default class GameScene extends Phaser.Scene {
 
     const gameRect = document.getElementById('game').getBoundingClientRect();
     const panel    = document.getElementById('tower-panel');
-    panel.style.left    = Math.min(mx + 10, gameRect.width  - 180) + 'px';
-    panel.style.top     = Math.min(my - 10, gameRect.height - 220) + 'px';
+    // Measure only once populated and displayed (display:none reports 0), so the
+    // clamp uses the real size: the branch picker makes the panel much taller.
     panel.style.display = 'block';
+    const spot = clampPanel(
+      { left: mx + 10, top: my - 10 },
+      { width: panel.offsetWidth, height: panel.offsetHeight },
+      { width: gameRect.width, height: gameRect.height },
+      PANEL_EDGE_MARGIN,
+    );
+    panel.style.left = spot.left + 'px';
+    panel.style.top  = spot.top + 'px';
 
     this.selectedType = null;
     document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('selected'));

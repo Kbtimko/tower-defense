@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gameToPageCss, pageToGame } from './viewport.js';
+import { gameToPageCss, pageToGame, clampPanel } from './viewport.js';
 
 describe('gameToPageCss', () => {
   it('applies displayScale and canvas offset (identity transform)', () => {
@@ -61,5 +61,30 @@ describe('pageToGame', () => {
 
   it('is identity without a transform', () => {
     expect(pageToGame(undefined, 5, 6)).toEqual({ x: 5, y: 6 });
+  });
+});
+
+describe('clampPanel', () => {
+  const area = { width: 400, height: 200 };
+  const size = { width: 170, height: 100 };
+
+  it('leaves a panel that already fits untouched', () => {
+    expect(clampPanel({ left: 50, top: 40 }, size, area, 6)).toEqual({ left: 50, top: 40 });
+  });
+
+  it('pulls a panel back from the right edge by its measured width plus margin', () => {
+    expect(clampPanel({ left: 380, top: 40 }, size, area, 6).left).toBe(400 - 170 - 6);
+  });
+
+  it('pulls a panel up from the bottom edge by its measured height plus margin', () => {
+    expect(clampPanel({ left: 50, top: 190 }, size, area, 6).top).toBe(200 - 100 - 6);
+  });
+
+  it('keeps the margin from the top/left when the desired spot is negative', () => {
+    expect(clampPanel({ left: -20, top: -30 }, size, area, 6)).toEqual({ left: 6, top: 6 });
+  });
+
+  it('pins a panel taller than the area to the top margin', () => {
+    expect(clampPanel({ left: 50, top: 80 }, { width: 170, height: 255 }, area, 6).top).toBe(6);
   });
 });
