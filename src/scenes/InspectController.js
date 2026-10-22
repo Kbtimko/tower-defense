@@ -2,7 +2,9 @@ import { describeEnemyMatchups } from '../data/weaknessMatrix.js';
 import { shortEnemyName } from '../systems/entityDescriptors.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { HEROES } from '../data/heroes.js';
-import { worldToPageCss } from '../systems/viewport.js';
+import { worldToPageCss, clampPanelWithin } from '../systems/viewport.js';
+import { mapRectIn } from '../ui/hudLayer.js';
+import { PANEL_EDGE_MARGIN } from '../data/input.js';
 import { heroAttackDamage } from '../systems/heroLeveling.js';
 
 export class InspectController {
@@ -313,20 +315,32 @@ export class InspectController {
     document.getElementById('inspect-peek').style.display = 'none';
   }
 
+  // Page-coordinate bounds a floating card may occupy: the MAP, so a card pinned
+  // near the right edge never covers a rail button (it is body-level, z40, and
+  // would swallow the tap). No #game (bare DOM) falls back to the window.
+  _mapBoundsPage() {
+    const gameEl = document.getElementById('game');
+    if (!gameEl) {
+      return { left: 0, top: 0,
+        width: window.innerWidth || 1024, height: window.innerHeight || 768 };
+    }
+    const gameRect = gameEl.getBoundingClientRect();
+    const canvas = document.querySelector('#game canvas');
+    const map = mapRectIn({ gameRect, canvasRect: canvas?.getBoundingClientRect() ?? null });
+    return { ...map, left: map.left + gameRect.left, top: map.top + gameRect.top };
+  }
+
   _positionPanel(el, targetX, targetY) {
+    const map = this._mapBoundsPage();
+    const size = { width: el.offsetWidth || 220, height: el.offsetHeight || 100 };
     let left = targetX + 24;
-    let top  = Math.max(0, targetY - 60);
-
-    const vw = (typeof window !== 'undefined' && window.innerWidth)  ? window.innerWidth  : 1024;
-    const vh = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 768;
-    const w = el.offsetWidth  || 220;
-    const h = el.offsetHeight || 100;
-
-    if (left + w > vw) left = Math.max(0, targetX - w - 24);
-    if (top + h > vh)  top  = Math.max(0, vh - h - 8);
-
-    el.style.left = `${left}px`;
-    el.style.top  = `${top}px`;
+    // Prefer opening to the target's left over sliding on top of it.
+    if (left + size.width > map.left + map.width) left = targetX - size.width - 24;
+    const spot = clampPanelWithin(
+      { left, top: Math.max(0, targetY - 60) }, size, map, PANEL_EDGE_MARGIN,
+    );
+    el.style.left = `${spot.left}px`;
+    el.style.top  = `${spot.top}px`;
   }
 
   _positionPanelForTarget(spec) {
