@@ -99,7 +99,30 @@ describe('summarizeFlow', () => {
   it('passes a clean device', () => {
     const r = summarizeFlow([{ device: 'desktop', steps: [pass(1, 'boot')], problems: [] }]);
     expect(r.failedDevices).toBe(0);
-    expect(r.lines[0]).toMatch(/^PASS desktop/);
+    expect(r.lines[0]).toBe('PASS desktop 1/1');
+  });
+  it('prints passed/total for a full device', () => {
+    const steps = stepsFor({ hasTouch: false }).map((x) => pass(x.n, x.id));
+    expect(summarizeFlow([{ device: 'desktop', steps, problems: [] }]).lines[0]).toBe('PASS desktop 12/12');
+  });
+  it('fails a device with no steps', () => {
+    const r = summarizeFlow([{ device: 'd', steps: [], problems: [] }]);
+    expect(r.failedDevices).toBe(1);
+    expect(r.lines[0]).toBe('FAIL d: no steps ran');
+  });
+  it('fails a skip-only device', () => {
+    const r = summarizeFlow([{ device: 'd', steps: [{ n: 1, id: 'boot', status: 'skip', detail: '' }], problems: [] }]);
+    expect(r.failedDevices).toBe(1);
+    expect(r.lines[0]).toMatch(/^FAIL d/);
+  });
+  it('fails pass-then-skip with no fail step', () => {
+    const r = summarizeFlow([{ device: 'd', steps: [pass(1, 'boot'), { n: 2, id: 'skip-story', status: 'skip', detail: '' }], problems: [] }]);
+    expect(r.failedDevices).toBe(1);
+    expect(r.lines[0]).toBe('FAIL d: 1 step(s) not passed');
+  });
+  it('lists problems as indented lines after the device line', () => {
+    const r = summarizeFlow([{ device: 'd', steps: [pass(1, 'boot')], problems: ['a', 'b'] }]);
+    expect(r.lines).toEqual(['FAIL d: a; b', '  a', '  b']);
   });
   it('reports the failing step', () => {
     const r = summarizeFlow([{

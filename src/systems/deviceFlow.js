@@ -79,23 +79,26 @@ export function flowExpectations({ map, towerType }) {
   };
 }
 
-// Skipped steps follow a failure, so only 'fail' steps and recorded problems
-// fail a device; the first failure is the one worth reporting.
+// A device passes only if every step passed and no problems were recorded.
+// Steps become 'skip' only after a failure, so skips alone never mean success;
+// an empty or partly-skipped run must not read as PASS.
 export function summarizeFlow(deviceResults) {
   if (deviceResults.length === 0) return { lines: ['FAIL no devices ran'], failedDevices: 1 };
   const lines = [];
   let failedDevices = 0;
-  for (const { device, steps, problems } of deviceResults) {
+  for (const { device, steps, problems = [] } of deviceResults) {
+    const passed = steps.filter((s) => s.status === 'pass').length;
     const failed = steps.find((s) => s.status === 'fail');
-    if (failed) {
-      failedDevices++;
-      lines.push(`FAIL ${device} at ${failed.n} ${failed.id}: ${failed.detail}`);
-    } else if (problems.length > 0) {
-      failedDevices++;
-      lines.push(`FAIL ${device}: ${problems.join('; ')}`);
+    if (steps.length > 0 && passed === steps.length && problems.length === 0) {
+      lines.push(`PASS ${device} ${passed}/${steps.length}`);
     } else {
-      lines.push(`PASS ${device}`);
+      failedDevices++;
+      if (failed) lines.push(`FAIL ${device} at ${failed.n} ${failed.id}: ${failed.detail}`);
+      else if (steps.length === 0) lines.push(`FAIL ${device}: no steps ran`);
+      else if (passed < steps.length) lines.push(`FAIL ${device}: ${steps.length - passed} step(s) not passed`);
+      else lines.push(`FAIL ${device}: ${problems.join('; ')}`);
     }
+    for (const p of problems) lines.push(`  ${p}`);
   }
   return { lines, failedDevices };
 }
