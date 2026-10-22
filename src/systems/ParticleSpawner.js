@@ -56,7 +56,7 @@ export class ParticleSpawner {
     if (n < 1) return;
     projectile._trailAcc -= n;
     this._emitter(`trail:${key}`, def)
-      .emitParticleAt(projectile.x, projectile.y + projectile.art.y, n);
+      .emitParticleAt(projectile.x, projectile.drawnY, n);
   }
 
   destroy() {

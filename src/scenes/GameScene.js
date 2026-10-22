@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { TOWER_DEFS } from '../data/towers.js';
+import { TOWER_DEFS, PROJECTILE_HIT_RADIUS } from '../data/towers.js';
 import { MAPS } from '../data/maps.js';
 import { MAP_WAVES } from '../data/waves.js';
 import { PathManager } from '../systems/PathManager.js';
@@ -946,7 +946,7 @@ export default class GameScene extends Phaser.Scene {
       }
       const dx = proj.targetX - proj.x, dy = proj.targetY - proj.y;
       const dist = Math.hypot(dx, dy);
-      if (dist < 10) {
+      if (dist < PROJECTILE_HIT_RADIUS) {
         this._onProjectileHit(proj);
         proj.dead = true;
       } else {

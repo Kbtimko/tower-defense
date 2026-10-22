@@ -17,7 +17,8 @@ vi.mock('phaser', () => ({
 
 import { Projectile } from './Projectile.js';
 import { projectileFx, arcOffset } from '../systems/fxResolve.js';
-import { PROJECTILE_FX } from '../data/fx.js';
+import { PROJECTILE_FX, PROJECTILE_SHAPES } from '../data/fx.js';
+import { PROJECTILE_HIT_RADIUS } from '../data/towers.js';
 
 const makeGfx = () => {
   const calls = [];
@@ -46,7 +47,7 @@ describe('Projectile', () => {
     expect(p).toMatchObject({ damage: 9, splashRadius: 30, slowFactor: 0.5, pierce: true,
       towerType: 'cannon', tier: 4, branch: 'A', color: 0x123456, dead: false, speed: 280 });
     expect(p.fx).toEqual(projectileFx('cannon', 4, 'A'));
-    expect(p.startDist).toBeCloseTo(50);
+    expect(p.startDist).toBeCloseTo(50 - PROJECTILE_HIT_RADIUS);
     expect(p.visible && p.active).toBe(true);
   });
 
@@ -90,11 +91,36 @@ describe('Projectile', () => {
 
   it('cannon arc lifts the body child mid-flight and lands at zero offset', () => {
     const p = new Projectile(makeScene(), opts({ towerType: 'cannon', target: { x: 100, y: 0 } }));
-    p.x = 50; p.updateVisual();
+    p.x = (100 - PROJECTILE_HIT_RADIUS) / 2; p.updateVisual();
     expect(p.art.y).toBeCloseTo(-arcOffset(0.5, p.fx.arc));
     expect(p.y).toBe(0);
     p.x = 100; p.updateVisual();
     expect(p.art.y).toBeCloseTo(0);
+  });
+
+  it('cannon shell is grounded at the hit radius and peaks midway to it', () => {
+    const p = new Projectile(makeScene(), opts({ towerType: 'cannon', target: { x: 200, y: 0 } }));
+    p.x = 200 - PROJECTILE_HIT_RADIUS; p.updateVisual();
+    expect(p.art.y).toBeCloseTo(0);
+    p.x = (200 - PROJECTILE_HIT_RADIUS) / 2; p.updateVisual();
+    expect(p.art.y).toBeCloseTo(-p.fx.arc);
+  });
+
+  it('every shape draws on the body and only bolt shows the glow', () => {
+    for (const shape of PROJECTILE_SHAPES) {
+      const type = Object.keys(PROJECTILE_FX).find((t) => PROJECTILE_FX[t].shape === shape);
+      expect(type, `no tower uses shape ${shape}`).toBeDefined();
+      const p = new Projectile(makeScene(), opts({ towerType: type }));
+      expect(p.art.calls.length, shape).toBeGreaterThan(0);
+      expect(p.glow.visible, shape).toBe(shape === 'bolt');
+    }
+  });
+
+  it('drawnY is the ground y plus the art lift', () => {
+    const p = new Projectile(makeScene(), opts({ towerType: 'cannon', target: { x: 200, y: 0 } }));
+    p.y = 30; p.x = 95; p.updateVisual();
+    expect(p.drawnY).toBeCloseTo(30 + p.art.y);
+    expect(p.drawnY).toBeLessThan(30);
   });
 
   it('non-arc shapes never lift', () => {

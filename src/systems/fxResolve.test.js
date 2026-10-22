@@ -2,12 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { TOWER_DEFS } from '../data/towers.js';
 import { FX_TEXTURES } from './fxTextures.js';
 import {
-  PROJECTILE_FX, TRAIL_FX, MUZZLE_FX, IMPACT_FX, SOLDIER_MUZZLE,
+  PROJECTILE_FX, PROJECTILE_SHAPES, TRAIL_FX, MUZZLE_FX, IMPACT_FX, SOLDIER_MUZZLE,
 } from '../data/fx.js';
 import { projectileFx, arcOffset } from './fxResolve.js';
 
 const TEXTURE_KEYS = new Set(FX_TEXTURES.map((t) => t.key));
-const SHAPES = new Set(['arrow', 'shell', 'bolt', 'shard', 'tracer']);
+const SHAPES = new Set(PROJECTILE_SHAPES);
 const isColor = (c) => Number.isInteger(c) && c >= 0 && c <= 0xffffff;
 const layers = (v) => (Array.isArray(v) ? v : [v]);
 

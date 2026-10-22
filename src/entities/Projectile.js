@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { projectileFx, arcOffset } from '../systems/fxResolve.js';
 import { PROJECTILE_DRAW as D } from '../data/fx.js';
+import { PROJECTILE_HIT_RADIUS } from '../data/towers.js';
 
 // Pooled: the constructor builds the display children once, reset() re-arms
 // them for each shot. The container's x/y are always the true ground position;
@@ -41,7 +42,9 @@ export class Projectile extends Phaser.GameObjects.Container {
 
     // fxType only picks visuals; towerType is the gameplay damage source.
     this.fx = projectileFx(fxType ?? towerType, tier, branch);
-    this.startDist = Math.max(1, Math.hypot(this.targetX - x, this.targetY - y));
+    // Arc progress is measured to the hit radius, where GameScene registers the
+    // hit, so the shell is back on the ground when it disappears.
+    this.startDist = Math.max(1, Math.hypot(this.targetX - x, this.targetY - y) - PROJECTILE_HIT_RADIUS);
 
     this._drawBody();
     this.setVisible(true);
@@ -63,13 +66,13 @@ export class Projectile extends Phaser.GameObjects.Container {
         g.lineStyle(size.width, color, 1);
         g.lineBetween(-size.length, 0, 0, 0);
         g.fillStyle(color, 1);
-        g.fillTriangle(D.arrowHead, 0, 0, -size.width * 1.5, 0, size.width * 1.5);
+        g.fillTriangle(D.arrowHead, 0, 0, -size.width * D.arrowHeadSpread, 0, size.width * D.arrowHeadSpread);
         break;
       }
       case 'shell':
         g.fillStyle(color, 1);
         g.fillCircle(0, 0, size);
-        g.lineStyle(1, D.rimColor, 1);
+        g.lineStyle(D.rimWidth, D.rimColor, 1);
         g.strokeCircle(0, 0, size);
         break;
       case 'bolt':
@@ -111,12 +114,15 @@ export class Projectile extends Phaser.GameObjects.Container {
 
     const peak = this.fx.arc ?? 0;
     if (peak > 0) {
-      const progress = 1 - Math.hypot(dx, dy) / this.startDist;
+      const progress = 1 - Math.max(0, Math.hypot(dx, dy) - PROJECTILE_HIT_RADIUS) / this.startDist;
       const lift = arcOffset(progress, peak);
       this.art.y = this.glow.y = -lift;
       this.shadow.setScale(1 - (1 - D.shadow.minScale) * (lift / peak));
     }
   }
+
+  // Where the body is actually drawn (ground y plus arc lift).
+  get drawnY() { return this.y + this.art.y; }
 
   deactivate() {
     this.setVisible(false);

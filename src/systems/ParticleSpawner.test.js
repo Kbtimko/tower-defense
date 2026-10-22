@@ -65,7 +65,7 @@ describe('ParticleSpawner', () => {
     it('reuses one emitter per effect: no growth in add.particles after warm-up', () => {
       const scene = makeScene();
       const sp = new ParticleSpawner(scene);
-      const proj = { x: 0, y: 0, art: { y: 0 }, fx: { trail: 'smoke' }, _trailAcc: 0 };
+      const proj = { x: 0, y: 0, drawnY: 0, fx: { trail: 'smoke' }, _trailAcc: 0 };
       const warm = () => {
         sp.spawnMuzzleFlash(1, 1, 'cannon', 1, null);
         sp.spawnImpact('spark', 1, 1);
@@ -104,7 +104,7 @@ describe('ParticleSpawner', () => {
     it('emitTrail with trail none emits nothing and creates no emitter', () => {
       const scene = makeScene();
       const sp = new ParticleSpawner(scene);
-      sp.emitTrail({ x: 0, y: 0, art: { y: 0 }, fx: { trail: 'none' }, _trailAcc: 0 }, 1);
+      sp.emitTrail({ x: 0, y: 0, drawnY: 0, fx: { trail: 'none' }, _trailAcc: 0 }, 1);
       expect(scene.add.particles).not.toHaveBeenCalled();
       expect(scene._emitter.emitParticleAt).not.toHaveBeenCalled();
     });
@@ -113,7 +113,7 @@ describe('ParticleSpawner', () => {
       const scene = makeScene();
       const sp = new ParticleSpawner(scene);
       const rate = TRAIL_FX.smoke.rate;
-      const proj = { x: 100, y: 200, art: { y: -20 }, fx: { trail: 'smoke' }, _trailAcc: 0 };
+      const proj = { x: 100, y: 200, drawnY: 180, fx: { trail: 'smoke' }, _trailAcc: 0 };
       sp.emitTrail(proj, 1.5 / rate); // 1.5 particles worth: emit 1, carry 0.5
       expect(scene._emitter.emitParticleAt).toHaveBeenCalledWith(100, 180, 1);
       expect(proj._trailAcc).toBeCloseTo(0.5);
