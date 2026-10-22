@@ -20,6 +20,7 @@ import { StoryDialogOverlay } from '../ui/StoryDialogOverlay.js';
 import { DamageNumberOverlay } from '../systems/DamageNumberOverlay.js';
 import { ShakeController }    from '../systems/ShakeController.js';
 import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
+import { SOLDIER_MUZZLE } from '../data/fx.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
 import { gameToPageCss } from '../systems/viewport.js';
 import { STORY_PANELS, briefKey, victorySequenceId, STORY_SEQUENCES } from '../data/story.js';
@@ -418,6 +419,7 @@ export default class GameScene extends Phaser.Scene {
     if (this._areaEffects) this._areaEffects.destroyAll();
     this._projectilePool?.destroyAll();
     this._projectilePool = null;
+    this.particleSpawner?.destroy();
     this._staticLayers?.destroy();
     this._staticLayers = null;
     this._ambient?.destroy();
@@ -532,6 +534,7 @@ export default class GameScene extends Phaser.Scene {
           this._dealDamage(enemy, blocker.damage, false, { source: soldierSource(blocker) });
           blocker.attackTimer = 1 / blocker.attackRate;
           blocker._sprite?.setState('attack');
+          this.particleSpawner?.spawnMuzzleFlash(blocker.x, blocker.y, SOLDIER_MUZZLE);
         }
         if (enemy.dead) continue;
         continue;
@@ -914,7 +917,7 @@ export default class GameScene extends Phaser.Scene {
       if (best) {
         const am = this.game.registry.get('audio');
         if (am) am.playSfx(towerFireSfxKey(tower.type, tower.branch, SFX_KEYS));
-        if (this.particleSpawner) this.particleSpawner.spawnMuzzleFlash(tower.x, tower.y, tower.type);
+        if (this.particleSpawner) this.particleSpawner.spawnMuzzleFlash(tower.x, tower.y, tower.type, tower.level, tower.branch);
         this.projectiles.push(this._projectilePool.acquire({
           x: tower.x, y: tower.y, target: best,
           damage: tower.damage, splashRadius: tower.splashRadius,
@@ -951,6 +954,7 @@ export default class GameScene extends Phaser.Scene {
         proj.x += (dx / dist) * step;
         proj.y += (dy / dist) * step;
         proj.updateVisual();
+        this.particleSpawner?.emitTrail(proj, dt);
       }
     }
     for (const p of this.projectiles) {
@@ -961,6 +965,7 @@ export default class GameScene extends Phaser.Scene {
 
   _onProjectileHit(proj) {
     const source = { kind: 'tower', type: proj.towerType, tier: proj.tier, branch: proj.branch };
+    this.particleSpawner?.spawnImpact(proj.fx.impact, proj.targetX, proj.targetY);
     if (proj.splashRadius > 0) {
       for (const enemy of this.enemies) {
         if (Math.hypot(enemy.x - proj.targetX, enemy.y - proj.targetY) <= proj.splashRadius) {

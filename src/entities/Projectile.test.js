@@ -67,24 +67,18 @@ describe('Projectile', () => {
     }
   });
 
-  it('deactivate hides the projectile and destroys its trail', () => {
-    const trail = { destroy: vi.fn() };
-    const scene = makeScene({ particleSpawner: { spawnProjectileTrail: () => trail } });
-    const p = new Projectile(scene, opts());
+  it('deactivate hides the projectile', () => {
+    const p = new Projectile(makeScene(), opts());
     p.deactivate();
     expect(p.visible).toBe(false);
     expect(p.active).toBe(false);
-    expect(trail.destroy).toHaveBeenCalledOnce();
   });
 
-  it('reset destroys the previous trail before making a new one', () => {
-    const trails = [];
-    const scene = makeScene({ particleSpawner: { spawnProjectileTrail: () => { const t = { destroy: vi.fn() }; trails.push(t); return t; } } });
-    const p = new Projectile(scene, opts());
+  it('reset clears the trail accumulator', () => {
+    const p = new Projectile(makeScene(), opts());
+    p._trailAcc = 0.7;
     p.reset(opts());
-    expect(trails).toHaveLength(2);
-    expect(trails[0].destroy).toHaveBeenCalledOnce();
-    expect(trails[1].destroy).not.toHaveBeenCalled();
+    expect(p._trailAcc).toBe(0);
   });
 
   it('updateVisual rotates toward target without moving the ground position', () => {

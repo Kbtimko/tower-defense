@@ -18,7 +18,6 @@ export class Projectile extends Phaser.GameObjects.Container {
     scene.add.existing(this);
     this.setDepth(16); // above the static road/build-pad layer (depth 10)
 
-    this._trail = null;
     this.reset(opts);
   }
 
@@ -48,11 +47,7 @@ export class Projectile extends Phaser.GameObjects.Container {
     this.setVisible(true);
     this.setActive(true);
 
-    // Task 4: replaced by the shared trail emitter.
-    this.destroyTrail();
-    if (this.scene.particleSpawner) {
-      this._trail = this.scene.particleSpawner.spawnProjectileTrail(this, towerType);
-    }
+    this._trailAcc = 0; // fractional particles carried between frames by emitTrail
     this.updateVisual();
   }
 
@@ -124,15 +119,7 @@ export class Projectile extends Phaser.GameObjects.Container {
   }
 
   deactivate() {
-    this.destroyTrail();
     this.setVisible(false);
     this.setActive(false);
-  }
-
-  destroyTrail() {
-    if (this._trail && this._trail.destroy) {
-      this._trail.destroy();
-      this._trail = null;
-    }
   }
 }
