@@ -2,12 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Last Light</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overscroll-behavior: none; }
     body { background: #1a1a2e; font-family: 'Georgia', serif; color: #e8e0d0;
-           overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+           overflow: hidden; display: flex; flex-direction: column; height: 100vh; height: 100dvh;
+           touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+           padding: env(safe-area-inset-top) env(safe-area-inset-right)
+                    env(safe-area-inset-bottom) env(safe-area-inset-left); }
     #hud { display: none; align-items: center; gap: 14px; padding: 7px 14px;
            background: #0f0f1e; border-bottom: 2px solid #8b6914; flex-shrink: 0; }
     .hud-stat { display: flex; align-items: center; gap: 5px; font-size: 13px; }
@@ -40,7 +44,8 @@
                  cursor: not-allowed; pointer-events: none; }
     #game { flex: 1; position: relative; min-height: 0; overflow: hidden;
             display: flex; align-items: center; justify-content: center; }
-    #game canvas { display: block; }
+    /* Canvas only: DOM overlays inside #game (story log, codex) must still scroll. */
+    #game canvas { display: block; touch-action: none; }
     /* Danger red from the art bible. The frame glow is an overlay rather than an
        inset box-shadow on #game, because the canvas would paint over a shadow on
        the element's own background. */
@@ -112,8 +117,10 @@
         100% { text-shadow: 0 0 0 transparent; }
       }
     }
+    /* min-width/overflow: on a phone narrower than the bar, the bar scrolls instead of
+       widening the page (which made the browser shrink-to-fit and stay zoomed out). */
     #bottom-bar { display: none; align-items: center; gap: 8px; padding: 8px 14px;
-                  background: #0f0f1e; border-top: 2px solid #8b6914; flex-shrink: 0; }
+                  min-width: 0; overflow-x: auto; background: #0f0f1e; border-top: 2px solid #8b6914; flex-shrink: 0; }
     .tower-btn { background: #1a1a3a; border: 2px solid #444; border-radius: 6px;
                  padding: 6px 10px; cursor: pointer; display: flex; flex-direction: column;
                  align-items: center; gap: 2px; transition: all 0.15s; color: #e8e0d0; }
@@ -251,10 +258,11 @@
     .ow-node.locked .ow-node-num { color:#666; }
     .ow-node-stars { font-size:10px; color:#ffd700; min-height:12px; line-height:1; }
     #map-featured { flex:1; border:2px solid #8b6914; border-radius:10px; background:#0f0f2e;
-                    padding:22px; display:flex; flex-direction:column; }
+                    padding:22px; display:flex; flex-direction:column; min-height:0; }
     #featured-name { font-size:22px; color:#ffd700; font-weight:bold; margin-bottom:6px; }
     #featured-stars { font-size:22px; color:#ffd700; margin-bottom:14px; }
-    #featured-blurb { color:#aaa; font-size:14px; line-height:1.6; flex:1; margin-bottom:14px; }
+    #featured-blurb { color:#aaa; font-size:14px; line-height:1.6; flex:1; margin-bottom:14px;
+                    min-height:0; overflow-y:auto; }  /* shrinks/scrolls so PLAY keeps its size */
     #featured-tier { color:#7ab8ff; font-size:13px; margin-bottom:18px; }
     #featured-play { background:#8b1a1a; border:none; color:#fff; padding:12px 28px;
                      border-radius:6px; cursor:pointer; font-size:16px; font-weight:bold;
@@ -506,6 +514,47 @@
                     padding: 5px 7px; font-size: 10px; color: #ddd; white-space: nowrap;
                     max-width: 220px; }
     #inspect-peek strong { display: block; color: #ffd700; margin-bottom: 2px; }
+
+    /* Compact landscape (phones). Stopgap until roadmap 2.2 designs the real mobile
+       HUD: shrinks padding/fonts so the map-select PLAY button and the whole tower
+       bar fit a ~340 px tall viewport. Desktop (>500 px tall) never matches. */
+    @media (max-height: 500px) {
+      #map-select { padding: 8px; }
+      #map-select-title { font-size: 20px; margin-bottom: 6px; letter-spacing: 3px; }
+      #map-meta-bar { gap: 8px; margin-bottom: 6px; }
+      #total-stars { font-size: 14px; }
+      #map-meta-bar button { padding: 4px 8px; font-size: 12px; }
+      #map-select-layout { gap: 10px; }
+      #map-featured { padding: 10px; }
+      #featured-name { font-size: 16px; margin-bottom: 2px; }
+      #featured-stars { font-size: 16px; margin-bottom: 6px; }
+      #featured-blurb { font-size: 12px; line-height: 1.4; margin-bottom: 6px; }
+      #featured-tier { font-size: 12px; margin-bottom: 8px; }
+      #featured-play { padding: 10px 24px; font-size: 15px; }
+      #lifetime-stats { display: none; }
+      /* 40 px touch-target floor for every button the audit covers (2.2 takes it to 44). */
+      #featured-play, #map-meta-bar button, #speed-btn, #pause-btn, #open-codex,
+      #exit-btn, #wave-btn { min-height: 40px; }
+
+      #hud { padding: 4px 8px; gap: 8px; }
+      .hud-stat { font-size: 11px; gap: 3px; }
+      .hud-val { font-size: 13px; }
+      .hud-lbl { font-size: 10px; }
+      #speed-btn { padding: 8px 8px; font-size: 11px; }
+      #pause-btn { padding: 8px 10px; font-size: 12px; }
+      #open-codex { padding: 8px 8px; font-size: 12px; }
+      #bottom-bar { gap: 4px; padding: 4px 8px; }
+      .tower-btn { padding: 4px 6px; gap: 1px; }
+      .tower-btn .t-icon { font-size: 16px; }
+      .tower-btn .t-cost { font-size: 10px; }
+      .tower-btn .t-name { font-size: 9px; }
+      #hero-section { gap: 4px; }
+      .ability-btn { padding: 3px 5px; }
+      .ability-key { font-size: 10px; }
+      .ability-name { font-size: 10px; }
+      .bar-divider { height: 28px; }
+      #exit-btn, #wave-btn { padding: 6px 10px; font-size: 12px; }
+    }
   </style>
 </head>
 <body>
