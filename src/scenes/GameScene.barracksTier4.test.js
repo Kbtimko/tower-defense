@@ -88,6 +88,8 @@ describe('tier-3 barracks panel (#44)', () => {
       },
     };
     ctx.pathMgr = { getPathPoints: () => [] };
+    // _playTowerPop skips the scale pop under reduced motion.
+    ctx.game = { registry: { get: (k) => (k === 'ambientMotion' ? false : undefined) } };
     tower._rebuildSoldiers = () => {};
     document.querySelector('#panel-branch-picker .branch-choose-btn').click();
     expect(bought).toEqual({ tier: 4, branch: 'A' });
