@@ -59,6 +59,9 @@ import { VIGNETTE_RADIUS } from '../data/gradeSettings.js';
 import { SFX_KEYS } from '../systems/AudioManager.js';
 import { towerFireSfxKey } from '../systems/sfxKeys.js';
 import { WavePreviewPopover } from '../ui/WavePreviewPopover.js';
+import { attachLongPress } from '../ui/longPress.js';
+import { createConfirmGate } from '../systems/confirmGate.js';
+import { CONFIRM_WINDOW_MS, PEEK_LINGER_MS } from '../data/input.js';
 import { summarizeWave }      from '../systems/wavePreview.js';
 import { CodexOverlay }       from '../ui/CodexOverlay.js';
 import { shouldAutoPause }    from '../systems/shellLifecycle.js';
@@ -303,19 +306,28 @@ export default class GameScene extends Phaser.Scene {
     // GameScene owns every .tower-btn listener: its shutdown clones these
     // nodes, so a listener bound by a longer-lived scene would not survive
     // into the next level.
+    this._longPressDetachers = [];
     document.querySelectorAll('.tower-btn').forEach(btn => {
       btn.addEventListener('click', () => this._selectTowerType(btn.dataset.type, btn));
-      btn.addEventListener('mouseenter', () => this._showTowerTooltip(btn));
-      btn.addEventListener('mouseleave', () => {
-        document.getElementById('tower-tooltip').style.display = 'none';
-      });
+      // Hover is a mouse affordance. Touch synthesises mouseenter on every tap,
+      // which flashed the tooltip over the tap that arms a build; touch peeks
+      // via long-press instead.
+      btn.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') this._showTowerTooltip(btn); });
+      btn.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') this._hideTowerTooltip(); });
+      this._longPressDetachers.push(attachLongPress(btn, {
+        onLongPress: () => { this._clearTooltipLinger(); this._showTowerTooltip(btn); },
+        onEnd: () => {
+          this._clearTooltipLinger();
+          this._tooltipLinger = setTimeout(() => this._hideTowerTooltip(), PEEK_LINGER_MS);
+        },
+      }));
     });
     document.getElementById('wave-btn').addEventListener('click',          () => this._startWave());
     document.getElementById('speed-btn').addEventListener('click',         () => this._toggleSpeed());
     // Shutdown's clone keeps the old label, but this.speed resets each level.
     this._renderSpeedButton();
-    document.getElementById('panel-upgrade-btn').addEventListener('click', () => this._upgradeSelectedTower());
-    document.getElementById('panel-sell-btn').addEventListener('click',    () => this._sellSelectedTower());
+    this._bindConfirmable(document.getElementById('panel-upgrade-btn'), 'upgrade', () => this._upgradeSelectedTower());
+    this._bindConfirmable(document.getElementById('panel-sell-btn'),    'sell',    () => this._sellSelectedTower());
     document.getElementById('panel-reposition-btn').addEventListener('click', () => this._startReposition());
     document.getElementById('msg-btn').addEventListener('click', () => this.scene.start('MapSelectScene'));
     document.getElementById('exit-btn').addEventListener('click', () => this._showConfirmExit());
@@ -493,6 +505,14 @@ export default class GameScene extends Phaser.Scene {
     this._inputCtl?.destroy();
     this._inputCtl = null;
     this.inspector?.destroy();
+    // Before the clones below: they keep classes and text, so an armed
+    // "Tap again" label would otherwise greet the next level.
+    this._resetConfirm();
+    this._clearTooltipLinger();
+    // Cancelling the linger above would otherwise strand a peeked tooltip open.
+    this._hideTowerTooltip();
+    this._longPressDetachers?.forEach(detach => detach());
+    this._longPressDetachers = [];
     if (import.meta.env.DEV) window.__game = null;
     this.game.events.off('ui:ability', this._onAbility, this);
     this.game.events.off('ui:pause-toggle', this._onPauseToggle, this);
@@ -1305,6 +1325,55 @@ export default class GameScene extends Phaser.Scene {
     this._syncCancelButton();
   }
 
+  _hideTowerTooltip() {
+    const tt = document.getElementById('tower-tooltip');
+    if (tt) tt.style.display = 'none';
+  }
+
+  _clearTooltipLinger() {
+    clearTimeout(this._tooltipLinger);
+    this._tooltipLinger = null;
+  }
+
+  // Touch/pen buy-or-sell needs two presses (a fat-fingered tap on Upgrade or
+  // Sell is costly); a mouse click, or a keyboard activation (detail 0), runs
+  // at once as it always did. The first press relabels the button and arms a
+  // revert; the second press inside CONFIRM_WINDOW_MS runs the action.
+  _bindConfirmable(btn, key, run) {
+    let pointerType = 'mouse';
+    btn.addEventListener('pointerdown', (e) => { pointerType = e.pointerType; });
+    btn.addEventListener('click', (e) => {
+      const touchLike = e.detail > 0 && (pointerType === 'touch' || pointerType === 'pen');
+      if (!touchLike) { this._resetConfirm(); run(); return; }
+      if (this._confirmBtn && this._confirmBtn !== btn) this._resetConfirm();
+      this._confirmGate ??= createConfirmGate();
+      if (this._confirmGate.press(key, Date.now()) === 'confirmed') {
+        this._resetConfirm();
+        run();
+        return;
+      }
+      this._confirmBtn   = btn;
+      this._confirmLabel = btn.textContent;
+      btn.classList.add('confirming');
+      btn.textContent = `Tap again: ${this._confirmLabel}`;
+      this._confirmTimer = setTimeout(() => this._resetConfirm(), CONFIRM_WINDOW_MS);
+    });
+  }
+
+  // Restores the label captured when armed, not a recomputed one: whatever
+  // changes the label (an upgrade re-render) resets first, so the stored text
+  // is always the current one.
+  _resetConfirm() {
+    clearTimeout(this._confirmTimer);
+    this._confirmTimer = null;
+    if (this._confirmBtn) {
+      this._confirmBtn.classList.remove('confirming');
+      this._confirmBtn.textContent = this._confirmLabel;
+    }
+    this._confirmBtn = null;
+    this._confirmGate?.reset();
+  }
+
   _showTowerTooltip(btn) {
     const type = btn.dataset.type;
     const def  = TOWER_DEFS[type];
@@ -1345,6 +1414,7 @@ export default class GameScene extends Phaser.Scene {
   // ─── Tower panel ───────────────────────────────────────────────────────────
 
   _openTowerPanel(tower, mx, my) {
+    this._resetConfirm();
     this._openTowerId = tower.id ?? null;
     this.selectedTower = tower;
     const def = TOWER_DEFS[tower.type];
@@ -1459,6 +1529,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _closeTowerPanel() {
+    this._resetConfirm();
     document.getElementById('tower-panel').style.display         = 'none';
     document.getElementById('panel-branch-picker').style.display = 'none';
     document.getElementById('panel-branch-picker').replaceChildren();
@@ -1550,8 +1621,7 @@ export default class GameScene extends Phaser.Scene {
         btn.disabled = true;
         btn.title    = 'Unlocked on Map 5';
       }
-      btn.addEventListener('click', () =>
-        this._upgradeSelectedTower(branch));
+      this._bindConfirmable(btn, `branch:${branch}`, () => this._upgradeSelectedTower(branch));
 
       card.append(cost, btn);
       cards.appendChild(card);
@@ -1606,6 +1676,7 @@ export default class GameScene extends Phaser.Scene {
   _startReposition() {
     if (!this.selectedTower || this.selectedTower.type !== 'barracks') return;
     const barracks = this.selectedTower;
+    this._resetConfirm();
     document.getElementById('tower-panel').style.display = 'none';
     this.repositionMode = true;
     this.repositioningBarracks = barracks;

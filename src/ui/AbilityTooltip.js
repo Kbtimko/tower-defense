@@ -1,3 +1,6 @@
+import { attachLongPress } from './longPress.js';
+import { PEEK_LINGER_MS } from '../data/input.js';
+
 // One shared hover card, reused by every ability anchor on the page.
 //
 // The model is supplied by a getter called at hover time, not a snapshot taken
@@ -7,6 +10,8 @@ export class AbilityTooltip {
   constructor() {
     this._el        = document.getElementById('ability-card');
     this._listeners = [];
+    this._detachers = [];
+    this._lingerTimer = null;
     this._onEsc     = (e) => { if (e.key === 'Escape') this.hide(); };
     document.addEventListener('keydown', this._onEsc);
   }
@@ -21,10 +26,25 @@ export class AbilityTooltip {
     if (!anchor) return;
     const show = () => this._show(anchor, getModel());
     const hide = () => this.hide();
-    for (const [evt, fn] of [['pointerenter', show], ['pointerleave', hide], ['focusin', show], ['focusout', hide]]) {
+    // A touch fires pointerenter on every tap, which would flash the card on
+    // the ability's primary action; touch peeks via long-press instead.
+    const hoverShow = (e) => { if (e.pointerType !== 'touch') show(); };
+    const hoverHide = (e) => { if (e.pointerType !== 'touch') hide(); };
+    for (const [evt, fn] of [['pointerenter', hoverShow], ['pointerleave', hoverHide], ['focusin', show], ['focusout', hide]]) {
       anchor.addEventListener(evt, fn);
       this._listeners.push({ el: anchor, evt, fn });
     }
+    this._detachers.push(attachLongPress(anchor, {
+      onLongPress: show,
+      onEnd: () => {
+        this._clearLinger();
+        this._lingerTimer = setTimeout(hide, PEEK_LINGER_MS);
+      },
+    }));
+  }
+
+  _clearLinger() {
+    if (this._lingerTimer !== null) { clearTimeout(this._lingerTimer); this._lingerTimer = null; }
   }
 
   _show(anchor, model) {
@@ -83,6 +103,7 @@ export class AbilityTooltip {
   }
 
   hide() {
+    this._clearLinger();
     if (!this._el) return;
     this._el.classList.remove('shown');
     this._el.setAttribute('aria-hidden', 'true');
@@ -91,6 +112,8 @@ export class AbilityTooltip {
   detachAll() {
     for (const l of this._listeners) l.el.removeEventListener(l.evt, l.fn);
     this._listeners = [];
+    for (const detach of this._detachers) detach();
+    this._detachers = [];
     this.hide();
   }
 

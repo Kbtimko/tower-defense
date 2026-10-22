@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { LONG_PRESS_MS, PEEK_LINGER_MS } from '../data/input.js';
 import { AbilityTooltip } from './AbilityTooltip.js';
 import { describeAbility } from '../systems/entityDescriptors.js';
 import { HEROES } from '../data/heroes.js';
@@ -141,5 +142,54 @@ describe('AbilityTooltip', () => {
     second.hide();
     expect(dom.card.classList.contains('shown')).toBe(false);
     second.detachAll();
+  });
+});
+
+describe('AbilityTooltip touch', () => {
+  const model = { icon: 'x', label: 'Zap', hotkey: 'Q', effect: 'e', state: 'ready', cooldown: 5 };
+  const touch = (type) => Object.assign(new Event(type, { bubbles: true, cancelable: true }), { pointerType: 'touch' });
+  let dom, tip, ownerClick;
+  beforeEach(() => {
+    vi.useFakeTimers();
+    dom = setupDom();
+    ownerClick = vi.fn();
+    dom.anchor.addEventListener('click', ownerClick);
+    tip = new AbilityTooltip();
+    tip.attach(dom.anchor, () => model);
+  });
+  afterEach(() => { tip.destroy(); vi.useRealTimers(); });
+  const shown = () => dom.card.classList.contains('shown');
+
+  it('a touch pointerenter (every tap fires one) does not flash the card', () => {
+    dom.anchor.dispatchEvent(touch('pointerenter'));
+    expect(shown()).toBe(false);
+  });
+
+  it('a long-press shows the card, swallows the click, and hides after the linger', () => {
+    dom.anchor.dispatchEvent(touch('pointerdown'));
+    vi.advanceTimersByTime(LONG_PRESS_MS);
+    expect(shown()).toBe(true);
+    dom.anchor.dispatchEvent(touch('pointerup'));
+    expect(shown()).toBe(true);
+    dom.anchor.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    expect(ownerClick).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(PEEK_LINGER_MS);
+    expect(shown()).toBe(false);
+  });
+
+  it('a plain tap does not show the card and the click goes through', () => {
+    dom.anchor.dispatchEvent(touch('pointerdown'));
+    dom.anchor.dispatchEvent(touch('pointerup'));
+    dom.anchor.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    vi.advanceTimersByTime(LONG_PRESS_MS);
+    expect(shown()).toBe(false);
+    expect(ownerClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('detachAll removes the long-press', () => {
+    tip.detachAll();
+    dom.anchor.dispatchEvent(touch('pointerdown'));
+    vi.advanceTimersByTime(LONG_PRESS_MS);
+    expect(shown()).toBe(false);
   });
 });

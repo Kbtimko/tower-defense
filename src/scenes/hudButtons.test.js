@@ -134,7 +134,7 @@ describe('tower tooltip across levels', () => {
     gs.events = { once() {} };
     gs._bindDOMEvents();
 
-    btn('ice').dispatchEvent(new MouseEvent('mouseenter'));
+    btn('ice').dispatchEvent(Object.assign(new Event('pointerenter'), { pointerType: 'mouse' }));
 
     const tt = document.getElementById('tower-tooltip');
     expect(tt.style.display).toBe('block');
@@ -143,8 +143,8 @@ describe('tower tooltip across levels', () => {
 
   it('hides on mouseleave', () => {
     bindBothScenes();
-    btn('ice').dispatchEvent(new MouseEvent('mouseenter'));
-    btn('ice').dispatchEvent(new MouseEvent('mouseleave'));
+    btn('ice').dispatchEvent(Object.assign(new Event('pointerenter'), { pointerType: 'mouse' }));
+    btn('ice').dispatchEvent(Object.assign(new Event('pointerleave'), { pointerType: 'mouse' }));
     expect(document.getElementById('tower-tooltip').style.display).toBe('none');
   });
 });

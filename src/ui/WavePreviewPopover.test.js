@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { LONG_PRESS_MS } from '../data/input.js';
 import { WavePreviewPopover } from './WavePreviewPopover.js';
 import { summarizeWave } from '../systems/wavePreview.js';
 import { MAP_WAVES }  from '../data/waves.js';
@@ -120,25 +121,46 @@ describe('WavePreviewPopover', () => {
     expect(dom.pop.classList.contains('shown')).toBe(false);
   });
 
-  // Touch has no hover. A tap must open it, and a tap elsewhere must dismiss it.
-  it('toggles on a touch tap of the wrapper', () => {
-    popover.setWave(summarizeWave(0, 0));
-    const tap = () => dom.wrap.dispatchEvent(
-      Object.assign(new Event('pointerdown', { bubbles: true }), { pointerType: 'touch' }));
-    tap();
-    expect(dom.pop.classList.contains('shown')).toBe(true);
-    tap();
-    expect(dom.pop.classList.contains('shown')).toBe(false);
-  });
+  // Touch has no hover: a long-press (on the wrapper, including over the
+  // button) opens it; a plain tap must not, and must still send the wave.
+  describe('touch', () => {
+    const touch = (type) => Object.assign(new Event(type, { bubbles: true, cancelable: true }), { pointerType: 'touch' });
+    const shown = () => dom.pop.classList.contains('shown');
+    beforeEach(() => { vi.useFakeTimers(); popover.setWave(summarizeWave(0, 0)); });
+    afterEach(() => vi.useRealTimers());
 
-  // pointerdown on #wave-btn bubbles up through the wrapper. A touch tap on
-  // Send Wave must send the wave and nothing else — not open a popover that
-  // then sits over the wave the button's own click handler just started.
-  it('does not open on a touch tap of the Send Wave button itself', () => {
-    popover.setWave(summarizeWave(0, 0));
-    dom.btn.dispatchEvent(
-      Object.assign(new Event('pointerdown', { bubbles: true }), { pointerType: 'touch' }));
-    expect(dom.pop.classList.contains('shown')).toBe(false);
+    it('a long-press on the wrapper padding opens it', () => {
+      dom.wrap.dispatchEvent(touch('pointerdown'));
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      expect(shown()).toBe(true);
+    });
+
+    it('a long-press on Send Wave opens the preview and swallows the click, so the wave is not sent', () => {
+      const send = vi.fn();
+      dom.btn.addEventListener('click', send);
+      dom.btn.dispatchEvent(touch('pointerdown'));
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      dom.btn.dispatchEvent(touch('pointerup'));
+      dom.btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      expect(shown()).toBe(true);
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it('a plain tap on Send Wave does not open it and the click goes through', () => {
+      const send = vi.fn();
+      dom.btn.addEventListener('click', send);
+      dom.btn.dispatchEvent(touch('pointerdown'));
+      dom.btn.dispatchEvent(touch('pointerup'));
+      dom.btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      expect(shown()).toBe(false);
+      expect(send).toHaveBeenCalledTimes(1);
+    });
+
+    it('a touch pointerenter (fired by every tap) does not open it', () => {
+      dom.wrap.dispatchEvent(touch('pointerenter'));
+      expect(shown()).toBe(false);
+    });
   });
 
   it('dismisses on a pointerdown outside the wrapper', () => {
@@ -186,10 +208,16 @@ describe('WavePreviewPopover', () => {
     dom.wrap.dispatchEvent(new Event('focusout', { bubbles: true }));
     expect(dom.pop.classList.contains('shown')).toBe(true);
 
-    forceShown();
+    // show() no-ops once the summary is cleared, so spy on the call itself: a
+    // long-press listener left behind would still invoke it after the hold.
+    vi.useFakeTimers();
+    const showSpy = vi.spyOn(popover, 'show');
     dom.wrap.dispatchEvent(
       Object.assign(new Event('pointerdown', { bubbles: true }), { pointerType: 'touch' }));
-    expect(dom.pop.classList.contains('shown')).toBe(true);
+    vi.advanceTimersByTime(LONG_PRESS_MS);
+    vi.useRealTimers();
+    expect(showSpy).not.toHaveBeenCalled();
+    forceShown();
 
     forceShown();
     document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
