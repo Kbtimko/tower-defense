@@ -73,3 +73,19 @@ export const ENDPOINT_FX = {
   organic:  { portal: { colors: [0x33ff66, 0xe74c3c], radius: 28, spin: 1.4, pulse: 2.2 }, beacon: { color: 0xffb000, radius: 20, pulse: 1.8 } },
   scorched: { portal: { colors: [0xe74c3c, 0x9b59b6], radius: 28, spin: 1.8, pulse: 2.6 }, beacon: { color: 0xffb000, radius: 22, pulse: 2.0 } },
 };
+
+// One sample density for both the painted curve and the pad-clearance check, so the
+// test measures exactly the centreline that gets drawn.
+export const ROAD_CURVE_SAMPLES = 24;
+
+// Shared painter tunables (per-style colours/widths live in ROAD_STYLES above).
+export const ROAD_PAINT = {
+  tileSize: 64,           // noise tile px; tiles seamlessly, so only texel scale matters
+  featherSteps: 5,        // stacked strokes per soft edge (no ctx.filter on iOS Safari)
+  light: { dx: 1, dy: 1.5 }, // edge shade offset: light from the upper-left (art bible §1)
+  edgeBand: 3,            // px of darkened rim left inside the bed
+  edgeAlpha: 0.55,
+  wear: [{ scale: 1.1, alpha: 0.35 }, { scale: 0.55, alpha: 0.5 }], // x halfWidth, x style.wear
+  laneCore: [{ scale: 1.2, alpha: 0.18 }, { scale: 0.5, alpha: 0.3 }], // nav-lane glow, x halfWidth
+  dashGlow: { widthScale: 3, alpha: 0.25 }, // halo under bright lane dashes
+};

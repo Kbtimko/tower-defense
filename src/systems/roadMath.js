@@ -1,7 +1,6 @@
 // Pure helpers for the procedural road. No Phaser, no canvas — Vitest-friendly.
 import { samplePath } from './pathGeometry.js';
-
-const CLEARANCE_SAMPLES = 24;
+import { ROAD_CURVE_SAMPLES } from '../data/roads.js';
 
 function seedToInt(seed) {
   if (typeof seed === 'number') return seed | 0;
@@ -94,7 +93,7 @@ function distToSegment(px, py, a, b) {
 
 /** Minimum distance from any slot centre {cx, cy} to the sampled road centreline. */
 export function roadClearance(waypoints, slots) {
-  const curve = samplePath(waypoints, CLEARANCE_SAMPLES);
+  const curve = samplePath(waypoints, ROAD_CURVE_SAMPLES);
   let min = Infinity;
   for (const s of slots) {
     for (let i = 0; i < curve.length - 1; i++) {
