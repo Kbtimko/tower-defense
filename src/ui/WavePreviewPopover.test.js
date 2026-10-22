@@ -295,6 +295,17 @@ describe('WavePreviewPopover vertical placement', () => {
     expect(dom.pop.style.top).toBe(`${LAYER_H - 680 - PANEL_EDGE_MARGIN - 448}px`);
   });
 
+  // setWave while open can change the card's height (a different wave), so the
+  // centring is redone against the new height.
+  it('re-centres when setWave changes the content height while shown', () => {
+    mount(448, 400);
+    popover.show();
+    expect(dom.pop.style.top).toBe(`${(88 - 400) / 2}px`);
+    define(dom.pop, { offsetHeight: () => (dom.pop.classList.contains('shown') ? 200 : 0) });
+    popover.setWave(summarizeWave(0, 2));
+    expect(dom.pop.style.top).toBe(`${(88 - 200) / 2}px`);
+  });
+
   it('clamps inside the top of the layer', () => {
     mount(0, 400);
     popover.show();
