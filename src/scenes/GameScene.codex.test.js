@@ -78,7 +78,13 @@ function makeScene({ over = false, won = false, userPaused = false } = {}) {
   scene.over = over;
   scene.won  = won;
   scene._userPaused = userPaused;
-  scene.scene = { pause: vi.fn(), resume: vi.fn() };
+  // Stateful like Phaser, which warns when a PAUSED scene is paused again.
+  let paused = false;
+  scene.scene = {
+    pause: vi.fn(() => { paused = true; }),
+    resume: vi.fn(() => { paused = false; }),
+    isPaused: () => paused,
+  };
   // No 'save' registered — buildCatalog(progressFromSave(null)) must still
   // work, same tolerance already covered in codexCatalog's own tests.
   scene.game  = { registry: { get: () => null } };

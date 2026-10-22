@@ -335,11 +335,10 @@ export default class GameScene extends Phaser.Scene {
   _wireShellListeners() {
     document.addEventListener('visibilitychange', this._onShellChange);
     this._portraitMql = window.matchMedia?.(PHONE_PORTRAIT_QUERY);
-    this._portraitMql?.addEventListener('change', this._onShellChange);
-    // A level entered in portrait pauses immediately -- but NOT synchronously: pausing
-    // while CREATING is overwritten by SceneManager (status = RUNNING after create()
-    // returns), leaving the overlay up while the sim keeps running. 'create' fires right
-    // after that; `once` is consumed on fire so it cannot stack across level entries.
+    this._portraitMql?.addEventListener?.('change', this._onShellChange);
+    // A level entered in portrait pauses immediately. Run the initial check once the
+    // scene is RUNNING ('create' fires right after) so the pause acts on a live scene;
+    // `once` is consumed on fire so it cannot stack across level entries.
     this.events.once('create', this._onShellChange);
   }
 
@@ -370,7 +369,9 @@ export default class GameScene extends Phaser.Scene {
     const btn     = document.getElementById('pause-btn');
     const overlay = document.getElementById('paused-overlay');
     if (this._userPaused) {
-      this.scene.pause();
+      // Codex / exit-confirm may already have paused the scene; Phaser warns on a
+      // second pause, which the capture harness counts as a problem.
+      if (!this.scene.isPaused()) this.scene.pause();
       overlay.classList.add('shown');
       btn.textContent = '▶ Resume';
       btn.classList.add('paused');
@@ -480,7 +481,7 @@ export default class GameScene extends Phaser.Scene {
 
   shutdown() {
     document.removeEventListener('visibilitychange', this._onShellChange);
-    this._portraitMql?.removeEventListener('change', this._onShellChange);
+    this._portraitMql?.removeEventListener?.('change', this._onShellChange);
     this._portraitMql = null;
     this._unwireSceneEvents();
     this._endHitStop();
