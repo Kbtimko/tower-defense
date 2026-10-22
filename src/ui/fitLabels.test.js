@@ -22,6 +22,7 @@ describe('fittedFontPx', () => {
 // the way real text does.
 function label(tag, { natural, available, css = 24 }) {
   const box = document.createElement(tag === 'span' ? 'button' : 'div');
+  box.style.padding = '0';
   const el = tag === 'span' ? document.createElement('span') : document.createElement('button');
   el.style.fontSize = `${css}px`;
   el.style.padding = '0';   // jsdom's default button has 6px side padding
@@ -70,6 +71,17 @@ describe('fitLabels padding', () => {
     btn.style.paddingRight = '4px';
     fitLabels([btn], { baseFontPx: el => Number(el.dataset.basePx), measureText: el => el.scrollWidth });
     expect(btn.style.fontSize).toBe(`${Math.floor((24 * 74 / 80) * 4) / 4}px`);
+  });
+});
+
+describe('fitLabels span padding', () => {
+  it('fits a span label to its button content box, not the padded face', () => {
+    document.body.replaceChildren();
+    const wide = label('span', { natural: 80, available: 82 });
+    wide.parentElement.style.paddingLeft = '4px';
+    wide.parentElement.style.paddingRight = '4px';
+    fitLabels([wide], { baseFontPx: el => Number(el.dataset.basePx) });
+    expect(wide.style.fontSize).toBe(`${Math.floor((24 * 74 / 80) * 4) / 4}px`);
   });
 });
 

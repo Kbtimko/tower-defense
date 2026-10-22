@@ -46,7 +46,8 @@ export function fitLabels(els, { baseFontPx = computedFontPx, measureText = text
     let fontPx = baseFontPx(el);
     for (let pass = 0; pass < MAX_PASSES; pass++) {
       const naturalWidth = plain ? measureText(el) : el.offsetWidth;
-      const available = plain ? el.clientWidth - horizontalPadding(el) : el.parentElement.clientWidth;
+      const box = plain ? el : el.parentElement;
+      const available = box.clientWidth - horizontalPadding(box);
       const px = fittedFontPx({ fontPx, naturalWidth, available });
       if (px === fontPx) break;
       fontPx = px;
