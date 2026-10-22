@@ -57,16 +57,24 @@ export const SELECTION_RING = {
   color: 0x4fc3f7,
   pulse: 1.2,        // Hz
   width: 2,
+  radius: 22,        // px, at the tower base
+  alpha: [0.5, 1],   // pulse range
 };
 
 export const PAD_GLOW = {
   period: 2.4,       // s
   alpha: [0.15, 0.45],
   color: 0xffe08a,
+  slotPhase: 0.17,   // cycles of offset per slot index, so pads desync
+  staticAlpha: 0.2,  // reduced motion: faint steady glow
 };
 
 export const RETICLE = {
   color: 0xff5a5a,
   lineWidth: 2,
   spin: 1.5,         // rad/s
+  radius: 70,        // px default (matches the airstrike) when the ability has none
+  ticks: 4,
+  tickInner: 6,      // px gap between circle and tick start
+  tickLength: 8,
 };

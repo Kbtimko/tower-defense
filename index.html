@@ -285,6 +285,10 @@
                    align-items:center; gap:1px; color:#4fc3f7; font-family:'Georgia',serif; }
     .ability-btn.locked { background:#111; border-color:#333; color:#444; cursor:default; }
     .ability-btn:disabled { opacity:0.45; cursor:not-allowed; }
+    /* --cd (1 -> 0) is set by UIScene; the dark wedge shrinks as the cooldown runs out. */
+    .ability-btn { position:relative; }
+    .ability-btn::after { content:''; position:absolute; inset:0; border-radius:3px; pointer-events:none;
+                          background:conic-gradient(rgba(0,0,0,0.6) calc(var(--cd, 0) * 360deg), transparent 0); }
     .ability-btn:not(:disabled):not(.locked):hover { background:#253a4a; }
     .ability-key  { font-size:11px; font-weight:bold; letter-spacing:1px; }
     .ability-name { font-size:12px; }

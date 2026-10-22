@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { AbilityTooltip } from '../ui/AbilityTooltip.js';
 import { describeAbility } from '../systems/entityDescriptors.js';
+import { cooldownFraction } from '../systems/juiceMath.js';
 
 export default class UIScene extends Phaser.Scene {
   constructor() { super('UIScene'); }
@@ -212,9 +213,15 @@ export default class UIScene extends Phaser.Scene {
     if (!btn) return;
     const cdEl = btn.querySelector('.ability-cd');
     if (secs > 0) {
+      // Max = first non-zero tick after ready; the ring is remaining/max.
+      this._cdMax ??= {};
+      this._cdMax[id] ||= secs;
+      btn.style.setProperty('--cd', cooldownFraction(secs, this._cdMax[id]));
       btn.disabled = true;
       if (cdEl) cdEl.textContent = secs + 's';
     } else {
+      if (this._cdMax) this._cdMax[id] = 0;
+      btn.style.removeProperty('--cd');
       if (!btn.classList.contains('locked')) btn.disabled = false;
       if (cdEl) cdEl.textContent = '';
     }

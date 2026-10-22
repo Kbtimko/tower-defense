@@ -22,13 +22,13 @@ import { CoinFx } from '../systems/CoinFx.js';
 import { ShakeController }    from '../systems/ShakeController.js';
 import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
 import { SOLDIER_MUZZLE, HIT_STOP } from '../data/fx.js';
-import { BUILD_POP, UPGRADE_POP, SELL_FX } from '../data/juice.js';
+import { BUILD_POP, UPGRADE_POP, SELL_FX, SELECTION_RING, PAD_GLOW, RETICLE } from '../data/juice.js';
 import { deathClass, isHeavyHit, canHitStop } from '../systems/hitFx.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
 import { gameToPageCss } from '../systems/viewport.js';
 import { pulseClass } from '../ui/pulse.js';
 import { WaveBanner } from '../ui/WaveBanner.js';
-import { bossWarning } from '../systems/juiceMath.js';
+import { bossWarning, padGlowAlpha } from '../systems/juiceMath.js';
 import { STORY_PANELS, briefKey, victorySequenceId, STORY_SEQUENCES } from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
 import { soldierSource, heroAbilitySource } from '../data/sourceBuilders.js';
@@ -164,6 +164,7 @@ export default class GameScene extends Phaser.Scene {
       mods,
     );
     this.aimMode                  = false;
+    this._fxTime                  = 0; // seconds; drives pad glow / ring pulse / reticle spin
     this._heroOverchargeWasActive = false;
     this._heroCooldownAccum       = 0;
 
@@ -503,6 +504,7 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
     this._sinceHitStop += delta / 1000;
+    this._fxTime += delta / 1000;
     const dt    = (delta / 1000) * this.speed;
     const dtMs  = delta * this.speed;
     this._ambient?.update(dtMs);
@@ -524,6 +526,8 @@ export default class GameScene extends Phaser.Scene {
     this.gfx.clear();
     this._drawPath();
     this._drawZones();
+    this._drawSelectionRing();
+    this._drawReticle();
     this._drawParticles();
   }
 
@@ -1734,7 +1738,9 @@ export default class GameScene extends Phaser.Scene {
 
   _drawZones() {
     const canAfford = this.selectedType && this.economy.gold >= (TOWER_DEFS[this.selectedType]?.cost ?? Infinity);
-    for (const zone of this.placementManager.getZones()) {
+    const zones = this.placementManager.getZones();
+    for (let slot = 0; slot < zones.length; slot++) {
+      const zone = zones[slot];
       if (zone.occupied) continue;
       const color = this.selectedType ? (canAfford ? 0xffd700 : 0x884444) : 0x444444;
       const alpha = this.selectedType ? 1 : 0.3;
@@ -1742,6 +1748,14 @@ export default class GameScene extends Phaser.Scene {
       this.gfx.strokeCircle(zone.cx, zone.cy, zone.radius);
       if (this.selectedType && canAfford) {
         this.gfx.fillStyle(0xffd700, 0.07); this.gfx.fillCircle(zone.cx, zone.cy, zone.radius);
+      }
+      if (!this.selectedType) {
+        // Idle glow invites building; static when ambient motion is off.
+        const a = this.game.registry.get('ambientMotion') === false
+          ? PAD_GLOW.staticAlpha
+          : padGlowAlpha(this._fxTime, slot * PAD_GLOW.slotPhase, PAD_GLOW);
+        this.gfx.fillStyle(PAD_GLOW.color, a);
+        this.gfx.fillCircle(zone.cx, zone.cy, zone.radius);
       }
     }
 
@@ -1779,6 +1793,33 @@ export default class GameScene extends Phaser.Scene {
           this.gfx.fillCircle(pt.x, pt.y, 6);
         }
       }
+    }
+  }
+
+  _drawSelectionRing() {
+    const t = this.selectedTower;
+    if (!t) return;
+    const pulse = this.game.registry.get('ambientMotion') === false
+      ? 1
+      : 0.5 + 0.5 * Math.sin(this._fxTime * SELECTION_RING.pulse * Math.PI * 2);
+    const [lo, hi] = SELECTION_RING.alpha;
+    this.gfx.lineStyle(SELECTION_RING.width, SELECTION_RING.color, lo + (hi - lo) * pulse);
+    this.gfx.strokeCircle(t.x, t.y, SELECTION_RING.radius);
+  }
+
+  _drawReticle() {
+    if (!this.aimMode) return;
+    const x = this._buildCursorX;
+    const y = this._buildCursorY;
+    const r = this.hero.def.abilities[this._aimSlot]?.radius ?? RETICLE.radius;
+    const spin = this.game.registry.get('ambientMotion') === false ? 0 : this._fxTime * RETICLE.spin;
+    this.gfx.lineStyle(RETICLE.lineWidth, RETICLE.color, 1);
+    this.gfx.strokeCircle(x, y, r);
+    for (let i = 0; i < RETICLE.ticks; i++) {
+      const ang = spin + (i * Math.PI * 2) / RETICLE.ticks;
+      const c = Math.cos(ang), s = Math.sin(ang);
+      const r0 = r + RETICLE.tickInner, r1 = r0 + RETICLE.tickLength;
+      this.gfx.lineBetween(x + c * r0, y + s * r0, x + c * r1, y + s * r1);
     }
   }
 
