@@ -6,3 +6,16 @@ export const AMBIENT_LAYERS = [
   { name: 'far', depth: 5, speed: 1, size: 1, alpha: 1, seedOffset: 0 },
   { name: 'near', depth: 8.5, speed: 1.8, size: 1.6, alpha: 0.55, seedOffset: 1013 },
 ];
+
+// Blinking amber beacon on each empty build pad (art-bible human amber). The
+// offset sits on the pad's upper-left rim, matching the art bible's light
+// direction; slotPhase desyncs neighbouring pads.
+export const PAD_BEACON = {
+  color: 0xffb000,
+  radius: 2,
+  offset: { x: -15, y: -15 },
+  period: 2.4,
+  onFraction: 0.18,
+  alpha: [0.15, 0.95],
+  slotPhase: 0.37,
+};

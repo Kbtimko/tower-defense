@@ -29,6 +29,8 @@ import { gameToPageCss } from '../systems/viewport.js';
 import { pulseClass } from '../ui/pulse.js';
 import { WaveBanner } from '../ui/WaveBanner.js';
 import { bossWarning, padGlowAlpha } from '../systems/juiceMath.js';
+import { PAD_BEACON } from '../data/ambient.js';
+import { beaconAlpha } from '../systems/padBeacon.js';
 import { STORY_PANELS, briefKey, victorySequenceId, STORY_SEQUENCES } from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
 import { soldierSource, heroAbilitySource } from '../data/sourceBuilders.js';
@@ -1766,6 +1768,9 @@ export default class GameScene extends Phaser.Scene {
           : padGlowAlpha(this._fxTime, slot * PAD_GLOW.slotPhase, PAD_GLOW);
         glow.fillStyle(PAD_GLOW.color, a);
         glow.fillCircle(zone.cx, zone.cy, zone.radius);
+        // Beacon stays steady (no blink) under reduced motion.
+        glow.fillStyle(PAD_BEACON.color, reducedMotion ? PAD_BEACON.alpha[0] : beaconAlpha(this._fxTime, slot, PAD_BEACON));
+        glow.fillCircle(zone.cx + PAD_BEACON.offset.x, zone.cy + PAD_BEACON.offset.y, PAD_BEACON.radius);
       }
     }
 

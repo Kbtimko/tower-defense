@@ -8,6 +8,8 @@ vi.mock('phaser', () => ({
 import { describe, it, expect } from 'vitest';
 import GameScene from './GameScene.js';
 import { RETICLE, SELECTION_RING, PAD_GLOW } from '../data/juice.js';
+import { PAD_BEACON } from '../data/ambient.js';
+import { beaconAlpha } from '../systems/padBeacon.js';
 
 const makeGfx = () => {
   const calls = [];
@@ -93,5 +95,36 @@ describe('_drawZones pad glow', () => {
     c._drawZones();
     expect(c.gfx.calls.some(x => x[0] === 'fillStyle' && x[1] === PAD_GLOW.color)).toBe(false);
     expect(c.gfx.calls[0]).toEqual(['lineStyle', 2, 0xffd700, 1]);
+  });
+});
+
+describe('_drawZones pad beacon', () => {
+  const zones = [{ occupied: false, cx: 10, cy: 20, radius: 22 }, { occupied: true, cx: 5, cy: 5, radius: 22 },
+                 { occupied: false, cx: 30, cy: 40, radius: 22 }];
+  const run = (o) => { const c = ctx({ placementManager: { getZones: () => zones, getNearestSlot: () => null }, ...o }); c._drawZones(); return c; };
+  const beaconFills = (c) => c._padGlow.calls.filter(x => x[0] === 'fillStyle' && x[1] === PAD_BEACON.color);
+  const beaconDots = (c) => c._padGlow.calls.filter(x => x[0] === 'fillCircle' && x[3] === PAD_BEACON.radius);
+  it('draws a dot at the rim offset on empty pads only, on _padGlow', () => {
+    const c = run();
+    expect(beaconDots(c).map(d => d.slice(1, 3))).toEqual([
+      [10 + PAD_BEACON.offset.x, 20 + PAD_BEACON.offset.y],
+      [30 + PAD_BEACON.offset.x, 40 + PAD_BEACON.offset.y],
+    ]);
+    expect(c.gfx.calls.some(x => x[0] === 'fillStyle' && x[1] === PAD_BEACON.color)).toBe(false);
+  });
+  it('alpha follows beaconAlpha per slot index', () => {
+    const c = run({ _fxTime: 0.1 });
+    const fills = beaconFills(c);
+    expect(fills[0][2]).toBeCloseTo(beaconAlpha(0.1, 0, PAD_BEACON));
+    expect(fills[1][2]).toBeCloseTo(beaconAlpha(0.1, 2, PAD_BEACON));
+  });
+  it('is steady at the floor alpha under reduced motion', () => {
+    const f = (t) => beaconFills(run({ _fxTime: t, game: { registry: { get: () => false } } })).map(x => x[2]);
+    expect(f(0.1)).toEqual([PAD_BEACON.alpha[0], PAD_BEACON.alpha[0]]);
+    expect(f(1.3)).toEqual(f(0.1));
+  });
+  it('draws no beacon in build mode', () => {
+    const c = run({ selectedType: 'archer', economy: { gold: 99999 } });
+    expect(beaconDots(c)).toEqual([]);
   });
 });
