@@ -6,7 +6,9 @@
 //   npm run capture -- [--maps 0,3,5,9] [--wave N] [--seconds 6]
 //                      [--build "archer@0:3,mage@4:4b"] [--hero rael]
 //                      [--devices desktop,desktop1440,desktop1080,iphone,pixel,ipad] [--video [secs]]
-//                      [--no-build] [--screens]
+//                      [--no-build] [--screens | --flow]
+//
+//   npm run matrix -- [--devices iphone] [--no-build]     (= capture.mjs --flow)
 //
 // --screens shoots the non-gameplay screens instead (first-run story, map
 // select, in-game, tower panel, defeat, victory) into <device>/screens/, using
@@ -15,6 +17,12 @@
 // and .art-cache/captures/report.json listing console errors per capture.
 // --wave defaults to the middle wave of each map; --build defaults to one of
 // every tower at mixed tiers (defaultCaptureBuild).
+//
+// --flow plays the opening of a fresh first run with real input on each device
+// (boot -> map 0 -> build archer -> upgrade -> send wave -> pause), asserting
+// the game state after every step and shooting <device>/flow/NN-id.png. It
+// always uses map 0 and ignores --maps/--wave/--build/--hero/--video; without
+// --devices it runs desktop,iphone,pixel,ipad. Exits 1 if any device fails.
 import { mkdirSync, writeFileSync, renameSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -24,13 +32,20 @@ import { MAPS } from '../src/data/maps.js';
 import { MAP_WAVES } from '../src/data/waves.js';
 import { defaultCaptureBuild } from '../src/systems/debugCapture.js';
 import { layoutProblems, railProblems, railGeometryProblems, overlayProblems, minTouchFor } from '../src/systems/layoutAudit.js';
-import { railMetricsFor, WORLD_HEIGHT } from '../src/data/layout.js';
 import { POINTER_FINE_QUERY } from '../src/data/mobile.js';
+import { CONFIRM_WINDOW_MS } from '../src/data/input.js';
+import { WORLD_WIDTH, WORLD_HEIGHT } from '../src/data/layout.js';
+import { TOWER_DEFS } from '../src/data/towers.js';
+import { stepsFor, shotName, worldToPagePoint, flowExpectations, summarizeFlow } from '../src/systems/deviceFlow.js';
 
 const OUT_DIR   = '.art-cache/captures';
 const DIST_DIR  = '.art-cache/capture-dist';
 const PORT      = 4188;
 const MIN_ENEMIES = 3;
+// The roadmap's three touch devices plus a fine-pointer desktop (104-px rails).
+const FLOW_DEVICES = ['desktop', 'iphone', 'pixel', 'ipad'];
+const FLOW_TOWER = 'archer';
+const STEP_TIMEOUT = 10_000;
 
 // Landscape presets: the game is landscape-only, so portrait shots would only
 // show the letterboxing. `portrait` names the same device upright, for the
@@ -75,7 +90,7 @@ function contextOptions(device) {
 
 function parseArgs(argv) {
   const opts = { maps: [0, 3, 5, 9], wave: null, seconds: 6, build: null, hero: null,
-    devices: ['desktop'], video: 0, rebuild: true, screens: false };
+    devices: null, video: 0, rebuild: true, screens: false, flow: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => argv[++i];
@@ -87,11 +102,14 @@ function parseArgs(argv) {
     else if (a === '--devices')  opts.devices = next().split(',');
     else if (a === '--no-build') opts.rebuild = false;
     else if (a === '--screens')  opts.screens = true;
+    else if (a === '--flow')     opts.flow = true;
     else if (a === '--video') {
       const secs = Number(argv[i + 1]);
       opts.video = Number.isFinite(secs) && secs > 0 ? (i++, secs) : 10;
     } else throw new Error(`unknown argument ${a}`);
   }
+  if (opts.flow && opts.screens) throw new Error('--flow and --screens are separate modes; pass one');
+  opts.devices ??= opts.flow ? FLOW_DEVICES : ['desktop'];
   for (const d of opts.devices) if (!DEVICES[d]) throw new Error(`unknown device ${d} (have ${Object.keys(DEVICES)})`);
   return opts;
 }
@@ -140,14 +158,22 @@ async function shootBusiestFrame(page, waitMs, file) {
 
 // World point -> page point: the map sits one rail into the FIT-scaled canvas. Rail width depends
 // on the page's pointer class, which this Node process can't see, so ask the page.
-async function clickGamePoint(page, x, y) {
+async function gamePagePoint(page, x, y) {
   const pointerFine = await page.evaluate(q => matchMedia(q).matches, POINTER_FINE_QUERY);
-  const { railWidth, canvasWidth } = railMetricsFor({ pointerFine });
   const box = await page.locator('#game canvas').boundingBox();
-  await page.mouse.click(
-    box.x + ((x + railWidth) * box.width) / canvasWidth,
-    box.y + (y * box.height) / WORLD_HEIGHT,
-  );
+  return worldToPagePoint({ x, y }, box, { pointerFine });
+}
+
+async function clickGamePoint(page, x, y) {
+  const p = await gamePagePoint(page, x, y);
+  await page.mouse.click(p.x, p.y);
+}
+
+// Canvas counterpart of tap(): a real touch on touch devices, the mouse otherwise.
+async function tapGamePoint(page, deviceName, x, y) {
+  const p = await gamePagePoint(page, x, y);
+  if (DEVICES[deviceName].hasTouch) await page.touchscreen.tap(p.x, p.y);
+  else await page.mouse.click(p.x, p.y);
 }
 
 // A real pointer event (Phaser/DOM handlers ignore synthetic ones): touch devices tap.
@@ -230,8 +256,8 @@ async function auditOverlay(page, deviceName, { open, root, close, targets, labe
   return { result, file };
 }
 
-async function shoot(page, file) {
-  await page.screenshot({ path: file });
+async function shoot(page, file, options = {}) {
+  await page.screenshot({ path: file, ...options });
   return file;
 }
 
@@ -387,6 +413,215 @@ async function captureRotation(browser, base, deviceName, levelPath, dir) {
   return { files, layout, problems };
 }
 
+// Polls `read` until `ok` holds; on timeout throws with the last value seen,
+// so a failing step says what the page actually showed.
+async function until(read, ok, describe, timeout = STEP_TIMEOUT) {
+  const deadline = Date.now() + timeout;
+  for (;;) {
+    const value = await read();
+    if (ok(value)) return value;
+    if (Date.now() >= deadline) throw new Error(describe(value));
+    await new Promise(res => setTimeout(res, 100));
+  }
+}
+
+// Short per-read timeout: textContent() otherwise auto-waits 30 s for a missing
+// element, overriding until()'s own deadline.
+const text = (page, sel) => page.locator(sel).first().textContent({ timeout: 1_000 }).then(t => t?.trim() ?? null);
+const visible = (page, sel) => page.locator(sel).first().isVisible();
+const hasClass = (page, sel, cls) => page.locator(sel).first().evaluate((el, c) => el.classList.contains(c), cls);
+
+// Samples the MAP rect only, not the whole canvas: the HUD rails overlay the canvas
+// edges and their DOM text (#stat-wave, #wave-btn) changes on Send Wave, which would
+// make any "canvas changed" check pass without Phaser drawing anything.
+async function mapShot(page) {
+  const pointerFine = await page.evaluate(q => matchMedia(q).matches, POINTER_FINE_QUERY);
+  const box = await page.locator('#game canvas').boundingBox();
+  const a = worldToPagePoint({ x: 0, y: 0 }, box, { pointerFine });
+  const b = worldToPagePoint({ x: WORLD_WIDTH, y: WORLD_HEIGHT }, box, { pointerFine });
+  return page.screenshot({ clip: { x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y } });
+}
+
+// The wave banner animates over the map; waiting for it keeps it out of map samples.
+// Wait for every animation to finish, not for the list to empty: the banner uses
+// `fill: forwards`, so a finished banner stays in getAnimations() holding opacity 0.
+async function animationsSettled(page) {
+  await until(
+    () => page.evaluate(() => document.getAnimations().filter(an => an.playState !== 'finished')
+      .map(an => `${an.animationName ?? an.constructor.name} on #${an.effect?.target?.id || '?'}`)),
+    list => list.length === 0, list => `animation(s) still running: ${list.join(', ')}`);
+}
+
+async function expectText(page, sel, expected, timeout) {
+  await until(() => text(page, sel), t => t === String(expected), t => `${sel} "${t}", expected "${expected}"`, timeout);
+}
+
+async function expectVisible(page, sel, want = true, timeout) {
+  await until(() => visible(page, sel), v => v === want, () => `${sel} ${want ? 'not visible' : 'still visible'}`, timeout);
+}
+
+// One function per spec step-table row (docs/superpowers/specs/2026-10-22-device-matrix-design.md).
+// Each performs the row's action and asserts its condition; a throw fails the step.
+const FLOW_ACTIONS = {
+  async boot(ctx) {
+    const { page, base, hasTouch } = ctx;
+    await page.goto(base + '/');
+    await expectVisible(page, '#story-dialog', true, 30_000);
+    ctx.pointerFine = await page.evaluate(q => matchMedia(q).matches, POINTER_FINE_QUERY);
+    if (ctx.pointerFine !== !hasTouch) throw new Error(`pointer fine=${ctx.pointerFine}, expected ${!hasTouch}`);
+  },
+  async 'skip-story'({ page, deviceName }) {
+    await tap(page, deviceName, '#story-dialog-skip');
+    await expectVisible(page, '#story-dialog', false);
+    await expectVisible(page, '#map-select');
+  },
+  async 'select-map'({ page, deviceName }) {
+    const node = '.ow-node[data-map-id="0"]';
+    await tap(page, deviceName, node);
+    await until(() => hasClass(page, node, 'active'), Boolean, () => `${node} not .active`);
+    await expectText(page, '#featured-name', MAPS[0].name);
+  },
+  async play({ page, deviceName, exp }) {
+    await tap(page, deviceName, '#featured-play');
+    await expectVisible(page, '#hud-layer');
+    await expectText(page, '#stat-gold', exp.startGold);
+    await expectText(page, '#stat-wave', exp.waveBefore);
+    await expectText(page, '#wave-btn', '▶ Send Wave 1');
+  },
+  async briefing({ page, deviceName, exp }, step, dir) {
+    // The briefing is created in the same create() that shows #hud-layer, so its
+    // state is already settled once step 04 passed: no wait-for-appearance race.
+    const shown = await visible(page, '#story-dialog');
+    if (shown !== exp.expectBriefing) throw new Error(`briefing ${shown ? 'shown' : 'missing'}, expected ${exp.expectBriefing ? 'shown' : 'none'}`);
+    if (!shown) return { file: null };
+    const file = await shoot(page, join(dir, shotName(step)));
+    await tap(page, deviceName, '#story-dialog-skip');
+    await expectVisible(page, '#story-dialog', false);
+    return { file };
+  },
+  async 'level-ready'({ page, deviceName }) {
+    const { problems } = await audit(page, deviceName, 'flow-in-game', IN_GAME_TARGETS, RAIL_ONLY_TARGETS);
+    if (problems.length) throw new Error(problems.join('; '));
+  },
+  async 'arm-tower'({ page, deviceName, exp }) {
+    const btn = `.tower-btn[data-type="${FLOW_TOWER}"]`;
+    await tap(page, deviceName, btn);
+    await until(() => hasClass(page, btn, 'selected'), Boolean, () => `${btn} not .selected`);
+    await expectVisible(page, '#cancel-btn');
+    await expectText(page, '#stat-gold', exp.startGold);
+  },
+  async build({ page, deviceName, exp }) {
+    await tapGamePoint(page, deviceName, exp.pad.x, exp.pad.y);
+    await expectText(page, '#stat-gold', exp.goldAfterBuild);
+  },
+  async 'open-panel'(ctx) {
+    const { page, deviceName, exp } = ctx;
+    // The armed build stays armed, but resolveTap checks towers first, so this opens the panel.
+    await tapGamePoint(page, deviceName, exp.pad.x, exp.pad.y);
+    await expectVisible(page, '#tower-panel');
+    const name = TOWER_DEFS[FLOW_TOWER].name;
+    await until(() => text(page, '#panel-name'), t => t?.includes(name), t => `#panel-name "${t}", expected it to contain "${name}"`);
+    await expectText(page, '#panel-lvl', 'Level: 1/4');
+    if (!(await page.locator('#panel-upgrade-btn').isEnabled())) throw new Error('#panel-upgrade-btn disabled');
+    ctx.labelBefore = await text(page, '#panel-upgrade-btn');
+  },
+  async 'upgrade-arm'(ctx, step, dir) {
+    const { page, deviceName, exp } = ctx;
+    await tap(page, deviceName, '#panel-upgrade-btn');
+    // Clock starts at the first tap: step 11 must land its second tap inside the window.
+    ctx.armedAt = Date.now();
+    await expectText(page, '#panel-upgrade-btn', `Tap again: ${ctx.labelBefore}`);
+    if (!(await hasClass(page, '#panel-upgrade-btn', 'confirming'))) throw new Error('#panel-upgrade-btn not .confirming');
+    await expectText(page, '#stat-gold', exp.goldAfterBuild);
+    // CSS-px shot: a DPR-3 full-resolution capture eats a large share of the confirm window.
+    return { file: await shoot(page, join(dir, shotName(step)), { scale: 'css' }) };
+  },
+  async upgrade({ page, deviceName, exp, armedAt }) {
+    const gapMs = armedAt === undefined ? null : Date.now() - armedAt;
+    // Past the window the second tap would silently re-arm and read as "upgrade did nothing".
+    if (gapMs !== null && gapMs > CONFIRM_WINDOW_MS - 500) {
+      throw new Error(`harness exceeded confirm window (${gapMs} ms since first tap)`);
+    }
+    const gap = gapMs === null ? '' : `confirm gap ${gapMs} ms`;
+    try {
+      await tap(page, deviceName, '#panel-upgrade-btn');
+      await expectText(page, '#stat-gold', exp.goldAfterUpgrade);
+      await expectText(page, '#panel-lvl', 'Level: 2/4');
+      if (await hasClass(page, '#panel-upgrade-btn', 'confirming')) throw new Error('#panel-upgrade-btn still .confirming');
+      const disabled = await page.locator('#panel-upgrade-btn').isDisabled();
+      if (disabled !== exp.lockedAfterUpgrade) throw new Error(`#panel-upgrade-btn disabled=${disabled}, expected ${exp.lockedAfterUpgrade}`);
+    } catch (err) {
+      // The gap tells a timing-related re-arm apart from a real upgrade failure.
+      throw new Error(gap ? `${err.message.split('\n')[0]} (${gap})` : err.message);
+    }
+    return { detail: gap };
+  },
+  async 'send-wave'({ page, deviceName, exp }) {
+    await tap(page, deviceName, '#wave-btn');
+    await expectText(page, '#stat-wave', exp.waveAfter);
+    // Mirror of step 13 under the same conditions: proves the map sample can differ,
+    // so step 13's byte-identical check is meaningful.
+    await animationsSettled(page);
+    const a = await mapShot(page);
+    await until(() => mapShot(page), b => !b.equals(a), () => 'map unchanged 5 s after Send Wave', 5_000);
+  },
+  async pause({ page, deviceName }) {
+    await tap(page, deviceName, '#pause-btn');
+    await until(() => hasClass(page, '#paused-overlay', 'shown'), Boolean, () => '#paused-overlay not .shown');
+    await expectVisible(page, '#paused-overlay');
+    await expectText(page, '#pause-btn', '▶ Resume');
+    await animationsSettled(page);
+    const a = await mapShot(page);
+    await page.waitForTimeout(500);
+    const b = await mapShot(page);
+    if (!a.equals(b)) throw new Error('map changed while paused');
+  },
+};
+
+// Plays one device through the step table in a fresh context (empty localStorage,
+// so a true first run). Stops at the first failure and records the rest as skip,
+// so the evidence ends where the game diverged.
+async function captureFlow(browser, base, deviceName, exp) {
+  const dir = join(OUT_DIR, deviceName, 'flow');
+  // A leftover NN-id-FAILED.png from an earlier run would contradict this run's result.
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  const device = DEVICES[deviceName];
+  const context = await browser.newContext(contextOptions(device));
+  const steps = [];
+  let problems = [];
+  const ctx = { base, deviceName, exp, hasTouch: !!device.hasTouch, pointerFine: null };
+  try {
+    ctx.page = await context.newPage();
+    problems = watchProblems(ctx.page);
+    let failed = false;
+    for (const step of stepsFor({ hasTouch: ctx.hasTouch })) {
+      const record = { n: step.n, id: step.id, status: 'skip', detail: '', file: null, ms: 0 };
+      steps.push(record);
+      if (failed) continue;
+      const t0 = Date.now();
+      try {
+        // An action may return { file } when it shoots its own frame (or none), and { detail }.
+        const result = (await FLOW_ACTIONS[step.id](ctx, step, dir)) ?? {};
+        record.file = 'file' in result ? result.file : await shoot(ctx.page, join(dir, shotName(step)));
+        record.detail = result.detail ?? '';
+        record.status = 'pass';
+      } catch (err) {
+        failed = true;
+        record.status = 'fail';
+        record.detail = err.message.split('\n')[0];
+        record.file = await shoot(ctx.page, join(dir, shotName(step).replace('.png', '-FAILED.png'))).catch(() => null);
+      }
+      record.ms = Date.now() - t0;
+    }
+  } finally {
+    await context.close();
+  }
+  // Same rule as summarizeFlow: an empty step list proves nothing.
+  const pass = steps.length > 0 && steps.every(s => s.status === 'pass') && problems.length === 0;
+  return { device: deviceName, mode: 'flow', pointerFine: ctx.pointerFine, pass, steps, problems };
+}
+
 async function captureOne(browser, base, deviceName, mapId, opts) {
   const { wave, path } = captureUrl(mapId, opts);
   const dir = join(OUT_DIR, deviceName);
@@ -418,6 +653,8 @@ async function captureOne(browser, base, deviceName, mapId, opts) {
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
+  // Throws before any build or browser if map 0 can no longer afford the flow.
+  const exp = opts.flow ? flowExpectations({ map: MAPS[0], towerType: FLOW_TOWER }) : null;
   if (opts.rebuild || !existsSync(DIST_DIR)) {
     await build({ mode: 'capture', logLevel: 'warn', build: { outDir: DIST_DIR, emptyOutDir: true } });
   }
@@ -427,6 +664,10 @@ async function main() {
   const results = [];
   try {
     for (const deviceName of opts.devices) {
+      if (opts.flow) {
+        results.push(await captureFlow(browser, base, deviceName, exp));
+        continue;
+      }
       if (opts.screens) {
         const r = await captureScreens(browser, base, deviceName, opts);
         results.push(r);
@@ -452,6 +693,11 @@ async function main() {
   if (layoutLines.length) {
     console.log(`\n${layoutLines.join('\n')}`);
     process.exitCode = 1;
+  }
+  if (opts.flow) {
+    const { lines, failedDevices } = summarizeFlow(results);
+    console.log(`\n${lines.join('\n')}`);
+    if (failedDevices > 0) process.exitCode = 1;
   }
 }
 
