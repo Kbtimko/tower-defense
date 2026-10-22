@@ -42,10 +42,10 @@ seamless.
 |-----|---------|----------------------------------------|--------------|
 | `portrait-command` | **Sol Command** | a stern senior human military officer, dark-blue Sol Vanguard dress uniform with rank insignia, cool command-deck lighting, composed and authoritative, calm blue backdrop. | `#4aa3ff` cool blue |
 | `portrait-rael` | **Commander Rael** | a battle-worn human field commander, gold-accented navy Vanguard combat armor, a scar across the brow, resolute determined expression, warm heroic key light, amber-gold backdrop. | `#ffd24a` warm gold |
-| `portrait-vorn` | **The Vorn** (hive-mind) | an alien hive-mind visage, chitinous violet carapace and segmented plating, a cluster of many faint glowing eyes, cold and unsettling, low purple underlighting, dark backdrop. | `#9b4dff` cold violet |
+| `portrait-veth` | **The Veth** (hive-mind) | an alien hive-mind visage, chitinous violet carapace and segmented plating, a cluster of many faint glowing eyes, cold and unsettling, low purple underlighting, dark backdrop. | `#9b4dff` cold violet |
 
 > Note: in-game enemy units are the "Veth"; the antagonist speaker here is "The
-> Vorn" hive-mind. Keep the violet chitin language shared between this portrait
+> Veth" hive-mind. Keep the violet chitin language shared between this portrait
 > and the enemy sprites (`public/assets/sprites/PROMPTS.md`) so the faction reads as one.
 
 ---

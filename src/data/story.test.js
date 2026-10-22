@@ -4,6 +4,7 @@ import {
   briefKey, epilogueKey, victorySequenceId, storyLogEntries, STORY_LOG_LABELS,
 } from './story.js';
 import { MAPS } from './maps.js';
+import { ENEMY_DEFS } from './enemies.js';
 
 describe('story content integrity', () => {
   it('every speaker has name, color, portraitKey', () => {
@@ -61,5 +62,25 @@ describe('story content integrity', () => {
     const entries = storyLogEntries(seen);
     expect(entries[0]).toEqual({ id: 'campaign_intro', label: STORY_LOG_LABELS.campaign_intro });
     expect(entries.map(e => e.id)).toEqual(['campaign_intro', 'brief_outpost_sigma', 'brief_lunar_gate']);
+  });
+});
+
+// The enemy faction had two names (story "Vorn", data/codex "Veth") until
+// 2026-10-21. The story now takes its name from enemies.js.
+describe('enemy faction name', () => {
+  const factions = new Set(Object.values(ENEMY_DEFS).map(d => d.name.split(' ')[0]));
+  const faction = [...factions][0];
+  const allText = JSON.stringify({ STORY_SPEAKERS, STORY_SEQUENCES, STORY_PANELS });
+
+  it('has one faction prefix across every enemy name', () => {
+    expect(factions.size).toBe(1);
+  });
+
+  it('names the alien speaker after that faction', () => {
+    expect(Object.values(STORY_SPEAKERS).some(sp => sp.name === `The ${faction}`)).toBe(true);
+  });
+
+  it('never uses the retired name', () => {
+    expect(allText).not.toMatch(/vorn/i);
   });
 });

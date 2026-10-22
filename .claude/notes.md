@@ -29,7 +29,7 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 
 ## NEEDS HUMAN (visual roadmap gates)
 - ~~G1 — art bible~~ **approved 2026-10-21**: adopt Appendix A sizes; brute emissive -> bronze `#9a7b4f`; plain navy outlines for all; shadow 50% as shipped. FLUX anchor replacement still to land in 4.0.
-- **Enemy name: "Vorn" (story, 15 lines in `src/data/story.js`) vs "Veth" (enemy names, codex)** — pick one before 3.5.
+- ~~Enemy name~~ **resolved 2026-10-21: "Veth"** everywhere (story text, speaker key `veth`, `portrait-veth.png`).
 - **Draw Things API server off** (2026-10-21): app running but not listening. Enable Advanced -> API Server in HTTP mode (not gRPC) before any LOCAL task.
 
 ## Blockers

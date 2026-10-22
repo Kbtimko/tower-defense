@@ -1,7 +1,7 @@
 export const STORY_SPEAKERS = {
   command: { name: 'Sol Command',    color: 0x4aa3ff, portraitKey: 'portrait-command' },
   rael:    { name: 'Commander Rael', color: 0xffd24a, portraitKey: 'portrait-rael'    },
-  vorn:    { name: 'The Vorn',       color: 0x9b4dff, portraitKey: 'portrait-vorn'    },
+  veth:    { name: 'The Veth',       color: 0x9b4dff, portraitKey: 'portrait-veth'    },
 };
 
 // Convention: briefing/epilogue sequence ids derive from a map's storyKey.
@@ -15,14 +15,14 @@ export function victorySequenceId(storyKey, isFinalMap) {
 
 export const STORY_SEQUENCES = {
   campaign_intro: { panels: [
-    { speaker: 'command', text: 'Forty years of silence beyond the orbit of Mars — and then they came. The Vorn fleet burned through the home fleet in a single night.' },
+    { speaker: 'command', text: 'Forty years of silence beyond the orbit of Mars — and then they came. The Veth fleet burned through the home fleet in a single night.' },
     { speaker: 'command', text: 'Earth still stands. Barely. Every defense line that holds buys the evacuation convoys another hour.' },
     { speaker: 'rael',    text: "This is Commander Rael, Sol Vanguard. I've held worse with less. Give me towers and a field of fire, and I'll give you that hour." },
-    { speaker: 'command', text: 'Outpost Sigma is the last station between the Vorn and the inner colonies, Commander. Hold it.' },
+    { speaker: 'command', text: 'Outpost Sigma is the last station between the Veth and the inner colonies, Commander. Hold it.' },
   ] },
 
   brief_outpost_sigma: { panels: [
-    { speaker: 'command', text: "Outpost Sigma — humanity's last forward base. Vorn drones inbound in waves." },
+    { speaker: 'command', text: "Outpost Sigma — humanity's last forward base. Veth drones inbound in waves." },
     { speaker: 'rael',    text: "Standard swarm. Build your line, layer your fire, don't let a single one reach the core." },
   ] },
   epilogue_outpost_sigma: { panels: [
@@ -31,7 +31,7 @@ export const STORY_SEQUENCES = {
   ] },
 
   brief_lunar_gate: { panels: [
-    { speaker: 'command', text: 'The Lunar Gate controls every approach to Earth. The Vorn took it in the first hour. Take it back.' },
+    { speaker: 'command', text: 'The Lunar Gate controls every approach to Earth. The Veth took it in the first hour. Take it back.' },
     { speaker: 'rael',    text: 'They learn fast. Expect them harder and quicker than Sigma. We come harder still.' },
   ] },
   epilogue_lunar_gate: { panels: [
@@ -40,7 +40,7 @@ export const STORY_SEQUENCES = {
   ] },
 
   brief_the_crater: { panels: [
-    { speaker: 'command', text: 'The Crater rim is cover for us — and a maze the Vorn have already mapped. Watch your chokepoints.' },
+    { speaker: 'command', text: 'The Crater rim is cover for us — and a maze the Veth have already mapped. Watch your chokepoints.' },
     { speaker: 'rael',    text: "Let them think they know the ground. We'll teach them otherwise." },
   ] },
   epilogue_the_crater: { panels: [
@@ -49,7 +49,7 @@ export const STORY_SEQUENCES = {
   ] },
 
   brief_orbital_station: { panels: [
-    { speaker: 'command', text: "The Vorn hold Orbital Station, and they're calling in fliers. Expect airborne drones this assault." },
+    { speaker: 'command', text: "The Veth hold Orbital Station, and they're calling in fliers. Expect airborne drones this assault." },
     { speaker: 'rael',    text: 'Anything that flies still falls. Keep your firing arcs wide.' },
   ] },
   epilogue_orbital_station: { panels: [
@@ -58,20 +58,20 @@ export const STORY_SEQUENCES = {
   ] },
 
   brief_asteroid_belt: { panels: [
-    { speaker: 'command', text: "The mining platforms give you high ground. The Vorn are massing beyond the belt in numbers we can't count." },
+    { speaker: 'command', text: "The mining platforms give you high ground. The Veth are massing beyond the belt in numbers we can't count." },
     { speaker: 'rael',    text: "High ground and a clear shot. That's all I've ever needed." },
   ] },
   epilogue_asteroid_belt: { panels: [
     { speaker: 'rael',    text: "Belt's clear. We've pushed them out of Sol entirely." },
-    { speaker: 'command', text: 'Commander… long-range scans just picked up something moving in Vorn space. Something enormous.' },
-    { speaker: 'vorn',    text: 'You come to us now. Good.' },
+    { speaker: 'command', text: 'Commander… long-range scans just picked up something moving in Veth space. Something enormous.' },
+    { speaker: 'veth',    text: 'You come to us now. Good.' },
   ] },
 
   brief_titans_reach: { panels: [
-    { speaker: 'command', text: "You've crossed into Vorn-held space, Commander. We can't protect you out here." },
+    { speaker: 'command', text: "You've crossed into Veth-held space, Commander. We can't protect you out here." },
     { speaker: 'rael',    text: "We're not here to be protected. We're here to finish it." },
     { speaker: 'command', text: 'Surface scanners read an organism the size of a frigate. Designation: TITAN. Armor like a hull — pierce is the only thing that bites.' },
-    { speaker: 'vorn',    text: 'We grow our walls from the bones of the worlds we eat. Yours will do nicely.' },
+    { speaker: 'veth',    text: 'We grow our walls from the bones of the worlds we eat. Yours will do nicely.' },
   ] },
   epilogue_titans_reach: { panels: [
     { speaker: 'rael',    text: "First Titan's down. Big. Slow. Dead." },
@@ -97,8 +97,8 @@ export const STORY_SEQUENCES = {
   ] },
 
   brief_enemy_homeworld: { panels: [
-    { speaker: 'command', text: "This is it — the Vorn homeworld. Their defenses are unlike anything we've faced. Hold the perimeter and push in." },
-    { speaker: 'vorn',    text: 'You stand on the shell of a living world. It does not want you here.' },
+    { speaker: 'command', text: "This is it — the Veth homeworld. Their defenses are unlike anything we've faced. Hold the perimeter and push in." },
+    { speaker: 'veth',    text: 'You stand on the shell of a living world. It does not want you here.' },
     { speaker: 'rael',    text: "Noted. We're not staying — we're just here to turn the lights off." },
   ] },
   epilogue_enemy_homeworld: { panels: [
@@ -108,13 +108,13 @@ export const STORY_SEQUENCES = {
 
   brief_last_light: { panels: [
     { speaker: 'command', text: "Everything they have left is here, between you and the hive-core. Six waves of their absolute best." },
-    { speaker: 'vorn',    text: 'If we fall, the silence will be very long, little commander. For both of us.' },
+    { speaker: 'veth',    text: 'If we fall, the silence will be very long, little commander. For both of us.' },
     { speaker: 'rael',    text: 'This is Rael, Sol Vanguard. If we hold here, Earth lives. So we hold. We do not fall.' },
   ] },
 
   campaign_ending: { panels: [
     { speaker: 'rael',    text: "The core's dark. The voices… they've stopped. It's over." },
-    { speaker: 'command', text: 'Confirmed across every channel. The Vorn hive-mind is gone. The war is won, Commander.' },
+    { speaker: 'command', text: 'Confirmed across every channel. The Veth hive-mind is gone. The war is won, Commander.' },
     { speaker: 'command', text: 'Earth is sending word to every colony, every convoy, every soul who hid in the dark waiting for it to end. You held the line — all of it.' },
     { speaker: 'rael',    text: "We all did. This is the Last Light — and it's still burning. Rael out." },
   ] },
@@ -157,10 +157,10 @@ export function storyLogEntries(seenBeats) {
 export const STORY_PANELS = {
   outpost_sigma: { waves: {
     3: { headline: 'Intel — Wave 3', body: 'Three more drone waves inbound. Reinforce the line before they regroup.' },
-    7: { headline: "Rael's Log — Wave 7", body: 'Seven waves held. Whatever the Vorn send next will be bigger. Stay sharp.' },
+    7: { headline: "Rael's Log — Wave 7", body: 'Seven waves held. Whatever the Veth send next will be bigger. Stay sharp.' },
   } },
   lunar_gate: { waves: {
-    3: { headline: 'Intel — Wave 3', body: 'The Vorn are adapting to our positions. Expect faster assault patterns.' },
+    3: { headline: 'Intel — Wave 3', body: 'The Veth are adapting to our positions. Expect faster assault patterns.' },
     7: { headline: 'Transmission — Wave 7', body: 'Hold three more waves and the gate is ours for good.' },
   } },
   the_crater: { waves: {
@@ -168,7 +168,7 @@ export const STORY_PANELS = {
     8: { headline: "Rael's Log — Wave 8", body: 'The towers have held against everything. Trust the line.' },
   } },
   orbital_station: { waves: {
-    4: { headline: 'Intercept — Wave 4', body: 'Vorn calling in aerial support. Flying drones next assault.' },
+    4: { headline: 'Intercept — Wave 4', body: 'Veth calling in aerial support. Flying drones next assault.' },
     8: { headline: 'Status — Wave 8', body: 'Station systems at 60%. Eight waves repelled. They are throwing everything at us.' },
   } },
   asteroid_belt: { waves: {
