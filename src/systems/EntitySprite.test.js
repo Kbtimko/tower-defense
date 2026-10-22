@@ -37,7 +37,9 @@ function makeSpriteStub() {
     setTintFill: vi.fn((c) => { s.tint = c; return s; }),
     clearTint: vi.fn(() => { s.tint = null; return s; }),
     setTint: vi.fn((c) => { s.tint = c; return s; }),
+    displayWidth: 32, displayHeight: 32,
   };
+  s.setScale = vi.fn((x, y = x) => { s.displayWidth = 16 * x; s.displayHeight = 16 * y; return s; });
   return s;
 }
 
@@ -251,6 +253,16 @@ describe('EntitySprite base tint and squash', () => {
     expect(scene.sprite.setScale).toHaveBeenLastCalledWith(2 * 1.18, 2 * 0.82);
     es.setSquash(1, 1);
     expect(scene.sprite.setScale).toHaveBeenLastCalledWith(2, 2);
+  });
+
+  it('getDisplaySize reports the unsquashed size while squashed', () => {
+    const { es } = activeSprite();
+    es.setSquash(1, 1);
+    const rest = es.getDisplaySize();
+    es.setSquash(1.18, 0.82);
+    const squashed = es.getDisplaySize();
+    expect(squashed.width).toBeCloseTo(rest.width);
+    expect(squashed.height).toBeCloseTo(rest.height);
   });
 
   it('tint and squash are no-ops when inactive', () => {

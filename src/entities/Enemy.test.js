@@ -228,14 +228,14 @@ describe('Enemy death presentation', () => {
 
   it('reports a death animation once the sprite has death art', () => {
     const e = new Enemy(makeScene(), { def: makeDef(), startX: 0, startY: 0 });
-    e._sprite = { hasState: (n) => n === 'death', playOnce: vi.fn() };
+    e._sprite = { hasState: (n) => n === 'death', playOnce: vi.fn(), setBaseTint: vi.fn(), setSquash: vi.fn() };
     expect(e.hasDeathAnimation()).toBe(true);
   });
 
   it('hides the HP bar and status rings, then plays the one-shot', () => {
     const e = new Enemy(makeScene(), { def: makeDef(), startX: 0, startY: 0 });
     const playOnce = vi.fn();
-    e._sprite = { hasState: () => true, playOnce };
+    e._sprite = { hasState: () => true, playOnce, setBaseTint: vi.fn(), setSquash: vi.fn() };
     const done = vi.fn();
 
     e.playDeathAnimation(done);
@@ -317,7 +317,7 @@ describe('Enemy hit feedback for chip damage', () => {
 
   it('drops the flash when the death animation takes over', () => {
     const e = makeEnemy();
-    e._sprite = { hasState: () => true, playOnce: vi.fn(), setFlash: vi.fn(), setSquash: vi.fn() };
+    e._sprite = { hasState: () => true, playOnce: vi.fn(), setFlash: vi.fn(), setSquash: vi.fn(), setBaseTint: vi.fn() };
     e.takeDamage(5);
     e.playDeathAnimation(vi.fn());
     expect(e.hitFlash.active).toBe(false);
@@ -472,6 +472,42 @@ describe('Enemy hit squash and status visuals', () => {
     e.applyStatus({ type: 'stun', duration: 5 });
     e.playDeathAnimation(vi.fn());
     expect(e._stars.visible).toBe(false);
+  });
+
+  it('death animation clears the status tint so the corpse is not tinted', () => {
+    const e = build();
+    e._sprite.playOnce = vi.fn();
+    e.applyStatus({ type: 'slow', duration: 5, factor: 0.5 });
+    e.playDeathAnimation(vi.fn());
+    expect(e._sprite.setBaseTint).toHaveBeenLastCalledWith(null);
+  });
+
+  it('a hit landing mid-squash leaves the HP bar geometry unchanged', () => {
+    const e = build();
+    let sx = 1, sy = 1;
+    // Mimics EntitySprite: display size is the unsquashed art times the squash.
+    e._sprite.setSquash = vi.fn((x, y) => { sx = x; sy = y; });
+    e._sprite.getDisplaySize = () => ({ width: 53, height: 112 });
+    const rects = [];
+    e._hpBar.fillRect = (...a) => rects.push(a.slice(0, 3));
+    e.takeDamage(5);
+    const first = rects.splice(0).map((r) => r.join());
+    e.update(0.03);
+    e.takeDamage(5);
+    const second = rects.splice(0).map((r) => r.join());
+    expect(sx).not.toBe(1);
+    expect(second.slice(0, 2)).toEqual(first.slice(0, 2));
+  });
+
+  it('stars orbit above the top of tall art, not inside the body', () => {
+    const e = build();
+    e._sprite.getDisplaySize = () => ({ width: 53, height: 112 });
+    const ys = [];
+    e._stars.fillTriangle = (x1, y1, x2, y2, x3, y3) => ys.push(y1, y2, y3);
+    e.applyStatus({ type: 'stun', duration: 5 });
+    e.update(0.1);
+    expect(ys.length).toBeGreaterThan(0);
+    expect(Math.max(...ys)).toBeLessThan(-56); // art top is -56
   });
 
   it('works on the Graphics fallback (inactive sprite) without throwing', () => {

@@ -199,6 +199,6 @@ export const STATUS_EMIT_FX = {
 
 // Geometry of the status overlays drawn on Enemy Graphics (px / ratios of def.radius).
 export const STATUS_DRAW = {
-  crystal: { inner: 2, length: 5, halfWidth: 2 },  // frost shard: base offset from ring, tip length, base half-width
-  star: { size: 3, orbitRatio: 1.0, lift: 8, squash: 0.4 }, // orbit ellipse above the head
+  crystal: { inner: 2, length: 5, halfWidth: 2, alpha: 0.9, phase: Math.PI / 4 },  // frost shard: base offset from ring, tip length, base half-width
+  star: { size: 3, orbitRatio: 1.0, lift: 6, squash: 0.4, tail: 0.7 }, // orbit ellipse centred `lift` px above the HP bar; tail = lower/upper tip ratio
 };

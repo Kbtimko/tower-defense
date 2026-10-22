@@ -39,6 +39,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     this._squashT    = 0;
     this._starAngle  = 0;
     this._statusAcc  = 0;
+    this._starCy     = 0; // orbit centre y, set from the art's top when a stun starts
 
     this._body    = scene.add.graphics();
     this._flash   = scene.add.graphics();  // hit flash — over the body, under the rings
@@ -72,6 +73,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     this._hpBar.setVisible(false);
     this._overlay.setVisible(false);
     this._stars.setVisible(false);
+    this._sprite.setBaseTint(null); // a corpse must not play its death frames slow-blue / burn-orange
     this._endSquash();
     this._clearHitFlash();
     this._flash.setVisible(false);
@@ -309,6 +311,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     this._sprite?.setBaseTint(statusTint(this.statusEffects));
     this._redrawStatusOverlay();
     const stunned = this.statusEffects.stun.active;
+    if (stunned) this._starCy = this._starCentreY();
     this._stars.setVisible(stunned);
     if (!stunned) this._stars.clear();
   }
@@ -332,11 +335,11 @@ export class Enemy extends Phaser.GameObjects.Container {
 
   // Frost shards pointing outward from the ring, positions computed in place.
   _drawCrystals(ringR) {
-    const { inner, length, halfWidth } = STATUS_DRAW.crystal;
+    const { inner, length, halfWidth, alpha, phase } = STATUS_DRAW.crystal;
     const n = STATUS_FX.slow.crystals;
-    this._overlay.fillStyle(STATUS_FX.slow.tint, 0.9);
+    this._overlay.fillStyle(STATUS_FX.slow.tint, alpha);
     for (let i = 0; i < n; i++) {
-      const a  = (Math.PI * 2 * i) / n + Math.PI / 4;
+      const a  = (Math.PI * 2 * i) / n + phase;
       const ux = Math.cos(a), uy = Math.sin(a);
       const bx = ux * (ringR + inner), by = uy * (ringR + inner);
       this._overlay.fillTriangle(
@@ -347,22 +350,29 @@ export class Enemy extends Phaser.GameObjects.Container {
     }
   }
 
+  // Stars ride above the HP bar, which is already laid out from the rendered
+  // art (def.radius is only the Graphics fallback), so they clear tall sprites.
+  _starCentreY() {
+    const size = this._sprite?.getDisplaySize?.() ?? null;
+    const { top } = hpBarGeometry(this.def.radius, size?.width, size?.height);
+    return top - STATUS_DRAW.star.lift;
+  }
+
   // Each star is two overlapping triangles (up + down). Orbits on a flattened
   // ellipse above the head so it reads as stars circling in perspective.
   _drawStars(dt) {
-    const { size, orbitRatio, lift, squash } = STATUS_DRAW.star;
+    const { size, orbitRatio, squash, tail } = STATUS_DRAW.star;
     const { stars, spin, color } = STATUS_FX.stun;
     const orbit = this.def.radius * orbitRatio;
-    const cy0   = -this.def.radius - lift;
     this._starAngle += spin * dt;
     this._stars.clear();
     this._stars.fillStyle(color, 1);
     for (let i = 0; i < stars; i++) {
       const a  = this._starAngle + (Math.PI * 2 * i) / stars;
       const cx = Math.cos(a) * orbit;
-      const cy = cy0 + Math.sin(a) * orbit * squash;
-      this._stars.fillTriangle(cx, cy - size, cx - size, cy + size * 0.7, cx + size, cy + size * 0.7);
-      this._stars.fillTriangle(cx, cy + size, cx - size, cy - size * 0.7, cx + size, cy - size * 0.7);
+      const cy = this._starCy + Math.sin(a) * orbit * squash;
+      this._stars.fillTriangle(cx, cy - size, cx - size, cy + size * tail, cx + size, cy + size * tail);
+      this._stars.fillTriangle(cx, cy + size, cx - size, cy - size * tail, cx + size, cy - size * tail);
     }
   }
 

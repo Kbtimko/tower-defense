@@ -37,6 +37,8 @@ export class EntitySprite {
     this.shadow   = null;
     this._busy    = false; // true while a one-shot (attack/death) anim is playing
     this._flashed = false;
+    this._squashX = 1;
+    this._squashY = 1;
     this._baseTint = null; // status colour the sprite returns to after a flash
 
     const config = getSpriteConfig(category, type);
@@ -140,14 +142,21 @@ export class EntitySprite {
   setSquash(x, y) {
     if (!this.active) return;
     const base = this._config.scale ?? 1;
+    this._squashX = x;
+    this._squashY = y;
     this.sprite.setScale(base * x, base * y);
   }
 
   // Rendered size of the art, for callers that must lay out around the body
   // rather than around the entity's nominal radius. Null while inactive.
+  // Reports the UNSQUASHED size: the squash is transient, and layouts computed
+  // mid-squash (HP bar, status overlays) would otherwise persist wrong.
   getDisplaySize() {
     if (!this.active) return null;
-    return { width: this.sprite.displayWidth, height: this.sprite.displayHeight };
+    return {
+      width: this.sprite.displayWidth / this._squashX,
+      height: this.sprite.displayHeight / this._squashY,
+    };
   }
 
   setFacing(dirX) {
