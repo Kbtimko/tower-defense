@@ -1142,7 +1142,7 @@ export default class GameScene extends Phaser.Scene {
     picker.replaceChildren();
     upgradeBtn.style.display = '';
 
-    if (tower.level === 3 && !tower.branch && tower.type !== 'barracks') {
+    if (tower.level === 3 && !tower.branch) {
       upgradeBtn.style.display = 'none';
       picker.style.display     = 'block';
       this._renderBranchPicker(picker, def, map);
