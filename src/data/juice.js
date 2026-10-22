@@ -73,7 +73,7 @@ export const RETICLE = {
   color: 0xff5a5a,
   lineWidth: 2,
   spin: 1.5,         // rad/s
-  radius: 70,        // px default (matches the airstrike) when the ability has none
+  radius: 24,        // px default for aimed abilities with no area (e.g. single-target mark)
   ticks: 4,
   tickInner: 6,      // px gap between circle and tick start
   tickLength: 8,

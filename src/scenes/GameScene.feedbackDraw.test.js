@@ -75,7 +75,9 @@ describe('_drawZones pad glow', () => {
   });
   it('is static under reduced motion', () => {
     const run = (t) => { const c = ctx({ _fxTime: t, game: { registry: { get: () => false } }, placementManager: { getZones: () => zones, getNearestSlot: () => null } }); c._drawZones(); return c.gfx.calls; };
-    expect(run(0)).toEqual(run(1.3));
+    const calls = run(0);
+    expect(calls.some(x => x[0] === 'fillStyle' && x[1] === PAD_GLOW.color && x[2] === PAD_GLOW.staticAlpha)).toBe(true);
+    expect(calls).toEqual(run(1.3));
   });
   it('leaves build-mode drawing unchanged (no glow, same colours)', () => {
     const c = ctx({ selectedType: 'archer', economy: { gold: 99999 }, placementManager: { getZones: () => zones, getNearestSlot: () => null } });

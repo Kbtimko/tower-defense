@@ -215,7 +215,8 @@ export default class UIScene extends Phaser.Scene {
     if (secs > 0) {
       // Max = first non-zero tick after ready; the ring is remaining/max.
       this._cdMax ??= {};
-      this._cdMax[id] ||= secs;
+      // Seed from the hero def so a mid-cooldown start can't skew the sweep.
+      this._cdMax[id] ||= this._heroDef?.abilities?.[id.slice(-1)]?.cooldown ?? secs;
       btn.style.setProperty('--cd', cooldownFraction(secs, this._cdMax[id]));
       btn.disabled = true;
       if (cdEl) cdEl.textContent = secs + 's';

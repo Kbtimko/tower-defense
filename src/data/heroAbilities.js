@@ -2,6 +2,11 @@
 // the ability-result shape (or null on cooldown/dead). Hero.fireAbility is the
 // dispatcher; impls do NOT touch hero._timers — Hero does that.
 
+// Single source of truth for aimed-ability areas: run results and the aim
+// reticle (via heroes.js) both read these.
+export const AIRSTRIKE_RADIUS = 70;
+export const FIREFIELD_RADIUS = 100;
+
 export function raelOvercharge(hero, _scene) {
   if (hero.dead) return null;
   hero.overchargeActive    = true;
@@ -11,7 +16,7 @@ export function raelOvercharge(hero, _scene) {
 
 export function raelAirstrike(hero, _scene, { x, y }) {
   if (hero.dead) return null;
-  return { kind: 'airstrike', x, y, radius: 70, damage: 80 };
+  return { kind: 'airstrike', x, y, radius: AIRSTRIKE_RADIUS, damage: 80 };
 }
 
 export function raelEmp(hero, _scene) {
@@ -67,7 +72,7 @@ export function pyroImmolate(hero, _scene) {
 
 export function pyroFirefield(hero, _scene, { x, y }) {
   if (hero.dead) return null;
-  return { kind: 'firefield', x, y, radius: 100, duration: 6, dps: 15, slowFactor: 0.7 };
+  return { kind: 'firefield', x, y, radius: FIREFIELD_RADIUS, duration: 6, dps: 15, slowFactor: 0.7 };
 }
 
 export function pyroBurnOnHit(_hero, enemy) {

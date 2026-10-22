@@ -43,4 +43,10 @@ describe('UIScene ability cooldown ring (--cd)', () => {
     expect(Number(cd())).toBe(0.5);
     expect(Number(document.getElementById('ability-w').style.getPropertyValue('--cd'))).toBe(0.5);
   });
+
+  it('seeds max from the hero def cooldown, not the first tick', () => {
+    scene._heroDef = { abilities: { q: { cooldown: 30 } } };
+    scene._setAbilityCd('ability-q', 15); // joined mid-cooldown
+    expect(Number(cd())).toBe(0.5);
+  });
 });
