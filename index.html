@@ -320,6 +320,19 @@
                      padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
                      font-family:'Georgia',serif; }
     #open-settings:hover { background:#223344; }
+    #fullscreen-btn { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
+                      padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
+                      font-family:'Georgia',serif; }
+    #fullscreen-btn:hover { background:#223344; }
+    /* Above every overlay (highest in-page z-index is 50). No scene owns this. */
+    #rotate-prompt { display:none; }
+    @media (orientation: portrait) and (pointer: coarse) {
+      #rotate-prompt { position:fixed; inset:0; z-index:1000; display:flex; flex-direction:column;
+                       align-items:center; justify-content:center; gap:18px; background:#08081e;
+                       color:#e8e8ff; font-family:'Georgia',serif; font-size:20px; text-align:center;
+                       padding:24px; }
+      #rotate-prompt-glyph { font-size:72px; color:#4fc3f7; }
+    }
     #lifetime-stats { display:flex; justify-content:center; gap:10px; margin-top:14px;
                       flex-wrap:wrap; }
     .stat-chip { background:#0f0f2e; border:1px solid #2a3442; border-radius:6px;
@@ -609,6 +622,7 @@
         <button id="open-settings" title="Audio settings">♪ Audio</button>
         <button id="open-story-log" title="Story log">📖 Story</button>
         <button id="open-codex-ms" title="Codex">📚 Codex</button>
+        <button id="fullscreen-btn" title="Toggle fullscreen">⛶ Fullscreen</button>
       </div>
       <div id="map-select-layout">
         <div id="map-overworld"></div>
@@ -804,5 +818,6 @@
   <div id="inspect-peek" style="display:none"></div>
   <div id="ability-card" class="ability-card" role="tooltip" aria-hidden="true"></div>
   <script type="module" src="/src/main.js"></script>
+  <div id="rotate-prompt"><div id="rotate-prompt-glyph">&#10227;</div><div>Rotate your device to landscape</div></div>
 </body>
 </html>

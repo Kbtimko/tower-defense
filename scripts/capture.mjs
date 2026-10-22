@@ -254,7 +254,8 @@ async function captureRotation(browser, base, deviceName, levelPath, dir) {
     await page.goto(base + '/');
     await page.locator('#story-dialog-skip').waitFor({ state: 'visible', timeout: 30_000 });
     await page.waitForTimeout(1500);
-    await page.locator('#story-dialog-skip').click();
+    // el.click(), not a pointer click: the rotate prompt covers the page upright.
+    await page.evaluate(() => document.querySelector('#story-dialog-skip')?.click());
     await page.waitForTimeout(800);
     files.push(await shoot(page, join(dir, '00-portrait.png')));
     await rotate(page);
