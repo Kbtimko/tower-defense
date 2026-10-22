@@ -1,4 +1,4 @@
-import { CANVAS_WIDTH, WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH, HUD_CELL } from '../data/layout.js';
+import { CANVAS_WIDTH, WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH, HUD_CELL, HUD_K } from '../data/layout.js';
 import { PEEK_GAP_PX } from '../data/input.js';
 
 // The HUD is DOM laid out in game px (CANVAS_WIDTH x WORLD_HEIGHT) and pinned
@@ -49,6 +49,7 @@ export function applyHudLayerSize(doc) {
   s.setProperty('--world-h', `${WORLD_HEIGHT}px`);
   s.setProperty('--rail-w', `${RAIL_WIDTH}px`);
   s.setProperty('--hud-cell', `${HUD_CELL}px`);
+  s.setProperty('--hud-k', String(HUD_K));
   s.setProperty('--peek-gap', `${PEEK_GAP_PX}px`);
 }
 

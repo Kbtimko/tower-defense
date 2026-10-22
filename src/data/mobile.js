@@ -1,5 +1,7 @@
 // Phone in portrait: the game is landscape-only, so this shows the rotate prompt.
 export const PHONE_PORTRAIT_QUERY = '(orientation: portrait) and (pointer: coarse)';
+// A mouse/trackpad is the primary pointer: the HUD rails can shrink to mouse-sized targets.
+export const POINTER_FINE_QUERY = '(pointer: fine)';
 // Landscape phones are ~340-430 px tall; tablets and desktops are taller.
 export const COMPACT_MAX_HEIGHT_PX = 500;
 export const COMPACT_QUERY = `(max-height: ${COMPACT_MAX_HEIGHT_PX}px)`;
