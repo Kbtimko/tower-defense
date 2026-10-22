@@ -34,6 +34,7 @@ import { defaultCaptureBuild } from '../src/systems/debugCapture.js';
 import { layoutProblems, railProblems, railGeometryProblems, overlayProblems, minTouchFor } from '../src/systems/layoutAudit.js';
 import { POINTER_FINE_QUERY } from '../src/data/mobile.js';
 import { CONFIRM_WINDOW_MS } from '../src/data/input.js';
+import { WORLD_WIDTH, WORLD_HEIGHT } from '../src/data/layout.js';
 import { TOWER_DEFS } from '../src/data/towers.js';
 import { stepsFor, shotName, worldToPagePoint, flowExpectations, summarizeFlow } from '../src/systems/deviceFlow.js';
 
@@ -255,8 +256,8 @@ async function auditOverlay(page, deviceName, { open, root, close, targets, labe
   return { result, file };
 }
 
-async function shoot(page, file) {
-  await page.screenshot({ path: file });
+async function shoot(page, file, options = {}) {
+  await page.screenshot({ path: file, ...options });
   return file;
 }
 
@@ -424,10 +425,32 @@ async function until(read, ok, describe, timeout = STEP_TIMEOUT) {
   }
 }
 
-const text = (page, sel) => page.locator(sel).first().textContent().then(t => t?.trim() ?? null);
+// Short per-read timeout: textContent() otherwise auto-waits 30 s for a missing
+// element, overriding until()'s own deadline.
+const text = (page, sel) => page.locator(sel).first().textContent({ timeout: 1_000 }).then(t => t?.trim() ?? null);
 const visible = (page, sel) => page.locator(sel).first().isVisible();
 const hasClass = (page, sel, cls) => page.locator(sel).first().evaluate((el, c) => el.classList.contains(c), cls);
-const canvasShot = page => page.locator('#game canvas').screenshot();
+
+// Samples the MAP rect only, not the whole canvas: the HUD rails overlay the canvas
+// edges and their DOM text (#stat-wave, #wave-btn) changes on Send Wave, which would
+// make any "canvas changed" check pass without Phaser drawing anything.
+async function mapShot(page) {
+  const pointerFine = await page.evaluate(q => matchMedia(q).matches, POINTER_FINE_QUERY);
+  const box = await page.locator('#game canvas').boundingBox();
+  const a = worldToPagePoint({ x: 0, y: 0 }, box, { pointerFine });
+  const b = worldToPagePoint({ x: WORLD_WIDTH, y: WORLD_HEIGHT }, box, { pointerFine });
+  return page.screenshot({ clip: { x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y } });
+}
+
+// The wave banner animates over the map; waiting for it keeps it out of map samples.
+// Wait for every animation to finish, not for the list to empty: the banner uses
+// `fill: forwards`, so a finished banner stays in getAnimations() holding opacity 0.
+async function animationsSettled(page) {
+  await until(
+    () => page.evaluate(() => document.getAnimations().filter(an => an.playState !== 'finished')
+      .map(an => `${an.animationName ?? an.constructor.name} on #${an.effect?.target?.id || '?'}`)),
+    list => list.length === 0, list => `animation(s) still running: ${list.join(', ')}`);
+}
 
 async function expectText(page, sel, expected, timeout) {
   await until(() => text(page, sel), t => t === String(expected), t => `${sel} "${t}", expected "${expected}"`, timeout);
@@ -470,11 +493,11 @@ const FLOW_ACTIONS = {
     // state is already settled once step 04 passed: no wait-for-appearance race.
     const shown = await visible(page, '#story-dialog');
     if (shown !== exp.expectBriefing) throw new Error(`briefing ${shown ? 'shown' : 'missing'}, expected ${exp.expectBriefing ? 'shown' : 'none'}`);
-    if (!shown) return null;
+    if (!shown) return { file: null };
     const file = await shoot(page, join(dir, shotName(step)));
     await tap(page, deviceName, '#story-dialog-skip');
     await expectVisible(page, '#story-dialog', false);
-    return file;
+    return { file };
   },
   async 'level-ready'({ page, deviceName }) {
     const { problems } = await audit(page, deviceName, 'flow-in-game', IN_GAME_TARGETS, RAIL_ONLY_TARGETS);
@@ -502,7 +525,7 @@ const FLOW_ACTIONS = {
     if (!(await page.locator('#panel-upgrade-btn').isEnabled())) throw new Error('#panel-upgrade-btn disabled');
     ctx.labelBefore = await text(page, '#panel-upgrade-btn');
   },
-  async 'upgrade-arm'(ctx) {
+  async 'upgrade-arm'(ctx, step, dir) {
     const { page, deviceName, exp } = ctx;
     await tap(page, deviceName, '#panel-upgrade-btn');
     // Clock starts at the first tap: step 11 must land its second tap inside the window.
@@ -510,42 +533,48 @@ const FLOW_ACTIONS = {
     await expectText(page, '#panel-upgrade-btn', `Tap again: ${ctx.labelBefore}`);
     if (!(await hasClass(page, '#panel-upgrade-btn', 'confirming'))) throw new Error('#panel-upgrade-btn not .confirming');
     await expectText(page, '#stat-gold', exp.goldAfterBuild);
+    // CSS-px shot: a DPR-3 full-resolution capture eats a large share of the confirm window.
+    return { file: await shoot(page, join(dir, shotName(step)), { scale: 'css' }) };
   },
   async upgrade({ page, deviceName, exp, armedAt }) {
+    const gapMs = armedAt === undefined ? null : Date.now() - armedAt;
     // Past the window the second tap would silently re-arm and read as "upgrade did nothing".
-    if (armedAt !== undefined && Date.now() - armedAt > CONFIRM_WINDOW_MS - 500) {
-      throw new Error(`harness exceeded confirm window (${Date.now() - armedAt} ms since first tap)`);
+    if (gapMs !== null && gapMs > CONFIRM_WINDOW_MS - 500) {
+      throw new Error(`harness exceeded confirm window (${gapMs} ms since first tap)`);
     }
-    await tap(page, deviceName, '#panel-upgrade-btn');
-    await expectText(page, '#stat-gold', exp.goldAfterUpgrade);
-    await expectText(page, '#panel-lvl', 'Level: 2/4');
-    if (await hasClass(page, '#panel-upgrade-btn', 'confirming')) throw new Error('#panel-upgrade-btn still .confirming');
-    const disabled = await page.locator('#panel-upgrade-btn').isDisabled();
-    if (disabled !== exp.lockedAfterUpgrade) throw new Error(`#panel-upgrade-btn disabled=${disabled}, expected ${exp.lockedAfterUpgrade}`);
+    const gap = gapMs === null ? '' : `confirm gap ${gapMs} ms`;
+    try {
+      await tap(page, deviceName, '#panel-upgrade-btn');
+      await expectText(page, '#stat-gold', exp.goldAfterUpgrade);
+      await expectText(page, '#panel-lvl', 'Level: 2/4');
+      if (await hasClass(page, '#panel-upgrade-btn', 'confirming')) throw new Error('#panel-upgrade-btn still .confirming');
+      const disabled = await page.locator('#panel-upgrade-btn').isDisabled();
+      if (disabled !== exp.lockedAfterUpgrade) throw new Error(`#panel-upgrade-btn disabled=${disabled}, expected ${exp.lockedAfterUpgrade}`);
+    } catch (err) {
+      // The gap tells a timing-related re-arm apart from a real upgrade failure.
+      throw new Error(gap ? `${err.message.split('\n')[0]} (${gap})` : err.message);
+    }
+    return { detail: gap };
   },
   async 'send-wave'({ page, deviceName, exp }) {
-    const before = await canvasShot(page);
     await tap(page, deviceName, '#wave-btn');
     await expectText(page, '#stat-wave', exp.waveAfter);
-    // Proves the canvas sample can differ, so step 13's byte-identical check is meaningful.
-    await until(() => canvasShot(page), b => !b.equals(before), () => 'canvas unchanged 5 s after Send Wave', 5_000);
+    // Mirror of step 13 under the same conditions: proves the map sample can differ,
+    // so step 13's byte-identical check is meaningful.
+    await animationsSettled(page);
+    const a = await mapShot(page);
+    await until(() => mapShot(page), b => !b.equals(a), () => 'map unchanged 5 s after Send Wave', 5_000);
   },
   async pause({ page, deviceName }) {
     await tap(page, deviceName, '#pause-btn');
     await until(() => hasClass(page, '#paused-overlay', 'shown'), Boolean, () => '#paused-overlay not .shown');
     await expectVisible(page, '#paused-overlay');
     await expectText(page, '#pause-btn', '▶ Resume');
-    // The wave banner's CSS animation would otherwise show through as canvas-region change.
-    // Wait for every animation to finish, not for the list to empty: the banner uses
-    // `fill: forwards`, so a finished banner stays in getAnimations() holding opacity 0.
-    await until(
-      () => page.evaluate(() => document.getAnimations().filter(an => an.playState !== 'finished')
-        .map(an => `${an.animationName ?? an.constructor.name} on #${an.effect?.target?.id || '?'}`)),
-      list => list.length === 0, list => `animation(s) still running: ${list.join(', ')}`);
-    const a = await canvasShot(page);
+    await animationsSettled(page);
+    const a = await mapShot(page);
     await page.waitForTimeout(500);
-    const b = await canvasShot(page);
-    if (!a.equals(b)) throw new Error('canvas changed while paused');
+    const b = await mapShot(page);
+    if (!a.equals(b)) throw new Error('map changed while paused');
   },
 };
 
@@ -572,9 +601,10 @@ async function captureFlow(browser, base, deviceName, exp) {
       if (failed) continue;
       const t0 = Date.now();
       try {
-        const custom = await FLOW_ACTIONS[step.id](ctx, step, dir);
-        // briefing shoots its own frame (before dismissing) or none when not expected.
-        record.file = step.id === 'briefing' ? custom ?? null : await shoot(ctx.page, join(dir, shotName(step)));
+        // An action may return { file } when it shoots its own frame (or none), and { detail }.
+        const result = (await FLOW_ACTIONS[step.id](ctx, step, dir)) ?? {};
+        record.file = 'file' in result ? result.file : await shoot(ctx.page, join(dir, shotName(step)));
+        record.detail = result.detail ?? '';
         record.status = 'pass';
       } catch (err) {
         failed = true;
@@ -587,7 +617,8 @@ async function captureFlow(browser, base, deviceName, exp) {
   } finally {
     await context.close();
   }
-  const pass = steps.every(s => s.status === 'pass') && problems.length === 0;
+  // Same rule as summarizeFlow: an empty step list proves nothing.
+  const pass = steps.length > 0 && steps.every(s => s.status === 'pass') && problems.length === 0;
   return { device: deviceName, mode: 'flow', pointerFine: ctx.pointerFine, pass, steps, problems };
 }
 

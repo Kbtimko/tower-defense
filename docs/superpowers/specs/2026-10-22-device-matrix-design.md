@@ -38,7 +38,7 @@ Every DOM control is pressed with `tap(page, device, sel)`: `locator.tap()` on `
 | 10 | upgrade-arm *(touch only)* | tap `#panel-upgrade-btn` once | text = `Tap again: ${labelBefore}`; has `.confirming`; gold still E.goldAfterBuild |
 | 11 | upgrade | touch: second tap; mouse: single click | `#stat-gold` = E.goldAfterUpgrade; `#panel-lvl` = `Level: 2/4`; no `.confirming`; upgrade button `disabled` iff E.lockedAfterUpgrade |
 | 12 | send-wave | tap `#wave-btn` | `#stat-wave` = E.waveAfter (`1/10`); the canvas region screenshot changes within 5 s. This is the control that proves step 13's freeze check can fail |
-| 13 | pause | tap `#pause-btn` | `#paused-overlay` has `.shown` and is visible; `#pause-btn` text `▶ Resume`. Wait until every `document.getAnimations()` entry has `playState === 'finished'`: the wave banner uses `fill-mode: forwards`, so its animation stays listed after it ends. No CSS animation is infinite., then take two canvas-region screenshots 500 ms apart: they must be byte-identical |
+| 13 | pause | tap `#pause-btn` | `#paused-overlay` has `.shown` and is visible; `#pause-btn` text `▶ Resume`. Wait until every `document.getAnimations()` entry has `playState === 'finished'`: the wave banner uses `fill-mode: forwards`, so its animation stays listed after it ends. No CSS animation is infinite. Then take two canvas-region screenshots 500 ms apart: they must be byte-identical |
 
 The two-tap gap (steps 10→11) contains the label wait, the gold read and one screenshot. The harness records the time just after the first tap. If more than `CONFIRM_WINDOW_MS − 500` has passed before the second tap, step 11 fails with "harness exceeded confirm window". Without that check, a silent re-arm would read as "upgrade did nothing".
 
