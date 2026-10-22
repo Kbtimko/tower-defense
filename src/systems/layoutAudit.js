@@ -5,6 +5,8 @@
 import { CANVAS_WIDTH, WORLD_HEIGHT, HUD_CELL, MIN_TOUCH_PX, MIN_TOUCH_PX_SMALL_PHONE } from '../data/layout.js';
 
 const EDGE_TOLERANCE_PX = 1;
+// DPR rounding can shave a fraction off a nominally-44px control.
+const TOUCH_SUBPIXEL_SLACK_PX = 0.5;
 const ZOOM_TOLERANCE = 0.01;
 // A control mostly inside its overflow-hidden ancestor is still tappable; below this it is not.
 const MIN_VISIBLE_FRACTION = 0.9;
@@ -50,7 +52,7 @@ export function railProblems({ device, rails, targets, minTouchPx }) {
   for (const t of targets) {
     if (!t.rect || !t.visible) continue;
     if (!insideRect(t.rect, rails.left) && !insideRect(t.rect, rails.right)) problems.push(`${t.name} outside rails`);
-    if (device.hasTouch && (t.rect.width < minTouchPx || t.rect.height < minTouchPx)) {
+    if (device.hasTouch && (t.rect.width < minTouchPx - TOUCH_SUBPIXEL_SLACK_PX || t.rect.height < minTouchPx - TOUCH_SUBPIXEL_SLACK_PX)) {
       problems.push(`${t.name} too small ${Math.round(t.rect.width)}x${Math.round(t.rect.height)}`);
     }
   }

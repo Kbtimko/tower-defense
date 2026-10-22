@@ -88,6 +88,8 @@ describe('minTouchFor', () => {
     [863, 360, 44],   // pixel: height-bound scale 0.5 -> exactly 44
     [844, 390, 44],
     [932, 430, 44],
+    [815, 390, 40],   // width-bound: 815/1632*88 = 43.94, just under
+    [816, 390, 44],   // exactly 44.0
   ])('%ix%i -> %i', (vw, vh, expected) => {
     expect(minTouchFor({ vw, vh })).toBe(expected);
   });
@@ -125,6 +127,11 @@ describe('railProblems', () => {
   it('accepts exactly minTouchPx and honours a lower floor', () => {
     expect(run({ rect: rect(10, 10, 54, 54) })).toEqual([]);
     expect(run({ rect: rect(10, 10, 50, 50) }, { minTouchPx: 40 })).toEqual([]);
+  });
+  it('allows 0.5px of sub-pixel slack under the floor', () => {
+    expect(run({ rect: rect(10, 10, 53.6, 60) })).toEqual([]);
+    expect(run({ rect: rect(10, 10, 53.4, 60) })).toEqual(['#b too small 43x50']);
+    expect(run({ rect: rect(10, 10, 60, 53.4) })).toEqual(['#b too small 50x43']);
   });
   it('applies no size rule without touch', () => {
     expect(run({ rect: rect(10, 10, 20, 20) }, { device: { hasTouch: false } })).toEqual([]);

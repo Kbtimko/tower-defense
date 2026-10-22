@@ -54,6 +54,9 @@ const DEVICES = {
 // Controls a phone player must be able to reach on each screen.
 const MAP_SELECT_TARGETS = ['#featured-play'];
 const IN_GAME_TARGETS = ['#pause-btn', '#speed-btn', '#open-codex', '.tower-btn', '#exit-btn', '#wave-btn', '.ability-btn-wrap'];
+// Real HUD control that is hidden by design until a tower is armed: held to the rail rules
+// when visible, but never reported as `hidden` by layoutProblems.
+const RAIL_ONLY_TARGETS = ['#cancel-btn'];
 
 // Playwright rejects unknown context options, so strip ours before newContext.
 function contextOptions(device) {
@@ -135,10 +138,17 @@ async function clickGamePoint(page, x, y) {
   );
 }
 
+// A real pointer event (Phaser/DOM handlers ignore synthetic ones): touch devices tap.
+async function tap(page, deviceName, selector) {
+  const locator = page.locator(selector);
+  if (DEVICES[deviceName].hasTouch) await locator.tap();
+  else await locator.click();
+}
+
 // Collects layout metrics inside the page and returns { device, label, problems }.
 // getBoundingClientRect ignores ancestor clipping, so each target also gets
 // visibleRect: its rect intersected with every overflow-clipping ancestor.
-async function audit(page, deviceName, label, selectors) {
+async function audit(page, deviceName, label, selectors, railOnly = []) {
   const metrics = await page.evaluate(sels => {
     const clipRect = el => {
       const r = el.getBoundingClientRect();
@@ -170,9 +180,9 @@ async function audit(page, deviceName, label, selectors) {
       scale: window.visualViewport.scale, scrollWidth: document.documentElement.scrollWidth, targets,
       rails: { left: rect('#rail-left'), right: rect('#rail-right') },
     };
-  }, selectors);
+  }, [...selectors, ...railOnly]);
   const viewport = page.viewportSize();
-  const problems = layoutProblems({ ...metrics, device: viewport });
+  const problems = layoutProblems({ ...metrics, device: viewport, targets: metrics.targets.filter(t => !railOnly.includes(t.name)) });
   // Rails only exist in-game; the map-select audits list no HUD controls.
   if (selectors === IN_GAME_TARGETS) {
     const device = DEVICES[deviceName];
@@ -220,7 +230,13 @@ async function captureScreens(browser, base, deviceName, opts) {
     await page.goto(base + path);
     const cap = await shootBusiestFrame(page, opts.seconds * 1000, join(dir, '03-in-game.png'));
     files.push(join(dir, '03-in-game.png'));
-    layout.push(await audit(page, deviceName, 'in-game', IN_GAME_TARGETS));
+    layout.push(await audit(page, deviceName, 'in-game', IN_GAME_TARGETS, RAIL_ONLY_TARGETS));
+    // A real tap arms a tower, which is the only way #cancel-btn becomes visible.
+    await tap(page, deviceName, '.tower-btn[data-type="archer"]');
+    await page.locator('#cancel-btn').waitFor({ state: 'visible', timeout: 5_000 });
+    layout.push(await audit(page, deviceName, 'in-game-armed', IN_GAME_TARGETS, RAIL_ONLY_TARGETS));
+    await tap(page, deviceName, '#cancel-btn');
+    await page.locator('#cancel-btn').waitFor({ state: 'hidden', timeout: 5_000 });
     const tower = cap.towers[0];
     if (tower) {
       await clickGamePoint(page, tower.x, tower.y);
@@ -300,7 +316,7 @@ async function captureRotation(browser, base, deviceName, levelPath, dir) {
     if (entered) {
       await page.waitForTimeout(1500);
       files.push(await shoot(page, join(dir, '03b-in-game-rotated.png')));
-      layout.push(await audit(page, deviceName, 'rotated-in-game', IN_GAME_TARGETS));
+      layout.push(await audit(page, deviceName, 'rotated-in-game', IN_GAME_TARGETS, RAIL_ONLY_TARGETS));
     } else {
       layout.push({ device: deviceName, label: 'rotated-in-game', problems: ['level never started after PLAY'] });
     }
@@ -319,7 +335,7 @@ async function captureRotation(browser, base, deviceName, levelPath, dir) {
     layout.push(await audit(page, deviceName, 'portrait-mid-level', []));
     await rotate(page);
     files.push(await shoot(page, join(dir, '03c-mid-level-rotated.png')));
-    layout.push(await audit(page, deviceName, 'rotated-mid-level', IN_GAME_TARGETS));
+    layout.push(await audit(page, deviceName, 'rotated-mid-level', IN_GAME_TARGETS, RAIL_ONLY_TARGETS));
     problems.push(...p5);
   } finally {
     await context.close();
