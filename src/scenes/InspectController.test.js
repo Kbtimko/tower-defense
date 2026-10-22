@@ -502,8 +502,9 @@ describe('InspectController — panel positioning', () => {
     const ctrl = new InspectController(scene);
     ctrl.pin({ kind: 'enemy', target: enemy });
     const panel = document.getElementById('enemy-inspector');
-    // game (200,300) -> page (400,600); anchor adds +24 to left
-    expect(panel.style.left).toBe('424px');
+    // displayScale 2 = 2 game px per CSS px: game (200,300) -> page (100,150);
+    // anchor adds +24 to left
+    expect(panel.style.left).toBe('124px');
   });
 });
 

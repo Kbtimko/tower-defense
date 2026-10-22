@@ -7,14 +7,25 @@ describe('gameToPageCss', () => {
     expect(gameToPageCss(scale, 100, 100)).toEqual({ x: 100, y: 100 });
   });
 
-  it('scales up when the display is larger than the design resolution', () => {
-    const scale = { canvasBounds: { x: 0, y: 0 }, displayScale: { x: 1.5, y: 1.5 } };
-    expect(gameToPageCss(scale, 100, 100)).toEqual({ x: 150, y: 150 });
+  // Phaser displayScale = game px per CSS px, so a 1280x720 game FIT to 640x360
+  // has displayScale 2 and a game point lands at bounds + game / 2.
+  it('divides by displayScale: canvas FIT-scaled to 0.5 maps game corner to bounds corner', () => {
+    const scale = { canvasBounds: { x: 100, y: 40 }, displayScale: { x: 2, y: 2 } };
+    expect(gameToPageCss(scale, 1280, 720)).toEqual({ x: 100 + 640, y: 40 + 360 });
+    expect(gameToPageCss(scale, 0, 0)).toEqual({ x: 100, y: 40 });
   });
 
-  it('scales down when the display is smaller', () => {
-    const scale = { canvasBounds: { x: 0, y: 0 }, displayScale: { x: 0.5, y: 0.5 } };
-    expect(gameToPageCss(scale, 200, 200)).toEqual({ x: 100, y: 100 });
+  it('round-trips with pageToGame', () => {
+    const scale = {
+      canvasBounds: { x: 37, y: 12 },
+      displayScale: { x: 1280 / 1036, y: 720 / 583 },
+    };
+    for (const [gx, gy] of [[0, 0], [100, 50], [640, 360], [1280, 720], [333, 601]]) {
+      const page = gameToPageCss(scale, gx, gy);
+      const back = pageToGame(scale, page.x, page.y);
+      expect(back.x).toBeCloseTo(gx);
+      expect(back.y).toBeCloseTo(gy);
+    }
   });
 
   it('adds the letterbox offset from canvasBounds', () => {
