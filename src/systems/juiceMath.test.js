@@ -41,6 +41,7 @@ describe('popScale', () => {
     expect(max).toBeCloseTo(1.3, 1);
     expect(argmax).toBeLessThan(50);
     expect(min).toBeGreaterThanOrEqual(0.95);
+    expect(Math.abs(popScale(0.3 * 0.995, 0.3, 1.3) - 1)).toBeLessThan(0.02);
   });
 });
 

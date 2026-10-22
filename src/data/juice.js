@@ -20,21 +20,23 @@ export const GOLD_POP = {
   color: '#ffd700',
 };
 
+// burstEffect keys 'ringBurst'/'ringBurstGold' are added to IMPACT_FX by Task 3;
+// 'pop' is the enemy death pop (tinted per enemy), so it must not be reused.
 export const BUILD_POP = {
   duration: 0.3,     // s
   peak: 1.25,
-  burstEffect: 'pop', // IMPACT_FX key
+  burstEffect: 'ringBurst',
 };
 
 export const UPGRADE_POP = {
   duration: 0.35,
   peak: 1.3,
-  burstEffect: 'pop',
+  burstEffect: 'ringBurstGold',
 };
 
 export const SELL_FX = {
   duration: 0.25,
-  burstEffect: 'pop',
+  burstEffect: 'ringBurst',
 };
 
 export const WAVE_BANNER = {
