@@ -83,6 +83,24 @@ export const IMPACT_FX = {
     speed: { min: 60, max: 150 }, scale: { start: 0.45, end: 0 },
     alpha: { start: 1, end: 0 }, blendMode: 'ADD',
   },
+  // Hit/death effects (roadmap 1.6).
+  // Neutral white: the enemy colour tint is applied at spawn time, not baked here.
+  pop: {
+    texture: 'fx-glow', tint: 0xffffff, lifespan: 260, quantity: 8,
+    speed: { min: 30, max: 90 }, scale: { start: 0.45, end: 0 },
+    alpha: { start: 1, end: 0 }, blendMode: 'ADD',
+  },
+  // gravityY (px/s^2) is a Phaser emitter key; the spawner must forward it.
+  debris: {
+    texture: 'fx-shard', tint: 0x2a2430, lifespan: 600, quantity: 8,
+    speed: { min: 50, max: 140 }, scale: { start: 0.5, end: 0.2 },
+    alpha: { start: 1, end: 0 }, blendMode: 'NORMAL', gravityY: 260,
+  },
+  shockwave: {
+    texture: 'fx-ring', tint: 0xffffff, lifespan: 500, quantity: 1,
+    speed: { min: 0, max: 0 }, scale: { start: 0.2, end: 2.4 },
+    alpha: { start: 0.8, end: 0 }, blendMode: 'ADD',
+  },
 };
 
 export const PROJECTILE_FX = {
@@ -131,4 +149,40 @@ export const PROJECTILE_DRAW = {
   rimWidth: 1,               // shell outline stroke width
   shardWidthRatio: 0.3,      // shard half-width / length
   shadow: { width: 14, height: 6, color: 0x000000, alpha: 0.5, minScale: 0.75 },
+};
+
+// On hit the sprite widens and flattens (scaleX 1+a, scaleY 1-a), easing back to 1.
+export const HIT_SQUASH = { duration: 0.12, amount: 0.18 }; // seconds
+
+// Hit-stop: a brief whole-scene freeze on heavy hits (>= heavyFraction of maxHp,
+// or any kill of a large/boss enemy), rate-limited by cooldown. Seconds.
+export const HIT_STOP = { duration: 0.05, cooldown: 0.4, heavyFraction: 0.25 };
+
+export const DEATH_CLASS = {
+  drone: 'small', skitter: 'small', phantom: 'small',
+  brute: 'large', colossus: 'large',
+  titan: 'boss',
+};
+
+// Per class: effect (IMPACT_FX key) fired `delay` ms after death.
+export const DEATH_FX = {
+  small: [{ effect: 'pop', delay: 0 }],
+  large: [{ effect: 'burst', delay: 0 }, { effect: 'debris', delay: 0 }],
+  boss: [
+    { effect: 'burst', delay: 0 },
+    { effect: 'burst', delay: 250 },
+    { effect: 'burst', delay: 500 },
+    { effect: 'burst', delay: 750 },
+    { effect: 'explosion', delay: 900 },
+    { effect: 'debris', delay: 900 },
+    { effect: 'shockwave', delay: 900 },
+  ],
+};
+
+export const STATUS_FX = {
+  slow: { tint: 0x7fe9ff, crystals: 4 },
+  burn: { tint: 0xff8a1f, emberRate: 12 }, // embers per second
+  stun: { color: 0xffe14d, stars: 3, spin: 3 }, // spin in rad/s
+  // Highest priority first: which status colours the sprite when several apply.
+  tintPriority: ['stun', 'burn', 'slow'],
 };
