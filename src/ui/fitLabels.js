@@ -1,7 +1,7 @@
 // Shrink-to-fit for the HUD rail labels. The rail CSS sizes text in game px for
 // the bundled condensed stack; a device without any of those fonts falls back
 // to a wider face, and an unbreakable word ("Barracks", "Resume") would spill
-// out of its 88-px cell. Text width scales linearly with font size, so one
+// out of its cell. Text width scales linearly with font size, so one
 // measurement gives the size that fits. Never clips; the label only shrinks.
 
 const SPAN_LABELS = '.hud-rail button > span, .hud-stat > span';
