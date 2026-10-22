@@ -40,6 +40,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     this._starAngle  = 0;
     this._statusAcc  = 0;
     this._starCy     = 0; // orbit centre y, set from the art's top when a stun starts
+    this._artHalfWidth = def.radius; // half the art's width; refreshed when a status starts (getDisplaySize allocates)
 
     this._body    = scene.add.graphics();
     this._flash   = scene.add.graphics();  // hit flash — over the body, under the rings
@@ -311,6 +312,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     this._sprite?.setBaseTint(statusTint(this.statusEffects));
     this._redrawStatusOverlay();
     const stunned = this.statusEffects.stun.active;
+    this._artHalfWidth = this._sprite?.getDisplaySize?.()?.width / 2 || this.def.radius;
     if (stunned) this._starCy = this._starCentreY();
     this._stars.setVisible(stunned);
     if (!stunned) this._stars.clear();
@@ -361,18 +363,21 @@ export class Enemy extends Phaser.GameObjects.Container {
   // Each star is two overlapping triangles (up + down). Orbits on a flattened
   // ellipse above the head so it reads as stars circling in perspective.
   _drawStars(dt) {
-    const { size, orbitRatio, squash, tail } = STATUS_DRAW.star;
+    const { size, orbitRatio, squash, tail, outline } = STATUS_DRAW.star;
     const { stars, spin, color } = STATUS_FX.stun;
-    const orbit = this.def.radius * orbitRatio;
+    const orbit = this._artHalfWidth * orbitRatio;
     this._starAngle += spin * dt;
     this._stars.clear();
     this._stars.fillStyle(color, 1);
+    this._stars.lineStyle(outline.width, outline.color, 1);
     for (let i = 0; i < stars; i++) {
       const a  = this._starAngle + (Math.PI * 2 * i) / stars;
       const cx = Math.cos(a) * orbit;
       const cy = this._starCy + Math.sin(a) * orbit * squash;
       this._stars.fillTriangle(cx, cy - size, cx - size, cy + size * tail, cx + size, cy + size * tail);
       this._stars.fillTriangle(cx, cy + size, cx - size, cy - size * tail, cx + size, cy - size * tail);
+      this._stars.strokeTriangle(cx, cy - size, cx - size, cy + size * tail, cx + size, cy + size * tail);
+      this._stars.strokeTriangle(cx, cy + size, cx - size, cy - size * tail, cx + size, cy - size * tail);
     }
   }
 

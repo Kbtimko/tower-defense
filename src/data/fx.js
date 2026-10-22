@@ -85,10 +85,19 @@ export const IMPACT_FX = {
   },
   // Hit/death effects (roadmap 1.6).
   // Neutral white: the enemy colour tint is applied at spawn time, not baked here.
+  // NORMAL blend, not ADD: all particles start at one point, and stacked additive
+  // layers clamp any tint to a white disc over the dying sprite.
   pop: {
     texture: 'fx-glow', tint: 0xffffff, lifespan: 260, quantity: 8,
     speed: { min: 30, max: 90 }, scale: { start: 0.45, end: 0 },
-    alpha: { start: 1, end: 0 }, blendMode: 'ADD',
+    alpha: { start: 1, end: 0 }, blendMode: 'NORMAL',
+  },
+  // Large/boss death burst. Own key so it neither wears the mage impact's purple
+  // nor shares its emitter. NORMAL blend for the same reason as pop above.
+  deathBurst: {
+    texture: 'fx-glow', tint: 0xffffff, lifespan: 380, quantity: 14,
+    speed: { min: 40, max: 130 }, scale: { start: 0.7, end: 0 },
+    alpha: { start: 1, end: 0 }, blendMode: 'NORMAL',
   },
   // gravityY (px/s^2) is a Phaser emitter key; the spawner must forward it.
   debris: {
@@ -167,12 +176,12 @@ export const DEATH_CLASS = {
 // Per class: effect (IMPACT_FX key) fired `delay` ms after death.
 export const DEATH_FX = {
   small: [{ effect: 'pop', delay: 0 }],
-  large: [{ effect: 'burst', delay: 0 }, { effect: 'debris', delay: 0 }],
+  large: [{ effect: 'deathBurst', delay: 0 }, { effect: 'debris', delay: 0 }],
   boss: [
-    { effect: 'burst', delay: 0 },
-    { effect: 'burst', delay: 250 },
-    { effect: 'burst', delay: 500 },
-    { effect: 'burst', delay: 750 },
+    { effect: 'deathBurst', delay: 0 },
+    { effect: 'deathBurst', delay: 250 },
+    { effect: 'deathBurst', delay: 500 },
+    { effect: 'deathBurst', delay: 750 },
     { effect: 'explosion', delay: 900 },
     { effect: 'debris', delay: 900 },
     { effect: 'shockwave', delay: 900 },
@@ -191,14 +200,15 @@ export const STATUS_FX = {
 // STATUS_FX rate. Negative gravityY makes burn embers rise.
 export const STATUS_EMIT_FX = {
   burn: {
-    texture: 'fx-ember', tint: 0xff8a1f, lifespan: 500, quantity: 1,
-    speed: { min: 0, max: 12 }, scale: { start: 0.3, end: 0 },
+    texture: 'fx-ember', tint: 0xff8a1f, lifespan: 700, quantity: 1,
+    speed: { min: 0, max: 12 }, scale: { start: 0.55, end: 0 },
     alpha: { start: 0.9, end: 0 }, blendMode: 'ADD', gravityY: -90,
+    spread: 0.7, // emit x offset reaches this fraction of the art's half-width either side
   },
 };
 
 // Geometry of the status overlays drawn on Enemy Graphics (px / ratios of def.radius).
 export const STATUS_DRAW = {
   crystal: { inner: 2, length: 5, halfWidth: 2, alpha: 0.9, phase: Math.PI / 4 },  // frost shard: base offset from ring, tip length, base half-width
-  star: { size: 3, orbitRatio: 1.0, lift: 6, squash: 0.4, tail: 0.7 }, // orbit ellipse centred `lift` px above the HP bar; tail = lower/upper tip ratio
+  star: { size: 5, outline: { width: 1, color: 0x2a1a10 }, orbitRatio: 1.0, lift: 6, squash: 0.4, tail: 0.7 }, // orbit ellipse centred `lift` px above the HP bar; tail = lower/upper tip ratio
 };

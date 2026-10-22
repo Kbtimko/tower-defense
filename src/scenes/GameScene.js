@@ -410,7 +410,8 @@ export default class GameScene extends Phaser.Scene {
     if (this.time) this.time.paused = false;
   }
 
-  // `target.def` filters out the hero and soldiers, which share this event.
+  // `target.def` guards against payloads without an enemy target; every enemy
+  // damage source (towers, hero, soldiers, statuses) emits via Enemy.takeDamage.
   _onDamageDealt({ target, amount }) {
     if (!target?.def) return;
     if (isHeavyHit(amount, target.maxHp, target.dead, target.def.type)) this._tryHitStop();
@@ -651,7 +652,8 @@ export default class GameScene extends Phaser.Scene {
     if (!enemy.leaked) {
       const type = enemy.def.type;
       this.particleSpawner.spawnDeath(deathClass(type), enemy.x, enemy.y, enemy.def.color);
-      // Kills can come from the hero/soldiers, which emit no damage-dealt.
+      // Backstop: damage-dealt already covers kills; this is cooldown-gated, so a
+      // kill that slipped past it still stops the frame at most once per cooldown.
       if (isHeavyHit(0, enemy.maxHp, true, type)) this._tryHitStop();
     }
     // Death art, when present, replaces the fade entirely: the entity has to

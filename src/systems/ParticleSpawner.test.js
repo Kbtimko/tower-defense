@@ -2,8 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('phaser', () => ({ default: { Geom: { Circle: class { constructor(x, y, r) { this.x = x; this.y = y; this.r = r; } } } } }));
 
-import { ParticleSpawner } from './ParticleSpawner.js';
-import { TRAIL_FX, MUZZLE_FX, IMPACT_FX, SOLDIER_MUZZLE, STATUS_FX, STATUS_EMIT_FX, DEATH_FX } from '../data/fx.js';
+import { ParticleSpawner, TINT_AT_SPAWN } from './ParticleSpawner.js';
+import { TRAIL_FX, MUZZLE_FX, IMPACT_FX, SOLDIER_MUZZLE, STATUS_FX, STATUS_EMIT_FX, DEATH_FX, PROJECTILE_FX } from '../data/fx.js';
 import { projectileFx } from './fxResolve.js';
 
 function makeScene() {
@@ -127,7 +127,7 @@ describe('ParticleSpawner', () => {
       const scene = makeScene();
       const sp = new ParticleSpawner(scene);
       const rate = STATUS_FX.burn.emberRate;
-      const enemy = { x: 50, y: 60, _statusAcc: 0 };
+      const enemy = { x: 50, y: 60, _statusAcc: 0, _artHalfWidth: 0 };
       sp.emitStatus('burn', enemy, 1.5 / rate);
       expect(scene._emitter.emitParticleAt).toHaveBeenCalledWith(50, 60, 1);
       expect(enemy._statusAcc).toBeCloseTo(0.5);
@@ -136,20 +136,36 @@ describe('ParticleSpawner', () => {
       expect(scene._emitter.emitParticleAt).not.toHaveBeenCalled();
     });
 
+    it('emitStatus spreads embers across the art width', () => {
+      const scene = makeScene();
+      const sp = new ParticleSpawner(scene);
+      const enemy = { x: 100, y: 60, _statusAcc: 1, _artHalfWidth: 40 };
+      const rnd = vi.spyOn(Math, 'random');
+      rnd.mockReturnValue(0);
+      sp.emitStatus('burn', enemy, 0);
+      rnd.mockReturnValue(1);
+      enemy._statusAcc = 1;
+      sp.emitStatus('burn', enemy, 0);
+      rnd.mockRestore();
+      const reach = 40 * STATUS_EMIT_FX.burn.spread;
+      expect(scene._emitter.emitParticleAt).toHaveBeenNthCalledWith(1, 100 - reach, 60, 1);
+      expect(scene._emitter.emitParticleAt).toHaveBeenNthCalledWith(2, 100 + reach, 60, 1);
+    });
+
     it('emitStatus shares one emitter across enemies and unknown kinds emit nothing', () => {
       const scene = makeScene();
       const sp = new ParticleSpawner(scene);
-      sp.emitStatus('burn', { x: 0, y: 0, _statusAcc: 1 }, 0);
-      sp.emitStatus('burn', { x: 5, y: 5, _statusAcc: 1 }, 0);
+      sp.emitStatus('burn', { x: 0, y: 0, _statusAcc: 1, _artHalfWidth: 0 }, 0);
+      sp.emitStatus('burn', { x: 5, y: 5, _statusAcc: 1, _artHalfWidth: 0 }, 0);
       expect(scene.add.particles).toHaveBeenCalledTimes(1);
-      sp.emitStatus('nope', { x: 0, y: 0, _statusAcc: 1 }, 1);
+      sp.emitStatus('nope', { x: 0, y: 0, _statusAcc: 1, _artHalfWidth: 0 }, 1);
       expect(scene.add.particles).toHaveBeenCalledTimes(1);
     });
 
     it('burn embers rise and forward gravityY to the emitter config', () => {
       const scene = makeScene();
       const sp = new ParticleSpawner(scene);
-      sp.emitStatus('burn', { x: 0, y: 0, _statusAcc: 1 }, 0);
+      sp.emitStatus('burn', { x: 0, y: 0, _statusAcc: 1, _artHalfWidth: 0 }, 0);
       expect(STATUS_EMIT_FX.burn.gravityY).toBeLessThan(0);
       expect(scene._created[0].config.gravityY).toBe(STATUS_EMIT_FX.burn.gravityY);
       expect(scene._created[0].key).toBe('fx-ember');
@@ -242,10 +258,30 @@ describe('ParticleSpawner', () => {
         .toBeLessThan(scene._emitter.explode.mock.invocationCallOrder[0]);
     });
 
-    it('leaves non-pop effects untinted', () => {
-      const scene = makeScene();
-      new ParticleSpawner(scene).spawnDeath('large', 1, 2, 0x12ab34);
-      expect(scene._emitter.setParticleTint).not.toHaveBeenCalled();
+    it('tints the large and boss deathBurst with the enemy colour', () => {
+      for (const cls of ['large', 'boss']) {
+        const scene = makeScene();
+        scene.time.delayedCall = vi.fn((ms, cb) => cb());
+        new ParticleSpawner(scene).spawnDeath(cls, 1, 2, 0x12ab34);
+        expect(scene._emitter.setParticleTint, cls).toHaveBeenCalledWith(0x12ab34);
+      }
+    });
+
+    it('never tints an effect that a projectile impact also uses (shared emitter)', () => {
+      const impacts = new Set();
+      for (const fx of Object.values(PROJECTILE_FX)) {
+        impacts.add(fx.impact);
+        for (const b of Object.values(fx.branches ?? {})) if (b.impact) impacts.add(b.impact);
+      }
+      for (const key of TINT_AT_SPAWN) expect(impacts.has(key), key).toBe(false);
+    });
+
+    it('large/boss deaths use deathBurst, not the mage burst', () => {
+      for (const cls of ['large', 'boss']) {
+        const effects = DEATH_FX[cls].map((s) => s.effect);
+        expect(effects, cls).toContain('deathBurst');
+        expect(effects, cls).not.toContain('burst');
+      }
     });
 
     it('does nothing for an unknown class', () => {

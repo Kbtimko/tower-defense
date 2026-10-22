@@ -11,6 +11,7 @@ vi.mock('phaser', () => ({
 }));
 
 import { Enemy } from './Enemy.js';
+import { STATUS_DRAW } from '../data/fx.js';
 
 const makeGraphics = () => ({
   clear() {}, fillStyle() {}, fillCircle() {}, fillRect() {},
@@ -508,6 +509,31 @@ describe('Enemy hit squash and status visuals', () => {
     e.update(0.1);
     expect(ys.length).toBeGreaterThan(0);
     expect(Math.max(...ys)).toBeLessThan(-56); // art top is -56
+  });
+
+  it('star orbit width follows the unsquashed art width, falling back to def.radius', () => {
+    const reach = (display) => {
+      const e = build();
+      e._sprite.getDisplaySize = () => display;
+      const xs = [];
+      e._stars.fillTriangle = (x1) => xs.push(x1);
+      e.applyStatus({ type: 'stun', duration: 5 });
+      e.update(0.1);
+      return Math.max(...xs.map(Math.abs));
+    };
+    const { orbitRatio } = STATUS_DRAW.star;
+    expect(reach({ width: 120, height: 112 })).toBeGreaterThan(60 * orbitRatio * 0.5);
+    expect(reach({ width: 120, height: 112 })).toBeGreaterThan(reach(null) * 3);
+    expect(reach(null)).toBeLessThanOrEqual(10 * orbitRatio + 1e-9); // def.radius is 10
+  });
+
+  it('each star gets a dark outline', () => {
+    const e = build();
+    const strokes = [];
+    e._stars.strokeTriangle = () => strokes.push(1);
+    e.applyStatus({ type: 'stun', duration: 5 });
+    e.update(0.1);
+    expect(strokes).toHaveLength(6);
   });
 
   it('works on the Graphics fallback (inactive sprite) without throwing', () => {

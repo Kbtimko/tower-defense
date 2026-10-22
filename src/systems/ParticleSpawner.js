@@ -18,7 +18,9 @@ function emitterConfig(def) {
 // a shared emitter: Phaser reads the tint when each particle is emitted
 // (Particle.fire -> EmitterOp.staticValueEmit) and never rewrites it after,
 // so live particles from an earlier death keep their own colour.
-const TINT_AT_SPAWN = new Set(['pop']);
+// Never list an effect a projectile impact also uses (e.g. burst): the shared
+// emitter would recolour the tower's impact.
+export const TINT_AT_SPAWN = new Set(['pop', 'deathBurst']);
 
 export class ParticleSpawner {
   constructor(scene) {
@@ -93,7 +95,9 @@ export class ParticleSpawner {
     const n = Math.floor(enemy._statusAcc);
     if (n < 1) return;
     enemy._statusAcc -= n;
-    this._emitter(`status:${kind}`, def).emitParticleAt(enemy.x, enemy.y, n);
+    // Spread across the art so embers read on wide sprites, not just the centre.
+    const dx = (Math.random() * 2 - 1) * enemy._artHalfWidth * (def.spread ?? 0);
+    this._emitter(`status:${kind}`, def).emitParticleAt(enemy.x + dx, enemy.y, n);
   }
 
   destroy() {
