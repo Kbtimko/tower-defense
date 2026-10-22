@@ -36,6 +36,7 @@ function makeSpriteStub() {
     tint: null,
     setTintFill: vi.fn((c) => { s.tint = c; return s; }),
     clearTint: vi.fn(() => { s.tint = null; return s; }),
+    setTint: vi.fn((c) => { s.tint = c; return s; }),
   };
   return s;
 }
@@ -200,5 +201,61 @@ describe('EntitySprite contact shadow', () => {
     const shadow = c.children[0];
     es.destroy();
     expect(shadow.destroy).toHaveBeenCalled();
+  });
+});
+
+describe('EntitySprite base tint and squash', () => {
+  const activeSprite = () => {
+    const scene = makeScene(['sprite-enemy-drone-move']);
+    const es = new EntitySprite(makeContainer(), scene, { category: 'enemy', type: 'drone', initialState: 'move' });
+    return { scene, es };
+  };
+
+  it('multiply-tints (not fills) the sprite with the base tint', () => {
+    const { scene, es } = activeSprite();
+    es.setBaseTint(0x7fe9ff);
+    expect(scene.sprite.setTint).toHaveBeenCalledWith(0x7fe9ff);
+    expect(scene.sprite.setTintFill).not.toHaveBeenCalled();
+  });
+
+  it('a flash during a base tint returns to the base tint, not white', () => {
+    const { scene, es } = activeSprite();
+    es.setBaseTint(0x7fe9ff);
+    es.setFlash(true);
+    expect(scene.sprite.tint).toBe(0xffffff);
+    es.setFlash(false);
+    expect(scene.sprite.tint).toBe(0x7fe9ff);
+  });
+
+  it('changing the base tint mid-flash does not break the flash, and applies once it ends', () => {
+    const { scene, es } = activeSprite();
+    es.setFlash(true);
+    scene.sprite.setTint.mockClear();
+    es.setBaseTint(0xff8a1f);
+    expect(scene.sprite.setTint).not.toHaveBeenCalled();
+    es.setFlash(false);
+    expect(scene.sprite.tint).toBe(0xff8a1f);
+  });
+
+  it('null base tint clears the tint', () => {
+    const { scene, es } = activeSprite();
+    es.setBaseTint(0x7fe9ff);
+    es.setBaseTint(null);
+    expect(scene.sprite.clearTint).toHaveBeenCalled();
+    expect(scene.sprite.tint).toBe(null);
+  });
+
+  it('setSquash multiplies the manifest scale and (1,1) restores it exactly', () => {
+    const { scene, es } = activeSprite();
+    es.setSquash(1.18, 0.82);
+    expect(scene.sprite.setScale).toHaveBeenLastCalledWith(2 * 1.18, 2 * 0.82);
+    es.setSquash(1, 1);
+    expect(scene.sprite.setScale).toHaveBeenLastCalledWith(2, 2);
+  });
+
+  it('tint and squash are no-ops when inactive', () => {
+    const scene = makeScene([]);
+    const es = new EntitySprite(makeContainer(), scene, { category: 'enemy', type: 'drone' });
+    expect(() => { es.setBaseTint(0xffffff); es.setSquash(1.1, 0.9); }).not.toThrow();
   });
 });

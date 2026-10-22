@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('phaser', () => ({ default: { Geom: { Circle: class { constructor(x, y, r) { this.x = x; this.y = y; this.r = r; } } } } }));
 
 import { ParticleSpawner } from './ParticleSpawner.js';
-import { TRAIL_FX, MUZZLE_FX, IMPACT_FX, SOLDIER_MUZZLE } from '../data/fx.js';
+import { TRAIL_FX, MUZZLE_FX, IMPACT_FX, SOLDIER_MUZZLE, STATUS_FX, STATUS_EMIT_FX } from '../data/fx.js';
 import { projectileFx } from './fxResolve.js';
 
 function makeScene() {
@@ -120,6 +120,38 @@ describe('ParticleSpawner', () => {
       scene._emitter.emitParticleAt.mockClear();
       sp.emitTrail(proj, 0.2 / rate); // 0.7 total: nothing yet
       expect(scene._emitter.emitParticleAt).not.toHaveBeenCalled();
+    });
+
+    it('emitStatus burn accumulates dt by emberRate and emits at the enemy', () => {
+      const scene = makeScene();
+      const sp = new ParticleSpawner(scene);
+      const rate = STATUS_FX.burn.emberRate;
+      const enemy = { x: 50, y: 60, _statusAcc: 0 };
+      sp.emitStatus('burn', enemy, 1.5 / rate);
+      expect(scene._emitter.emitParticleAt).toHaveBeenCalledWith(50, 60, 1);
+      expect(enemy._statusAcc).toBeCloseTo(0.5);
+      scene._emitter.emitParticleAt.mockClear();
+      sp.emitStatus('burn', enemy, 0.2 / rate);
+      expect(scene._emitter.emitParticleAt).not.toHaveBeenCalled();
+    });
+
+    it('emitStatus shares one emitter across enemies and unknown kinds emit nothing', () => {
+      const scene = makeScene();
+      const sp = new ParticleSpawner(scene);
+      sp.emitStatus('burn', { x: 0, y: 0, _statusAcc: 1 }, 0);
+      sp.emitStatus('burn', { x: 5, y: 5, _statusAcc: 1 }, 0);
+      expect(scene.add.particles).toHaveBeenCalledTimes(1);
+      sp.emitStatus('nope', { x: 0, y: 0, _statusAcc: 1 }, 1);
+      expect(scene.add.particles).toHaveBeenCalledTimes(1);
+    });
+
+    it('burn embers rise and forward gravityY to the emitter config', () => {
+      const scene = makeScene();
+      const sp = new ParticleSpawner(scene);
+      sp.emitStatus('burn', { x: 0, y: 0, _statusAcc: 1 }, 0);
+      expect(STATUS_EMIT_FX.burn.gravityY).toBeLessThan(0);
+      expect(scene._created[0].config.gravityY).toBe(STATUS_EMIT_FX.burn.gravityY);
+      expect(scene._created[0].key).toBe('fx-ember');
     });
 
     it('destroy destroys every shared emitter once', () => {

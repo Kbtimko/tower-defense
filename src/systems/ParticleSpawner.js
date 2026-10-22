@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { TRAIL_FX, MUZZLE_FX, IMPACT_FX } from '../data/fx.js';
+import { TRAIL_FX, MUZZLE_FX, IMPACT_FX, STATUS_FX, STATUS_EMIT_FX } from '../data/fx.js';
 import { projectileFx } from './fxResolve.js';
 
 // Just above projectiles (depth 16) so effects read over the shot.
@@ -8,8 +8,10 @@ const FX_DEPTH = 17;
 // Data fields line up with ParticleEmitter config keys; emitting:false keeps
 // the shared emitter idle until explode / emitParticleAt drives it.
 function emitterConfig(def) {
-  const { tint, lifespan, quantity, speed, scale, alpha, blendMode } = def;
-  return { tint, lifespan, quantity, speed, scale, alpha, blendMode, emitting: false };
+  const { tint, lifespan, quantity, speed, scale, alpha, blendMode, gravityY } = def;
+  const config = { tint, lifespan, quantity, speed, scale, alpha, blendMode, emitting: false };
+  if (gravityY !== undefined) config.gravityY = gravityY;
+  return config;
 }
 
 export class ParticleSpawner {
@@ -57,6 +59,19 @@ export class ParticleSpawner {
     projectile._trailAcc -= n;
     this._emitter(`trail:${key}`, def)
       .emitParticleAt(projectile.x, projectile.drawnY, n);
+  }
+
+  // Continuous status particles (burn embers) at the enemy; `enemy._statusAcc`
+  // carries the fractional particle so the rate holds across frame sizes.
+  emitStatus(kind, enemy, dt) {
+    const def = STATUS_EMIT_FX[kind];
+    const rate = STATUS_FX[kind]?.emberRate;
+    if (!def || !rate) return;
+    enemy._statusAcc += rate * dt;
+    const n = Math.floor(enemy._statusAcc);
+    if (n < 1) return;
+    enemy._statusAcc -= n;
+    this._emitter(`status:${kind}`, def).emitParticleAt(enemy.x, enemy.y, n);
   }
 
   destroy() {

@@ -186,3 +186,19 @@ export const STATUS_FX = {
   // Highest priority first: which status colours the sprite when several apply.
   tintPriority: ['stun', 'burn', 'slow'],
 };
+
+// Continuous status emitters, emitted at the enemy's position at the matching
+// STATUS_FX rate. Negative gravityY makes burn embers rise.
+export const STATUS_EMIT_FX = {
+  burn: {
+    texture: 'fx-ember', tint: 0xff8a1f, lifespan: 500, quantity: 1,
+    speed: { min: 0, max: 12 }, scale: { start: 0.3, end: 0 },
+    alpha: { start: 0.9, end: 0 }, blendMode: 'ADD', gravityY: -90,
+  },
+};
+
+// Geometry of the status overlays drawn on Enemy Graphics (px / ratios of def.radius).
+export const STATUS_DRAW = {
+  crystal: { inner: 2, length: 5, halfWidth: 2 },  // frost shard: base offset from ring, tip length, base half-width
+  star: { size: 3, orbitRatio: 1.0, lift: 8, squash: 0.4 }, // orbit ellipse above the head
+};
