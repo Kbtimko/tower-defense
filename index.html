@@ -47,6 +47,42 @@
     #game::after { content: ''; position: absolute; inset: 0; pointer-events: none;
                    opacity: 0; box-shadow: inset 0 0 36px 6px #f07a7a; }
     #game.life-lost-frame::after { animation: life-lost-frame 450ms ease-out; }
+    /* Wave banner + boss warning: top-centre of the play area (below the HUD bar,
+       which sits outside #game). Never intercepts input. Animations end at opacity 0
+       so no JS timer hides them; durations arrive as custom properties from juice.js. */
+    #wave-banner, #wave-banner-boss { position: absolute; left: 50%; z-index: 5;
+      transform: translateX(-50%); opacity: 0; pointer-events: none; white-space: nowrap;
+      text-shadow: 0 2px 4px #000; }
+    #wave-banner { top: 10px; font-size: 20px; font-weight: bold; color: #fff;
+      background: rgba(0,0,0,0.45); padding: 4px 16px; border-radius: 4px; }
+    #wave-banner-boss { top: 48px; font-size: 15px; font-weight: bold; color: var(--boss-warning-color, #ff4d4d);
+      background: rgba(0,0,0,0.55); padding: 3px 12px; border-radius: 4px; }
+    #wave-banner.show { animation: wave-banner var(--wave-banner-ms, 1800ms) ease-out forwards; }
+    #wave-banner-boss.show { animation: wave-banner var(--boss-warning-ms, 2400ms) ease-out forwards; }
+    #boss-frame { position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0;
+      box-shadow: inset 0 0 48px 8px var(--boss-warning-color, #ff4d4d); }
+    #boss-frame.show { animation: boss-frame var(--boss-warning-ms, 2400ms) ease-in-out forwards; }
+    @keyframes wave-banner {
+      0%   { opacity: 0; transform: translateX(-50%) translateY(-12px); }
+      12%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+      80%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+      100% { opacity: 0; transform: translateX(-50%) translateY(0); }
+    }
+    @keyframes boss-frame {
+      0%, 40%, 80% { opacity: 0.85; }
+      20%, 60%, 100% { opacity: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #wave-banner.show, #wave-banner-boss.show { animation-name: wave-banner-fade; }
+      #boss-frame.show { animation-name: boss-frame-fade; }
+      @keyframes boss-frame-fade { 0% { opacity: 0.85; } 100% { opacity: 0; } }
+      @keyframes wave-banner-fade {
+        0%   { opacity: 0; transform: translateX(-50%); }
+        12%  { opacity: 1; transform: translateX(-50%); }
+        80%  { opacity: 1; transform: translateX(-50%); }
+        100% { opacity: 0; transform: translateX(-50%); }
+      }
+    }
     .hud-stat.life-lost-pulse { animation: life-lost-pulse 450ms ease-out; }
     @keyframes life-lost-frame { from { opacity: 0.9; } to { opacity: 0; } }
     @keyframes life-lost-pulse {
@@ -54,10 +90,22 @@
       35%  { transform: scale(1.18); text-shadow: 0 0 8px #f07a7a; }
       100% { transform: scale(1);    text-shadow: 0 0 0 transparent; }
     }
+    .hud-stat.gold-gain-pulse { animation: gold-gain-pulse 300ms ease-out; }
+    @keyframes gold-gain-pulse {
+      0%   { transform: scale(1);    text-shadow: 0 0 0 transparent; }
+      35%  { transform: scale(1.12); text-shadow: 0 0 8px #ffd700; }
+      100% { transform: scale(1);    text-shadow: 0 0 0 transparent; }
+    }
     /* Reduced motion keeps the colour cue but drops the scale, so the lives
        counter still reads as a hit without any movement. */
     @media (prefers-reduced-motion: reduce) {
       .hud-stat.life-lost-pulse { animation-name: life-lost-fade; }
+      .hud-stat.gold-gain-pulse { animation-name: gold-gain-fade; }
+      @keyframes gold-gain-fade {
+        0%   { text-shadow: 0 0 0 transparent; }
+        35%  { text-shadow: 0 0 8px #ffd700; }
+        100% { text-shadow: 0 0 0 transparent; }
+      }
       @keyframes life-lost-fade {
         0%   { text-shadow: 0 0 0 transparent; }
         35%  { text-shadow: 0 0 8px #f07a7a; }
@@ -237,6 +285,12 @@
                    align-items:center; gap:1px; color:#4fc3f7; font-family:'Georgia',serif; }
     .ability-btn.locked { background:#111; border-color:#333; color:#444; cursor:default; }
     .ability-btn:disabled { opacity:0.45; cursor:not-allowed; }
+    /* --cd (1 -> 0) is set by UIScene; the dark wedge shrinks as the cooldown runs out. */
+    .ability-btn { position:relative; }
+    .ability-btn::after { content:''; position:absolute; inset:0; border-radius:3px; pointer-events:none;
+                          background:conic-gradient(rgba(0,0,0,0.6) calc(var(--cd, 0) * 360deg), transparent 0); }
+    /* Keep the key/name/countdown above the cooldown wedge. */
+    .ability-btn > span { position:relative; z-index:1; }
     .ability-btn:not(:disabled):not(.locked):hover { background:#253a4a; }
     .ability-key  { font-size:11px; font-weight:bold; letter-spacing:1px; }
     .ability-name { font-size:12px; }
@@ -466,6 +520,9 @@
   </div>
   <div id="game">
     <div id="paused-overlay">PAUSED</div>
+    <div id="wave-banner"></div>
+    <div id="wave-banner-boss"></div>
+    <div id="boss-frame"></div>
     <div id="story-banner" class="story-banner">
       <div class="story-content">
         <div id="story-headline"></div>

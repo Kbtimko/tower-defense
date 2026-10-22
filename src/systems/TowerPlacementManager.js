@@ -56,6 +56,7 @@ export class TowerPlacementManager {
     this.zones[tower.zoneIndex].occupied = false;
     this.towers = this.towers.filter(t => t !== tower);
     tower.destroy();
+    return refund;
   }
 
   upgradeTower(tower, tier, branch = null) {

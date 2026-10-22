@@ -105,6 +105,24 @@ export const IMPACT_FX = {
     speed: { min: 50, max: 140 }, scale: { start: 0.5, end: 0.2 },
     alpha: { start: 1, end: 0 }, blendMode: 'NORMAL', gravityY: 260,
   },
+  // Build/sell ring and its gold upgrade twin. Two single-colour entries rather
+  // than tinting one shared emitter: tints are fixed per emitter (see TINT_AT_SPAWN).
+  ringBurst: {
+    texture: 'fx-ring', tint: 0xbfefff, lifespan: 380, quantity: 1,
+    speed: { min: 0, max: 0 }, scale: { start: 0.3, end: 1.6 },
+    alpha: { start: 0.85, end: 0 }, blendMode: 'ADD',
+  },
+  ringBurstGold: {
+    texture: 'fx-ring', tint: 0xffd700, lifespan: 420, quantity: 1,
+    speed: { min: 0, max: 0 }, scale: { start: 0.3, end: 1.8 },
+    alpha: { start: 0.9, end: 0 }, blendMode: 'ADD',
+  },
+  // Sell smoke: grey, NORMAL blend, drifts out from the sold tower.
+  sellPuff: {
+    texture: 'fx-smoke', tint: 0x8a8580, lifespan: 450, quantity: 6,
+    speed: { min: 20, max: 60 }, scale: { start: 0.4, end: 0.9 },
+    alpha: { start: 0.7, end: 0 }, blendMode: 'NORMAL',
+  },
   shockwave: {
     texture: 'fx-ring', tint: 0xffffff, lifespan: 500, quantity: 1,
     speed: { min: 0, max: 0 }, scale: { start: 0.2, end: 2.4 },

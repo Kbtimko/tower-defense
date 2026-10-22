@@ -3,6 +3,7 @@ import { TOWER_DEFS } from '../data/towers.js';
 import { EntitySprite } from '../systems/EntitySprite.js';
 import { unitDepth } from '../systems/grounding.js';
 import { setBaseFireRate } from '../systems/fireRateMods.js';
+import { popScale } from '../systems/juiceMath.js';
 
 export class Tower extends Phaser.GameObjects.Container {
   constructor(scene, { type, x, y, def, zoneIndex, modifiers = {} }) {
@@ -22,6 +23,8 @@ export class Tower extends Phaser.GameObjects.Container {
     this.cooldown     = 0;
     this.totalCost    = def.cost;
     this.zoneIndex    = zoneIndex;
+    this._pop         = null;  // active BUILD_POP/UPGRADE_POP block, or null
+    this._popT        = 0;
 
     this._bg        = scene.add.graphics();
     this._icon      = scene.add.text(0, 0, def.icon, { fontSize: '16px', fontFamily: 'Georgia' }).setOrigin(0.5);
@@ -72,6 +75,27 @@ export class Tower extends Phaser.GameObjects.Container {
     if (tierDef.fireRate     !== undefined) setBaseFireRate(this, tierDef.fireRate);
     if (tierDef.pierce       !== undefined) this.pierce       = tierDef.pierce;
     this._redraw();
+  }
+
+  // `pop` is a BUILD_POP/UPGRADE_POP block; passing data (not a string tag)
+  // means a typo can't silently become an upgrade pop.
+  startPop(pop) {
+    this._pop  = pop;
+    this._popT = 0;
+  }
+
+  // Driven by GameScene._updateTowers (towers have no update of their own).
+  // Squashing the sprite keeps the manifest scale; (1, 1) restores it exactly.
+  updatePop(dt) {
+    if (!this._pop) return;
+    this._popT += dt;
+    if (this._popT >= this._pop.duration) {
+      this._pop = null;
+      this._sprite.setSquash(1, 1);
+      return;
+    }
+    const s = popScale(this._popT, this._pop.duration, this._pop.peak);
+    this._sprite.setSquash(s, s);
   }
 
   sell() {

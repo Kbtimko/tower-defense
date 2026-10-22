@@ -18,13 +18,17 @@ import { UpgradeManager, startingGold } from '../systems/UpgradeManager.js';
 import { StoryManager }    from '../systems/StoryManager.js';
 import { StoryDialogOverlay } from '../ui/StoryDialogOverlay.js';
 import { DamageNumberOverlay } from '../systems/DamageNumberOverlay.js';
+import { CoinFx } from '../systems/CoinFx.js';
 import { ShakeController }    from '../systems/ShakeController.js';
 import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
 import { SOLDIER_MUZZLE, HIT_STOP } from '../data/fx.js';
+import { BUILD_POP, UPGRADE_POP, SELL_FX, SELECTION_RING, PAD_GLOW, RETICLE } from '../data/juice.js';
 import { deathClass, isHeavyHit, canHitStop } from '../systems/hitFx.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
 import { gameToPageCss } from '../systems/viewport.js';
 import { pulseClass } from '../ui/pulse.js';
+import { WaveBanner } from '../ui/WaveBanner.js';
+import { bossWarning, padGlowAlpha } from '../systems/juiceMath.js';
 import { STORY_PANELS, briefKey, victorySequenceId, STORY_SEQUENCES } from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
 import { soldierSource, heroAbilitySource } from '../data/sourceBuilders.js';
@@ -111,6 +115,8 @@ export default class GameScene extends Phaser.Scene {
 
     this.damageNumbers    = new DamageNumberOverlay(this);
     this.shakeCtl         = new ShakeController(this);
+    this._coinFx          = new CoinFx(this);
+    this._waveBanner      = new WaveBanner();
     this.particleSpawner  = new ParticleSpawner(this);
     this._enemiesOnPath   = 0;
     this._bossMusicTriggered = false;
@@ -158,6 +164,7 @@ export default class GameScene extends Phaser.Scene {
       mods,
     );
     this.aimMode                  = false;
+    this._fxTime                  = 0; // seconds; drives pad glow / ring pulse / reticle spin
     this._heroOverchargeWasActive = false;
     this._heroCooldownAccum       = 0;
 
@@ -205,6 +212,10 @@ export default class GameScene extends Phaser.Scene {
     // Per-frame graphics (depth 30) — cleared + redrawn every frame; sits on
     // top of the static layer so hover indicators stay visible.
     this.gfx = this.add.graphics().setDepth(30);
+
+    // Idle pad glow lives under the unit band: on gfx it would tint towers and
+    // units standing on or near a pad.
+    this._padGlow = this.add.graphics().setDepth(PAD_GLOW.depth);
 
     this._setupRoad(map);
 
@@ -380,6 +391,7 @@ export default class GameScene extends Phaser.Scene {
     this.events.on('game:defeat',    this._onDefeat,       this);
     this.events.on('hero:level-up',  this._onHeroLevelUp,  this);
     this.events.on('damage-dealt',   this._onDamageDealt,  this);
+    this.events.on('wave:start',     this._onWaveStart,    this);
   }
 
   _unwireSceneEvents() {
@@ -388,6 +400,15 @@ export default class GameScene extends Phaser.Scene {
     this.events.off('game:defeat',    this._onDefeat,       this);
     this.events.off('hero:level-up',  this._onHeroLevelUp,  this);
     this.events.off('damage-dealt',   this._onDamageDealt,  this);
+    this.events.off('wave:start',     this._onWaveStart,    this);
+  }
+
+  _onWaveStart({ waveNum }) {
+    this._waveBanner?.show({
+      waveNum,
+      waveCount: this.waveMgr.waves.length,
+      bossType: bossWarning(this.waveMgr.waves[waveNum - 1]),
+    });
   }
 
   // Hit-stop: a few tens of ms where the whole simulation freezes so a big hit
@@ -448,6 +469,11 @@ export default class GameScene extends Phaser.Scene {
     const am = this.game.registry.get('audio');
     if (am) am.stopMusic(500);
     if (this.damageNumbers) this.damageNumbers.destroy();
+    this._coinFx?.destroy();
+    this._coinFx = null;
+    this._padGlow?.destroy();
+    this._padGlow = null;
+    this._waveBanner = null;
     if (this.shakeCtl)      this.shakeCtl.destroy();
     for (const s of this._sentries) s.destroy();
     this._sentries = [];
@@ -470,6 +496,9 @@ export default class GameScene extends Phaser.Scene {
       window.__capture.simMs += delta * this.speed;
       window.__capture.enemies = this.enemies.filter(e => !e.dead).length;
     }
+    // Real delta and ahead of every early return: coins already in flight should
+    // land (and the HUD pulse fire) through hit-stop and game over, not freeze.
+    this._coinFx?.update(delta / 1000);
     if (this.over || this.won) {
       if (this._hitStopTimer > 0) this._endHitStop();
       return;
@@ -481,6 +510,7 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
     this._sinceHitStop += delta / 1000;
+    this._fxTime += delta / 1000;
     const dt    = (delta / 1000) * this.speed;
     const dtMs  = delta * this.speed;
     this._ambient?.update(dtMs);
@@ -502,6 +532,8 @@ export default class GameScene extends Phaser.Scene {
     this.gfx.clear();
     this._drawPath();
     this._drawZones();
+    this._drawSelectionRing();
+    this._drawReticle();
     this._drawParticles();
   }
 
@@ -698,7 +730,9 @@ export default class GameScene extends Phaser.Scene {
     this.hero.update(dt, this.enemies);
     for (const e of aliveBeforeHero) {
       if (e.dead) {
-        this.economy.earn(this._killReward(e.reward));
+        const reward = this._killReward(e.reward);
+        this.economy.earn(reward);
+        this._coinFx?.spawn(e.x, e.y, reward);
         this.kills++;
         this._updateHUD();
       }
@@ -971,6 +1005,7 @@ export default class GameScene extends Phaser.Scene {
 
   _updateTowers(dt) {
     for (const tower of this.placementManager.getTowers()) {
+      tower.updatePop(dt);
       if (!tower.fireRate) continue;
       tower.cooldown = Math.max(0, tower.cooldown - dt);
       if (tower.cooldown > 0) continue;
@@ -1050,7 +1085,9 @@ export default class GameScene extends Phaser.Scene {
   _dealDamage(enemy, damage, pierce, opts = {}) {
     enemy.takeDamage(damage, { pierce, ...opts });
     if (enemy.dead) {
-      this.economy.earn(this._killReward(enemy.reward));
+      const reward = this._killReward(enemy.reward);
+      this.economy.earn(reward);
+      this._coinFx?.spawn(enemy.x, enemy.y, reward);
       this.kills++;
       this._updateHUD();
       // Central flash
@@ -1151,6 +1188,7 @@ export default class GameScene extends Phaser.Scene {
       }
       const tower = this.placementManager.placeTower(slot.slotIndex, this.selectedType, this);
       if (!tower) { this._toast('Not enough gold!'); return; }
+      this._playTowerPop(tower, BUILD_POP);
       this._repaintStaticLayers();
       if (this.selectedType === 'barracks') {
         tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(slot.x, slot.y);
@@ -1437,13 +1475,32 @@ export default class GameScene extends Phaser.Scene {
     if (tower.type === 'barracks') {
       tower._rebuildSoldiers(this, this.pathMgr.getPathPoints());
     }
+    this._playTowerPop(tower, UPGRADE_POP);
     const panel = document.getElementById('tower-panel');
     this._openTowerPanel(tower, parseInt(panel.style.left), parseInt(panel.style.top));
   }
 
+  // `pop` is BUILD_POP/UPGRADE_POP: the ring burst always plays, the scale pop
+  // is skipped under reduced motion.
+  _playTowerPop(tower, pop) {
+    this.particleSpawner?.spawnImpact(pop.burstEffect, tower.x, tower.y);
+    if (this.game.registry.get('ambientMotion') === false) return;
+    tower.startPop(pop);
+  }
+
+  _playSellFx(x, y, refund) {
+    this.particleSpawner?.spawnImpact(SELL_FX.burstEffect, x, y);
+    this.particleSpawner?.spawnImpact(SELL_FX.smokeEffect, x, y);
+    this._coinFx?.spawn(x, y, refund);
+  }
+
   _sellSelectedTower() {
     if (!this.selectedTower) return;
-    this.placementManager.sellTower(this.selectedTower);
+    // Read the position first: sellTower destroys the tower. The tower is still
+    // removed this frame; only the effects play on after it.
+    const { x, y } = this.selectedTower;
+    const refund = this.placementManager.sellTower(this.selectedTower);
+    this._playSellFx(x, y, refund);
     this._repaintStaticLayers();
     this.selectedTower = null;
     this._closeTowerPanel();
@@ -1688,7 +1745,12 @@ export default class GameScene extends Phaser.Scene {
 
   _drawZones() {
     const canAfford = this.selectedType && this.economy.gold >= (TOWER_DEFS[this.selectedType]?.cost ?? Infinity);
-    for (const zone of this.placementManager.getZones()) {
+    const zones = this.placementManager.getZones();
+    const glow = this._padGlow;
+    glow.clear();
+    const reducedMotion = this.game.registry.get('ambientMotion') === false;
+    for (let slot = 0; slot < zones.length; slot++) {
+      const zone = zones[slot];
       if (zone.occupied) continue;
       const color = this.selectedType ? (canAfford ? 0xffd700 : 0x884444) : 0x444444;
       const alpha = this.selectedType ? 1 : 0.3;
@@ -1696,6 +1758,14 @@ export default class GameScene extends Phaser.Scene {
       this.gfx.strokeCircle(zone.cx, zone.cy, zone.radius);
       if (this.selectedType && canAfford) {
         this.gfx.fillStyle(0xffd700, 0.07); this.gfx.fillCircle(zone.cx, zone.cy, zone.radius);
+      }
+      if (!this.selectedType) {
+        // Idle glow invites building; static when ambient motion is off.
+        const a = reducedMotion
+          ? PAD_GLOW.staticAlpha
+          : padGlowAlpha(this._fxTime, slot * PAD_GLOW.slotPhase, PAD_GLOW);
+        glow.fillStyle(PAD_GLOW.color, a);
+        glow.fillCircle(zone.cx, zone.cy, zone.radius);
       }
     }
 
@@ -1733,6 +1803,34 @@ export default class GameScene extends Phaser.Scene {
           this.gfx.fillCircle(pt.x, pt.y, 6);
         }
       }
+    }
+  }
+
+  _drawSelectionRing() {
+    const t = this.selectedTower;
+    if (!t) return;
+    const pulse = this.game.registry.get('ambientMotion') === false
+      ? 1
+      : 0.5 + 0.5 * Math.sin(this._fxTime * SELECTION_RING.pulse * Math.PI * 2);
+    const lo = SELECTION_RING.alpha[0];
+    const hi = SELECTION_RING.alpha[1];
+    this.gfx.lineStyle(SELECTION_RING.width, SELECTION_RING.color, lo + (hi - lo) * pulse);
+    this.gfx.strokeCircle(t.x, t.y, SELECTION_RING.radius);
+  }
+
+  _drawReticle() {
+    if (!this.aimMode) return;
+    const x = this._buildCursorX;
+    const y = this._buildCursorY;
+    const r = this.hero.def.abilities[this._aimSlot]?.radius ?? RETICLE.radius;
+    const spin = this.game.registry.get('ambientMotion') === false ? 0 : this._fxTime * RETICLE.spin;
+    this.gfx.lineStyle(RETICLE.lineWidth, RETICLE.color, 1);
+    this.gfx.strokeCircle(x, y, r);
+    for (let i = 0; i < RETICLE.ticks; i++) {
+      const ang = spin + (i * Math.PI * 2) / RETICLE.ticks;
+      const c = Math.cos(ang), s = Math.sin(ang);
+      const r0 = r + RETICLE.tickInner, r1 = r0 + RETICLE.tickLength;
+      this.gfx.lineBetween(x + c * r0, y + s * r0, x + c * r1, y + s * r1);
     }
   }
 

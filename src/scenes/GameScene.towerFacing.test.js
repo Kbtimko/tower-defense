@@ -19,7 +19,7 @@ import { describe, it, expect, vi } from 'vitest';
 import GameScene from './GameScene.js';
 
 const makeTower = (x, y) => ({
-  type: 'archer', branch: null, x, y, range: 200, damage: 10, fireRate: 1,
+  type: 'archer', branch: null, x, y, range: 200, damage: 10, fireRate: 1, updatePop: () => {},
   cooldown: 0, level: 1, splashRadius: 0, pierce: 0, slow: 0,
   _sprite: { setFacing: vi.fn(), setState: vi.fn() },
 });
