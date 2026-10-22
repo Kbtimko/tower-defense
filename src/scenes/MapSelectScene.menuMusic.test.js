@@ -18,7 +18,7 @@ function setupDom() {
   const totalStars = document.createElement('span');
   totalStars.id = 'total-stars';
   metaBar.appendChild(totalStars);
-  for (const id of ['open-upgrades', 'open-heroes', 'open-settings']) {
+  for (const id of ['open-upgrades', 'open-heroes', 'open-settings', 'fullscreen-btn']) {
     const btn = document.createElement('button');
     btn.id = id;
     metaBar.appendChild(btn);

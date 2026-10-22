@@ -23,7 +23,7 @@ function setupDom() {
     span.id = id;
     metaBar.appendChild(span);
   }
-  for (const id of ['open-upgrades', 'open-heroes', 'open-settings']) {
+  for (const id of ['open-upgrades', 'open-heroes', 'open-settings', 'fullscreen-btn']) {
     const btn = document.createElement('button');
     btn.id = id;
     metaBar.appendChild(btn);

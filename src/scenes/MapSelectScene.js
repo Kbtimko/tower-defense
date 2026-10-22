@@ -11,9 +11,14 @@ import { StoryDialogOverlay }     from '../ui/StoryDialogOverlay.js';
 import { storyLogEntries }        from '../data/story.js';
 import { CodexOverlay }           from '../ui/CodexOverlay.js';
 import { buildCatalog, progressFromSave } from '../systems/codexCatalog.js';
+import { fullscreenSupported, isFullscreen, toggleFullscreen } from '../ui/fullscreen.js';
 
 export default class MapSelectScene extends Phaser.Scene {
-  constructor() { super('MapSelectScene'); }
+  constructor() {
+    super('MapSelectScene');
+    // Bound once so add/removeEventListener see the same reference.
+    this._onFullscreenChange = this._onFullscreenChange.bind(this);
+  }
 
   create() {
     // `once`, not `on`: the scene emitter outlives a shutdown, so `on` stacks
@@ -46,6 +51,7 @@ export default class MapSelectScene extends Phaser.Scene {
     this._bindSettings();
     this._bindCodex();
     this._bindStoryLog();
+    this._bindFullscreen();
 
     const am = this.game.registry.get('audio');
     if (am) am.playMusic('menu');
@@ -264,7 +270,35 @@ export default class MapSelectScene extends Phaser.Scene {
     closeBtn.addEventListener('click', this._onCloseStoryLog);
   }
 
+  _bindFullscreen() {
+    // Clone removes any prior listener before re-adding (matches _bindSettings).
+    const old = document.getElementById('fullscreen-btn');
+    if (!old) return;
+    const btn = old.cloneNode(true);
+    old.replaceWith(btn);
+    if (!fullscreenSupported(document)) {
+      btn.style.display = 'none';
+      return;
+    }
+    btn.style.display = '';
+    btn.addEventListener('click', () => {
+      toggleFullscreen(document, document.documentElement, screen.orientation)
+        // requestFullscreen rejects without a user gesture / when blocked; nothing to recover.
+        .catch(() => {});
+    });
+    this._onFullscreenChange();
+    document.addEventListener('fullscreenchange', this._onFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', this._onFullscreenChange);
+  }
+
+  _onFullscreenChange() {
+    const btn = document.getElementById('fullscreen-btn');
+    if (btn) btn.textContent = isFullscreen(document) ? '⛶ Exit fullscreen' : '⛶ Fullscreen';
+  }
+
   shutdown() {
+    document.removeEventListener('fullscreenchange', this._onFullscreenChange);
+    document.removeEventListener('webkitfullscreenchange', this._onFullscreenChange);
     // Call close() on overlays so their event listeners are torn down before the
     // DOM persists into the next scene. Direct style mutation would leak listeners.
     if (this._overlay)     this._overlay.close();

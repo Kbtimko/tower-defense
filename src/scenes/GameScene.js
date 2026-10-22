@@ -58,6 +58,8 @@ import { towerFireSfxKey } from '../systems/sfxKeys.js';
 import { WavePreviewPopover } from '../ui/WavePreviewPopover.js';
 import { summarizeWave }      from '../systems/wavePreview.js';
 import { CodexOverlay }       from '../ui/CodexOverlay.js';
+import { shouldAutoPause }    from '../systems/shellLifecycle.js';
+import { PHONE_PORTRAIT_QUERY } from '../data/mobile.js';
 import { buildCatalog, progressFromSave } from '../systems/codexCatalog.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
@@ -96,7 +98,12 @@ function applyDebugCapture(scene) {
 }
 
 export default class GameScene extends Phaser.Scene {
-  constructor() { super('GameScene'); }
+  constructor() {
+    super('GameScene');
+    // Bound once (same JS instance serves every level) so add/removeEventListener
+    // see one reference and listeners cannot stack across level entries.
+    this._onShellChange = this._onShellChange.bind(this);
+  }
 
   init(data) {
     this.mapId  = data?.mapId  ?? 0;
@@ -319,6 +326,31 @@ export default class GameScene extends Phaser.Scene {
     });
     document.getElementById('pause-btn').addEventListener('click', () => this._onPauseToggle());
     document.getElementById('open-codex')?.addEventListener('click', () => this._openCodex());
+    this._wireShellListeners();
+  }
+
+  // Phaser's own pauseOnBlur halts the loop while hidden but RESUMES it on return,
+  // dropping the player back mid-wave. Setting _userPaused keeps the PAUSED overlay
+  // up until they choose to resume. Removed in shutdown().
+  _wireShellListeners() {
+    document.addEventListener('visibilitychange', this._onShellChange);
+    this._portraitMql = window.matchMedia?.(PHONE_PORTRAIT_QUERY);
+    this._portraitMql?.addEventListener?.('change', this._onShellChange);
+    // A level entered in portrait pauses immediately. Run the initial check once the
+    // scene is RUNNING ('create' fires right after) so the pause acts on a live scene;
+    // `once` is consumed on fire so it cannot stack across level entries.
+    this.events.once('create', this._onShellChange);
+  }
+
+  _onShellChange() {
+    const pause = shouldAutoPause({
+      hidden: document.hidden,
+      phonePortrait: !!this._portraitMql?.matches,
+      inLevel: true,
+      userPaused: this._userPaused,
+      over: this.over || this.won,
+    });
+    if (pause) this._onPauseToggle();
   }
 
   _showConfirmExit() {
@@ -337,7 +369,9 @@ export default class GameScene extends Phaser.Scene {
     const btn     = document.getElementById('pause-btn');
     const overlay = document.getElementById('paused-overlay');
     if (this._userPaused) {
-      this.scene.pause();
+      // Codex / exit-confirm may already have paused the scene; Phaser warns on a
+      // second pause, which the capture harness counts as a problem.
+      if (!this.scene.isPaused()) this.scene.pause();
       overlay.classList.add('shown');
       btn.textContent = '▶ Resume';
       btn.classList.add('paused');
@@ -446,6 +480,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown() {
+    document.removeEventListener('visibilitychange', this._onShellChange);
+    this._portraitMql?.removeEventListener?.('change', this._onShellChange);
+    this._portraitMql = null;
     this._unwireSceneEvents();
     this._endHitStop();
     this._wavePreview?.destroy();

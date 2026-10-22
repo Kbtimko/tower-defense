@@ -83,7 +83,7 @@ Failing tests after two attempts at the same fix; any change that would alter ba
 ### Phase 2 — Touch & responsive  → G3
 - [ ] **2.1 [AUTO] Input model.** One pointer-first `InputController`: tap = select/place; long-press = inspect (replaces hover); two-step confirm for upgrade/sell; every keyboard shortcut gets an on-screen equivalent (pause, speed, send wave, abilities). Existing hover tooltips (`AbilityTooltip`, `WavePreviewPopover`, `InspectController`) get tap paths. Tests for the state machine.
 - [ ] **2.2 [AUTO] HUD to canvas.** Move the HTML `#hud` into a canvas HUD (scales with FIT, ≥ 44 px targets after scaling to a 360 px-high phone viewport); keep DOM overlays (codex, settings, story) but restyle them with touch-sized CSS. *Accept:* HUD usable at 844×390 and 932×430 landscape captures.
-- [ ] **2.3 [AUTO] Mobile shell.** Landscape prompt, fullscreen button, audio unlock on first tap, `touch-action: none`, disable pull-to-refresh/double-tap zoom, safe-area insets, visibilitychange auto-pause, resize handling.
+- [x] **2.3 [AUTO] Mobile shell.** Landscape prompt, fullscreen button, audio unlock on first tap, `touch-action: none`, disable pull-to-refresh/double-tap zoom, safe-area insets, visibilitychange auto-pause, resize handling. *Done 2026-10-22 (pulled ahead of G3): fixes the landscape PLAY bug; plan `2026-10-22-mobile-shell.md`; compact CSS is a stopgap for 2.2.*
 - [ ] **2.4 [AUTO] Device matrix.** Playwright touch-emulation scripts: boot → select map → build → upgrade → send wave → pause, on iPhone 14, Pixel 7, iPad. Screenshots into the PR. *Real-device check is part of G3.*
 
 ### Phase 3 — UI kit & screens
