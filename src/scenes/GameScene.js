@@ -58,7 +58,10 @@ import { BLOCKER_TYPES } from '../data/blockerTypes.js';
 import { previewRange } from '../systems/rangePreview.js';
 import { applyDebugBuild } from '../systems/debugCapture.js';
 import { gradeMatrix } from '../systems/mapGrade.js';
-import { VIGNETTE_RADIUS } from '../data/gradeSettings.js';
+import {
+  VIGNETTE_RADIUS, VIGNETTE_DEPTH, VIGNETTE_MARGIN, VIGNETTE_TEXTURE_SCALE,
+} from '../data/gradeSettings.js';
+import { fillVignette, vignetteTextureKey } from '../systems/vignette.js';
 import { SFX_KEYS } from '../systems/AudioManager.js';
 import { towerFireSfxKey } from '../systems/sfxKeys.js';
 import { WavePreviewPopover } from '../ui/WavePreviewPopover.js';
@@ -297,14 +300,39 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // Per-map mood (roadmap 1.4). The colour grade goes on the backdrop only, so
-  // units keep their normalized art; the vignette is on the camera. preFX is
-  // null under Canvas, which is the guard against a toggle forcing it on there.
+  // units keep their normalized art; the vignette covers the whole world. preFX
+  // is null under Canvas, which is the guard against a toggle forcing it on there.
   _applyGrade(map, backdrop) {
-    const cam = this.cameras.main;
-    cam.postFX?.clear();
+    this._vignette = null;
     if (!this.game.registry.get('mapGrade') || !map.grade || !backdrop?.preFX) return;
     backdrop.preFX.addColorMatrix().set(gradeMatrix(map.grade));
-    if (map.grade.vignette > 0) cam.postFX.addVignette(0.5, 0.5, VIGNETTE_RADIUS, map.grade.vignette);
+    if (map.grade.vignette > 0) this._addVignette(map.grade.vignette);
+  }
+
+  // A camera postFX vignette would span the rails too, skewing its falloff, so
+  // the same shader maths is baked in map UV into a texture over the world.
+  // Textures survive shutdown, so a replay reuses the bake.
+  _addVignette(strength) {
+    const color = this.game.config.backgroundColor.color;
+    const key = vignetteTextureKey(VIGNETTE_RADIUS, strength, color);
+    const fullW = WORLD_WIDTH + 2 * VIGNETTE_MARGIN;
+    const fullH = WORLD_HEIGHT + 2 * VIGNETTE_MARGIN;
+    if (!this.textures.exists(key)) {
+      const w = Math.round(fullW * VIGNETTE_TEXTURE_SCALE);
+      const h = Math.round(fullH * VIGNETTE_TEXTURE_SCALE);
+      const tex = this.textures.createCanvas(key, w, h);
+      const ctx = tex.getContext();
+      const img = ctx.createImageData(w, h);
+      fillVignette(img.data, w, h, {
+        radius: VIGNETTE_RADIUS, strength, color,
+        u0: -VIGNETTE_MARGIN / WORLD_WIDTH, u1: 1 + VIGNETTE_MARGIN / WORLD_WIDTH,
+        v0: -VIGNETTE_MARGIN / WORLD_HEIGHT, v1: 1 + VIGNETTE_MARGIN / WORLD_HEIGHT,
+      });
+      ctx.putImageData(img, 0, 0);
+      tex.refresh();
+    }
+    this._vignette = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, key)
+      .setDisplaySize(fullW, fullH).setDepth(VIGNETTE_DEPTH);
   }
 
   _bindDOMEvents() {
