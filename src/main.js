@@ -9,6 +9,7 @@ import { resumeAudio } from './systems/shellLifecycle.js';
 import { CANVAS_WIDTH, WORLD_HEIGHT } from './data/layout.js';
 import { applyHudLayerSize, fitHudLayer } from './ui/hudLayer.js';
 import { watchRailLabels } from './ui/fitLabels.js';
+import { coalesceFrame } from './utils/coalesceFrame.js';
 
 // The canvas is the map world plus a HUD rail each side; GameScene's camera
 // viewport keeps the map itself 1:1 in world coordinates.
@@ -38,7 +39,7 @@ const game = new Phaser.Game(config);
 // on level entry. refresh() sizes against the cached parent, so the bounds are
 // re-read first; that keeps this correct whichever of it and the poll runs first.
 const refitHudLayer = () => fitHudLayer(document, game);
-const refreshScale = () => requestAnimationFrame(() => {
+const refreshScale = coalesceFrame(() => {
   if (!game.isBooted) return;
   game.scale.getParentBounds();
   game.scale.refresh();
