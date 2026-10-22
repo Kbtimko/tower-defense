@@ -6,6 +6,9 @@ const EDGE_TOLERANCE_PX = 1;
 const ZOOM_TOLERANCE = 0.01;
 // A control mostly inside its overflow-hidden ancestor is still tappable; below this it is not.
 const MIN_VISIBLE_FRACTION = 0.9;
+// The bar is align-items:center, so controls of different heights share a vertical centre, not a top;
+// a wrapped row's centre is a whole button-height away.
+const SAME_ROW_TOLERANCE_PX = 2;
 
 const area = r => (r ? Math.max(0, r.width) * Math.max(0, r.height) : 0);
 const fmt = r => `[${[r.left, r.top, r.right, r.bottom].map(n => Math.round(n)).join(',')}]`;
@@ -30,6 +33,14 @@ function targetProblems(t, innerWidth, innerHeight) {
   return problems;
 }
 
+// m.barRects: rects of the visible tower buttons, exit and wave buttons. On a phone the
+// bar must stay ONE row (the flex-wrap in the compact block is a safety net, not a layout).
+function barWrapProblems(barRects) {
+  if (!barRects?.length) return [];
+  const centres = barRects.map(r => (r.top + r.bottom) / 2);
+  return Math.max(...centres) - Math.min(...centres) > SAME_ROW_TOLERANCE_PX ? ['bottom bar wraps'] : [];
+}
+
 export function layoutProblems(m) {
   const problems = [];
   if (Math.abs(m.scale - 1) > ZOOM_TOLERANCE) problems.push(`zoomed: visualViewport.scale=${m.scale}`);
@@ -38,5 +49,6 @@ export function layoutProblems(m) {
   }
   if (m.scrollWidth > m.innerWidth) problems.push(`page overflows: scrollWidth ${m.scrollWidth} > innerWidth ${m.innerWidth}`);
   for (const t of m.targets) problems.push(...targetProblems(t, m.innerWidth, m.innerHeight));
+  problems.push(...barWrapProblems(m.barRects));
   return problems;
 }

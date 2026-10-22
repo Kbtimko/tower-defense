@@ -1,10 +1,11 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { COMPACT_QUERY, PHONE_PORTRAIT_QUERY, VIEWPORT_CONTENT } from './mobile.js';
 
-// jsdom's import.meta.url is not a file URL; vitest runs from the repo root.
-const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+// Node environment so import.meta.url is a real file URL (jsdom's is not); resolving
+// from this file keeps the test independent of the cwd vitest was launched from.
+const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
 
 describe('index.html mobile shell', () => {
   it('viewport meta content matches VIEWPORT_CONTENT', () => {
@@ -20,5 +21,10 @@ describe('index.html mobile shell', () => {
   it('declares the portrait rotate-prompt media block and element', () => {
     expect(html).toContain(`@media ${PHONE_PORTRAIT_QUERY}`);
     expect(html).toContain('id="rotate-prompt"');
+  });
+
+  it('gates overscroll-behavior to coarse pointers (desktop swipe-back unchanged)', () => {
+    expect(html).not.toMatch(/^\s*html, body \{[^}]*overscroll-behavior/m);
+    expect(html).toMatch(/@media \(pointer: coarse\) \{ html, body \{ overscroll-behavior: none; \} \}/);
   });
 });

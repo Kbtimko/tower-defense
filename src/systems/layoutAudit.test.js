@@ -80,4 +80,18 @@ describe('layoutProblems', () => {
   it('does not report clipping at 90% visible or more', () => {
     expect(layoutProblems(withTarget({ visibleRect: rect(10, 10, 110, 46) }))).toEqual([]);
   });
+
+  it('is healthy when every bar control shares a row (vertical centres within 2px, whatever their heights)', () => {
+    const row = [rect(10, 100, 60, 150), rect(70, 105, 120, 145), rect(130, 101, 180, 151)];
+    expect(layoutProblems(healthy({ barRects: row }))).toEqual([]);
+  });
+
+  it('reports "bottom bar wraps" when a control drops to a second row', () => {
+    const wrapped = [rect(10, 100, 60, 150), rect(70, 100, 120, 150), rect(10, 153, 60, 193)];
+    expect(layoutProblems(healthy({ barRects: wrapped }))).toEqual(['bottom bar wraps']);
+  });
+
+  it('skips the row check when no bar controls were measured', () => {
+    expect(layoutProblems(healthy({ barRects: [] }))).toEqual([]);
+  });
 });

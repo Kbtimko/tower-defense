@@ -150,9 +150,14 @@ async function audit(page, deviceName, label, selectors) {
         targets.push({ name: sel.startsWith('#') ? sel : `${sel}[${i}]`, rect: plain(el.getBoundingClientRect()), visibleRect: clipRect(el), visible });
       });
     }
+    // Only audits that list the bar controls get the one-row check (portrait is meant to wrap).
+    const barSels = ['.tower-btn', '#exit-btn', '#wave-btn'].filter(sel => sels.includes(sel));
+    const barRects = barSels.flatMap(sel => [...document.querySelectorAll(sel)]
+      .filter(el => el.getClientRects().length > 0)
+      .map(el => plain(el.getBoundingClientRect())));
     return {
       innerWidth: window.innerWidth, innerHeight: window.innerHeight,
-      scale: window.visualViewport.scale, scrollWidth: document.documentElement.scrollWidth, targets,
+      scale: window.visualViewport.scale, scrollWidth: document.documentElement.scrollWidth, targets, barRects,
     };
   }, selectors);
   return { device: deviceName, label, problems: layoutProblems({ ...metrics, device: page.viewportSize() }) };
@@ -230,6 +235,7 @@ async function captureScreens(browser, base, deviceName, opts) {
     const rotated = await captureRotation(browser, base, deviceName, path, dir);
     files.push(...rotated.files);
     layout.push(...rotated.layout);
+    problems.push(...rotated.problems);
   }
   return { device: deviceName, screens: files, problems, layout };
 }
@@ -242,6 +248,7 @@ async function captureRotation(browser, base, deviceName, levelPath, dir) {
   const landscape = device.viewport;
   const files = [];
   const layout = [];
+  const problems = [];
   const upright = () => browser.newContext(contextOptions(devices[device.portrait]));
   const rotate = async page => {
     await page.setViewportSize(landscape);
@@ -251,6 +258,7 @@ async function captureRotation(browser, base, deviceName, levelPath, dir) {
   let context = await upright();
   try {
     const page = await context.newPage();
+    const p4 = watchProblems(page);
     await page.goto(base + '/');
     await page.locator('#story-dialog-skip').waitFor({ state: 'visible', timeout: 30_000 });
     await page.waitForTimeout(1500);
@@ -258,6 +266,9 @@ async function captureRotation(browser, base, deviceName, levelPath, dir) {
     await page.evaluate(() => document.querySelector('#story-dialog-skip')?.click());
     await page.waitForTimeout(800);
     files.push(await shoot(page, join(dir, '00-portrait.png')));
+    // Page-level only (no targets): the rotate prompt covers the controls, but the
+    // document must not be wider than the viewport or zoomed while upright.
+    layout.push(await audit(page, deviceName, 'portrait-map-select', []));
     await rotate(page);
     files.push(await shoot(page, join(dir, '02b-map-select-rotated.png')));
     layout.push(await audit(page, deviceName, 'rotated-map-select', MAP_SELECT_TARGETS));
@@ -272,6 +283,7 @@ async function captureRotation(browser, base, deviceName, levelPath, dir) {
     } else {
       layout.push({ device: deviceName, label: 'rotated-in-game', problems: ['level never started after PLAY'] });
     }
+    problems.push(...p4);
   } finally {
     await context.close();
   }
@@ -279,16 +291,19 @@ async function captureRotation(browser, base, deviceName, levelPath, dir) {
   context = await upright();
   try {
     const page = await context.newPage();
+    const p5 = watchProblems(page);
     await page.goto(base + levelPath);
     await page.waitForFunction(() => window.__capture, null, { timeout: 30_000 });
     await page.waitForTimeout(1500);
+    layout.push(await audit(page, deviceName, 'portrait-mid-level', []));
     await rotate(page);
     files.push(await shoot(page, join(dir, '03c-mid-level-rotated.png')));
     layout.push(await audit(page, deviceName, 'rotated-mid-level', IN_GAME_TARGETS));
+    problems.push(...p5);
   } finally {
     await context.close();
   }
-  return { files, layout };
+  return { files, layout, problems };
 }
 
 async function captureOne(browser, base, deviceName, mapId, opts) {

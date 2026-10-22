@@ -6,7 +6,9 @@
   <title>Last Light</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { height: 100%; overscroll-behavior: none; }
+    html, body { height: 100%; }
+    /* Coarse pointers only: on desktop this would disable trackpad swipe-back. */
+    @media (pointer: coarse) { html, body { overscroll-behavior: none; } }
     body { background: #1a1a2e; font-family: 'Georgia', serif; color: #e8e0d0;
            overflow: hidden; display: flex; flex-direction: column; height: 100vh; height: 100dvh;
            touch-action: manipulation; -webkit-tap-highlight-color: transparent;
@@ -121,7 +123,7 @@
        container and would cut off the wave-preview popover that opens above it.
        Zoom-out is prevented by the viewport meta; the compact block wraps instead. */
     #bottom-bar { display: none; align-items: center; gap: 8px; padding: 8px 14px;
-                  min-width: 0; background: #0f0f1e; border-top: 2px solid #8b6914; flex-shrink: 0; }
+                  background: #0f0f1e; border-top: 2px solid #8b6914; flex-shrink: 0; }
     .tower-btn { background: #1a1a3a; border: 2px solid #444; border-radius: 6px;
                  padding: 6px 10px; cursor: pointer; display: flex; flex-direction: column;
                  align-items: center; gap: 2px; transition: all 0.15s; color: #e8e0d0; }
@@ -332,6 +334,9 @@
                        color:#e8e8ff; font-family:'Georgia',serif; font-size:20px; text-align:center;
                        padding:24px; }
       #rotate-prompt-glyph { font-size:72px; color:#4fc3f7; }
+      /* The prompt covers the HUD, but the document must still be no wider than the
+         viewport, so the bars wrap rather than size the page to their content. */
+      #hud, #bottom-bar { flex-wrap: wrap; }
     }
     #lifetime-stats { display:flex; justify-content:center; gap:10px; margin-top:14px;
                       flex-wrap:wrap; }
