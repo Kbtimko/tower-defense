@@ -11,6 +11,7 @@ import { Tower } from '../entities/Tower.js';
 import { Barracks } from '../entities/Barracks.js';
 import { Enemy } from '../entities/Enemy.js';
 import { Projectile } from '../entities/Projectile.js';
+import { ProjectilePool } from '../systems/ProjectilePool.js';
 import { Hero } from '../entities/Hero.js';
 import { SaveManager } from '../systems/SaveManager.js';
 import { UpgradeManager, startingGold } from '../systems/UpgradeManager.js';
@@ -159,6 +160,7 @@ export default class GameScene extends Phaser.Scene {
     this._sentries   = [];
     this._areaEffects = new AreaEffectsManager(this);
     this.projectiles = [];
+    this._projectilePool = new ProjectilePool(opts => new Projectile(this, opts));
     this.particles   = [];
     this.kills       = 0;
     this.speed       = 1;
@@ -414,6 +416,8 @@ export default class GameScene extends Phaser.Scene {
     for (const s of this._sentries) s.destroy();
     this._sentries = [];
     if (this._areaEffects) this._areaEffects.destroyAll();
+    this._projectilePool?.destroyAll();
+    this._projectilePool = null;
     this._staticLayers?.destroy();
     this._staticLayers = null;
     this._ambient?.destroy();
@@ -600,8 +604,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _destroyDeadProjectile(p) {
-    if (p.destroyTrail) p.destroyTrail();
-    p.destroy();
+    this._projectilePool.release(p);
   }
 
   _checkSoldierBlock(enemy) {
@@ -912,7 +915,7 @@ export default class GameScene extends Phaser.Scene {
         const am = this.game.registry.get('audio');
         if (am) am.playSfx(towerFireSfxKey(tower.type, tower.branch, SFX_KEYS));
         if (this.particleSpawner) this.particleSpawner.spawnMuzzleFlash(tower.x, tower.y, tower.type);
-        this.projectiles.push(new Projectile(this, {
+        this.projectiles.push(this._projectilePool.acquire({
           x: tower.x, y: tower.y, target: best,
           damage: tower.damage, splashRadius: tower.splashRadius,
           pierce: tower.pierce, slowFactor: tower.slow,
@@ -947,6 +950,7 @@ export default class GameScene extends Phaser.Scene {
         const step = Math.min(proj.speed * dt, dist);
         proj.x += (dx / dist) * step;
         proj.y += (dy / dist) * step;
+        proj.updateVisual();
       }
     }
     for (const p of this.projectiles) {

@@ -117,3 +117,15 @@ export const PROJECTILE_FX = {
     trail: 'none', muzzle: 'small', impact: 'spark',
   },
 };
+
+// Drawing proportions for projectile bodies (see entities/Projectile.js).
+export const PROJECTILE_DRAW = {
+  rimColor: 0x2a1a10,        // shell outline
+  coreColor: 0xffffff,       // bolt hot centre
+  coreRatio: 0.5,            // bolt core radius / body radius
+  glowRadiusRatio: 3,        // bolt glow radius / body radius
+  glowTextureSize: 64,       // px of the generated fx-glow texture
+  arrowHead: 4,              // arrow head length
+  shardWidthRatio: 0.3,      // shard half-width / length
+  shadow: { width: 10, height: 5, color: 0x000000, alpha: 0.35, minScale: 0.6 },
+};
