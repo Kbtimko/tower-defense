@@ -86,10 +86,8 @@ describe('GameScene tower hooks', () => {
 describe('GameScene._upgradeSelectedTower', () => {
   it('plays the upgrade pop only after a successful upgrade', () => {
     const tower = { level: 1, type: 'archer', x: 0, y: 0 };
-    const panel = { style: { left: '1px', top: '2px' } };
-    vi.stubGlobal('document', { getElementById: () => panel });
     const ctx = {
-      selectedTower: tower, mapId: 0,
+      selectedTower: tower, mapId: 0, _panelAnchor: { x: 1, y: 2 },
       placementManager: { upgradeTower: vi.fn(() => true) },
       _playTowerPop: vi.fn(), _openTowerPanel: vi.fn(), _toast: vi.fn(),
     };
@@ -100,6 +98,5 @@ describe('GameScene._upgradeSelectedTower', () => {
     ctx.placementManager.upgradeTower = vi.fn(() => false);
     proto._upgradeSelectedTower.call(ctx);
     expect(ctx._playTowerPop).not.toHaveBeenCalled();
-    vi.unstubAllGlobals();
   });
 });

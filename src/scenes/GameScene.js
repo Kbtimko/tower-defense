@@ -25,7 +25,10 @@ import { SOLDIER_MUZZLE, HIT_STOP } from '../data/fx.js';
 import { BUILD_POP, UPGRADE_POP, SELL_FX, SELECTION_RING, PAD_GLOW, RETICLE } from '../data/juice.js';
 import { deathClass, isHeavyHit, canHitStop } from '../systems/hitFx.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
-import { gameToPageCss } from '../systems/viewport.js';
+import { gameToPageCss, clampPanel } from '../systems/viewport.js';
+import {
+  PANEL_EDGE_MARGIN, TAP_TOWER_RADIUS, TAP_SLOT_RADIUS, TAP_PATH_RADIUS, REPOSITION_SNAP_RADIUS,
+} from '../data/input.js';
 import { pulseClass } from '../ui/pulse.js';
 import { WaveBanner } from '../ui/WaveBanner.js';
 import { bossWarning, padGlowAlpha } from '../systems/juiceMath.js';
@@ -40,6 +43,8 @@ import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
 import { describeTowerArmour, armourRowLabel } from '../systems/armourLegibility.js';
 import { shortEnemyName } from '../systems/entityDescriptors.js';
 import { InspectController } from './InspectController.js';
+import { InputController } from './InputController.js';
+import { resolveTap, hasMode } from '../systems/tapResolve.js';
 import { SentryTurret } from '../entities/SentryTurret.js';
 import { renderPath } from '../systems/PathRenderer.js';
 import { bakeRoad } from '../systems/RoadRenderer.js';
@@ -56,6 +61,9 @@ import { VIGNETTE_RADIUS } from '../data/gradeSettings.js';
 import { SFX_KEYS } from '../systems/AudioManager.js';
 import { towerFireSfxKey } from '../systems/sfxKeys.js';
 import { WavePreviewPopover } from '../ui/WavePreviewPopover.js';
+import { attachLongPress } from '../ui/longPress.js';
+import { createConfirmGate } from '../systems/confirmGate.js';
+import { CONFIRM_WINDOW_MS, PEEK_LINGER_MS } from '../data/input.js';
 import { summarizeWave }      from '../systems/wavePreview.js';
 import { CodexOverlay }       from '../ui/CodexOverlay.js';
 import { shouldAutoPause }    from '../systems/shellLifecycle.js';
@@ -229,14 +237,8 @@ export default class GameScene extends Phaser.Scene {
     this._setupRoad(map);
 
     this.inspector = new InspectController(this);
-    this.input.on('pointermove', (p) => {
-      this._buildCursorX = p.worldX;
-      this._buildCursorY = p.worldY;
-      this.inspector.onPointerMove(p.worldX, p.worldY);
-    });
-
-    // Phaser input
-    this.input.on('pointerdown', this._onPointerDown, this);
+    // Taps resolve on release through _onTap; long-press peeks (touch).
+    this._inputCtl = new InputController(this);
 
     // Scene events from systems. Wired as a pair with _unwireSceneEvents so
     // registration and removal cannot drift apart — see the comment there.
@@ -259,6 +261,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Wire DOM buttons (use once-registered named functions; shutdown() cleans up via clone)
     this._bindDOMEvents();
+    this._syncCancelButton();
     this._wavePreview = new WavePreviewPopover();
     this._updateHUD();
     this._updateWaveButton();
@@ -278,6 +281,7 @@ export default class GameScene extends Phaser.Scene {
     // Wire ability dispatch
     this.game.events.on('ui:ability', this._onAbility, this);
     this.game.events.on('ui:pause-toggle', this._onPauseToggle, this);
+    this.game.events.on('ui:cancel', this._onUiCancel, this);
 
     // Pre-battle briefing (once per map). Combat hasn't started; the wave button waits.
     const briefId = briefKey(map.storyKey);
@@ -304,19 +308,28 @@ export default class GameScene extends Phaser.Scene {
     // GameScene owns every .tower-btn listener: its shutdown clones these
     // nodes, so a listener bound by a longer-lived scene would not survive
     // into the next level.
+    this._longPressDetachers = [];
     document.querySelectorAll('.tower-btn').forEach(btn => {
       btn.addEventListener('click', () => this._selectTowerType(btn.dataset.type, btn));
-      btn.addEventListener('mouseenter', () => this._showTowerTooltip(btn));
-      btn.addEventListener('mouseleave', () => {
-        document.getElementById('tower-tooltip').style.display = 'none';
-      });
+      // Hover is a mouse affordance. Touch synthesises mouseenter on every tap,
+      // which flashed the tooltip over the tap that arms a build; touch peeks
+      // via long-press instead.
+      btn.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') this._showTowerTooltip(btn); });
+      btn.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') this._hideTowerTooltip(); });
+      this._longPressDetachers.push(attachLongPress(btn, {
+        onLongPress: () => { this._clearTooltipLinger(); this._showTowerTooltip(btn); },
+        onEnd: () => {
+          this._clearTooltipLinger();
+          this._tooltipLinger = setTimeout(() => this._hideTowerTooltip(), PEEK_LINGER_MS);
+        },
+      }));
     });
     document.getElementById('wave-btn').addEventListener('click',          () => this._startWave());
     document.getElementById('speed-btn').addEventListener('click',         () => this._toggleSpeed());
     // Shutdown's clone keeps the old label, but this.speed resets each level.
     this._renderSpeedButton();
-    document.getElementById('panel-upgrade-btn').addEventListener('click', () => this._upgradeSelectedTower());
-    document.getElementById('panel-sell-btn').addEventListener('click',    () => this._sellSelectedTower());
+    this._bindConfirmable(document.getElementById('panel-upgrade-btn'), 'upgrade', () => this._upgradeSelectedTower());
+    this._bindConfirmable(document.getElementById('panel-sell-btn'),    'sell',    () => this._sellSelectedTower());
     document.getElementById('panel-reposition-btn').addEventListener('click', () => this._startReposition());
     document.getElementById('msg-btn').addEventListener('click', () => this.scene.start('MapSelectScene'));
     document.getElementById('exit-btn').addEventListener('click', () => this._showConfirmExit());
@@ -326,6 +339,7 @@ export default class GameScene extends Phaser.Scene {
     });
     document.getElementById('pause-btn').addEventListener('click', () => this._onPauseToggle());
     document.getElementById('open-codex')?.addEventListener('click', () => this._openCodex());
+    this._bindCancelButton();
     this._wireShellListeners();
   }
 
@@ -480,6 +494,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown() {
+    // Leaving mid-aim/build would strand the crosshair cursor and ability
+    // outline: hero:aim-cancel only fires through _cancelMode.
+    this._onUiCancel();
     document.removeEventListener('visibilitychange', this._onShellChange);
     this._portraitMql?.removeEventListener?.('change', this._onShellChange);
     this._portraitMql = null;
@@ -490,15 +507,30 @@ export default class GameScene extends Phaser.Scene {
     this._codexOverlay?.close();
     this._codexOverlay = null;
     this._storyDialog?.close();
+    this._inputCtl?.destroy();
+    this._inputCtl = null;
     this.inspector?.destroy();
+    // Before the clones below: they keep classes and text, so an armed
+    // "Tap again" label would otherwise greet the next level.
+    this._resetConfirm();
+    this._clearTooltipLinger();
+    // Cancelling the linger above would otherwise strand a peeked tooltip open.
+    this._hideTowerTooltip();
+    this._longPressDetachers?.forEach(detach => detach());
+    this._longPressDetachers = [];
     if (import.meta.env.DEV) window.__game = null;
     this.game.events.off('ui:ability', this._onAbility, this);
     this.game.events.off('ui:pause-toggle', this._onPauseToggle, this);
+    this.game.events.off('ui:cancel', this._onUiCancel, this);
     // Remove all DOM listeners without tracking refs: clone replaces the node
-    ['wave-btn','speed-btn','pause-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','msg-cancel-btn','exit-btn','panel-reposition-btn','story-dismiss','open-codex'].forEach(id => {
+    ['wave-btn','speed-btn','pause-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','msg-cancel-btn','exit-btn','panel-reposition-btn','story-dismiss','open-codex','cancel-btn'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.replaceWith(el.cloneNode(true));
     });
+    // The clone keeps [hidden] as it was; a mode left armed at exit would
+    // otherwise greet the next level with a stale Cancel.
+    const cancelBtn = document.getElementById('cancel-btn');
+    if (cancelBtn) cancelBtn.hidden = true;
     document.querySelectorAll('.tower-btn').forEach(btn => btn.replaceWith(btn.cloneNode(true)));
     document.getElementById('hud').style.display          = 'none';
     document.getElementById('bottom-bar').style.display   = 'none';
@@ -812,6 +844,7 @@ export default class GameScene extends Phaser.Scene {
       this.aimMode  = true;
       this._aimSlot = slot;
       this.game.events.emit('hero:aim-mode');
+      this._syncCancelButton();
       return;
     }
 
@@ -855,6 +888,7 @@ export default class GameScene extends Phaser.Scene {
     this._aimSlot = null;
     this.aimMode  = false;
     this.game.events.emit('hero:aim-cancel');
+    this._syncCancelButton();
     if (!result) return;
     this._applyAbilityResult(slot, result);
   }
@@ -1159,101 +1193,192 @@ export default class GameScene extends Phaser.Scene {
 
   // ─── Input ─────────────────────────────────────────────────────────────────
 
-  _onPointerDown(pointer) {
-    const mx = pointer.x, my = pointer.y;
+  // Canvas tap entry point: InputController calls this on release. The order
+  // (aim -> reposition -> tower -> inspect -> build -> hero) lives in resolveTap.
+  _onTap(mx, my) {
+    const hits = this._tapHits(mx, my);
+    this._runTapAction(resolveTap(this._modeState(), hits), mx, my, hits);
+    this._syncCancelButton();
+  }
 
-    // 1. Aim mode takes priority
-    if (this.aimMode) {
-      this._triggerAimAbility(mx, my);
-      return;
+  _modeState() {
+    return {
+      aimSlot:       this.aimMode ? this._aimSlot : null,
+      repositioning: !!(this.repositionMode && this.repositioningBarracks),
+      selectedType:  this.selectedType,
+      heroDead:      !!this.hero?.dead,
+    };
+  }
+
+  // Today's radii: tower 22px, build slot 22px, path 40px. inspectableAt does
+  // not pin, so asking it costs nothing when an earlier step wins.
+  _tapHits(mx, my) {
+    return {
+      tower:       this.placementManager.getTowers().find(t => Math.hypot(t.x - mx, t.y - my) < TAP_TOWER_RADIUS) ?? null,
+      slot:        this.placementManager.getNearestSlot(mx, my, TAP_SLOT_RADIUS, true),
+      onPath:      this.pathMgr.isOnPath(mx, my, TAP_PATH_RADIUS),
+      inspectable: this.inspector?.inspectableAt(mx, my) ?? null,
+    };
+  }
+
+  _runTapAction(action, mx, my, hits) {
+    if (action.closePanel) this._closeTowerPanel();
+    if (action.clearBuild) {
+      this.selectedType = null;
+      this._deselectButtons();
     }
-
-    // 2. Barracks reposition mode
-    if (this.repositionMode && this.repositioningBarracks) {
-      const barracks = this.repositioningBarracks;
-      // Use getNearestSlot (added in Task 11) with requireFree=true and a
-      // 60px reposition snap range (looser than the 22px placement radius
-      // because the player is dragging, not single-clicking a target).
-      const slot = this.placementManager.getNearestSlot(mx, my, 60, true);
-      if (!slot) {
-        // No valid target — cancel reposition silently
-        this.repositionMode = false;
-        this.repositioningBarracks = null;
-        return;
-      }
-      // Free the old slot, occupy the new one, move barracks.
-      const zones = this.placementManager.getZones();
-      zones[barracks.zoneIndex].occupied = false;
-      zones[slot.slotIndex].occupied = true;
-      barracks.zoneIndex = slot.slotIndex;
-      barracks.setPosition(slot.x, slot.y);
-      this._repaintStaticLayers();
-      this.repositionMode = false;
-      this.repositioningBarracks = null;
-      return;
-    }
-
-    // 3. Tower click
-    for (const tower of this.placementManager.getTowers()) {
-      if (Math.hypot(tower.x - mx, tower.y - my) < 22) {
-        this.selectedType = null;
-        this._deselectButtons();
-        const panelCss = gameToPageCss(this.scale, mx, my);
-        const gRect = document.getElementById('game').getBoundingClientRect();
-        this._openTowerPanel(tower, panelCss.x - gRect.left, panelCss.y - gRect.top);
-        return;
-      }
-    }
-    // No tower hit — dismiss any open panel before continuing
-    this._closeTowerPanel();
-
-    // 4. Inspect click (enemy or hero)
-    if (this.inspector?.tryClickInspect(mx, my)) return;
-
-    // 5. Tower placement — snap to the nearest free slot within disc radius
-    if (this.selectedType) {
-      const slot = this.placementManager.getNearestSlot(mx, my, 22, true);
-      if (!slot) {
+    switch (action.type) {
+      case 'fireAim':     this._triggerAimAbility(mx, my); break;
+      case 'reposition':  this._repositionTo(mx, my); break;
+      case 'openPanel':   this._openPanelFromTap(action.tower, mx, my); break;
+      // tryClickInspect agrees with inspectableAt (same hit test), so a pin
+      // decision is always consumed — a same-target tap dismisses, as today.
+      case 'pin':         this.inspector.tryClickInspect(mx, my); break;
+      case 'place':       this._placeAt(hits.slot); break;
+      case 'cancelBuild':
         // Nothing to build on here. Cancel the armed selection instead of
         // swallowing the click: leaving it armed made every subsequent click a
-        // silent no-op too, because this branch returns before the hero-move
-        // case below. A player who clicked a tower button to see what it did
-        // could then never move the hero again, with nothing on screen saying
-        // why.
+        // silent no-op too, because the build step wins before the hero move.
+        // A player who clicked a tower button to see what it did could then
+        // never move the hero again, with nothing on screen saying why.
         this.selectedType = null;
         this._deselectButtons();
         this._toast('No build slot there — build cancelled');
-        return;
-      }
-      const tower = this.placementManager.placeTower(slot.slotIndex, this.selectedType, this);
-      if (!tower) { this._toast('Not enough gold!'); return; }
-      this._playTowerPop(tower, BUILD_POP);
-      this._repaintStaticLayers();
-      if (this.selectedType === 'barracks') {
-        tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(slot.x, slot.y);
-        tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
-      }
-      return;
-    }
-
-    // 6. Move hero (path-constrained)
-    if (!this.hero.dead) {
-      if (this.pathMgr.isOnPath(mx, my, 40)) {
-        const progress = this.pathMgr.getNearestPathProgress(mx, my);
-        this.hero.moveToProgress(progress);
-      } else {
-        this._toast('Hero can only move along the path');
-      }
+        break;
+      case 'moveHero':    this.hero.moveToProgress(this.pathMgr.getNearestPathProgress(mx, my)); break;
+      case 'offPath':     this._toast('Hero can only move along the path'); break;
+      // 'none': a dead hero ignores the tap.
     }
   }
 
-  _selectTowerType(type, btn) {
-    if (this.selectedType === type) { this.selectedType = null; this._deselectButtons(); return; }
-    this.selectedType = type;
-    this.selectedTower = null;
-    this._closeTowerPanel();
+  _repositionTo(mx, my) {
+    const barracks = this.repositioningBarracks;
+    // requireFree=true with a 60px reposition snap range (looser than the 22px
+    // placement radius because the player is dragging, not single-clicking).
+    const slot = this.placementManager.getNearestSlot(mx, my, REPOSITION_SNAP_RADIUS, true);
+    this.repositionMode = false;
+    this.repositioningBarracks = null;
+    // No valid target — cancel reposition silently.
+    if (!slot) return;
+    // Free the old slot, occupy the new one, move barracks.
+    const zones = this.placementManager.getZones();
+    zones[barracks.zoneIndex].occupied = false;
+    zones[slot.slotIndex].occupied = true;
+    barracks.zoneIndex = slot.slotIndex;
+    barracks.setPosition(slot.x, slot.y);
+    this._repaintStaticLayers();
+  }
+
+  _openPanelFromTap(tower, mx, my) {
+    const panelCss = gameToPageCss(this.scale, mx, my);
+    const gRect = document.getElementById('game').getBoundingClientRect();
+    this._openTowerPanel(tower, panelCss.x - gRect.left, panelCss.y - gRect.top);
+  }
+
+  _placeAt(slot) {
+    const tower = this.placementManager.placeTower(slot.slotIndex, this.selectedType, this);
+    if (!tower) { this._toast('Not enough gold!'); return; }
+    this._playTowerPop(tower, BUILD_POP);
+    this._repaintStaticLayers();
+    if (this.selectedType === 'barracks') {
+      tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(slot.x, slot.y);
+      tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
+    }
+  }
+
+  // ─── Modes (build / aim / reposition) ──────────────────────────────────────
+
+  _cancelMode() {
+    const wasAiming = this.aimMode;
+    this.selectedType = null;
     this._deselectButtons();
-    btn.classList.add('selected');
+    this.aimMode  = false;
+    this._aimSlot = null;
+    if (wasAiming) this.game.events.emit('hero:aim-cancel');
+    this.repositionMode = false;
+    this.repositioningBarracks = null;
+    this._syncCancelButton();
+  }
+
+  // Escape arrives here for every press; with no mode it must not swallow it,
+  // so the inspector and overlays keep their own Escape handling.
+  _onUiCancel() {
+    if (hasMode(this._modeState())) this._cancelMode();
+  }
+
+  _bindCancelButton() {
+    document.getElementById('cancel-btn').addEventListener('click', () => this._cancelMode());
+  }
+
+  // Unit tests drive mode changes against partial DOMs, hence the null guard.
+  // Hidden once the level has ended: a mode left armed is moot on the result screen.
+  _syncCancelButton() {
+    const btn = document.getElementById('cancel-btn');
+    if (!btn) return;
+    btn.hidden = !(hasMode(this._modeState()) && !this.over && !this.won);
+  }
+
+  _selectTowerType(type, btn) {
+    if (this.selectedType === type) {
+      this.selectedType = null;
+      this._deselectButtons();
+    } else {
+      this.selectedType = type;
+      this.selectedTower = null;
+      this._closeTowerPanel();
+      this._deselectButtons();
+      btn.classList.add('selected');
+    }
+    this._syncCancelButton();
+  }
+
+  _hideTowerTooltip() {
+    const tt = document.getElementById('tower-tooltip');
+    if (tt) tt.style.display = 'none';
+  }
+
+  _clearTooltipLinger() {
+    clearTimeout(this._tooltipLinger);
+    this._tooltipLinger = null;
+  }
+
+  // Touch/pen buy-or-sell needs two presses (a fat-fingered tap on Upgrade or
+  // Sell is costly); a mouse click, or a keyboard activation (detail 0), runs
+  // at once as it always did. The first press relabels the button and arms a
+  // revert; the second press inside CONFIRM_WINDOW_MS runs the action.
+  _bindConfirmable(btn, key, run) {
+    let pointerType = 'mouse';
+    btn.addEventListener('pointerdown', (e) => { pointerType = e.pointerType; });
+    btn.addEventListener('click', (e) => {
+      const touchLike = e.detail > 0 && (pointerType === 'touch' || pointerType === 'pen');
+      if (!touchLike) { this._resetConfirm(); run(); return; }
+      if (this._confirmBtn && this._confirmBtn !== btn) this._resetConfirm();
+      this._confirmGate ??= createConfirmGate();
+      if (this._confirmGate.press(key, Date.now()) === 'confirmed') {
+        this._resetConfirm();
+        run();
+        return;
+      }
+      this._confirmBtn   = btn;
+      this._confirmLabel = btn.textContent;
+      btn.classList.add('confirming');
+      btn.textContent = `Tap again: ${this._confirmLabel}`;
+      this._confirmTimer = setTimeout(() => this._resetConfirm(), CONFIRM_WINDOW_MS);
+    });
+  }
+
+  // Restores the label captured when armed, not a recomputed one: whatever
+  // changes the label (an upgrade re-render) resets first, so the stored text
+  // is always the current one.
+  _resetConfirm() {
+    clearTimeout(this._confirmTimer);
+    this._confirmTimer = null;
+    if (this._confirmBtn) {
+      this._confirmBtn.classList.remove('confirming');
+      this._confirmBtn.textContent = this._confirmLabel;
+    }
+    this._confirmBtn = null;
+    this._confirmGate?.reset();
   }
 
   _showTowerTooltip(btn) {
@@ -1296,6 +1421,10 @@ export default class GameScene extends Phaser.Scene {
   // ─── Tower panel ───────────────────────────────────────────────────────────
 
   _openTowerPanel(tower, mx, my) {
+    // Kept so an upgrade reopens from the original tap, not from the already
+    // offset (+10/-10) and clamped panel position, which would drift each time.
+    this._panelAnchor = { x: mx, y: my };
+    this._resetConfirm();
     this._openTowerId = tower.id ?? null;
     this.selectedTower = tower;
     const def = TOWER_DEFS[tower.type];
@@ -1365,12 +1494,21 @@ export default class GameScene extends Phaser.Scene {
 
     const gameRect = document.getElementById('game').getBoundingClientRect();
     const panel    = document.getElementById('tower-panel');
-    panel.style.left    = Math.min(mx + 10, gameRect.width  - 180) + 'px';
-    panel.style.top     = Math.min(my - 10, gameRect.height - 220) + 'px';
+    // Measure only once populated and displayed (display:none reports 0), so the
+    // clamp uses the real size: the branch picker makes the panel much taller.
     panel.style.display = 'block';
+    const spot = clampPanel(
+      { left: mx + 10, top: my - 10 },
+      { width: panel.offsetWidth, height: panel.offsetHeight },
+      { width: gameRect.width, height: gameRect.height },
+      PANEL_EDGE_MARGIN,
+    );
+    panel.style.left = spot.left + 'px';
+    panel.style.top  = spot.top + 'px';
 
     this.selectedType = null;
     document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('selected'));
+    this._syncCancelButton();
   }
 
   // Flat armour is subtracted before any multiplier, so a tower at or below an
@@ -1401,6 +1539,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _closeTowerPanel() {
+    this._resetConfirm();
     document.getElementById('tower-panel').style.display         = 'none';
     document.getElementById('panel-branch-picker').style.display = 'none';
     document.getElementById('panel-branch-picker').replaceChildren();
@@ -1492,8 +1631,7 @@ export default class GameScene extends Phaser.Scene {
         btn.disabled = true;
         btn.title    = 'Unlocked on Map 5';
       }
-      btn.addEventListener('click', () =>
-        this._upgradeSelectedTower(branch));
+      this._bindConfirmable(btn, `branch:${branch}`, () => this._upgradeSelectedTower(branch));
 
       card.append(cost, btn);
       cards.appendChild(card);
@@ -1515,8 +1653,7 @@ export default class GameScene extends Phaser.Scene {
       tower._rebuildSoldiers(this, this.pathMgr.getPathPoints());
     }
     this._playTowerPop(tower, UPGRADE_POP);
-    const panel = document.getElementById('tower-panel');
-    this._openTowerPanel(tower, parseInt(panel.style.left), parseInt(panel.style.top));
+    this._openTowerPanel(tower, this._panelAnchor.x, this._panelAnchor.y);
   }
 
   // `pop` is BUILD_POP/UPGRADE_POP: the ring burst always plays, the scale pop
@@ -1548,9 +1685,11 @@ export default class GameScene extends Phaser.Scene {
   _startReposition() {
     if (!this.selectedTower || this.selectedTower.type !== 'barracks') return;
     const barracks = this.selectedTower;
+    this._resetConfirm();
     document.getElementById('tower-panel').style.display = 'none';
     this.repositionMode = true;
     this.repositioningBarracks = barracks;
+    this._syncCancelButton();
     this._redrawZones();
     this._toast('Click on the path within Barracks range to reposition soldiers');
   }
@@ -1636,6 +1775,7 @@ export default class GameScene extends Phaser.Scene {
     const am = this.game.registry.get('audio');
     if (am) am.playSfx('victory');
     this.won = true;
+    this._syncCancelButton();
     this._commitStats(true);
     const map   = MAPS[this.mapId];
     const pct   = this.economy.lives / map.startLives;
@@ -1669,6 +1809,7 @@ export default class GameScene extends Phaser.Scene {
     const am = this.game.registry.get('audio');
     if (am) am.playSfx('defeat');
     this.over = true;
+    this._syncCancelButton();
     this._commitStats(false);
     document.getElementById('msg-title').textContent = '💀 Defeat';
     document.getElementById('msg-body').textContent  = `The line did not hold. Wave ${this.waveMgr.currentWave}.`;

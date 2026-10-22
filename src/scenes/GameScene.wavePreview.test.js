@@ -123,7 +123,7 @@ describe('GameScene wave preview wiring', () => {
     GameScene.prototype._updateWaveButton.call(scene);
     expect(dom.btn.disabled).toBe(true);
 
-    dom.wrap.dispatchEvent(new Event('pointerenter'));
+    dom.wrap.dispatchEvent(Object.assign(new Event('pointerenter'), { pointerType: 'mouse' }));
     expect(dom.pop.classList.contains('shown')).toBe(true);
   });
 });
@@ -150,7 +150,7 @@ describe('GameScene wave preview teardown', () => {
     scene.shutdown();
 
     expect(scene._wavePreview).toBeNull();
-    dom.wrap.dispatchEvent(new Event('pointerenter'));
+    dom.wrap.dispatchEvent(Object.assign(new Event('pointerenter'), { pointerType: 'mouse' }));
     expect(dom.pop.classList.contains('shown')).toBe(false);
   });
 });

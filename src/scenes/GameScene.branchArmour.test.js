@@ -23,7 +23,7 @@ const UNLOCKED = { maxTierAllowed: 4 };
 let container;
 
 function render(def, map = UNLOCKED, ctx = {}) {
-  GameScene.prototype._renderBranchPicker.call(ctx, container, def, map);
+  GameScene.prototype._renderBranchPicker.call({ _bindConfirmable() {}, ...ctx }, container, def, map);
   const [a, b] = container.querySelectorAll('.branch-card');
   return { a, b };
 }

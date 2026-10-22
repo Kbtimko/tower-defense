@@ -291,3 +291,15 @@ Phase 4 brainstorm — post-launch features TBD (ability mechanics, new enemy ty
 ## 2026-08-19 (auto-generated)
 **Commits this session:**
 - 7199503 fix(art): stop FLUX rendering the game title into the artwork
+
+## 2026-09-20 (auto-generated)
+**Commits this session:**
+- 8671f82 Merge pull request #64 from Kbtimko/feat/hero-damage-leveling
+- 15d2810 feat(hero): level from damage dealt, and make levels actually grant stats
+- b651e03 feat(hero): heroes block enemies, take damage, and regenerate out of combat
+- 831ab78 Merge pull request #62 from Kbtimko/feat/entity-scale-and-pad-polish
+- f7e4201 feat(gfx): scale up heroes and small enemies, quiet the pad under a placed tower
+- a94a7fc Merge pull request #61 from Kbtimko/fix/hero-move-blocked-by-armed-tower
+- 7c6eed3 fix(input): stop an armed tower silently freezing the hero forever
+- b38b355 Merge pull request #60 from Kbtimko/fix/overworld-node-contrast
+- 233db9b Merge branch 'main' into fix/overworld-node-contrast

@@ -11,6 +11,8 @@
 // hero like Dax is not a tower a player can build) so formatCounters is
 // shared with CodexOverlay rather than reimplemented as a flat join here.
 import { formatCounters } from './matchupText.js';
+import { attachLongPress } from './longPress.js';
+import { isKeyboardFocus } from './keyboardFocus.js';
 
 export class WavePreviewPopover {
   constructor() {
@@ -18,21 +20,15 @@ export class WavePreviewPopover {
     this._el      = document.getElementById('wave-preview');
     this._summary = null;
 
-    this._onEnter = () => this.show();
-    this._onLeave = () => this.hide();
+    // Touch fires pointerenter on every tap, which would open the popover over
+    // a plain Send Wave tap; hover is for mice. Touch opens via long-press.
+    this._onEnter = (e) => { if (e.pointerType === 'mouse') this.show(); };
+    this._onLeave = (e) => { if (e.pointerType === 'mouse') this.hide(); };
+    // Keyboard focus only: a tap focuses the tabindex wrapper too.
+    this._onFocusIn  = (e) => { if (isKeyboardFocus(e)) this.show(); };
+    this._onFocusOut = () => this.hide();
     this._onEsc   = (e) => { if (e.key === 'Escape') this.hide(); };
 
-    // Touch has no hover, so a tap toggles. Guarded on pointerType: a mouse
-    // click on Send Wave must start the wave, not fight with the popover.
-    // Also guarded against the button itself: pointerdown on #wave-btn bubbles
-    // to this wrapper listener, and a tap there must send the wave and nothing
-    // else — not toggle a popover the button's own click handler then starts
-    // a wave underneath.
-    this._onTap = (e) => {
-      if (e.pointerType !== 'touch') return;
-      if (e.target.closest?.('#wave-btn')) return;
-      if (this._el?.classList.contains('shown')) this.hide(); else this.show();
-    };
     // Any pointerdown outside dismisses — the touch equivalent of pointerleave.
     this._onOutside = (e) => {
       if (this._wrap && !this._wrap.contains(e.target)) this.hide();
@@ -45,9 +41,11 @@ export class WavePreviewPopover {
       // #wave-btn inside it, tabbing onto the button would fire blur on the
       // wrapper and immediately close the popover the instant focus reaches the
       // button. focusin/focusout bubble, so focus anywhere inside keeps it open.
-      this._wrap.addEventListener('focusin',      this._onEnter);
-      this._wrap.addEventListener('focusout',     this._onLeave);
-      this._wrap.addEventListener('pointerdown',  this._onTap);
+      this._wrap.addEventListener('focusin',      this._onFocusIn);
+      this._wrap.addEventListener('focusout',     this._onFocusOut);
+      // The wrapper, so a long-press over the button itself peeks too; the
+      // helper swallows the click so the peek never also sends the wave.
+      this._detachLongPress = attachLongPress(this._wrap, { onLongPress: () => this.show() });
     }
     document.addEventListener('keydown',     this._onEsc);
     document.addEventListener('pointerdown', this._onOutside);
@@ -120,9 +118,9 @@ export class WavePreviewPopover {
     if (this._wrap) {
       this._wrap.removeEventListener('pointerenter', this._onEnter);
       this._wrap.removeEventListener('pointerleave', this._onLeave);
-      this._wrap.removeEventListener('focusin',      this._onEnter);
-      this._wrap.removeEventListener('focusout',     this._onLeave);
-      this._wrap.removeEventListener('pointerdown',  this._onTap);
+      this._wrap.removeEventListener('focusin',      this._onFocusIn);
+      this._wrap.removeEventListener('focusout',     this._onFocusOut);
+      this._detachLongPress?.();
     }
     document.removeEventListener('keydown',     this._onEsc);
     document.removeEventListener('pointerdown', this._onOutside);

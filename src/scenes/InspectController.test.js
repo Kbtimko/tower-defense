@@ -502,8 +502,9 @@ describe('InspectController — panel positioning', () => {
     const ctrl = new InspectController(scene);
     ctrl.pin({ kind: 'enemy', target: enemy });
     const panel = document.getElementById('enemy-inspector');
-    // game (200,300) -> page (400,600); anchor adds +24 to left
-    expect(panel.style.left).toBe('424px');
+    // displayScale 2 = 2 game px per CSS px: game (200,300) -> page (100,150);
+    // anchor adds +24 to left
+    expect(panel.style.left).toBe('124px');
   });
 });
 
@@ -682,5 +683,73 @@ describe('InspectController — hero XP progress on the card', () => {
       xpProgress: () => ({ level: 3, progress: 0, current: 0, needed: 650, atMax: false }),
     }) });
     expect(document.getElementById('hi-xp-label').textContent).toBe('0 / 650 to Level 4');
+  });
+});
+
+// The tap pipeline decides "pin" from inspectableAt BEFORE it calls
+// tryClickInspect, so the two must agree or a pin decision could fall through.
+describe('InspectController — side-effect-free hit test and touch peek', () => {
+  beforeEach(setupDom);
+
+  it('inspectableAt reports enemy before hero and pins nothing', () => {
+    const enemy = makeEnemy({ x: 50, y: 50 });
+    const ctrl = new InspectController(makeScene([enemy], makeHero()));
+    expect(ctrl.inspectableAt(50, 50)).toEqual({ kind: 'enemy', target: enemy });
+    expect(ctrl.pinned).toBeNull();
+  });
+
+  it('inspectableAt reports the hero, and null over empty space', () => {
+    const hero = makeHero();
+    const ctrl = new InspectController(makeScene([], hero));
+    expect(ctrl.inspectableAt(50, 50)).toEqual({ kind: 'hero', target: hero });
+    expect(ctrl.inspectableAt(500, 500)).toBeNull();
+  });
+
+  it('tryClickInspect still reports consumed when it dismisses the same target', () => {
+    const enemy = makeEnemy();
+    const ctrl = new InspectController(makeScene([enemy]));
+    ctrl.tryClickInspect(100, 100);
+    expect(ctrl.tryClickInspect(100, 100)).toBe(true);
+    expect(ctrl.pinned).toBeNull();
+  });
+
+  it('peekHit shows a live enemy at its CURRENT position and returns true', () => {
+    const enemy = makeEnemy();
+    const ctrl = new InspectController(makeScene([enemy]));
+    const hit = ctrl.inspectableAt(100, 100);
+    enemy.x = 300;
+    const spy = vi.spyOn(ctrl, '_showPeek');
+    expect(ctrl.peekHit(hit)).toBe(true);
+    expect(spy).toHaveBeenCalledWith('enemy', enemy, 300, 100);
+    expect(document.getElementById('inspect-peek').style.display).toBe('block');
+  });
+
+  it('peekHit refuses a dead enemy, or one no longer in the scene', () => {
+    const enemy = makeEnemy();
+    const scene = makeScene([enemy]);
+    const ctrl = new InspectController(scene);
+    const hit = ctrl.inspectableAt(100, 100);
+    enemy.dead = true;
+    expect(ctrl.peekHit(hit)).toBe(false);
+    enemy.dead = false;
+    scene.enemies = [];
+    expect(ctrl.peekHit(hit)).toBe(false);
+    expect(document.getElementById('inspect-peek').style.display).toBe('none');
+  });
+
+  it('peekHit refuses a hero who died during the press', () => {
+    const hero = makeHero();
+    const ctrl = new InspectController(makeScene([], hero));
+    const hit = ctrl.inspectableAt(50, 50);
+    hero.dead = true;
+    expect(ctrl.peekHit(hit)).toBe(false);
+  });
+
+  it('hidePeek hides a shown peek', () => {
+    const ctrl = new InspectController(makeScene([makeEnemy()]));
+    ctrl.onPointerMove(100, 100);
+    ctrl.hidePeek();
+    expect(document.getElementById('inspect-peek').style.display).toBe('none');
+    expect(ctrl.peekTarget).toBeNull();
   });
 });

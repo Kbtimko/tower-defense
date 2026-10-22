@@ -220,3 +220,40 @@ describe('GameScene.shutdown shell listeners', () => {
   });
 });
 
+
+describe('GameScene.shutdown input model', () => {
+  beforeEach(() => {
+    setupDOM();
+    el('button', { id: 'cancel-btn', hidden: false });
+  });
+
+  it('strips the cancel-btn listener by replacing the node, and hides it', () => {
+    const old = document.getElementById('cancel-btn');
+    const spy = vi.fn();
+    old.addEventListener('click', spy);
+
+    makeScene().shutdown();
+
+    const fresh = document.getElementById('cancel-btn');
+    expect(fresh).not.toBe(old);
+    fresh.click();
+    expect(spy).not.toHaveBeenCalled();
+    expect(fresh.hidden).toBe(true);
+  });
+
+  it('stops listening for ui:cancel', () => {
+    const scene = makeScene();
+    scene.game.events.off = vi.fn();
+    scene.shutdown();
+    expect(scene.game.events.off).toHaveBeenCalledWith('ui:cancel', scene._onUiCancel, scene);
+  });
+
+  it('destroys the canvas input controller', () => {
+    const scene = makeScene();
+    const destroy = vi.fn();
+    scene._inputCtl = { destroy };
+    scene.shutdown();
+    expect(destroy).toHaveBeenCalledTimes(1);
+    expect(scene._inputCtl).toBeNull();
+  });
+});
