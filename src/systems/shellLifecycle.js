@@ -7,10 +7,12 @@ export function shouldAutoPause({ hidden, phonePortrait, inLevel, userPaused, ov
   return Boolean(hidden || phonePortrait);
 }
 
-// Phaser's WebAudioSoundManager.unlock() already resumes the context on the first
-// touch/mouse/key (then removes its handlers). It does NOT cover a context that iOS
-// later leaves 'interrupted' (call, lock screen) or re-suspends, so main.js calls this
-// on every tap and on returning to the tab.
+// Phaser's WebAudioSoundManager already resumes suspended/interrupted contexts every
+// frame while the game has focus (onFocus), including after iOS interrupts audio. What
+// it cannot do is resume from inside a user-activation gesture, which is the only time
+// iOS Safari reliably allows it. main.js calls this on pointerup/touchend (pointerdown
+// from touch does not count as an activation), so a context Phaser could not revive
+// is unlocked by the next tap.
 export function resumeAudio(ctx) {
   if (!ctx || (ctx.state !== 'suspended' && ctx.state !== 'interrupted')) return;
   // resume() can reject when there was no user gesture yet; the next tap retries.

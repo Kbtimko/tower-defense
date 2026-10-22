@@ -27,7 +27,6 @@ const game = new Phaser.Game(config);
 
 // Page-lifetime hooks (no scene owns them). `sound.context` exists only for the
 // WebAudio manager, hence the optional chaining.
-document.addEventListener('pointerdown', () => resumeAudio(game.sound?.context), true);
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) resumeAudio(game.sound?.context);
-});
+const unlockAudio = () => resumeAudio(game.sound?.context);
+document.addEventListener('pointerup', unlockAudio, { capture: true, passive: true });
+document.addEventListener('touchend', unlockAudio, { capture: true, passive: true });
