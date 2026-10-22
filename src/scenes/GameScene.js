@@ -26,7 +26,9 @@ import { BUILD_POP, UPGRADE_POP, SELL_FX, SELECTION_RING, PAD_GLOW, RETICLE } fr
 import { deathClass, isHeavyHit, canHitStop } from '../systems/hitFx.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
 import { gameToPageCss, clampPanel } from '../systems/viewport.js';
-import { PANEL_EDGE_MARGIN } from '../data/input.js';
+import {
+  PANEL_EDGE_MARGIN, TAP_TOWER_RADIUS, TAP_SLOT_RADIUS, TAP_PATH_RADIUS, REPOSITION_SNAP_RADIUS,
+} from '../data/input.js';
 import { pulseClass } from '../ui/pulse.js';
 import { WaveBanner } from '../ui/WaveBanner.js';
 import { bossWarning, padGlowAlpha } from '../systems/juiceMath.js';
@@ -492,6 +494,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown() {
+    // Leaving mid-aim/build would strand the crosshair cursor and ability
+    // outline: hero:aim-cancel only fires through _cancelMode.
+    this._onUiCancel();
     document.removeEventListener('visibilitychange', this._onShellChange);
     this._portraitMql?.removeEventListener?.('change', this._onShellChange);
     this._portraitMql = null;
@@ -1209,15 +1214,19 @@ export default class GameScene extends Phaser.Scene {
   // not pin, so asking it costs nothing when an earlier step wins.
   _tapHits(mx, my) {
     return {
-      tower:       this.placementManager.getTowers().find(t => Math.hypot(t.x - mx, t.y - my) < 22) ?? null,
-      slot:        this.placementManager.getNearestSlot(mx, my, 22, true),
-      onPath:      this.pathMgr.isOnPath(mx, my, 40),
+      tower:       this.placementManager.getTowers().find(t => Math.hypot(t.x - mx, t.y - my) < TAP_TOWER_RADIUS) ?? null,
+      slot:        this.placementManager.getNearestSlot(mx, my, TAP_SLOT_RADIUS, true),
+      onPath:      this.pathMgr.isOnPath(mx, my, TAP_PATH_RADIUS),
       inspectable: this.inspector?.inspectableAt(mx, my) ?? null,
     };
   }
 
   _runTapAction(action, mx, my, hits) {
     if (action.closePanel) this._closeTowerPanel();
+    if (action.clearBuild) {
+      this.selectedType = null;
+      this._deselectButtons();
+    }
     switch (action.type) {
       case 'fireAim':     this._triggerAimAbility(mx, my); break;
       case 'reposition':  this._repositionTo(mx, my); break;
@@ -1246,7 +1255,7 @@ export default class GameScene extends Phaser.Scene {
     const barracks = this.repositioningBarracks;
     // requireFree=true with a 60px reposition snap range (looser than the 22px
     // placement radius because the player is dragging, not single-clicking).
-    const slot = this.placementManager.getNearestSlot(mx, my, 60, true);
+    const slot = this.placementManager.getNearestSlot(mx, my, REPOSITION_SNAP_RADIUS, true);
     this.repositionMode = false;
     this.repositioningBarracks = null;
     // No valid target — cancel reposition silently.
@@ -1261,8 +1270,6 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _openPanelFromTap(tower, mx, my) {
-    this.selectedType = null;
-    this._deselectButtons();
     const panelCss = gameToPageCss(this.scale, mx, my);
     const gRect = document.getElementById('game').getBoundingClientRect();
     this._openTowerPanel(tower, panelCss.x - gRect.left, panelCss.y - gRect.top);
@@ -1414,6 +1421,9 @@ export default class GameScene extends Phaser.Scene {
   // ─── Tower panel ───────────────────────────────────────────────────────────
 
   _openTowerPanel(tower, mx, my) {
+    // Kept so an upgrade reopens from the original tap, not from the already
+    // offset (+10/-10) and clamped panel position, which would drift each time.
+    this._panelAnchor = { x: mx, y: my };
     this._resetConfirm();
     this._openTowerId = tower.id ?? null;
     this.selectedTower = tower;
@@ -1643,8 +1653,7 @@ export default class GameScene extends Phaser.Scene {
       tower._rebuildSoldiers(this, this.pathMgr.getPathPoints());
     }
     this._playTowerPop(tower, UPGRADE_POP);
-    const panel = document.getElementById('tower-panel');
-    this._openTowerPanel(tower, parseInt(panel.style.left), parseInt(panel.style.top));
+    this._openTowerPanel(tower, this._panelAnchor.x, this._panelAnchor.y);
   }
 
   // `pop` is BUILD_POP/UPGRADE_POP: the ring burst always plays, the scale pop

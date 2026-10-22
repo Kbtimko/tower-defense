@@ -286,3 +286,75 @@ describe('Cancel button at level end', () => {
     expect(cancelShown()).toBe(false);
   });
 });
+
+describe('tap hit radii are pinned', () => {
+  beforeEach(setupDOM);
+
+  const towerScene = (tx, ty) => {
+    const getNearestSlot = vi.fn(() => null);
+    const isOnPath = vi.fn(() => false);
+    const s = makeScene({
+      placementManager: { getTowers: () => [{ x: tx, y: ty }], getNearestSlot, getZones: () => [] },
+      pathMgr: { isOnPath, getNearestPathProgress: () => 0, getPathPoints: () => [] },
+    });
+    return { s, getNearestSlot, isOnPath };
+  };
+
+  it('a tower 21px away is hit, 23px away is a miss', () => {
+    expect(towerScene(121, 100).s._tapHits(100, 100).tower).not.toBeNull();
+    expect(towerScene(123, 100).s._tapHits(100, 100).tower).toBeNull();
+  });
+
+  it('asks for a free slot within 22px and the path within 40px', () => {
+    const { s, getNearestSlot, isOnPath } = towerScene(900, 900);
+    s._tapHits(100, 100);
+    expect(getNearestSlot).toHaveBeenCalledWith(100, 100, 22, true);
+    expect(isOnPath).toHaveBeenCalledWith(100, 100, 40);
+  });
+
+  it('reposition snaps to a free slot within 60px', () => {
+    const { s, getNearestSlot } = towerScene(900, 900);
+    s.repositionMode = true;
+    s.repositioningBarracks = { zoneIndex: 0, setPosition: vi.fn() };
+    s._repositionTo(100, 100);
+    expect(getNearestSlot).toHaveBeenCalledWith(100, 100, 60, true);
+  });
+});
+
+describe('openPanel honours clearBuild', () => {
+  beforeEach(setupDOM);
+
+  it('clears the armed build and highlight even when the panel opener does not', () => {
+    const s = makeScene({ _openPanelFromTap: vi.fn() });
+    s._selectTowerType('archer', btn('archer'));
+    s._runTapAction({ type: 'openPanel', tower: {}, clearBuild: true }, 0, 0, {});
+    expect(s.selectedType).toBeNull();
+    expect(document.querySelectorAll('.tower-btn.selected').length).toBe(0);
+  });
+
+  it('leaves the build armed when clearBuild is absent', () => {
+    const s = makeScene({ _openPanelFromTap: vi.fn() });
+    s._selectTowerType('archer', btn('archer'));
+    s._runTapAction({ type: 'openPanel', tower: {} }, 0, 0, {});
+    expect(s.selectedType).toBe('archer');
+  });
+});
+
+describe('shutdown mid-mode', () => {
+  beforeEach(setupDOM);
+
+  it('cancels an armed aim so the HUD drops the crosshair and outline', () => {
+    const s = makeScene();
+    s._onAbility({ slot: 'w' });
+    s.game.events.emit.mockClear();
+    try { s.shutdown(); } catch { /* the rest of shutdown needs a full scene */ }
+    expect(s.aimMode).toBe(false);
+    expect(s.game.events.emit).toHaveBeenCalledWith('hero:aim-cancel');
+  });
+
+  it('is safe with nothing armed', () => {
+    const s = makeScene();
+    try { s.shutdown(); } catch { /* as above */ }
+    expect(s.game.events.emit).not.toHaveBeenCalledWith('hero:aim-cancel');
+  });
+});

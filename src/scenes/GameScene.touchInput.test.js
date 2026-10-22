@@ -235,3 +235,33 @@ describe('touch two-step confirm', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 });
+
+describe('tower panel position across upgrades', () => {
+  beforeEach(() => { setupDOM(); });
+
+  it('two consecutive upgrades reopen the panel at the same left/top', () => {
+    const gs = Object.create(GameScene.prototype);
+    gs.mapId = 0;
+    gs.selectedType = null;
+    gs._toast = vi.fn();
+    gs._playTowerPop = vi.fn();
+    gs._syncCancelButton = () => {};
+    const tower = { id: 1, type: 'archer', level: 1, branch: null, damage: 10, range: 100,
+                    fireRate: 1, totalCost: 60 };
+    gs.placementManager = { upgradeTower: vi.fn((t, lvl) => { t.level = lvl; return true; }) };
+    // Real layout is absent in jsdom, so give the clamp a roomy game area.
+    $('game').getBoundingClientRect = () => ({ left: 0, top: 0, width: 1000, height: 800 });
+    GameScene.prototype._openTowerPanel.call(gs, tower, 200, 300);
+    const panel = $('tower-panel');
+    const opened = { left: panel.style.left, top: panel.style.top };
+    expect(opened).toEqual({ left: '210px', top: '290px' });
+    gs.selectedTower = tower;
+    // maxTierAllowed on map 0 is 2, so keep the tower below it for both calls.
+    gs._upgradeSelectedTower();
+    expect({ left: panel.style.left, top: panel.style.top }).toEqual(opened);
+    tower.level = 1;
+    gs._upgradeSelectedTower();
+    expect({ left: panel.style.left, top: panel.style.top }).toEqual(opened);
+    expect(gs.placementManager.upgradeTower).toHaveBeenCalledTimes(2);
+  });
+});

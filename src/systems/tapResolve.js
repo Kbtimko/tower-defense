@@ -32,7 +32,3 @@ export function resolveTap(state, hits) {
 export function hasMode(state) {
   return state.aimSlot != null || !!state.repositioning || !!state.selectedType;
 }
-
-export function cancelMode(state) {
-  return { ...state, aimSlot: null, repositioning: false, selectedType: null };
-}
