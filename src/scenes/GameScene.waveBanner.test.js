@@ -33,7 +33,7 @@ describe('GameScene wave banner wiring', () => {
     expect(show).toHaveBeenCalledTimes(1);
     const arg = show.mock.calls[0][0];
     expect(arg.waveNum).toBe(2);
-    expect(arg.waveCount).toBeGreaterThan(0);
+    expect(arg.waveCount).toBe(2); // waveMgr.waves.length, not the map table
     expect(arg.bossType).toBe(boss);
   });
 

@@ -17,6 +17,8 @@ export class WaveBanner {
     this._banner?.style.setProperty('--wave-banner-ms', `${WAVE_BANNER.duration}ms`);
     this._boss?.style.setProperty('--boss-warning-ms', `${BOSS_WARNING.duration}ms`);
     this._frame?.style.setProperty('--boss-warning-ms', `${BOSS_WARNING.duration}ms`);
+    this._boss?.style.setProperty('--boss-warning-color', BOSS_WARNING.color);
+    this._frame?.style.setProperty('--boss-warning-color', BOSS_WARNING.color);
   }
 
   show({ waveNum, waveCount, bossType }) {

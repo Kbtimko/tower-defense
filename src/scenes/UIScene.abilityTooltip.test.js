@@ -203,3 +203,18 @@ describe('UIScene ability hover card', () => {
     expect(cardShown()).toBe(true);
   });
 });
+
+describe('UIScene cooldown wedge reset', () => {
+  beforeEach(setupHeroDOM);
+
+  it('hero init clears the previous level\'s cooldown max and inline --cd', () => {
+    const s = makeScene();
+    s._onHeroHudInit({ heroId: 'rael', def: HEROES.rael });
+    s._onHeroCooldownTick({ q: 5, w: 0, e: 0 });
+    const q = document.getElementById('ability-q');
+    expect(q.style.getPropertyValue('--cd')).not.toBe('');
+    s._onHeroHudInit({ heroId: 'rael', def: HEROES.rael });
+    expect(s._cdMax).toEqual({});
+    expect(q.style.getPropertyValue('--cd')).toBe('');
+  });
+});

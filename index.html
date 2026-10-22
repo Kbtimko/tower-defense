@@ -55,12 +55,12 @@
       text-shadow: 0 2px 4px #000; }
     #wave-banner { top: 10px; font-size: 20px; font-weight: bold; color: #fff;
       background: rgba(0,0,0,0.45); padding: 4px 16px; border-radius: 4px; }
-    #wave-banner-boss { top: 48px; font-size: 15px; font-weight: bold; color: #ff4d4d;
+    #wave-banner-boss { top: 48px; font-size: 15px; font-weight: bold; color: var(--boss-warning-color, #ff4d4d);
       background: rgba(0,0,0,0.55); padding: 3px 12px; border-radius: 4px; }
     #wave-banner.show { animation: wave-banner var(--wave-banner-ms, 1800ms) ease-out forwards; }
     #wave-banner-boss.show { animation: wave-banner var(--boss-warning-ms, 2400ms) ease-out forwards; }
     #boss-frame { position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0;
-      box-shadow: inset 0 0 48px 8px #ff4d4d; }
+      box-shadow: inset 0 0 48px 8px var(--boss-warning-color, #ff4d4d); }
     #boss-frame.show { animation: boss-frame var(--boss-warning-ms, 2400ms) ease-in-out forwards; }
     @keyframes wave-banner {
       0%   { opacity: 0; transform: translateX(-50%) translateY(-12px); }
@@ -289,6 +289,8 @@
     .ability-btn { position:relative; }
     .ability-btn::after { content:''; position:absolute; inset:0; border-radius:3px; pointer-events:none;
                           background:conic-gradient(rgba(0,0,0,0.6) calc(var(--cd, 0) * 360deg), transparent 0); }
+    /* Keep the key/name/countdown above the cooldown wedge. */
+    .ability-btn > span { position:relative; z-index:1; }
     .ability-btn:not(:disabled):not(.locked):hover { background:#253a4a; }
     .ability-key  { font-size:11px; font-weight:bold; letter-spacing:1px; }
     .ability-name { font-size:12px; }

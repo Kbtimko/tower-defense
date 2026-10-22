@@ -96,6 +96,12 @@ export default class UIScene extends Phaser.Scene {
     this._heroDef   = def;
     this._heroLevel = 1;
     this._heroCds   = { q: 0, w: 0, e: 0 };
+    // The shutdown cloneNode copies an inline --cd into the next level's buttons,
+    // and a stale max would skew the first sweep.
+    this._cdMax = {};
+    for (const id of ['ability-q', 'ability-w', 'ability-e']) {
+      document.getElementById(id)?.style.removeProperty('--cd');
+    }
 
     const portrait = document.getElementById('hero-portrait');
     if (portrait) {
@@ -213,7 +219,7 @@ export default class UIScene extends Phaser.Scene {
     if (!btn) return;
     const cdEl = btn.querySelector('.ability-cd');
     if (secs > 0) {
-      // Max = first non-zero tick after ready; the ring is remaining/max.
+      // Max is seeded from the hero def (fallback: first non-zero tick); the wedge is remaining/max.
       this._cdMax ??= {};
       // Seed from the hero def so a mid-cooldown start can't skew the sweep.
       this._cdMax[id] ||= this._heroDef?.abilities?.[id.slice(-1)]?.cooldown ?? secs;

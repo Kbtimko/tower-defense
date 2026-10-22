@@ -117,7 +117,7 @@ describe('Tower build/upgrade pop', () => {
 
   it('scales uniformly toward the build peak, then restores exactly to 1', () => {
     const t = popTower();
-    t.startPop('build');
+    t.startPop(BUILD_POP);
     t.updatePop(BUILD_POP.duration * 0.3);
     const [x, y] = t._sprite.setSquash.mock.calls.at(-1);
     expect(x).toBe(y);
@@ -131,23 +131,23 @@ describe('Tower build/upgrade pop', () => {
 
   it('upgrade pop uses the upgrade peak', () => {
     const t = popTower();
-    t.startPop('upgrade');
+    t.startPop(UPGRADE_POP);
     t.updatePop(UPGRADE_POP.duration * 0.3);
     expect(t._sprite.setSquash.mock.calls.at(-1)[0]).toBeCloseTo(UPGRADE_POP.peak, 5);
   });
 
   it('restarting mid-pop begins from the start', () => {
     const t = popTower();
-    t.startPop('build');
+    t.startPop(BUILD_POP);
     t.updatePop(BUILD_POP.duration * 0.9);
-    t.startPop('upgrade');
+    t.startPop(UPGRADE_POP);
     t.updatePop(UPGRADE_POP.duration * 0.3);
     expect(t._sprite.setSquash.mock.calls.at(-1)[0]).toBeCloseTo(UPGRADE_POP.peak, 5);
   });
 
   it('is safe with no sprite art (fallback disc)', () => {
     const t = makeTower(makeScene([]));
-    t.startPop('build');
+    t.startPop(BUILD_POP);
     expect(() => t.updatePop(0.1)).not.toThrow();
   });
 });

@@ -117,6 +117,12 @@ export const IMPACT_FX = {
     speed: { min: 0, max: 0 }, scale: { start: 0.3, end: 1.8 },
     alpha: { start: 0.9, end: 0 }, blendMode: 'ADD',
   },
+  // Sell smoke: grey, NORMAL blend, drifts out from the sold tower.
+  sellPuff: {
+    texture: 'fx-smoke', tint: 0x8a8580, lifespan: 450, quantity: 6,
+    speed: { min: 20, max: 60 }, scale: { start: 0.4, end: 0.9 },
+    alpha: { start: 0.7, end: 0 }, blendMode: 'NORMAL',
+  },
   shockwave: {
     texture: 'fx-ring', tint: 0xffffff, lifespan: 500, quantity: 1,
     speed: { min: 0, max: 0 }, scale: { start: 0.2, end: 2.4 },

@@ -14,12 +14,13 @@ const makeGfx = () => {
   const rec = (name) => (...args) => { calls.push([name, ...args]); };
   return {
     calls,
+    clear: rec('clear'),
     lineStyle: rec('lineStyle'), strokeCircle: rec('strokeCircle'),
     fillStyle: rec('fillStyle'), fillCircle: rec('fillCircle'), lineBetween: rec('lineBetween'),
   };
 };
 const ctx = (o = {}) => Object.assign(Object.create(GameScene.prototype), {
-  gfx: makeGfx(), aimMode: false, _aimSlot: null, selectedTower: null, selectedType: null,
+  gfx: makeGfx(), _padGlow: makeGfx(), aimMode: false, _aimSlot: null, selectedTower: null, selectedType: null,
   repositionMode: false, _fxTime: 1, _buildCursorX: 100, _buildCursorY: 120,
   game: { registry: { get: () => true } },
   hero: { def: { abilities: { w: {} } } },
@@ -64,17 +65,25 @@ describe('_drawSelectionRing', () => {
 describe('_drawZones pad glow', () => {
   const zones = [{ occupied: false, cx: 1, cy: 2, radius: 10 }, { occupied: true, cx: 5, cy: 5, radius: 10 },
                  { occupied: false, cx: 3, cy: 4, radius: 10 }];
-  it('glows empty pads only when not building', () => {
+  const glowFills = (c) => c._padGlow.calls.filter(x => x[0] === 'fillStyle' && x[1] === PAD_GLOW.color);
+  it('glows empty pads only when not building, on its own Graphics (not gfx)', () => {
     const c = ctx({ placementManager: { getZones: () => zones, getNearestSlot: () => null } });
     c._drawZones();
-    const fills = c.gfx.calls.filter(x => x[0] === 'fillStyle' && x[1] === PAD_GLOW.color);
+    const fills = glowFills(c);
     expect(fills.length).toBe(2);
+    expect(c.gfx.calls.some(x => x[0] === 'fillStyle' && x[1] === PAD_GLOW.color)).toBe(false);
     const [lo, hi] = PAD_GLOW.alpha;
     for (const f of fills) { expect(f[2]).toBeGreaterThanOrEqual(lo); expect(f[2]).toBeLessThanOrEqual(hi); }
     expect(fills[0][2]).not.toBeCloseTo(fills[1][2]); // per-slot phase desyncs pads
   });
+  it('clears the glow layer every frame, including in build mode', () => {
+    const c = ctx({ selectedType: 'archer', economy: { gold: 99999 }, placementManager: { getZones: () => zones, getNearestSlot: () => null } });
+    c._drawZones();
+    expect(c._padGlow.calls[0]).toEqual(['clear']);
+    expect(glowFills(c).length).toBe(0);
+  });
   it('is static under reduced motion', () => {
-    const run = (t) => { const c = ctx({ _fxTime: t, game: { registry: { get: () => false } }, placementManager: { getZones: () => zones, getNearestSlot: () => null } }); c._drawZones(); return c.gfx.calls; };
+    const run = (t) => { const c = ctx({ _fxTime: t, game: { registry: { get: () => false } }, placementManager: { getZones: () => zones, getNearestSlot: () => null } }); c._drawZones(); return c._padGlow.calls; };
     const calls = run(0);
     expect(calls.some(x => x[0] === 'fillStyle' && x[1] === PAD_GLOW.color && x[2] === PAD_GLOW.staticAlpha)).toBe(true);
     expect(calls).toEqual(run(1.3));

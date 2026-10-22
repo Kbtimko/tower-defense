@@ -52,6 +52,8 @@ describe('WaveBanner', () => {
     new WaveBanner();
     expect($('wave-banner').style.getPropertyValue('--wave-banner-ms')).toBe(`${WAVE_BANNER.duration}ms`);
     expect($('boss-frame').style.getPropertyValue('--boss-warning-ms')).toBe(`${BOSS_WARNING.duration}ms`);
+    expect($('boss-frame').style.getPropertyValue('--boss-warning-color')).toBe(BOSS_WARNING.color);
+    expect($('wave-banner-boss').style.getPropertyValue('--boss-warning-color')).toBe(BOSS_WARNING.color);
   });
 
   it('is a no-op when the DOM is absent', () => {

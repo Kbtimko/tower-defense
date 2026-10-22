@@ -213,6 +213,10 @@ export default class GameScene extends Phaser.Scene {
     // top of the static layer so hover indicators stay visible.
     this.gfx = this.add.graphics().setDepth(30);
 
+    // Idle pad glow lives under the unit band: on gfx it would tint towers and
+    // units standing on or near a pad.
+    this._padGlow = this.add.graphics().setDepth(PAD_GLOW.depth);
+
     this._setupRoad(map);
 
     this.inspector = new InspectController(this);
@@ -402,7 +406,7 @@ export default class GameScene extends Phaser.Scene {
   _onWaveStart({ waveNum }) {
     this._waveBanner?.show({
       waveNum,
-      waveCount: MAPS[this.mapId].waveCount,
+      waveCount: this.waveMgr.waves.length,
       bossType: bossWarning(this.waveMgr.waves[waveNum - 1]),
     });
   }
@@ -467,6 +471,8 @@ export default class GameScene extends Phaser.Scene {
     if (this.damageNumbers) this.damageNumbers.destroy();
     this._coinFx?.destroy();
     this._coinFx = null;
+    this._padGlow?.destroy();
+    this._padGlow = null;
     this._waveBanner = null;
     if (this.shakeCtl)      this.shakeCtl.destroy();
     for (const s of this._sentries) s.destroy();
@@ -1182,7 +1188,7 @@ export default class GameScene extends Phaser.Scene {
       }
       const tower = this.placementManager.placeTower(slot.slotIndex, this.selectedType, this);
       if (!tower) { this._toast('Not enough gold!'); return; }
-      this._playTowerPop(tower, 'build', BUILD_POP);
+      this._playTowerPop(tower, BUILD_POP);
       this._repaintStaticLayers();
       if (this.selectedType === 'barracks') {
         tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(slot.x, slot.y);
@@ -1469,21 +1475,22 @@ export default class GameScene extends Phaser.Scene {
     if (tower.type === 'barracks') {
       tower._rebuildSoldiers(this, this.pathMgr.getPathPoints());
     }
-    this._playTowerPop(tower, 'upgrade', UPGRADE_POP);
+    this._playTowerPop(tower, UPGRADE_POP);
     const panel = document.getElementById('tower-panel');
     this._openTowerPanel(tower, parseInt(panel.style.left), parseInt(panel.style.top));
   }
 
   // `pop` is BUILD_POP/UPGRADE_POP: the ring burst always plays, the scale pop
   // is skipped under reduced motion.
-  _playTowerPop(tower, kind, pop) {
+  _playTowerPop(tower, pop) {
     this.particleSpawner?.spawnImpact(pop.burstEffect, tower.x, tower.y);
     if (this.game.registry.get('ambientMotion') === false) return;
-    tower.startPop(kind);
+    tower.startPop(pop);
   }
 
   _playSellFx(x, y, refund) {
     this.particleSpawner?.spawnImpact(SELL_FX.burstEffect, x, y);
+    this.particleSpawner?.spawnImpact(SELL_FX.smokeEffect, x, y);
     this._coinFx?.spawn(x, y, refund);
   }
 
@@ -1739,6 +1746,9 @@ export default class GameScene extends Phaser.Scene {
   _drawZones() {
     const canAfford = this.selectedType && this.economy.gold >= (TOWER_DEFS[this.selectedType]?.cost ?? Infinity);
     const zones = this.placementManager.getZones();
+    const glow = this._padGlow;
+    glow.clear();
+    const reducedMotion = this.game.registry.get('ambientMotion') === false;
     for (let slot = 0; slot < zones.length; slot++) {
       const zone = zones[slot];
       if (zone.occupied) continue;
@@ -1751,11 +1761,11 @@ export default class GameScene extends Phaser.Scene {
       }
       if (!this.selectedType) {
         // Idle glow invites building; static when ambient motion is off.
-        const a = this.game.registry.get('ambientMotion') === false
+        const a = reducedMotion
           ? PAD_GLOW.staticAlpha
           : padGlowAlpha(this._fxTime, slot * PAD_GLOW.slotPhase, PAD_GLOW);
-        this.gfx.fillStyle(PAD_GLOW.color, a);
-        this.gfx.fillCircle(zone.cx, zone.cy, zone.radius);
+        glow.fillStyle(PAD_GLOW.color, a);
+        glow.fillCircle(zone.cx, zone.cy, zone.radius);
       }
     }
 
@@ -1802,7 +1812,8 @@ export default class GameScene extends Phaser.Scene {
     const pulse = this.game.registry.get('ambientMotion') === false
       ? 1
       : 0.5 + 0.5 * Math.sin(this._fxTime * SELECTION_RING.pulse * Math.PI * 2);
-    const [lo, hi] = SELECTION_RING.alpha;
+    const lo = SELECTION_RING.alpha[0];
+    const hi = SELECTION_RING.alpha[1];
     this.gfx.lineStyle(SELECTION_RING.width, SELECTION_RING.color, lo + (hi - lo) * pulse);
     this.gfx.strokeCircle(t.x, t.y, SELECTION_RING.radius);
   }

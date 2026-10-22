@@ -4,7 +4,6 @@ import { EntitySprite } from '../systems/EntitySprite.js';
 import { unitDepth } from '../systems/grounding.js';
 import { setBaseFireRate } from '../systems/fireRateMods.js';
 import { popScale } from '../systems/juiceMath.js';
-import { BUILD_POP, UPGRADE_POP } from '../data/juice.js';
 
 export class Tower extends Phaser.GameObjects.Container {
   constructor(scene, { type, x, y, def, zoneIndex, modifiers = {} }) {
@@ -78,8 +77,10 @@ export class Tower extends Phaser.GameObjects.Container {
     this._redraw();
   }
 
-  startPop(kind) {
-    this._pop  = kind === 'build' ? BUILD_POP : UPGRADE_POP;
+  // `pop` is a BUILD_POP/UPGRADE_POP block; passing data (not a string tag)
+  // means a typo can't silently become an upgrade pop.
+  startPop(pop) {
+    this._pop  = pop;
     this._popT = 0;
   }
 

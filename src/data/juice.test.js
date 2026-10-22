@@ -15,3 +15,15 @@ describe('juice burstEffect keys', () => {
     expect(IMPACT_FX[key]).toBeDefined();
   });
 });
+
+describe('juice smokeEffect keys', () => {
+  const smoke = Object.entries(juice)
+    .filter(([, v]) => v && typeof v === 'object' && 'smokeEffect' in v)
+    .map(([name, v]) => [name, v.smokeEffect]);
+  it('finds the sell block', () => {
+    expect(smoke.map(([n]) => n)).toEqual(['SELL_FX']);
+  });
+  it.each(smoke)('%s names an IMPACT_FX entry', (_n, key) => {
+    expect(IMPACT_FX[key]).toBeDefined();
+  });
+});

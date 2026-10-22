@@ -24,28 +24,28 @@ describe('GameScene._playTowerPop', () => {
 
   it('bursts at the tower and pops (build)', () => {
     const ctx = makeFxCtx(); const t = tower();
-    proto._playTowerPop.call(ctx, t, 'build', BUILD_POP);
+    proto._playTowerPop.call(ctx, t, BUILD_POP);
     expect(ctx.particleSpawner.spawnImpact).toHaveBeenCalledWith(BUILD_POP.burstEffect, 10, 20);
-    expect(t.startPop).toHaveBeenCalledWith('build');
+    expect(t.startPop).toHaveBeenCalledWith(BUILD_POP);
   });
 
   it('upgrade reads its burst key from UPGRADE_POP', () => {
     const ctx = makeFxCtx(); const t = tower();
-    proto._playTowerPop.call(ctx, t, 'upgrade', UPGRADE_POP);
+    proto._playTowerPop.call(ctx, t, UPGRADE_POP);
     expect(ctx.particleSpawner.spawnImpact).toHaveBeenCalledWith(UPGRADE_POP.burstEffect, 10, 20);
-    expect(t.startPop).toHaveBeenCalledWith('upgrade');
+    expect(t.startPop).toHaveBeenCalledWith(UPGRADE_POP);
   });
 
   it('reduced motion keeps the burst but skips the scale pop', () => {
     const ctx = makeFxCtx(false); const t = tower();
-    proto._playTowerPop.call(ctx, t, 'build', BUILD_POP);
+    proto._playTowerPop.call(ctx, t, BUILD_POP);
     expect(ctx.particleSpawner.spawnImpact).toHaveBeenCalledTimes(1);
     expect(t.startPop).not.toHaveBeenCalled();
   });
 
   it('tolerates a missing particle spawner (post-shutdown)', () => {
     const ctx = makeFxCtx(); ctx.particleSpawner = null; const t = tower();
-    expect(() => proto._playTowerPop.call(ctx, t, 'build', BUILD_POP)).not.toThrow();
+    expect(() => proto._playTowerPop.call(ctx, t, BUILD_POP)).not.toThrow();
   });
 });
 
@@ -54,6 +54,7 @@ describe('GameScene._playSellFx', () => {
     const ctx = makeFxCtx();
     proto._playSellFx.call(ctx, 5, 6, 36);
     expect(ctx.particleSpawner.spawnImpact).toHaveBeenCalledWith(SELL_FX.burstEffect, 5, 6);
+    expect(ctx.particleSpawner.spawnImpact).toHaveBeenCalledWith(SELL_FX.smokeEffect, 5, 6);
     expect(ctx._coinFx.spawn).toHaveBeenCalledWith(5, 6, 36);
   });
 });
@@ -93,7 +94,7 @@ describe('GameScene._upgradeSelectedTower', () => {
       _playTowerPop: vi.fn(), _openTowerPanel: vi.fn(), _toast: vi.fn(),
     };
     proto._upgradeSelectedTower.call(ctx);
-    expect(ctx._playTowerPop).toHaveBeenCalledWith(tower, 'upgrade', UPGRADE_POP);
+    expect(ctx._playTowerPop).toHaveBeenCalledWith(tower, UPGRADE_POP);
 
     ctx._playTowerPop.mockClear();
     ctx.placementManager.upgradeTower = vi.fn(() => false);
