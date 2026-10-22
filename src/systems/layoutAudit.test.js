@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { layoutProblems } from './layoutAudit.js';
+import { layoutProblems, railProblems, minTouchFor } from './layoutAudit.js';
 
 const rect = (left, top, right, bottom) => ({ left, top, right, bottom, width: right - left, height: bottom - top });
 
@@ -80,18 +80,57 @@ describe('layoutProblems', () => {
   it('does not report clipping at 90% visible or more', () => {
     expect(layoutProblems(withTarget({ visibleRect: rect(10, 10, 110, 46) }))).toEqual([]);
   });
+});
 
-  it('is healthy when every bar control shares a row (vertical centres within 2px, whatever their heights)', () => {
-    const row = [rect(10, 100, 60, 150), rect(70, 105, 120, 145), rect(130, 101, 180, 151)];
-    expect(layoutProblems(healthy({ barRects: row }))).toEqual([]);
+describe('minTouchFor', () => {
+  it.each([
+    [750, 340, 40],   // iphone: scale 0.46 -> 40.4 css px per cell, cannot reach 44
+    [863, 360, 44],   // pixel: height-bound scale 0.5 -> exactly 44
+    [844, 390, 44],
+    [932, 430, 44],
+  ])('%ix%i -> %i', (vw, vh, expected) => {
+    expect(minTouchFor({ vw, vh })).toBe(expected);
   });
+});
 
-  it('reports "bottom bar wraps" when a control drops to a second row', () => {
-    const wrapped = [rect(10, 100, 60, 150), rect(70, 100, 120, 150), rect(10, 153, 60, 193)];
-    expect(layoutProblems(healthy({ barRects: wrapped }))).toEqual(['bottom bar wraps']);
+describe('railProblems', () => {
+  const rails = { left: rect(0, 0, 80, 360), right: rect(560, 0, 640, 360) };
+  const touch = { hasTouch: true };
+  const run = (t, extra = {}) => railProblems({ device: touch, rails, minTouchPx: 44, targets: [{ name: '#b', visible: true, rect: rect(10, 10, 60, 60), ...t }], ...extra });
+
+  it('is empty when a target is inside a rail and big enough', () => {
+    expect(run({})).toEqual([]);
   });
-
-  it('skips the row check when no bar controls were measured', () => {
-    expect(layoutProblems(healthy({ barRects: [] }))).toEqual([]);
+  it('accepts a target in the right rail', () => {
+    expect(run({ rect: rect(570, 10, 620, 60) })).toEqual([]);
+  });
+  it('reports "rails missing" when either rail is absent', () => {
+    expect(run({}, { rails: { left: null, right: rails.right } })).toEqual(['rails missing']);
+    expect(run({}, { rails: { left: rails.left, right: null } })).toEqual(['rails missing']);
+  });
+  it('reports a target outside both rails', () => {
+    expect(run({ rect: rect(200, 10, 250, 60) })).toEqual(['#b outside rails']);
+  });
+  it('reports a target straddling a rail edge', () => {
+    expect(run({ rect: rect(40, 10, 90, 60) })).toEqual(['#b outside rails']);
+  });
+  it('tolerates 1px overhang but not 2px', () => {
+    expect(run({ rect: rect(-1, 0, 49, 50) })).toEqual([]);
+    expect(run({ rect: rect(-2, 0, 48, 50) })).toEqual(['#b outside rails']);
+  });
+  it('reports a touch target too small, in either dimension', () => {
+    expect(run({ rect: rect(10, 10, 53, 60) })).toEqual(['#b too small 43x50']);
+    expect(run({ rect: rect(10, 10, 60, 53) })).toEqual(['#b too small 50x43']);
+  });
+  it('accepts exactly minTouchPx and honours a lower floor', () => {
+    expect(run({ rect: rect(10, 10, 54, 54) })).toEqual([]);
+    expect(run({ rect: rect(10, 10, 50, 50) }, { minTouchPx: 40 })).toEqual([]);
+  });
+  it('applies no size rule without touch', () => {
+    expect(run({ rect: rect(10, 10, 20, 20) }, { device: { hasTouch: false } })).toEqual([]);
+  });
+  it('skips absent or hidden targets (layoutProblems reports those)', () => {
+    expect(run({ rect: null, visible: false })).toEqual([]);
+    expect(run({ visible: false, rect: rect(200, 10, 250, 60) })).toEqual([]);
   });
 });

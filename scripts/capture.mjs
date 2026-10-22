@@ -23,7 +23,7 @@ import { chromium, devices } from 'playwright';
 import { MAPS } from '../src/data/maps.js';
 import { MAP_WAVES } from '../src/data/waves.js';
 import { defaultCaptureBuild } from '../src/systems/debugCapture.js';
-import { layoutProblems } from '../src/systems/layoutAudit.js';
+import { layoutProblems, railProblems, minTouchFor } from '../src/systems/layoutAudit.js';
 import { RAIL_WIDTH, CANVAS_WIDTH, WORLD_HEIGHT } from '../src/data/layout.js';
 
 const OUT_DIR   = '.art-cache/captures';
@@ -34,8 +34,18 @@ const MIN_ENEMIES = 3;
 // Landscape presets: the game is landscape-only, so portrait shots would only
 // show the letterboxing. `portrait` names the same device upright, for the
 // rotate-the-phone audit (a player always starts holding it upright).
+// Playwright ships no 844x390 / 932x430 descriptors; these are the iPhone 14 landscape
+// emulation resized to the common modern-phone viewports.
+const phone = (width, height) => ({
+  ...devices['iPhone 14 landscape'],
+  viewport: { width, height },
+  portrait: { ...devices['iPhone 14'], viewport: { width: height, height: width } },
+});
+
 const DEVICES = {
   desktop: { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 },
+  phone844: phone(844, 390),
+  phone932: phone(932, 430),
   iphone:  { ...devices['iPhone 14 landscape'], portrait: 'iPhone 14' },
   pixel:   { ...devices['Pixel 7 landscape'], portrait: 'Pixel 7' },
   ipad:    { ...devices['iPad Pro 11 landscape'], portrait: 'iPad Pro 11' },
@@ -43,7 +53,7 @@ const DEVICES = {
 
 // Controls a phone player must be able to reach on each screen.
 const MAP_SELECT_TARGETS = ['#featured-play'];
-const IN_GAME_TARGETS = ['#pause-btn', '#speed-btn', '#open-codex', '.tower-btn', '#exit-btn', '#wave-btn'];
+const IN_GAME_TARGETS = ['#pause-btn', '#speed-btn', '#open-codex', '.tower-btn', '#exit-btn', '#wave-btn', '.ability-btn-wrap'];
 
 // Playwright rejects unknown context options, so strip ours before newContext.
 function contextOptions(device) {
@@ -154,17 +164,24 @@ async function audit(page, deviceName, label, selectors) {
         targets.push({ name: sel.startsWith('#') ? sel : `${sel}[${i}]`, rect: plain(el.getBoundingClientRect()), visibleRect: clipRect(el), visible });
       });
     }
-    // Only audits that list the bar controls get the one-row check (portrait is meant to wrap).
-    const barSels = ['.tower-btn', '#exit-btn', '#wave-btn'].filter(sel => sels.includes(sel));
-    const barRects = barSels.flatMap(sel => [...document.querySelectorAll(sel)]
-      .filter(el => el.getClientRects().length > 0)
-      .map(el => plain(el.getBoundingClientRect())));
+    const rect = sel => { const el = document.querySelector(sel); return el ? plain(el.getBoundingClientRect()) : null; };
     return {
       innerWidth: window.innerWidth, innerHeight: window.innerHeight,
-      scale: window.visualViewport.scale, scrollWidth: document.documentElement.scrollWidth, targets, barRects,
+      scale: window.visualViewport.scale, scrollWidth: document.documentElement.scrollWidth, targets,
+      rails: { left: rect('#rail-left'), right: rect('#rail-right') },
     };
   }, selectors);
-  return { device: deviceName, label, problems: layoutProblems({ ...metrics, device: page.viewportSize() }) };
+  const viewport = page.viewportSize();
+  const problems = layoutProblems({ ...metrics, device: viewport });
+  // Rails only exist in-game; the map-select audits list no HUD controls.
+  if (selectors === IN_GAME_TARGETS) {
+    const device = DEVICES[deviceName];
+    problems.push(...railProblems({
+      device: { hasTouch: !!device.hasTouch }, rails: metrics.rails, targets: metrics.targets,
+      minTouchPx: minTouchFor({ vw: viewport.width, vh: viewport.height }),
+    }));
+  }
+  return { device: deviceName, label, problems };
 }
 
 async function shoot(page, file) {
@@ -253,7 +270,7 @@ async function captureRotation(browser, base, deviceName, levelPath, dir) {
   const files = [];
   const layout = [];
   const problems = [];
-  const upright = () => browser.newContext(contextOptions(devices[device.portrait]));
+  const upright = () => browser.newContext(contextOptions(typeof device.portrait === 'string' ? devices[device.portrait] : device.portrait));
   const rotate = async page => {
     await page.setViewportSize(landscape);
     await page.waitForTimeout(800);

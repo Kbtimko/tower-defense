@@ -2,13 +2,12 @@
 // The harness gathers the metrics in a real browser; this decides what is wrong,
 // so the rules are unit-testable without one.
 
+import { CANVAS_WIDTH, WORLD_HEIGHT, HUD_CELL, MIN_TOUCH_PX, MIN_TOUCH_PX_SMALL_PHONE } from '../data/layout.js';
+
 const EDGE_TOLERANCE_PX = 1;
 const ZOOM_TOLERANCE = 0.01;
 // A control mostly inside its overflow-hidden ancestor is still tappable; below this it is not.
 const MIN_VISIBLE_FRACTION = 0.9;
-// The bar is align-items:center, so controls of different heights share a vertical centre, not a top;
-// a wrapped row's centre is a whole button-height away.
-const SAME_ROW_TOLERANCE_PX = 2;
 
 const area = r => (r ? Math.max(0, r.width) * Math.max(0, r.height) : 0);
 const fmt = r => `[${[r.left, r.top, r.right, r.bottom].map(n => Math.round(n)).join(',')}]`;
@@ -33,12 +32,29 @@ function targetProblems(t, innerWidth, innerHeight) {
   return problems;
 }
 
-// m.barRects: rects of the visible tower buttons, exit and wave buttons. On a phone the
-// bar must stay ONE row (the flex-wrap in the compact block is a safety net, not a layout).
-function barWrapProblems(barRects) {
-  if (!barRects?.length) return [];
-  const centres = barRects.map(r => (r.top + r.bottom) / 2);
-  return Math.max(...centres) - Math.min(...centres) > SAME_ROW_TOLERANCE_PX ? ['bottom bar wraps'] : [];
+// The HUD is scaled with the canvas (FIT), so a phone's touch size is HUD_CELL x that scale.
+// Below 44 only when the geometry physically cannot reach it (iphone 750x340).
+export function minTouchFor({ vw, vh }) {
+  const scale = Math.min(vw / CANVAS_WIDTH, vh / WORLD_HEIGHT);
+  return scale * HUD_CELL < MIN_TOUCH_PX ? MIN_TOUCH_PX_SMALL_PHONE : MIN_TOUCH_PX;
+}
+
+const insideRect = (r, rail) => r.left >= rail.left - EDGE_TOLERANCE_PX && r.right <= rail.right + EDGE_TOLERANCE_PX
+  && r.top >= rail.top - EDGE_TOLERANCE_PX && r.bottom <= rail.bottom + EDGE_TOLERANCE_PX;
+
+// Every HUD control must live fully inside one rail; on touch devices it must also be tappable.
+// Absent/hidden targets are layoutProblems' job (missing/hidden), so they are skipped here.
+export function railProblems({ device, rails, targets, minTouchPx }) {
+  if (!rails?.left || !rails?.right) return ['rails missing'];
+  const problems = [];
+  for (const t of targets) {
+    if (!t.rect || !t.visible) continue;
+    if (!insideRect(t.rect, rails.left) && !insideRect(t.rect, rails.right)) problems.push(`${t.name} outside rails`);
+    if (device.hasTouch && (t.rect.width < minTouchPx || t.rect.height < minTouchPx)) {
+      problems.push(`${t.name} too small ${Math.round(t.rect.width)}x${Math.round(t.rect.height)}`);
+    }
+  }
+  return problems;
 }
 
 export function layoutProblems(m) {
@@ -49,6 +65,5 @@ export function layoutProblems(m) {
   }
   if (m.scrollWidth > m.innerWidth) problems.push(`page overflows: scrollWidth ${m.scrollWidth} > innerWidth ${m.innerWidth}`);
   for (const t of m.targets) problems.push(...targetProblems(t, m.innerWidth, m.innerHeight));
-  problems.push(...barWrapProblems(m.barRects));
   return problems;
 }
