@@ -24,6 +24,7 @@ import { MAPS } from '../src/data/maps.js';
 import { MAP_WAVES } from '../src/data/waves.js';
 import { defaultCaptureBuild } from '../src/systems/debugCapture.js';
 import { layoutProblems } from '../src/systems/layoutAudit.js';
+import { RAIL_WIDTH, CANVAS_WIDTH, WORLD_HEIGHT } from '../src/data/layout.js';
 
 const OUT_DIR   = '.art-cache/captures';
 const DIST_DIR  = '.art-cache/capture-dist';
@@ -115,10 +116,13 @@ async function shootBusiestFrame(page, waitMs, file) {
   return { errors, towers, enemies: best, simMs: shotSimMs };
 }
 
-// Game-space (1280x720) point -> page point, through the FIT-scaled canvas.
+// World point -> page point: the map sits RAIL_WIDTH into the FIT-scaled canvas.
 async function clickGamePoint(page, x, y) {
   const box = await page.locator('#game canvas').boundingBox();
-  await page.mouse.click(box.x + (x * box.width) / 1280, box.y + (y * box.height) / 720);
+  await page.mouse.click(
+    box.x + ((x + RAIL_WIDTH) * box.width) / CANVAS_WIDTH,
+    box.y + (y * box.height) / WORLD_HEIGHT,
+  );
 }
 
 // Collects layout metrics inside the page and returns { device, label, problems }.

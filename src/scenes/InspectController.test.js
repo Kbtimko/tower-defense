@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 vi.mock('../entities/Hero.js', () => ({}));
 
 import { InspectController } from './InspectController.js';
+import { RAIL_WIDTH } from '../data/layout.js';
 
 // Build the inspector DOM scaffolding (createElement/appendChild — no innerHTML).
 function setupDom() {
@@ -492,7 +493,8 @@ describe('InspectController — panel positioning', () => {
     const ctrl = new InspectController(makeScene());
     ctrl.pin({ kind: 'enemy', target: enemy });
     const panel = document.getElementById('enemy-inspector');
-    expect(panel.style.left).toBe('224px');
+    // World x sits RAIL_WIDTH into the canvas; anchor adds +24.
+    expect(panel.style.left).toBe(`${200 + RAIL_WIDTH + 24}px`);
   });
 
   it('pin converts target game coords through the scale transform', () => {
@@ -502,9 +504,20 @@ describe('InspectController — panel positioning', () => {
     const ctrl = new InspectController(scene);
     ctrl.pin({ kind: 'enemy', target: enemy });
     const panel = document.getElementById('enemy-inspector');
-    // displayScale 2 = 2 game px per CSS px: game (200,300) -> page (100,150);
-    // anchor adds +24 to left
-    expect(panel.style.left).toBe('124px');
+    // displayScale 2 = 2 canvas px per CSS px: world x 200 is canvas x
+    // 200 + RAIL_WIDTH, so page x (200 + RAIL_WIDTH) / 2; anchor adds +24.
+    expect(panel.style.left).toBe(`${(200 + RAIL_WIDTH) / 2 + 24}px`);
+  });
+
+  it('peek converts the target world coords through the rail offset and scale', () => {
+    const enemy = makeEnemy({ x: 200, y: 300 });
+    const scene = { enemies: [enemy], hero: null,
+      scale: { canvasBounds: { x: 10, y: 0 }, displayScale: { x: 2, y: 2 } } };
+    const ctrl = new InspectController(scene);
+    ctrl.onPointerMove(200, 300);
+    const peek = document.getElementById('inspect-peek');
+    expect(peek.style.display).toBe('block');
+    expect(peek.style.left).toBe(`${10 + (200 + RAIL_WIDTH) / 2 + 24}px`);
   });
 });
 

@@ -6,15 +6,15 @@ import GameScene from './scenes/GameScene.js';
 import UIScene from './scenes/UIScene.js';
 import MapEditorScene from './scenes/MapEditorScene.js';
 import { resumeAudio } from './systems/shellLifecycle.js';
+import { CANVAS_WIDTH, WORLD_HEIGHT } from './data/layout.js';
 
-const DESIGN_WIDTH = 1280;
-const DESIGN_HEIGHT = 720;
-
+// The canvas is the map world plus a HUD rail each side; GameScene's camera
+// viewport keeps the map itself 1:1 in world coordinates.
 const config = {
   type: Phaser.AUTO,
   parent: 'game',
-  width: DESIGN_WIDTH,
-  height: DESIGN_HEIGHT,
+  width: CANVAS_WIDTH,
+  height: WORLD_HEIGHT,
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,

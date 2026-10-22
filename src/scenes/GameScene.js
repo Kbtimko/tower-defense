@@ -25,7 +25,8 @@ import { SOLDIER_MUZZLE, HIT_STOP } from '../data/fx.js';
 import { BUILD_POP, UPGRADE_POP, SELL_FX, SELECTION_RING, PAD_GLOW, RETICLE } from '../data/juice.js';
 import { deathClass, isHeavyHit, canHitStop } from '../systems/hitFx.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
-import { gameToPageCss, clampPanel } from '../systems/viewport.js';
+import { worldToPageCss, clampPanel } from '../systems/viewport.js';
+import { WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH } from '../data/layout.js';
 import {
   PANEL_EDGE_MARGIN, TAP_TOWER_RADIUS, TAP_SLOT_RADIUS, TAP_PATH_RADIUS, REPOSITION_SNAP_RADIUS,
 } from '../data/input.js';
@@ -139,7 +140,6 @@ export default class GameScene extends Phaser.Scene {
     this._bossMusicTriggered = false;
 
     const map = MAPS[this.mapId];
-    const { width, height } = this.scale;
 
     // Systems
     this.saveMgr     = new SaveManager();
@@ -149,7 +149,7 @@ export default class GameScene extends Phaser.Scene {
     this.rewardMult = map.rewardMult ?? 1;
     this._towerRangeMult = mods.towerRangeMult ?? 1;
 
-    this.pathMgr  = new PathManager(map.waypoints, map.towerSlots, width, height);
+    this.pathMgr  = new PathManager(map.waypoints, map.towerSlots, WORLD_WIDTH, WORLD_HEIGHT);
     this.economy  = new EconomyManager(
       startingGold(map.startGold, mods.startGoldPct),
       map.startLives + mods.startLivesBonus,
@@ -208,13 +208,16 @@ export default class GameScene extends Phaser.Scene {
     this.repositionMode        = false;
     this.repositioningBarracks = null;
 
-    // Solid-color fallback (visible if the bitmap PNG isn't present)
+    // The map renders between the HUD rails; scroll stays 0, so world coords are
+    // unchanged and only the viewport moves. The background colour (solid
+    // fallback if the bitmap PNG isn't present) fills that viewport only.
+    this.cameras.main.setViewport(RAIL_WIDTH, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.cameras.main.setBackgroundColor(map.background);
 
     // Bitmap backdrop (depth 0) — Phaser logs 404 if PNG missing; game still runs.
     const bgKey = `bg_map_${map.id}`;
     const backdrop = this.textures.exists(bgKey)
-      ? this.add.image(width / 2, height / 2, bgKey).setDisplaySize(width, height).setDepth(0)
+      ? this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, bgKey).setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT).setDepth(0)
       : null;
     this._applyGrade(map, backdrop);
 
@@ -1270,7 +1273,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _openPanelFromTap(tower, mx, my) {
-    const panelCss = gameToPageCss(this.scale, mx, my);
+    const panelCss = worldToPageCss(this.scale, mx, my);
     const gRect = document.getElementById('game').getBoundingClientRect();
     this._openTowerPanel(tower, panelCss.x - gRect.left, panelCss.y - gRect.top);
   }
@@ -1862,11 +1865,10 @@ export default class GameScene extends Phaser.Scene {
     // Explicit per-map blockers at fixed normalized positions — pinch-point
     // mounds that channel the single path on open terrain. Same vocab as the
     // auto-placements, but hand-authored coords ({ type, x, y, scale? }).
-    const { width, height } = this.scale;
     for (const b of map.blockers ?? []) {
       const type = BLOCKER_TYPES[b.type];
       if (!type) continue;
-      type.draw(g, b.x * width, b.y * height, b.scale ?? 1, type.defaultTint(map.id));
+      type.draw(g, b.x * WORLD_WIDTH, b.y * WORLD_HEIGHT, b.scale ?? 1, type.defaultTint(map.id));
     }
 
     // Platforms
@@ -1887,12 +1889,11 @@ export default class GameScene extends Phaser.Scene {
       this.add.text(p[p.length-1].x, p[p.length-1].y, 'OUT', { fontSize: '10px', color: '#fff', fontFamily: 'Georgia', fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
       return;
     }
-    const { width, height } = this.scale;
     const key = bakeRoad(this, {
       key: `road_map_${map.id}`, waypoints: this.pathMgr.waypoints,
-      styleKey: map.pathRenderStyle, seed: map.blockerSeed, width, height,
+      styleKey: map.pathRenderStyle, seed: map.blockerSeed, width: WORLD_WIDTH, height: WORLD_HEIGHT,
     });
-    this._roadImage = this.add.image(width / 2, height / 2, key).setDepth(ROAD_DEPTH);
+    this._roadImage = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, key).setDepth(ROAD_DEPTH);
     this._endpoints = new PathEndpoints(this, {
       start: p[0], end: p[p.length - 1], family: ROAD_STYLES[map.pathRenderStyle].family,
     });

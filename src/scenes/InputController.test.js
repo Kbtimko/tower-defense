@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { InputController } from './InputController.js';
 import { LONG_PRESS_MS, PEEK_LINGER_MS, TAP_SLOP_PX } from '../data/input.js';
+import { RAIL_WIDTH } from '../data/layout.js';
 
 // Stand-in for Phaser's InputPlugin: records listeners by event so a test can
 // fire them with the registered context, and drops them on a matching off().
@@ -49,8 +50,14 @@ function makeScene(displayScale = 1) {
 
 const HIT = { kind: 'enemy', target: { x: 100, y: 100 } };
 
-const ptr = (x, y, { touch = false, id = 1, eventType } = {}) => ({
-  id, x, y, worldX: x, worldY: y, wasTouch: touch,
+const MAP_CAMERA = { id: 'main' };
+
+// x/y here are WORLD coords; Phaser's pointer.x/y are canvas px, offset by the
+// left rail, so a handler that read pointer.x would land RAIL_WIDTH off. Phaser
+// leaves pointer.camera undefined (and worldX stale) over no camera, i.e. a rail.
+const ptr = (x, y, { touch = false, id = 1, eventType, offMap = false } = {}) => ({
+  id, x: x + RAIL_WIDTH, y, worldX: x, worldY: y, wasTouch: touch,
+  camera: offMap ? undefined : MAP_CAMERA,
   event: { type: eventType ?? (touch ? 'touchend' : 'mouseup') },
 });
 
@@ -124,6 +131,42 @@ describe('InputController', () => {
       release(100, 100, { touch: true });
       expect(scene._onTap).not.toHaveBeenCalled();
       expect(scene.inspector.peekHit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('outside the map viewport (a rail)', () => {
+    it('a tap pressed and released over a rail resolves nothing', () => {
+      press(-50, 100, { offMap: true });
+      release(-50, 100, { offMap: true });
+      expect(scene._onTap).not.toHaveBeenCalled();
+    });
+
+    it('a press on the map released over a rail resolves nothing', () => {
+      press(100, 100, { touch: true });
+      release(100, 100, { touch: true, offMap: true });
+      expect(scene._onTap).not.toHaveBeenCalled();
+    });
+
+    it('a touch press over a rail never hit-tests or peeks', () => {
+      press(-50, 100, { touch: true, offMap: true });
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      expect(scene.inspector.inspectableAt).not.toHaveBeenCalled();
+      expect(scene.inspector.peekHit).not.toHaveBeenCalled();
+    });
+
+    it('a move over a rail leaves the build cursor and hover peek alone', () => {
+      move(30, 40);
+      move(999, 999, { offMap: true });
+      expect([scene._buildCursorX, scene._buildCursorY]).toEqual([30, 40]);
+      expect(scene.inspector.onPointerMove).toHaveBeenCalledTimes(1);
+    });
+
+    it('a long-press released over a rail still lingers then hides', () => {
+      press(100, 100, { touch: true });
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      release(100, 100, { touch: true, offMap: true });
+      vi.advanceTimersByTime(PEEK_LINGER_MS);
+      expect(scene.inspector.hidePeek).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -1,3 +1,5 @@
+import { RAIL_WIDTH } from '../data/layout.js';
+
 // Converts a game-space coordinate to page-absolute CSS pixels, accounting for
 // the Phaser ScaleManager's FIT scale factor and letterbox offset (canvasBounds).
 // displayScale is GAME px per CSS px, so the inverse of pageToGame divides.
@@ -17,6 +19,17 @@ export function pageToGame(scale, pageX, pageY) {
   const ds = scale?.displayScale;
   if (!bounds || !ds) return { x: pageX, y: pageY };
   return { x: (pageX - bounds.x) * ds.x, y: (pageY - bounds.y) * ds.y };
+}
+
+// The main camera's viewport starts RAIL_WIDTH into the canvas (scroll 0, zoom
+// 1), so a world point is that many canvas px right of its world x.
+export function worldToPageCss(scale, worldX, worldY) {
+  return gameToPageCss(scale, worldX + RAIL_WIDTH, worldY);
+}
+
+export function pageToWorld(scale, pageX, pageY) {
+  const g = pageToGame(scale, pageX, pageY);
+  return { x: g.x - RAIL_WIDTH, y: g.y };
 }
 
 // Clamps a floating panel's top-left so the whole panel stays inside `area`

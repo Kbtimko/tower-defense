@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { gameToPageCss, pageToGame, clampPanel } from './viewport.js';
+import { gameToPageCss, pageToGame, worldToPageCss, pageToWorld, clampPanel } from './viewport.js';
+import { RAIL_WIDTH, CANVAS_WIDTH, WORLD_WIDTH, WORLD_HEIGHT } from '../data/layout.js';
 
 describe('gameToPageCss', () => {
   it('applies displayScale and canvas offset (identity transform)', () => {
@@ -61,6 +62,49 @@ describe('pageToGame', () => {
 
   it('is identity without a transform', () => {
     expect(pageToGame(undefined, 5, 6)).toEqual({ x: 5, y: 6 });
+  });
+});
+
+// The map world sits RAIL_WIDTH in from the canvas's left edge (camera viewport),
+// so world coords are canvas coords shifted by the rail before the FIT scale.
+describe('worldToPageCss / pageToWorld', () => {
+  // A 1632-wide canvas FIT into an 844x390 phone: non-1:1 and letterboxed.
+  const scale = {
+    canvasBounds: { x: 21, y: 4 },
+    displayScale: { x: CANVAS_WIDTH / 802, y: WORLD_HEIGHT / 354 },
+  };
+
+  it('maps a world point to the canvas rect plus (x + RAIL_WIDTH) / displayScale', () => {
+    const p = worldToPageCss(scale, 100, 50);
+    expect(p.x).toBeCloseTo(21 + (100 + RAIL_WIDTH) / scale.displayScale.x);
+    expect(p.y).toBeCloseTo(4 + 50 / scale.displayScale.y);
+  });
+
+  it('puts world x=0 at the left rail edge and x=WORLD_WIDTH at the right rail edge', () => {
+    expect(worldToPageCss(scale, 0, 0).x).toBeCloseTo(21 + RAIL_WIDTH / scale.displayScale.x);
+    expect(worldToPageCss(scale, WORLD_WIDTH, 0).x)
+      .toBeCloseTo(21 + (CANVAS_WIDTH - RAIL_WIDTH) / scale.displayScale.x);
+  });
+
+  it('pageToWorld subtracts the rail: the canvas left edge is world x = -RAIL_WIDTH', () => {
+    const p = pageToWorld(scale, 21, 4);
+    expect(p.x).toBeCloseTo(-RAIL_WIDTH);
+    expect(p.y).toBeCloseTo(0);
+    expect(pageToWorld(scale, 21 + 802, 4).x).toBeCloseTo(WORLD_WIDTH + RAIL_WIDTH);
+  });
+
+  it('round-trips world -> page -> world', () => {
+    for (const [wx, wy] of [[0, 0], [-RAIL_WIDTH, 0], [640, 360], [WORLD_WIDTH, WORLD_HEIGHT], [333, 601]]) {
+      const page = worldToPageCss(scale, wx, wy);
+      const back = pageToWorld(scale, page.x, page.y);
+      expect(back.x).toBeCloseTo(wx);
+      expect(back.y).toBeCloseTo(wy);
+    }
+  });
+
+  it('keeps the rail offset when the scale transform is unavailable', () => {
+    expect(worldToPageCss(undefined, 200, 300)).toEqual({ x: 200 + RAIL_WIDTH, y: 300 });
+    expect(pageToWorld(undefined, 200 + RAIL_WIDTH, 300)).toEqual({ x: 200, y: 300 });
   });
 });
 

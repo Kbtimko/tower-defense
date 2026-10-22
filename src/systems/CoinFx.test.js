@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CoinFx } from './CoinFx.js';
 import { COIN_FLY, GOLD_POP } from '../data/juice.js';
+import { RAIL_WIDTH, CANVAS_WIDTH, WORLD_WIDTH, WORLD_HEIGHT } from '../data/layout.js';
 
 function stubScene(reduced = false) {
   const made = { images: [], texts: [] };
@@ -19,7 +20,7 @@ function stubScene(reduced = false) {
       image: vi.fn(() => { const o = mk(); made.images.push(o); return o; }),
       text: vi.fn(() => { const o = mk(); made.texts.push(o); return o; }),
     },
-    scale: { width: 1000, height: 600, canvasBounds: { x: 0, y: 0 }, displayScale: { x: 1, y: 1 } },
+    scale: { width: CANVAS_WIDTH, height: WORLD_HEIGHT, canvasBounds: { x: 0, y: 0 }, displayScale: { x: 1, y: 1 } },
     game: { registry: { get: (k) => (k === 'ambientMotion' ? !reduced : undefined) } },
   };
 }
@@ -122,12 +123,43 @@ describe('CoinFx', () => {
     expect(COIN_FLY.depth).toBe(31);
   });
 
-  it('clamps the target x to the edge inset and exits above via exitY', () => {
+  // Coins live in world space; the canvas spans world x -RAIL_WIDTH..WORLD_WIDTH +
+  // RAIL_WIDTH, so the clamp is the canvas expressed in world coordinates.
+  it('clamps the target x to the canvas left edge inset and exits above via exitY', () => {
     const s = stubScene();
     const fx = new CoinFx(s);
     stat.getBoundingClientRect = () => ({ left: -200, top: -30, width: 40, height: 20 });
     fx.spawn(0, 0, 1);
-    expect(fx._to.x).toBe(COIN_FLY.edgeInset);
+    expect(fx._to.x).toBe(-RAIL_WIDTH + COIN_FLY.edgeInset);
+    expect(fx._to.y).toBe(COIN_FLY.exitY);
+  });
+
+  it('targets a counter in the left rail at its world point (negative x)', () => {
+    const s = stubScene();
+    s.scale.displayScale = { x: 2, y: 2 };
+    const fx = new CoinFx(s);
+    // Page centre (60, 150) -> canvas (120, 300) -> world (120 - RAIL_WIDTH, 300).
+    stat.getBoundingClientRect = () => ({ left: 40, top: 140, width: 40, height: 20 });
+    fx.spawn(0, 0, 1);
+    expect(fx._to.x).toBe(120 - RAIL_WIDTH);
+    expect(fx._to.y).toBe(300);
+  });
+
+  it('clamps past the right canvas edge and below the canvas bottom', () => {
+    const s = stubScene();
+    const fx = new CoinFx(s);
+    stat.getBoundingClientRect = () => ({ left: 5000, top: 2000, width: 40, height: 20 });
+    fx.spawn(0, 0, 1);
+    expect(fx._to.x).toBe(WORLD_WIDTH + RAIL_WIDTH - COIN_FLY.edgeInset);
+    expect(fx._to.y).toBe(WORLD_HEIGHT);
+  });
+
+  it('with no counter, flies to the top centre of the map', () => {
+    document.body.innerHTML = '';
+    const s = stubScene();
+    const fx = new CoinFx(s);
+    fx.spawn(0, 0, 1);
+    expect(fx._to.x).toBe(WORLD_WIDTH / 2);
     expect(fx._to.y).toBe(COIN_FLY.exitY);
   });
 
@@ -205,8 +237,9 @@ describe('CoinFx', () => {
     fx.spawn(100, 300, 4);
     const coin = s.made.images[0];
     fx.update(COIN_FLY.duration / 2);
-    // Midpoint: x halfway to 500, y on the arc above the straight line.
-    expect(coin.x).toBeCloseTo(300);
+    // HUD centre page x 500 is world x 500 - RAIL_WIDTH; midpoint x is halfway
+    // there, y on the arc above the straight line.
+    expect(coin.x).toBeCloseTo((100 + 500 - RAIL_WIDTH) / 2);
     expect(coin.y).toBeCloseTo((300 + COIN_FLY.exitY) / 2 - COIN_FLY.arcHeight);
     expect(stat.classList.contains('gold-gain-pulse')).toBe(false);
     fx.update(COIN_FLY.duration / 2 + 0.001);

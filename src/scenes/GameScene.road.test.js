@@ -17,13 +17,17 @@ import { PathEndpoints } from '../systems/PathEndpoints.js';
 import { renderPath } from '../systems/PathRenderer.js';
 import { ROAD_DEPTH, ROAD_RENDERER, roadRendererFor, ROAD_STYLES } from '../data/roads.js';
 import { MAPS } from '../data/maps.js';
+import { BLOCKER_TYPES } from '../data/blockerTypes.js';
+import { WORLD_WIDTH, WORLD_HEIGHT, CANVAS_WIDTH } from '../data/layout.js';
 
 const map = { ...MAPS[0], blockerSeed: 7 };
 const makeScene = (textures = new Set()) => {
   const image = { setDepth: vi.fn().mockReturnThis(), destroy: vi.fn() };
   const ctx = Object.create(GameScene.prototype);
   Object.assign(ctx, {
-    scale: { width: 800, height: 600 },
+    // The canvas is wider than the world (HUD rails): world-space art must not
+    // read the canvas size.
+    scale: { width: CANVAS_WIDTH, height: WORLD_HEIGHT },
     textures: { exists: (k) => textures.has(k) },
     add: { image: vi.fn(() => image) },
     pathMgr: {
@@ -59,9 +63,9 @@ describe('procedural road in GameScene', () => {
     expect(bakeRoad).toHaveBeenCalledTimes(1);
     expect(bakeRoad.mock.calls[0][1]).toMatchObject({
       key: `road_map_${map.id}`, waypoints: ctx.pathMgr.waypoints,
-      styleKey: map.pathRenderStyle, seed: map.blockerSeed, width: 800, height: 600,
+      styleKey: map.pathRenderStyle, seed: map.blockerSeed, width: WORLD_WIDTH, height: WORLD_HEIGHT,
     });
-    expect(ctx.add.image).toHaveBeenCalledWith(400, 300, `road_map_${map.id}`);
+    expect(ctx.add.image).toHaveBeenCalledWith(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, `road_map_${map.id}`);
     expect(image.setDepth).toHaveBeenCalledWith(ROAD_DEPTH);
   });
 
@@ -72,6 +76,14 @@ describe('procedural road in GameScene', () => {
       start: { x: 0, y: 5 }, end: { x: 99, y: 98 }, family: ROAD_STYLES[map.pathRenderStyle].family,
     });
     expect(ctx.add.text).not.toHaveBeenCalled();
+  });
+
+  it('places hand-authored blockers in world space, not canvas space', () => {
+    const { ctx } = makeScene();
+    const draw = vi.spyOn(BLOCKER_TYPES.crater, 'draw').mockImplementation(() => {});
+    ctx._renderStaticLayers({ ...map, blockers: [{ type: 'crater', x: 0.5, y: 0.25 }] });
+    expect(draw).toHaveBeenCalledWith(ctx._staticLayers, WORLD_WIDTH * 0.5, WORLD_HEIGHT * 0.25, 1, expect.anything());
+    draw.mockRestore();
   });
 
   it('skips renderPath in the static layer', () => {

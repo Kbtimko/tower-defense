@@ -4,6 +4,8 @@
 // (>= halfWidth + ROAD_PAD_GAP from the centreline on real maps) clear the bed; a pad's
 // stud ring may still lap the bed edge by design.
 
+import { WORLD_WIDTH, WORLD_HEIGHT } from './layout.js';
+
 export const ROAD_PAD_GAP = 10;
 // Above backdrop (0), area effects (2), ambient (5); below blockers/pads (10).
 export const ROAD_DEPTH = 8;
@@ -102,7 +104,7 @@ export const ROAD_PAINT = {
 // rad/s and `pulse` is Hz. Rings are drawn at radius*2 px (the 64 px texture is ring-in-frame).
 export const ENDPOINT_LOOK = {
   depth: 9,                // above the road (8), below pads (10)
-  canvas: { width: 1280, height: 720 }, // endpoints are clamped inside this
+  canvas: { width: WORLD_WIDTH, height: WORLD_HEIGHT }, // the world rect; endpoints are clamped inside this
   ringAlpha: 1,
   innerRingScale: 0.62,    // inner ring size relative to the outer
   portalGlow: { scale: 1.4, alpha: [0.6, 1], swing: 0.12 }, // alpha range, scale swing (+/-)
