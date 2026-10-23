@@ -7,7 +7,9 @@ describe('aimed ability reticle radius', () => {
     for (const [slot, ab] of Object.entries(hero.abilities)) {
       if (!ab.aim) continue;
       it(`${heroId}.${slot} (${ab.id}) radius matches its run result`, () => {
-        const result = ab.run({ dead: false, x: 0, y: 0 }, null, { x: 1, y: 1 });
+        // An enemy under the aim point, so a target-picking ability (mark) fires.
+        const scene = { enemies: [{ x: 1, y: 1, dead: false }] };
+        const result = ab.run({ dead: false, x: 0, y: 0 }, scene, { x: 1, y: 1 });
         if (result.radius === undefined) expect(ab.radius).toBeUndefined();
         else expect(ab.radius).toBe(result.radius);
       });
