@@ -96,14 +96,21 @@
       --btn-face-pressed: var(--ui-face-pressed-currency); --btn-edge: var(--ui-edge-currency);
       --btn-glow: var(--ui-glow-currency); --btn-ink: var(--ui-ink-currency); }
     /* State rules follow in cascade order: on equal specificity the later one
-       wins, so disabled beats armed beats pressed beats hover. Hover is fine
+       wins, so disabled beats armed beats selected beats pressed beats hover. Hover is fine
        pointers only, or a tap would leave it stuck on. */
     @media (hover: hover) {
       .ui-btn:hover { background-color: var(--btn-face-hover); --btn-glow-a: var(--ui-glow-hover); }
     }
-    .ui-btn:active, .ui-btn.is-pressed, .ui-btn.selected, .ui-btn.active {
+    .ui-btn:active, .ui-btn.is-pressed {
       background-color: var(--btn-face-pressed);
       --btn-bevel-hi: var(--ui-bevel-lo); --btn-bevel-lo: var(--ui-bevel-hi); --btn-glow-a: 0%; }
+    /* Selected is a resting state the player has to find among identical
+       neighbours (armed tower, active tab), so it keeps the sunk bevel but
+       lights an accent ring and glow: accent is the bible's selection hue. */
+    .ui-btn.selected, .ui-btn.active {
+      background-color: var(--btn-face-pressed);
+      --btn-bevel-hi: var(--ui-bevel-lo); --btn-bevel-lo: var(--ui-bevel-hi);
+      --btn-edge: var(--ui-accent); --btn-glow: var(--ui-accent); --btn-glow-a: var(--ui-glow-hover); }
     .ui-btn.is-armed, .ui-btn.confirming {
       --btn-edge: var(--ui-edge-currency); --btn-glow: var(--ui-edge-currency); --btn-glow-a: var(--ui-glow-armed); }
     .ui-btn:disabled, .ui-btn.is-disabled, .ui-btn.disabled, .ui-btn.locked, .ui-btn.maxed {

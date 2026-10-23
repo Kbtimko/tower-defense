@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 
 // Roadmap 3.1 rollout: the surfaces the spec lists wear the kit classes, and
@@ -37,9 +37,27 @@ function parseRules(text) {
   return rules;
 }
 
+// Kit className strings built in JS (codex entries, story-log entries, tower
+// panel buttons), read from the source so the guard sees what ships. They join
+// the static markup in a detached container, so CSS rules aimed at them are
+// checked like any other surface.
+const jsClassNames = readdirSync(new URL('../', import.meta.url), { recursive: true })
+  .filter((f) => f.endsWith('.js') && !f.endsWith('.test.js'))
+  .flatMap((f) => [...readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')
+    .matchAll(/className\s*=\s*'([^']*\bui-btn\b[^']*)'/g)].map((m) => m[1]));
+const jsBuilt = doc.createElement('div');
+for (const cls of jsClassNames) jsBuilt.appendChild(doc.createElement('button')).className = cls;
+doc.body.appendChild(jsBuilt);
+
+// The spec's JS-built kit surfaces; each must turn up in the source above.
+const JS_SURFACES = {
+  'codex-entry': ['ui-btn'],
+  'story-log-entry': ['ui-btn'],
+  'upgrade-btn': ['ui-btn', 'ui-btn--currency'],
+  'branch-choose-btn': ['ui-btn', 'ui-btn--currency'],
+};
+
 // The spec's "Kit surfaces" list (Rollout), as it appears in static markup.
-// Dynamic controls (codex entries, story-log entries, tower-panel branch
-// buttons) get their classes from JS and are covered by their own suites.
 const SURFACES = {
   '#rail-left': ['ui-panel'],
   '#rail-right': ['ui-panel'],
@@ -94,6 +112,20 @@ describe('kit rollout markup', () => {
     expect(bad).toEqual([]);
   });
 
+  it('every JS-built kit surface carries its kit classes', () => {
+    const bad = [];
+    for (const [cls, want] of Object.entries(JS_SURFACES)) {
+      const built = jsClassNames.map((c) => c.split(/\s+/)).filter((c) => c.includes(cls));
+      if (!built.length) bad.push(`${cls}: no className string in src`);
+      for (const c of built) {
+        const missing = want.filter((w) => !c.includes(w));
+        const extra = c.filter((w) => VARIANT.test(w) && !want.includes(w));
+        if (missing.length || extra.length) bad.push(`${c.join(' ')}: missing ${missing} extra ${extra}`);
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+
   it('every rail button is a kit button', () => {
     const buttons = [...doc.querySelectorAll('#hud-layer button')];
     expect(buttons.length).toBeGreaterThan(10);
@@ -103,11 +135,15 @@ describe('kit rollout markup', () => {
 
 describe('adopted surfaces leave painting to the kit', () => {
   const kitEl = (el) => el.classList.contains('ui-btn') || el.classList.contains('ui-panel');
-  // Rule parts that, in static markup, target only kit elements.
+  // Rule parts that target only kit elements. A class qualifier compounded
+  // onto another selector (.selected, .paused, .maxed, .confirming) is a
+  // JS-toggled state that static markup rarely wears, so it is dropped before
+  // querying: `.tower-btn.selected` is judged as `.tower-btn`.
   const kitOnly = (part) => {
     if (part.includes('::') || part.includes('.ui-')) return false;
     const sel = part.replace(/:where\(([^)]*)\)/g, '$1').replace(/:not\([^)]*\)/g, '')
-      .replace(/:[a-z-]+(\([^)]*\))?/gi, '').trim();
+      .replace(/:[a-z-]+(\([^)]*\))?/gi, '')
+      .replace(/(?<=[\w\])-])\.[\w-]+/g, '').trim();
     let els;
     try { els = [...doc.querySelectorAll(sel)]; } catch { return false; }
     return els.length > 0 && els.every(kitEl);

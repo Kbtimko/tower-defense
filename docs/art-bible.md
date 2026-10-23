@@ -128,12 +128,13 @@ shows just inside the ring → 6u inner glow. Panels add an outer drop shadow.
 |---|---|---|---|---|---|
 | normal | `.ui-btn` | panel-edge ring, text ink | accent ring and ink | danger ring and ink | gold ring and ink |
 | hover (fine pointers) | `:hover` under `@media (hover: hover)` | face-hover, glow 80 % | same | same | same |
-| pressed / selected | `:active`, `.is-pressed`, `.selected`, `.active` | face-pressed, bevel swapped, glow off | same | same | same |
+| pressed | `:active`, `.is-pressed` | face-pressed, bevel swapped, glow off | same | same | same |
+| selected | `.selected`, `.active` | face-pressed, bevel swapped, accent ring, accent glow 80 % | same | same | same |
 | armed (two-step confirm) | `.is-armed`, `.confirming` | gold ring, gold glow 90 % | same | same | same |
 | disabled | `:disabled`, `.is-disabled`, `.disabled`, `.locked`, `.maxed` | face-disabled, text-dim ink, panel-edge ring, no glow, `not-allowed` | same | same | same |
 | focus | `:focus-visible` | 1u accent outline, offset −2u | same | same | same |
 
-States stack in that order: disabled beats armed beats pressed beats hover.
+States stack in that order: disabled beats armed beats selected beats pressed beats hover.
 
 #### Kit rules
 - **The kit paints, surfaces lay out.** Kit rules set only `background-color`,

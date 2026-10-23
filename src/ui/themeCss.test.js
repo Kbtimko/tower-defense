@@ -112,6 +112,19 @@ describe('ui kit css', () => {
     expect(bad).toEqual([]);
   });
 
+  // Selected (armed tower, active tab) is a resting state the player must spot
+  // among identical neighbours; sharing the pressed look left it ~3/255 apart.
+  it('selected/active is its own state: accent ring and hover-strength accent glow', () => {
+    const sel = (r) => r.selector.split(',').map((s) => s.trim());
+    const selected = kitRules.find((r) => sel(r).includes('.ui-btn.selected'));
+    expect(sel(selected).sort()).toEqual(['.ui-btn.active', '.ui-btn.selected']);
+    expect(decls(selected.body)).toEqual(expect.arrayContaining([
+      ['--btn-edge', 'var(--ui-accent)'], ['--btn-glow', 'var(--ui-accent)'], ['--btn-glow-a', 'var(--ui-glow-hover)'],
+    ]));
+    const pressed = kitRules.find((r) => sel(r).includes('.ui-btn:active'));
+    expect(kitRules.indexOf(selected)).toBeGreaterThan(kitRules.indexOf(pressed));
+  });
+
   // Functional colours would smuggle hues past the hex guard. Only the
   // spec's white scanline/sheen (alpha from a theme var) and black drop shadow
   // are allowed; every other colour must come from a --ui-* var.

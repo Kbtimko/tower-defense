@@ -69,7 +69,8 @@ Panels use the same stack with `--panel-*` vars plus an outer drop shadow (`0 3u
 |---|---|---|
 | normal | `.ui-btn` | variant face/edge/ink, glow at rest alpha |
 | hover | `:hover` (fine pointers via `@media (hover:hover)`) | glow alpha up, face +1 mix step |
-| pressed / selected | `:active`, `.is-pressed`, existing `.selected` `.active` | bevel hi/lo swapped, face −1 step, glow off |
+| pressed | `:active`, `.is-pressed` | bevel hi/lo swapped, face −1 step, glow off |
+| selected | existing `.selected` `.active` | as pressed, plus accent ring and accent glow at hover strength (a resting state that must stand out from identical neighbours) |
 | armed (two-step confirm) | `.is-armed`; `#tower-panel button.confirming` rule sets the same vars | currency edge, strong currency glow |
 | disabled | `:disabled`, `.is-disabled`, existing `.disabled` `.locked` `.maxed` | face-disabled, ink text-dim, glow none, `cursor:not-allowed` |
 | focus | `:focus-visible` | 1u accent outline, offset −2u |
