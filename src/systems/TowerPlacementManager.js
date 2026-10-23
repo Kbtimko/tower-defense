@@ -1,4 +1,9 @@
-import { TOWER_DEFS } from '../data/towers.js';
+import { TOWER_DEFS, SELL_REFUND_RATIO } from '../data/towers.js';
+
+// One formula for what Sell pays and what the ring advertises.
+export function sellRefund(totalCost) {
+  return Math.floor(totalCost * SELL_REFUND_RATIO);
+}
 
 export class TowerPlacementManager {
   constructor(zones, economy, entityFactory, modifiers = {}) {
@@ -51,7 +56,7 @@ export class TowerPlacementManager {
   }
 
   sellTower(tower) {
-    const refund = Math.floor(tower.totalCost * 0.6);
+    const refund = sellRefund(tower.totalCost);
     this.economy.earn(refund);
     this.zones[tower.zoneIndex].occupied = false;
     this.towers = this.towers.filter(t => t !== tower);

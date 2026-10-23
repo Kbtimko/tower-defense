@@ -2,6 +2,9 @@
 // cannon arc visual also lands here so shells never vanish mid-air.
 export const PROJECTILE_HIT_RADIUS = 10;
 
+// Share of total gold spent on a tower that selling returns.
+export const SELL_REFUND_RATIO = 0.6;
+
 export const TOWER_DEFS = {
   archer: {
     name: 'Archer', icon: '🏹', cost: 60, color: 0x8B4513,
