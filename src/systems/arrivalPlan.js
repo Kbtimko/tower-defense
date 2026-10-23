@@ -33,7 +33,8 @@ export function planArrival({ from, stars }) {
   before[mapId] = prevStars;
   if (frontierIndex(before) !== mapId) return NONE;
   if (mapId === MAPS.length - 1) return { kind: 'complete', mapId, toId: null, newStars, prevStars };
-  return { kind: 'advance', mapId, toId: mapId + 1, newStars, prevStars };
+  // The post-win frontier, not mapId + 1: on a gap save the next map may already be starred.
+  return { kind: 'advance', mapId, toId: Math.min(frontierIndex(stars), MAPS.length - 1), newStars, prevStars };
 }
 
 export function arrivalFrame(plan, tMs, A = ARRIVAL) {

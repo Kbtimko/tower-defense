@@ -2,7 +2,7 @@
 // route frame, arc-length params for the trail/ship, and the front-line radius.
 import { MAPS } from '../data/maps.js';
 import { pathLength } from './pathGeometry.js';
-import { SHIP } from '../data/worldMap.js';
+import { SHIP, HAZE } from '../data/worldMap.js';
 
 function toFrame(frame, [nx, ny]) {
   return { x: frame.x + nx * frame.w, y: frame.y + ny * frame.h };
@@ -23,11 +23,12 @@ export function routeParamAt(points, index) {
 
 // The front line is an arc on the hive core through the frontier mission, so the
 // fighting is always at the next node; nothing is held once every map is cleared.
-export function frontRadius(points, frontier) {
+// Held at minPx so the last mission (on the hive itself) still shows Veth space.
+export function frontRadius(points, frontier, minPx = HAZE.minRadiusPx) {
   if (frontier >= MAPS.length) return 0;
   const hive = points[points.length - 1];
   const p = points[frontier + 1];
-  return Math.hypot(hive.x - p.x, hive.y - p.y);
+  return Math.max(minPx, Math.hypot(hive.x - p.x, hive.y - p.y));
 }
 
 // Cuts the route at arc-length fraction t: `head` is the travelled polyline (the

@@ -146,6 +146,10 @@ export const HAZE = {
   rgb: [110, 40, 190],
   maxAlpha: 0.22,
   featherPx: 60,
+  // The haze never shrinks below this while any map is held: node 10 IS the hive,
+  // so the true radius there is 0. Plus half the feather it stays short of node 9
+  // on every capture device (worldRoute.test.js).
+  minRadiusPx: 36,
   front: { dash: [6, 6], color: 'rgba(200,160,255,.55)', width: 1.5 },
 };
 

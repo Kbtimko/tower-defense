@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { DEVICES } from '../../scripts/captureDevices.mjs';
-import { ROUTE, LAYOUT, SHIP } from '../data/worldMap.js';
+import { ROUTE, LAYOUT, SHIP, HAZE } from '../data/worldMap.js';
 import { MAPS } from '../data/maps.js';
 import { layoutClass, routeFrameFor, nodeRects } from './worldMapLayout.js';
 import { routePoints, routeParamAt, frontRadius, splitRoute, parkShip } from './worldRoute.js';
@@ -25,6 +25,17 @@ describe('front-line consistency (spec 5)', () => {
     const dist = pts.map(p => Math.hypot(hive.x - p.x, hive.y - p.y));
     for (let i = 1; i < dist.length; i++) expect(dist[i]).toBeLessThan(dist[i - 1]);
   });
+
+  // While the hive is the frontier the haze is held at HAZE.minRadiusPx; node 9
+  // (point 9) is retaken by then, so even the haze's feathered edge stops short of it.
+  it.each(Object.entries(DEVICES))('the minimum haze (feather included) stops short of node 9 on %s', (_name, d) => {
+    const cls = layoutClass(d.viewport);
+    const pts = routePoints(routeFrameFor(d.viewport, cls), ROUTE);
+    const hive = pts[pts.length - 1];
+    const node9 = pts[pts.length - 2];
+    expect(HAZE.minRadiusPx).toBeGreaterThan(0);
+    expect(HAZE.minRadiusPx + HAZE.featherPx / 2).toBeLessThan(Math.hypot(hive.x - node9.x, hive.y - node9.y));
+  });
 });
 
 describe('frontRadius', () => {
@@ -38,6 +49,10 @@ describe('frontRadius', () => {
   it('mid-campaign is the distance to the frontier map, and shrinks as the front advances', () => {
     expect(frontRadius(pts, 4)).toBeCloseTo(Math.hypot(hive.x - pts[5].x, hive.y - pts[5].y));
     expect(frontRadius(pts, 5)).toBeLessThan(frontRadius(pts, 4));
+  });
+
+  it('is held at HAZE.minRadiusPx while the hive (on the route) is the frontier', () => {
+    expect(frontRadius(pts, MAPS.length - 1)).toBe(HAZE.minRadiusPx);
   });
 
   it('is 0 once every map is cleared', () => {

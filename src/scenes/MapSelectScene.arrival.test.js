@@ -7,7 +7,7 @@ vi.mock('phaser', () => ({
 import MapSelectScene from './MapSelectScene.js';
 import { mountMapSelectDom, wireScene, seedSave } from './mapSelectDom.testutil.js';
 import { MAPS } from '../data/maps.js';
-import { ARRIVAL, LAYOUT, ROUTE } from '../data/worldMap.js';
+import { ARRIVAL, LAYOUT, ROUTE, HAZE } from '../data/worldMap.js';
 import { bannerFor } from '../systems/campaignProgress.js';
 import { arrivalFrame, planArrival } from '../systems/arrivalPlan.js';
 import { routeFrameFor, nodeRects } from '../systems/worldMapLayout.js';
@@ -162,20 +162,87 @@ describe('MapSelectScene post-win arrival (spec 2.3)', () => {
       const rootLive = trackLive($('#map-select'));
       const docLive = trackLive(document);
       seedSave(AFTER_FIRST_CLEAR);
+      const arrivalKeys = () => [...docLive].filter(k => /^(visibilitychange|keydown)\|/.test(k));
       enter({ from: FIRST_CLEAR_0 });
-      expect(rootLive.size).toBe(2);
+      vi.advanceTimersByTime(LAYOUT.inputGuardMs);
+      expect(rootLive.size).toBe(1);
+      expect(arrivalKeys()).toHaveLength(2);
       vi.advanceTimersByTime(ARRIVAL.totalMs);
       expect(arrival()).toBe('done');
       expect([...rootLive]).toEqual([]);
-      expect([...docLive].filter(k => k.startsWith('visibilitychange'))).toEqual([]);
+      expect(arrivalKeys()).toEqual([]);
 
       scenes.pop().emitShutdown();
       enter({ from: FIRST_CLEAR_0 });
       vi.advanceTimersByTime(LAYOUT.inputGuardMs);
-      expect(rootLive.size).toBe(2);
+      expect(rootLive.size).toBe(1);
       node(0).dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true }));
       expect([...rootLive]).toEqual([]);
-      expect([...docLive].filter(k => k.startsWith('visibilitychange'))).toEqual([]);
+      // The skip's gesture swallow lives until the next gesture starts, then goes too.
+      node(0).dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true }));
+      expect(arrivalKeys()).toEqual([]);
+      expect([...docLive].filter(k => /^(pointerup|click|keyup|pointerdown)\|/.test(k))).toEqual([]);
+    });
+
+    it('a key skips even with focus on <body> (the usual case after the title)', () => {
+      seedSave(AFTER_FIRST_CLEAR);
+      enter({ from: FIRST_CLEAR_0 });
+      vi.advanceTimersByTime(LAYOUT.inputGuardMs);
+      const ev = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: ' ' });
+      document.body.dispatchEvent(ev);
+      expect(arrival()).toBe('done');
+      expect(ev.defaultPrevented).toBe(true);
+    });
+
+    it('swallows the rest of the gesture however long the press is held; the next gesture acts', () => {
+      seedSave(AFTER_FIRST_CLEAR);
+      enter({ from: FIRST_CLEAR_0 });
+      vi.advanceTimersByTime(LAYOUT.inputGuardMs);
+      node(0).dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true }));
+      expect(arrival()).toBe('done');
+      vi.advanceTimersByTime(LAYOUT.inputGuardMs * 4);
+      const up = new MouseEvent('pointerup', { bubbles: true, cancelable: true });
+      node(0).dispatchEvent(up);
+      node(0).click();
+      expect(up.defaultPrevented).toBe(true);
+      expect($('.ow-node.active').dataset.mapId).toBe('1');
+      // A new press is not eaten, and its click selects.
+      const down = new MouseEvent('pointerdown', { bubbles: true, cancelable: true });
+      node(0).dispatchEvent(down);
+      expect(down.defaultPrevented).toBe(false);
+      node(0).click();
+      expect($('.ow-node.active').dataset.mapId).toBe('0');
+    });
+
+    it('a key skip swallows its keyup and click; the next key acts', () => {
+      seedSave(AFTER_FIRST_CLEAR);
+      enter({ from: FIRST_CLEAR_0 });
+      vi.advanceTimersByTime(LAYOUT.inputGuardMs);
+      node(0).dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: ' ' }));
+      vi.advanceTimersByTime(LAYOUT.inputGuardMs * 4);
+      const up = new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: ' ' });
+      node(0).dispatchEvent(up);
+      node(0).click();
+      expect(up.defaultPrevented).toBe(true);
+      expect($('.ow-node.active').dataset.mapId).toBe('1');
+      const next = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter' });
+      node(0).dispatchEvent(next);
+      expect(next.defaultPrevented).toBe(false);
+      node(0).click();
+      expect($('.ow-node.active').dataset.mapId).toBe('0');
+    });
+
+    it('a skip followed by shutdown leaves zero net document / #map-select listeners', () => {
+      const rootLive = trackLive($('#map-select'));
+      const docLive = trackLive(document);
+      seedSave(AFTER_FIRST_CLEAR);
+      enter({ from: FIRST_CLEAR_0 });
+      vi.advanceTimersByTime(LAYOUT.inputGuardMs);
+      node(0).dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true }));
+      expect(docLive.size).toBeGreaterThan(0);
+      scenes.pop().emitShutdown();
+      expect([...rootLive]).toEqual([]);
+      expect([...docLive]).toEqual([]);
     });
 
     it('shutdown mid-arrival removes the handlers and stops the loop', () => {
@@ -202,6 +269,27 @@ describe('MapSelectScene post-win arrival (spec 2.3)', () => {
     vi.advanceTimersByTime(ARRIVAL.totalMs);
     expect(arrival()).toBe('done');
     expect($('#featured-name').textContent).toBe(MAPS[1].name);
+  });
+
+  it('the end state carries no one-shot animation classes (class-identical to a fresh entry)', () => {
+    seedSave(AFTER_FIRST_CLEAR);
+    enter({ from: FIRST_CLEAR_0 });
+    vi.advanceTimersByTime(ARRIVAL.lightStartMs + FRAME_MS);
+    expect(document.querySelectorAll('.wm-stamp').length).toBeGreaterThan(0);
+    vi.advanceTimersByTime(ARRIVAL.totalMs);
+    expect(arrival()).toBe('done');
+    expect(document.querySelectorAll('.wm-stamp, .wm-fade, .wm-focus')).toHaveLength(0);
+  });
+
+  it('a skip right after the lit beat also ends with no animation classes', () => {
+    seedSave([3, 3, 3, 3, 0, 0, 0, 0, 0, 0]);
+    enter({ from: { mapId: 3, result: 'victory', prevStars: 0, stars: 3 } });
+    vi.advanceTimersByTime(ARRIVAL.lightStartMs + FRAME_MS);
+    // The objective changes with the frontier, so that banner line cross-faded.
+    expect(document.querySelectorAll('#wm-banner .wm-fade').length).toBeGreaterThan(0);
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter' }));
+    expect(arrival()).toBe('done');
+    expect(document.querySelectorAll('.wm-stamp, .wm-fade, .wm-focus')).toHaveLength(0);
   });
 
   it('motion off: the end state at once, next node selected with its card open', () => {
@@ -288,11 +376,14 @@ describe('MapSelectScene post-win arrival (spec 2.3)', () => {
     expect(bannerFor(ALL).complete).toBe(true);
     expect($('#wm-banner .wm-act').textContent).not.toBe(bannerFor(ALL).act);
     expect(render.mock.lastCall[0]).toMatchObject({ frontAlpha: 1, hiveDim: 0 });
+    expect(render.mock.lastCall[0].frontR).toBeGreaterThan(0);
 
     vi.advanceTimersByTime(ARRIVAL.frontStartMs + ARRIVAL.frontMs / 2);
     const mid = render.mock.lastCall[0];
     expect(mid.hiveDim).toBeGreaterThan(0);
     expect(mid.hiveDim).toBeLessThan(1);
+    expect(mid.frontAlpha).toBeGreaterThan(0);
+    expect(mid.frontAlpha).toBeLessThan(1);
 
     vi.advanceTimersByTime(ARRIVAL.totalMs);
     expect(arrival()).toBe('done');
@@ -304,6 +395,17 @@ describe('MapSelectScene post-win arrival (spec 2.3)', () => {
     expect(last.frontAlpha).toBe(0);
     expect(last.hiveDim).toBe(1);
     expect(last.trailT).toBe(1);
+  });
+
+  it('a fresh entry with the hive as the frontier keeps a visible minimum haze', () => {
+    const render = vi.spyOn(WorldMapRenderer.prototype, 'render');
+    sizeMapSelect(1440, 900);
+    seedSave([...MAPS.slice(1).map(() => 3), 0]);
+    enter({});
+    expect($('#map-overworld').dataset.frontier).toBe(String(LAST));
+    const s = render.mock.lastCall[0];
+    expect(s.frontR).toBeGreaterThanOrEqual(HAZE.minRadiusPx);
+    expect(s.frontAlpha).toBe(1);
   });
 
   describe('story layer', () => {

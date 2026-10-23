@@ -27,6 +27,11 @@ import { fullscreenSupported, isFullscreen, toggleFullscreen } from '../ui/fulls
 const GUARDED_EVENTS = ['pointerdown', 'pointerup', 'click', 'keydown', 'keyup'];
 const SECTORS_COUNT = /(\d+ of \d+)/;
 const NODE_STATES = ['completed', 'next', 'unlocked', 'locked'];
+// What a skip's gesture still emits after its pointerdown / keydown.
+const GESTURE_TAIL = ['pointerup', 'click', 'keyup'];
+// A new gesture starts with one of these; it ends the tail swallow.
+const GESTURE_START = ['pointerdown', 'keydown'];
+const ONE_SHOT_CLASSES = ['wm-stamp', 'wm-fade'];
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
@@ -54,6 +59,8 @@ export default class MapSelectScene extends Phaser.Scene {
     this._tickArrival = this._tickArrival.bind(this);
     this._skipArrival = this._skipArrival.bind(this);
     this._onArrivalVisibility = this._onArrivalVisibility.bind(this);
+    this._swallowTail = this._swallowTail.bind(this);
+    this._endGestureSwallow = this._endGestureSwallow.bind(this);
   }
 
   create(data = {}) {
@@ -155,7 +162,8 @@ export default class MapSelectScene extends Phaser.Scene {
     }
     this._overworld.dataset.arrival = 'playing';
     this._root.addEventListener('pointerdown', this._skipArrival, true);
-    this._root.addEventListener('keydown', this._skipArrival, true);
+    // On document: after the title, focus is usually on <body>, outside #map-select.
+    document.addEventListener('keydown', this._skipArrival, true);
     document.addEventListener('visibilitychange', this._onArrivalVisibility);
     this._arrivalT0 = performance.now();
     this._arrivalRaf = requestAnimationFrame(this._tickArrival);
@@ -174,13 +182,33 @@ export default class MapSelectScene extends Phaser.Scene {
     this._arrivalRaf = requestAnimationFrame(this._tickArrival);
   }
 
-  // Any tap or key jumps to the end and is swallowed; the guard window then eats
-  // the rest of that gesture (pointerup, click), so it can't select or launch.
+  // Any tap or key jumps to the end and is swallowed, and so is the rest of that
+  // gesture, however long it is held, so it can't select or launch. A key that
+  // the entry guard already swallowed (it shares document capture) is ignored.
   _skipArrival(e) {
+    if (this._guardTimer) return;
     e.preventDefault();
     e.stopPropagation();
     this._finishArrival();
-    this._guardInput();
+    this._startGestureSwallow();
+  }
+
+  // Added during the skip's own dispatch, so the start listeners don't see it.
+  _startGestureSwallow() {
+    for (const type of GESTURE_TAIL) document.addEventListener(type, this._swallowTail, true);
+    for (const type of GESTURE_START) document.addEventListener(type, this._endGestureSwallow, true);
+  }
+
+  // The next gesture's first event passes through untouched.
+  _endGestureSwallow() {
+    for (const type of GESTURE_TAIL) document.removeEventListener(type, this._swallowTail, true);
+    for (const type of GESTURE_START) document.removeEventListener(type, this._endGestureSwallow, true);
+  }
+
+  // Its own function, not _swallow: removing it must never remove the entry guard's.
+  _swallowTail(e) {
+    e.preventDefault();
+    e.stopPropagation();
   }
 
   // The rAF stalls while hidden; on return the arrival jumps to its end state.
@@ -192,7 +220,7 @@ export default class MapSelectScene extends Phaser.Scene {
     if (this._arrivalRaf) cancelAnimationFrame(this._arrivalRaf);
     this._arrivalRaf = 0;
     this._root?.removeEventListener('pointerdown', this._skipArrival, true);
-    this._root?.removeEventListener('keydown', this._skipArrival, true);
+    document.removeEventListener('keydown', this._skipArrival, true);
     document.removeEventListener('visibilitychange', this._onArrivalVisibility);
   }
 
@@ -201,7 +229,11 @@ export default class MapSelectScene extends Phaser.Scene {
     this._stopArrival();
     this._applyFrame(arrivalFrame(this._plan, Infinity));
     this._frame = null;
+    // Class-identical to a fresh post-win entry: no focus, no finished one-shots.
     this._wonNode().classList.remove('wm-focus');
+    for (const el of this._root.querySelectorAll(ONE_SHOT_CLASSES.map(c => `.${c}`).join(','))) {
+      el.classList.remove(...ONE_SHOT_CLASSES);
+    }
     this._renderProgress();
     this._renderStory();
     this._overworld.dataset.arrival = 'done';
@@ -254,11 +286,6 @@ export default class MapSelectScene extends Phaser.Scene {
   // A tap or key that left the title can't select or launch anything here.
   _startInputGuard() {
     delete this._overworld.dataset.ready;
-    this._guardInput();
-  }
-
-  _guardInput() {
-    if (this._guardTimer) return;
     for (const type of GUARDED_EVENTS) document.addEventListener(type, this._swallow, true);
     this._guardTimer = setTimeout(this._endInputGuard, LAYOUT.inputGuardMs);
   }
@@ -658,6 +685,7 @@ export default class MapSelectScene extends Phaser.Scene {
 
   shutdown() {
     this._stopArrival();
+    this._endGestureSwallow();
     window.removeEventListener('resize', this._layout);
     window.removeEventListener('orientationchange', this._layout);
     this._fonts?.removeEventListener?.('loadingdone', this._layout);

@@ -12,6 +12,15 @@ describe('planArrival', () => {
       kind: 'advance', mapId: 0, toId: 1, newStars: 2,
     });
   });
+  it('advance flies to the real frontier on a gap save (the next map is already starred)', () => {
+    expect(planArrival({ from: win(1, 0, 1), stars: withStars({ 0: 1, 1: 1, 2: 2 }) })).toMatchObject({
+      kind: 'advance', mapId: 1, toId: 3,
+    });
+  });
+  it('advance never targets past the last map', () => {
+    const s = MAPS.map(() => 3);
+    expect(planArrival({ from: win(1, 0, 3), stars: s })).toMatchObject({ kind: 'advance', mapId: 1, toId: MAPS.length - 1 });
+  });
   it('none for defeat and abandon', () => {
     for (const result of ['defeat', 'abandon']) {
       expect(planArrival({ from: { ...win(0, 0, 0), result }, stars: zeros() }).kind).toBe('none');
