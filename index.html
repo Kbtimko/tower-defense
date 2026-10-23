@@ -9,11 +9,105 @@
     html, body { height: 100%; }
     /* Coarse pointers only: on desktop this would disable trackpad swipe-back. */
     @media (pointer: coarse) { html, body { overscroll-behavior: none; } }
-    body { background: #1a1a2e; font-family: 'Georgia', serif; color: #e8e0d0;
+    /* The fallback covers the pre-JS paint (rotate prompt) before applyTheme runs. */
+    body { background: #1a1a2e; font-family: var(--ui-font-body, sans-serif); color: #e8e0d0;
            overflow: hidden; height: 100vh; height: 100dvh;
            touch-action: manipulation; -webkit-tap-highlight-color: transparent;
            padding: env(safe-area-inset-top) env(safe-area-inset-right)
                     env(safe-area-inset-bottom) env(safe-area-inset-left); }
+    /* Form controls don't inherit font-family from the UA sheet. Family only: the
+       `font` shorthand would also reset the UA control font-size. */
+    button, input, select, textarea { font-family: inherit; }
+    /* Titles >= 16 px take the display face; smaller names stay Rajdhani 700. */
+    #map-select-title, #game-msg h2, #codex-overlay-title, #settings-overlay-title,
+    #story-log-inner h3, #upgrade-overlay-title, #hero-mgmt-overlay-title,
+    #paused-overlay, #wave-banner, #wave-banner-boss, .wp-title { font-family: var(--ui-font-heading); }
+
+    /* ── UI kit (roadmap 3.1) ────────────────────────────────────────────────
+       Procedural panel/button surfaces: gradients plus stacked inset shadows
+       stretch like a 9-slice with fixed-size edges. The kit PAINTS ONLY; each
+       surface keeps its own size, padding, radius and font-size, and customises
+       the look by setting --btn-* / --panel-* rather than repainting.
+       - Never `background` shorthand: it resets background-clip, and the rail
+         buttons' transparent border is their touch gutter.
+       - The ring is a box-shadow, never a border.
+       - Every length is calc(N * var(--ui-u)): 1px at :root, 2px*k on the rails,
+         2px in the wave preview. Lengths built on --ui-u live in these rules,
+         never in a :root custom property, which would freeze the 1px unit.
+       Existing state classes are aliases so no JS has to rename anything.
+       src/ui/themeCss.test.js enforces all of the above. */
+    .ui-panel {
+      --panel-face: var(--ui-panel);
+      --panel-edge: var(--ui-panel-edge);
+      --panel-glow: var(--ui-glow-neutral);
+      --panel-glow-a: var(--ui-glow-rest);
+      background-color: var(--panel-face);
+      background-image:
+        linear-gradient(to bottom, rgba(255,255,255,var(--ui-sheen-alpha)), transparent),
+        repeating-linear-gradient(to bottom, transparent 0, rgba(255,255,255,var(--ui-scanline-alpha)) calc(1.5 * var(--ui-u)), transparent calc(3 * var(--ui-u)));
+      box-shadow:
+        inset 0 0 0 calc(1 * var(--ui-u)) var(--panel-edge),
+        inset calc(1 * var(--ui-u)) calc(1 * var(--ui-u)) 0 var(--ui-bevel-hi),
+        inset calc(-1 * var(--ui-u)) calc(-1 * var(--ui-u)) 0 var(--ui-bevel-lo),
+        inset 0 0 calc(6 * var(--ui-u)) color-mix(in srgb, var(--panel-glow) var(--panel-glow-a), transparent),
+        0 calc(3 * var(--ui-u)) calc(14 * var(--ui-u)) rgba(0,0,0,0.5);
+      color: var(--ui-text);
+    }
+    .ui-panel--primary { --panel-edge: var(--ui-edge-primary); --panel-glow: var(--ui-glow-primary); }
+
+    /* Zero specificity: drops the UA button border without beating the rail's
+       transparent gutter border (or any surface's own border). */
+    :where(.ui-btn) { border: none; }
+    .ui-btn {
+      --btn-face: var(--ui-face-neutral);
+      --btn-face-hover: var(--ui-face-hover-neutral);
+      --btn-face-pressed: var(--ui-face-pressed-neutral);
+      --btn-edge: var(--ui-edge-neutral);
+      --btn-glow: var(--ui-glow-neutral);
+      --btn-ink: var(--ui-ink-neutral);
+      --btn-glow-a: var(--ui-glow-rest);
+      --btn-bevel-hi: var(--ui-bevel-hi);
+      --btn-bevel-lo: var(--ui-bevel-lo);
+      background-color: var(--btn-face);
+      background-image:
+        linear-gradient(to bottom, rgba(255,255,255,var(--ui-sheen-alpha)), transparent),
+        repeating-linear-gradient(to bottom, transparent 0, rgba(255,255,255,var(--ui-scanline-alpha)) calc(1.5 * var(--ui-u)), transparent calc(3 * var(--ui-u)));
+      box-shadow:
+        inset 0 0 0 calc(1 * var(--ui-u)) var(--btn-edge),
+        inset calc(1 * var(--ui-u)) calc(1 * var(--ui-u)) 0 var(--btn-bevel-hi),
+        inset calc(-1 * var(--ui-u)) calc(-1 * var(--ui-u)) 0 var(--btn-bevel-lo),
+        inset 0 0 calc(6 * var(--ui-u)) color-mix(in srgb, var(--btn-glow) var(--btn-glow-a), transparent);
+      color: var(--btn-ink);
+      cursor: pointer;
+      transition: background-color 0.12s, box-shadow 0.12s, color 0.12s;
+    }
+    .ui-btn--primary {
+      --btn-face: var(--ui-face-primary); --btn-face-hover: var(--ui-face-hover-primary);
+      --btn-face-pressed: var(--ui-face-pressed-primary); --btn-edge: var(--ui-edge-primary);
+      --btn-glow: var(--ui-glow-primary); --btn-ink: var(--ui-ink-primary); }
+    .ui-btn--danger {
+      --btn-face: var(--ui-face-danger); --btn-face-hover: var(--ui-face-hover-danger);
+      --btn-face-pressed: var(--ui-face-pressed-danger); --btn-edge: var(--ui-edge-danger);
+      --btn-glow: var(--ui-glow-danger); --btn-ink: var(--ui-ink-danger); }
+    .ui-btn--currency {
+      --btn-face: var(--ui-face-currency); --btn-face-hover: var(--ui-face-hover-currency);
+      --btn-face-pressed: var(--ui-face-pressed-currency); --btn-edge: var(--ui-edge-currency);
+      --btn-glow: var(--ui-glow-currency); --btn-ink: var(--ui-ink-currency); }
+    /* State rules follow in cascade order: on equal specificity the later one
+       wins, so disabled beats armed beats pressed beats hover. Hover is fine
+       pointers only, or a tap would leave it stuck on. */
+    @media (hover: hover) {
+      .ui-btn:hover { background-color: var(--btn-face-hover); --btn-glow-a: var(--ui-glow-hover); }
+    }
+    .ui-btn:active, .ui-btn.is-pressed, .ui-btn.selected, .ui-btn.active {
+      background-color: var(--btn-face-pressed);
+      --btn-bevel-hi: var(--ui-bevel-lo); --btn-bevel-lo: var(--ui-bevel-hi); --btn-glow-a: 0%; }
+    .ui-btn.is-armed, .ui-btn.confirming {
+      --btn-edge: var(--ui-edge-currency); --btn-glow: var(--ui-edge-currency); --btn-glow-a: var(--ui-glow-armed); }
+    .ui-btn:disabled, .ui-btn.is-disabled, .ui-btn.disabled, .ui-btn.locked, .ui-btn.maxed {
+      background-color: var(--ui-face-disabled); color: var(--ui-text-dim);
+      --btn-edge: var(--ui-edge-neutral); --btn-glow-a: 0%; cursor: not-allowed; }
+    .ui-btn:focus-visible { outline: calc(1 * var(--ui-u)) solid var(--ui-accent); outline-offset: calc(-2 * var(--ui-u)); }
     /* ── Side-rail HUD (roadmap 2.2) ─────────────────────────────────────────
        #hud-layer is laid out in GAME px (the canvas is CANVAS_WIDTH x WORLD_HEIGHT,
        sizes from src/data/layout.js via custom properties) and src/ui/hudLayer.js
@@ -31,13 +125,15 @@
        sans-serif-condensed to Roboto Condensed, Windows 10+ has Bahnschrift.
        Anything wider is shrunk to fit by src/ui/fitLabels.js. */
     #hud-layer { --hud-label-inset: calc(4px * var(--hud-k)); /* label clearance from the button ring; fitLabels reads the real padding */
-                 --hud-label-font: "Avenir Next Condensed", "Arial Narrow", "Roboto Condensed",
+                 --hud-label-font: "Rajdhani", "Avenir Next Condensed", "Arial Narrow", "Roboto Condensed",
                    sans-serif-condensed, "Bahnschrift SemiCondensed", "Helvetica Neue", Arial, sans-serif;
                  display: none; position: absolute; left: 0; top: 0; z-index: 6;
                  width: var(--canvas-w); height: var(--world-h);
                  transform-origin: 0 0; pointer-events: none; }
     .hud-rail { position: absolute; top: 0; width: var(--rail-w); height: 100%;
                 pointer-events: auto; background: #0f0f1e;
+                /* The kit's 1u ring equals the 2px rail ring at both k values. */
+                --ui-u: calc(2px * var(--hud-k));
                 display: flex; flex-direction: column; align-items: center; }
     #rail-left { left: 0; justify-content: space-evenly; box-shadow: inset calc(-3px * var(--hud-k)) 0 0 #8b6914; }
     #rail-right { right: 0; justify-content: center; gap: calc(28px * var(--hud-k)); box-shadow: inset calc(3px * var(--hud-k)) 0 0 #8b6914; }
@@ -301,7 +397,7 @@
     #story-log-close { margin-top:8px; background:transparent; border:1px solid #3a4a5a; color:#8aa;
       padding:6px 14px; border-radius:6px; cursor:pointer; }
     #map-select { display:none; position:absolute; inset:0; background:#08081e; z-index:5;
-                  padding:20px; flex-direction:column; font-family:'Georgia',serif; }
+                  padding:20px; flex-direction:column; }
     #map-select-title { font-size:34px; color:#ffd700; font-weight:bold; text-align:center;
                         margin-bottom:18px; letter-spacing:4px; }
     #map-select-layout { display:flex; gap:16px; flex:1; min-height:0; overflow:hidden; }
@@ -374,27 +470,23 @@
                     margin-bottom:14px; }
     #total-stars { font-size:18px; color:#ffd700; font-weight:bold; letter-spacing:1px; }
     #open-upgrades, #open-story-log, #open-codex-ms { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
-                     padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
-                     font-family:'Georgia',serif; }
+                     padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px; }
     #open-upgrades:hover, #open-story-log:hover, #open-codex-ms:hover { background:#223344; }
     #open-heroes { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
-                   padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
-                   font-family:'Georgia',serif; }
+                   padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px; }
     #open-heroes:hover { background:#223344; }
     #open-settings { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
-                     padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
-                     font-family:'Georgia',serif; }
+                     padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px; }
     #open-settings:hover { background:#223344; }
     #fullscreen-btn { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
-                      padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
-                      font-family:'Georgia',serif; }
+                      padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px; }
     #fullscreen-btn:hover { background:#223344; }
     /* Above every overlay (highest in-page z-index is 50). No scene owns this. */
     #rotate-prompt { display:none; }
     @media (orientation: portrait) and (pointer: coarse) {
       #rotate-prompt { position:fixed; inset:0; z-index:1000; display:flex; flex-direction:column;
                        align-items:center; justify-content:center; gap:18px; background:#08081e;
-                       color:#e8e8ff; font-family:'Georgia',serif; font-size:20px; text-align:center;
+                       color:#e8e8ff; font-size:20px; text-align:center;
                        padding:24px; }
       #rotate-prompt-glyph { font-size:72px; color:#4fc3f7; }
     }
@@ -456,8 +548,7 @@
     #upgrade-overlay-title { font-size:22px; color:#ffd700; font-weight:bold; flex:1; }
     #upgrade-available { font-size:15px; color:#ffd700; font-weight:bold; }
     #upgrade-close { background:#3a1a1a; border:1px solid #8a3a3a; color:#f07a7a;
-                     padding:6px 14px; border-radius:6px; cursor:pointer; font-size:13px;
-                     font-family:'Georgia',serif; }
+                     padding:6px 14px; border-radius:6px; cursor:pointer; font-size:13px; }
     #upgrade-tree { display:flex; gap:14px; overflow-y:auto; }
     .upgrade-branch { flex:1; background:#11161f; border:1px solid #2a3442;
                       border-radius:10px; padding:12px; }
@@ -474,7 +565,7 @@
                          padding:1px 6px; display:inline-block; margin-top:4px; }
     .upgrade-node-refund { background:#3a1a1a; border:1px solid #8a3a3a; color:#f07a7a;
                            font-size:10px; padding:2px 8px; border-radius:4px;
-                           cursor:pointer; margin-top:6px; font-family:'Georgia',serif; }
+                           cursor:pointer; margin-top:6px; }
     .upgrade-node.purchased { border-color:#4a8a4a; background:#16261a; }
     .upgrade-node.affordable { border-color:#4fc3f7; cursor:pointer; }
     .upgrade-node.affordable:hover { background:#223344; }
@@ -486,7 +577,7 @@
     #settings-overlay { display:none; position:absolute; inset:0; z-index:16;
       background:rgba(0,0,0,0.7); align-items:center; justify-content:center; padding:24px; }
     #settings-overlay-inner { width:100%; max-width:420px; background:#0a1018;
-      border:2px solid #4a8aff; border-radius:8px; padding:18px 22px; font-family:'Courier New',monospace; color:#cfd8e8; }
+      border:2px solid #4a8aff; border-radius:8px; padding:18px 22px; color:#cfd8e8; }
     #settings-overlay-header { display:flex; align-items:center; gap:14px; margin-bottom:14px; }
     #settings-overlay-title { font-size:18px; color:#6bf; font-weight:bold; flex:1; }
     #settings-close { background:#3a1a1a; border:1px solid #8a3a3a; color:#f07a7a;
@@ -507,7 +598,9 @@
       width: max-content; min-width: 440px; max-width: 600px;
       max-height: calc(var(--world-h) - 12px); overflow-y: auto;
       background: #0a1018; border: 3px solid #4fc3f7; border-radius: 10px;
-      padding: 16px 20px; z-index: 19; text-align: left; box-shadow: 0 6px 28px rgba(0,0,0,0.6); }
+      padding: 16px 20px; z-index: 19; text-align: left; box-shadow: 0 6px 28px rgba(0,0,0,0.6);
+      /* Game px but unscaled (#43 R5), so its kit unit is a flat 2px. */
+      --ui-u: 2px; }
     .wave-preview.shown { display: block; }
     .wp-title { color: #ffd700; font-size: 28px; font-weight: bold; margin-bottom: 12px; }
     .wp-row { display: flex; gap: 12px; align-items: baseline; margin-bottom: 8px; }

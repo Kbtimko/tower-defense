@@ -81,4 +81,10 @@ describe('rail CSS scales with --hud-k', () => {
     }
     expect(bad).toEqual([]);
   });
+
+  // The kit's 1u ring must equal today's 2px rail ring at both k values.
+  it('.hud-rail scales the kit unit with --hud-k', () => {
+    const rule = parseRules(css).find((r) => r.selector === '.hud-rail');
+    expect(rule.body).toMatch(/--ui-u:\s*calc\(2px \* var\(--hud-k\)\)/);
+  });
 });

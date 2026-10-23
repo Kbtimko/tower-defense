@@ -53,5 +53,6 @@ export const EFFECTS = Object.freeze({
   sheenAlpha: 0.05,
   glowRest: 0.5,
   glowHover: 0.8,
+  glowArmed: 0.9, // two-step confirm: the strongest glow the kit paints
   bevelAlpha: 1,
 });

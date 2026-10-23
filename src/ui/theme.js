@@ -76,8 +76,11 @@ export function themeCssVars() {
   for (const [k, v] of Object.entries(SPACING)) vars[`--ui-sp-${k}`] = `${v}px`;
   vars['--ui-scanline-alpha'] = String(EFFECTS.scanlineAlpha);
   vars['--ui-sheen-alpha'] = String(EFFECTS.sheenAlpha);
-  vars['--ui-glow-rest'] = String(EFFECTS.glowRest);
-  vars['--ui-glow-hover'] = String(EFFECTS.glowHover);
+  // Percentages, because the kit tints its glow with color-mix(), which takes a
+  // percentage and (unlike a bare number) needs no calc() to get one.
+  vars['--ui-glow-rest'] = `${EFFECTS.glowRest * 100}%`;
+  vars['--ui-glow-hover'] = `${EFFECTS.glowHover * 100}%`;
+  vars['--ui-glow-armed'] = `${EFFECTS.glowArmed * 100}%`;
   return vars;
 }
 
