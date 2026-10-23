@@ -30,7 +30,7 @@ const config = {
 applyHudLayerSize(document);
 applyTheme(document);
 // Deliberately not awaited: boot must not wait on fonts; the fallback stack covers the gap.
-loadThemeFonts(document);
+const themeFontsSettled = loadThemeFonts(document);
 const game = new Phaser.Game(config);
 
 // The HUD rails are DOM pinned over the canvas, so they refit on every Phaser
@@ -51,7 +51,9 @@ const refreshScale = coalesceFrame(() => {
 game.scale.on(Phaser.Scale.Events.RESIZE, refitHudLayer);
 window.addEventListener('resize', refreshScale);
 document.addEventListener('fullscreenchange', refreshScale);
-watchRailLabels(document);
+// Fonts settling after the first fit would leave labels sized to the fallback.
+const refitRailLabels = watchRailLabels(document);
+themeFontsSettled.then(() => refitRailLabels());
 
 // Page-lifetime hooks (no scene owns them). `sound.context` exists only for the
 // WebAudio manager, hence the optional chaining.
