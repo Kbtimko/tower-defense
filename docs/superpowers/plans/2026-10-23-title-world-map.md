@@ -126,7 +126,7 @@ it('banner in progress and complete', () => {
   - `commandQuote(storyKey) → string`
   - `newThreats(mapId) → string[]`: e.g. `['Veth Phantom (flying)']`, ordered by first appearance
   - `briefingCardModel(mapId, stars: number[]) → { missionNo, name, quote, threats, maxTier, stars, launchable }`
-  - `maxTier` comes from the field `GameScene`/`_renderFeatured` uses today for "Towers upgrade to Tier N". Grep `featured-tier` in `MapSelectScene.js`.
+  - `maxTier = MAPS[mapId].maxTierAllowed`: the field today's `_renderFeatured` uses.
 
 - [ ] **Step 1: Failing tests.**
   - `every map's quote is the first command panel of its brief, verbatim`: derived by iterating `STORY_SEQUENCES[briefKey(m.storyKey)].panels.find(p => p.speaker === 'command').text`.
@@ -199,7 +199,7 @@ it('banner in progress and complete', () => {
   - `nodeRects(frame, route, cls, L) → Array<{ id, cx, cy, w, h }>`: the rect includes the label (tall: `L.labelPx.tall` below; compact: the stars line only)
   - `worldMapProblems({ nodes, frame, viewport, coarse, minTouchPx = 44 }) → string[]`: overlap, outside frame (4-px margin), outside viewport, non-locked node < 44 on coarse
   - `routePoints(frame, route) → Array<{x, y}>`: Earth first, then map 0…9
-  - `routeParamAt(points, index) → [0, 1]`: arc-length fraction at point `index`
+  - `routeParamAt(points, index) → [0, 1]`: arc-length fraction at point `index`. **Map id `m` is point index `m + 1`** (Earth is 0). So the trail and ship park at `routeParamAt(points, min(frontier, MAPS.length - 1) + 1)`, which is the hive core when all are cleared. The arrival lerps between the won map's param and the next map's.
   - `frontRadius(points, frontier) → px`: `hypot(hive − points[frontier + 1])`; 0 when `frontier ≥ MAPS.length`
   - `makeStars(seed, layers, w, h) → Array<{ x, y, layer, phase }>`, using `SeededRandom`
   - `advanceStars(stars, dtMs, w, layers)`: mutates x, wraps left → right, returns the array
@@ -267,7 +267,8 @@ it('banner in progress and complete', () => {
 
 **Interfaces:**
 - Produces: `msg-btn` → `this.scene.start('MapSelectScene', { from: { mapId, result: 'victory'|'defeat'|'abandon', prevStars, stars } })`.
-  - Before a victory, `stars` is the current saved stars. `prevStars` is read before `setStars`.
+  - Victory: `stars` = the stars earned this run, and `prevStars` = the saved stars read **before** `setStars`.
+  - Defeat or abandon: `prevStars` = `stars` = the saved stars, unchanged.
   - The handler is guarded so a second click does nothing (Review Focus 3).
   - The label is `↩ World Map`.
 
@@ -407,6 +408,7 @@ it('banner in progress and complete', () => {
   - the post-win sequence runs in a **new context** on map 0: `07b-arrival-mid`, skip tap, `07c-arrival-done` with the asserted hooks
   - one `reducedMotion: 'reduce'` run on `desktop1440` + `iphone`
   - one woff2-blocked run
+  - one run with `overworld_3_orbital_station.png` blocked: node 4 shows the numbered-circle fallback with its state classes, and the audit stays clean
 - [ ] **Step 3: Run** `npm test`, then `npm run matrix`. Expect **desktop 17/17, iphone/pixel/ipad 18/18**.
 - [ ] **Step 4: Run** `npm run capture -- --screens --devices desktop,desktop1440,iphone,pixel,ipad`. Expect zero problems. **Look at every screenshot** against spec §8.
 - [ ] **Step 5: Commit** `test(harness): title step, world-map audit and post-win captures`. Commit the screenshots into `docs/captures/3.4-title-world-map/`.
