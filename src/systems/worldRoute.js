@@ -89,3 +89,40 @@ export function parkShip(points, index, rects, frame, ship = SHIP) {
   }
   return { param: along / total, offset: 0 };
 }
+
+// Where the ship departs node `index` on a flight (spec 2.3): the first param on
+// the outgoing leg whose ship box (plus clearance) misses that node's rect, label
+// and stars included, so the ship is visible from the first frame of the flight.
+// A leg fully covered by the rect falls back to the next point; the last point
+// (no outgoing leg) is its own param.
+export function exitParam(points, index, rects, ship = SHIP) {
+  const total = pathLength(points);
+  if (total <= 0) return 0;
+  const along = pathLength(points.slice(0, index + 1));
+  if (index >= points.length - 1) return along / total;
+  const end = pathLength(points.slice(0, index + 2));
+  const rect = rects[index - 1];
+  const half = ship.sizePx / 2 + ship.clearPx;
+  for (let s = along; s <= end; s += ship.stepPx) {
+    const { at } = splitRoute(points, s / total);
+    if (!boxHitsRect(at.x, at.y, half, rect)) return s / total;
+  }
+  return end / total;
+}
+
+// The ship and trail at flight fraction shipT, from node `from` to node `to`
+// (spec 2.3). The ship goes from the won node's exit to its parked spot at the
+// next node. The trail runs from the won node to that same parked spot, so it is
+// behind the ship for all t in (0, 1) even where the park sits sideways and a
+// little back (short compact legs), and only grows. On landing it takes the end
+// state's value, the next node itself.
+export function flight(points, from, to, rects, frame, shipT, ship = SHIP) {
+  const t = Math.min(1, Math.max(0, shipT));
+  const exit = exitParam(points, from, rects, ship);
+  const park = parkShip(points, to, rects, frame, ship);
+  const node = routeParamAt(points, from);
+  return {
+    ship: { param: exit + (park.param - exit) * t, offset: park.offset * t },
+    trailT: t >= 1 ? routeParamAt(points, to) : node + (park.param - node) * t,
+  };
+}

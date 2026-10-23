@@ -8,7 +8,7 @@ import { classifyOverworld } from '../systems/overworldState.js';
 import { starsArray, frontierIndex, bannerFor } from '../systems/campaignProgress.js';
 import { briefingCardModel } from '../systems/briefingCard.js';
 import { layoutClass, routeFrameFor, cardWidth, nodeRects } from '../systems/worldMapLayout.js';
-import { routePoints, routeParamAt, frontRadius, parkShip } from '../systems/worldRoute.js';
+import { routePoints, routeParamAt, frontRadius, parkShip, flight } from '../systems/worldRoute.js';
 import { worldBackdropSource } from '../systems/worldBackdrop.js';
 import { planArrival, arrivalFrame } from '../systems/arrivalPlan.js';
 import { WorldMapRenderer } from '../ui/WorldMapRenderer.js';
@@ -407,23 +407,26 @@ export default class MapSelectScene extends Phaser.Scene {
     };
   }
 
-  // Mid-arrival the story is a blend of the pre- and post-win states by the
-  // frame's fractions, recomputed from the current geometry, so a resize keeps
-  // going (spec 5). Without an arrival it is the saved frontier's state.
+  // Mid-arrival the haze blends the pre- and post-win states by the frame's
+  // fractions, and an advance flies the ship (trail behind it) from the won node
+  // to the next; all recomputed from the current geometry, so a resize keeps
+  // going (spec 5). A stamp or complete has no flight: the ship stays put.
+  // Without an arrival it is the saved frontier's state.
   _storyState() {
     const end = this._storyAt(this._frontier);
     const f = this._frame;
     if (!f) return end;
     const start = this._storyAt(this._preFrontier);
+    const { points, rects, frame } = this._geom;
+    const route = this._plan.kind === 'advance'
+      ? flight(points, this._plan.mapId + 1, this._plan.toId + 1, rects, frame, f.shipT)
+      : { ship: end.ship, trailT: end.trailT };
     return {
-      points: end.points,
-      trailT: lerp(start.trailT, end.trailT, f.trailT),
+      points,
+      trailT: route.trailT,
       frontR: lerp(start.frontR, end.frontR, f.frontT),
       frontAlpha: lerp(start.frontAlpha, end.frontAlpha, f.frontT),
-      ship: {
-        param: lerp(start.ship.param, end.ship.param, f.shipT),
-        offset: lerp(start.ship.offset, end.ship.offset, f.shipT),
-      },
+      ship: route.ship,
       hiveDim: lerp(start.hiveDim, end.hiveDim, f.frontT),
     };
   }

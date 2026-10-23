@@ -67,9 +67,9 @@ export default class BootScene extends Phaser.Scene {
       this.load.image(key, portraitPath(key));
     }
 
-    // World-map vista art (deferred asset, spec 4.4). Absent today: the 404 is
-    // tolerated and the map draws its far layer procedurally.
-    this.load.image(WORLD_BACKDROP_KEY, BACKDROP_ART);
+    // World-map vista art (deferred asset, spec 4.4). Only a filled slot loads:
+    // probing a file that doesn't exist logs a load error on every boot.
+    if (typeof BACKDROP_ART === 'string') this.load.image(WORLD_BACKDROP_KEY, BACKDROP_ART);
 
     // Preload entity sprite art declared in the manifest. Missing files log a
     // 404 but don't crash (same as map backdrops). Keys whose PNG is absent

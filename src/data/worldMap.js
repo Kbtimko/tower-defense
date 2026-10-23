@@ -186,5 +186,7 @@ export const STARS_MAP = {
   ],
 };
 
-// Deferred-asset slot (spec 4.4): absent today, so the procedural backdrop draws.
-export const BACKDROP_ART = 'assets/worldmap/vista.webp';
+// Deferred-asset slot (spec 4.4): empty today, so nothing is loaded and the
+// procedural backdrop draws. Dropping art in = set this to its path under
+// public/ (e.g. 'assets/worldmap/vista.webp'); BootScene then loads it.
+export const BACKDROP_ART = null;

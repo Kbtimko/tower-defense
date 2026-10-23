@@ -11,7 +11,7 @@ import { ARRIVAL, LAYOUT, ROUTE, HAZE } from '../data/worldMap.js';
 import { bannerFor } from '../systems/campaignProgress.js';
 import { arrivalFrame, planArrival } from '../systems/arrivalPlan.js';
 import { routeFrameFor, nodeRects } from '../systems/worldMapLayout.js';
-import { routePoints, parkShip, routeParamAt } from '../systems/worldRoute.js';
+import { routePoints, parkShip, routeParamAt, exitParam, flight } from '../systems/worldRoute.js';
 import { WorldMapRenderer } from '../ui/WorldMapRenderer.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -415,14 +415,30 @@ describe('MapSelectScene post-win arrival (spec 2.3)', () => {
       return { frame, points, rects: nodeRects(frame, ROUTE, cls) };
     }
 
-    it('starts with the ship parked at the won node and ends parked at the next one', () => {
+    it('starts with the ship at the won node exit and the trail at the node; ends parked at the next one', () => {
       const render = vi.spyOn(WorldMapRenderer.prototype, 'render');
       sizeMapSelect(1440, 900);
       seedSave(AFTER_FIRST_CLEAR);
       enter({ from: FIRST_CLEAR_0 });
       const { frame, points, rects } = geometry(1440, 900, 'tall');
-      expect(render.mock.lastCall[0].ship).toEqual(parkShip(points, 1, rects, frame));
+      expect(render.mock.lastCall[0].ship).toEqual({ param: exitParam(points, 1, rects), offset: 0 });
       expect(render.mock.lastCall[0].trailT).toBeCloseTo(routeParamAt(points, 1));
+      // Still there through the focus and stamp beats.
+      vi.advanceTimersByTime(ARRIVAL.flyStartMs - FRAME_MS);
+      expect(render.mock.lastCall[0].ship).toEqual({ param: exitParam(points, 1, rects), offset: 0 });
+      expect(render.mock.lastCall[0].trailT).toBeCloseTo(routeParamAt(points, 1));
+      // In flight: the trail is behind the ship and only grows.
+      let prev = routeParamAt(points, 1);
+      const step = FRAME_MS * 8;
+      let elapsed = ARRIVAL.flyStartMs - FRAME_MS;
+      while (elapsed + step < ARRIVAL.flyStartMs + ARRIVAL.flyMs) {
+        vi.advanceTimersByTime(step);
+        elapsed += step;
+        const s = render.mock.lastCall[0];
+        expect(s.trailT).toBeLessThan(s.ship.param);
+        expect(s.trailT).toBeGreaterThanOrEqual(prev);
+        prev = s.trailT;
+      }
       vi.advanceTimersByTime(ARRIVAL.totalMs);
       expect(render.mock.lastCall[0].ship).toEqual(parkShip(points, 2, rects, frame));
       expect(render.mock.lastCall[0].trailT).toBeCloseTo(routeParamAt(points, 2));
@@ -443,14 +459,12 @@ describe('MapSelectScene post-win arrival (spec 2.3)', () => {
       expect(f.shipT).toBeGreaterThan(0);
       expect(f.shipT).toBeLessThan(1);
       const { frame, points, rects } = geometry(750, 340, 'compact');
-      const a = parkShip(points, 1, rects, frame);
-      const b = parkShip(points, 2, rects, frame);
+      const want = flight(points, 1, 2, rects, frame, f.shipT);
       const s = render.mock.lastCall[0];
       expect(s.points).toEqual(points);
-      expect(s.ship.param).toBeCloseTo(a.param + (b.param - a.param) * f.shipT);
-      expect(s.ship.offset).toBeCloseTo(a.offset + (b.offset - a.offset) * f.shipT);
-      const ta = routeParamAt(points, 1);
-      expect(s.trailT).toBeCloseTo(ta + (routeParamAt(points, 2) - ta) * f.trailT);
+      expect(s.ship.param).toBeCloseTo(want.ship.param);
+      expect(s.ship.offset).toBeCloseTo(want.ship.offset);
+      expect(s.trailT).toBeCloseTo(want.trailT);
     });
   });
 });

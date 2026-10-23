@@ -3,7 +3,7 @@ import { DEVICES } from '../../scripts/captureDevices.mjs';
 import { ROUTE, LAYOUT, SHIP, HAZE } from '../data/worldMap.js';
 import { MAPS } from '../data/maps.js';
 import { layoutClass, routeFrameFor, nodeRects } from './worldMapLayout.js';
-import { routePoints, routeParamAt, frontRadius, splitRoute, parkShip } from './worldRoute.js';
+import { routePoints, routeParamAt, frontRadius, splitRoute, parkShip, exitParam, flight } from './worldRoute.js';
 
 const frame = { x: 10, y: 20, w: 800, h: 500 };
 
@@ -175,5 +175,80 @@ describe('parkShip (V1: the parked ship overlaps no node)', () => {
     // +offset is the left normal here (x decreases); the frame stops just left of the rects.
     const park = parkShip(pts, 1, rects, { x: 75, y: -40, w: 200, h: 160 });
     expect(park.offset).toBeLessThan(0);
+  });
+});
+
+describe('exitParam (the ship departs clear of the won node, spec 2.3)', () => {
+  const hitsRect = (pts, param, n) => {
+    const { at } = splitRoute(pts, param);
+    const h = SHIP.sizePx / 2 + SHIP.clearPx;
+    return at.x - h < n.cx + n.w / 2 && n.cx - n.w / 2 < at.x + h && at.y - h < n.cy + n.h / 2 && n.cy - n.h / 2 < at.y + h;
+  };
+
+  it.each(Object.entries(DEVICES))('is the first point on the outgoing leg clear of the won node, on %s', (_name, d) => {
+    const cls = layoutClass(d.viewport);
+    const frame = routeFrameFor(d.viewport, cls);
+    const pts = routePoints(frame, ROUTE);
+    const rects = nodeRects(frame, ROUTE, cls, LAYOUT);
+    const total = pts.reduce((sum, p, i) => (i ? sum + Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y) : 0), 0);
+    // Every map with an outgoing leg (the last map is the hive: nowhere to go).
+    for (let mapId = 0; mapId < MAPS.length - 1; mapId++) {
+      const idx = mapId + 1;
+      const exit = exitParam(pts, idx, rects);
+      expect(hitsRect(pts, exit, rects[mapId]), `map ${mapId} exit clear`).toBe(false);
+      // First: one step back is still on the node.
+      expect(hitsRect(pts, exit - SHIP.stepPx / total, rects[mapId]), `map ${mapId} first`).toBe(true);
+      expect(exit, `map ${mapId} past the node`).toBeGreaterThan(routeParamAt(pts, idx));
+      expect(exit, `map ${mapId} on the outgoing leg`).toBeLessThanOrEqual(routeParamAt(pts, idx + 1));
+    }
+  });
+
+  it('falls back to the next point when the whole outgoing leg is covered', () => {
+    const pts = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 110, y: 0 }];
+    const rects = [{ id: 0, cx: 100, cy: 0, w: 60, h: 60 }];
+    expect(exitParam(pts, 1, rects)).toBe(1);
+  });
+
+  it('is the point itself for the last point (no outgoing leg)', () => {
+    const pts = [{ x: 0, y: 0 }, { x: 100, y: 0 }];
+    expect(exitParam(pts, 1, [{ id: 0, cx: 100, cy: 0, w: 20, h: 20 }])).toBe(1);
+  });
+});
+
+describe('flight (ship and trail during the post-win movement, spec 2.3)', () => {
+  const STEPS = 40;
+
+  it.each(Object.entries(DEVICES))('departs at the exit, lands parked, and the trail grows behind the ship, on %s', (_name, d) => {
+    const cls = layoutClass(d.viewport);
+    const frame = routeFrameFor(d.viewport, cls);
+    const pts = routePoints(frame, ROUTE);
+    const rects = nodeRects(frame, ROUTE, cls, LAYOUT);
+    for (let mapId = 0; mapId < MAPS.length - 1; mapId++) {
+      const from = mapId + 1;
+      const to = from + 1;
+      const at0 = flight(pts, from, to, rects, frame, 0);
+      expect(at0.ship, `map ${mapId} departs`).toEqual({ param: exitParam(pts, from, rects), offset: 0 });
+      expect(at0.trailT, `map ${mapId} trail starts at the won node`).toBeCloseTo(routeParamAt(pts, from));
+      const at1 = flight(pts, from, to, rects, frame, 1);
+      const park = parkShip(pts, to, rects, frame);
+      expect(at1.ship.param).toBeCloseTo(park.param);
+      expect(at1.ship.offset).toBeCloseTo(park.offset);
+      expect(at1.trailT, `map ${mapId} trail ends at the next node`).toBeCloseTo(routeParamAt(pts, to));
+      let prev = -Infinity;
+      for (let i = 0; i <= STEPS; i++) {
+        const { ship, trailT } = flight(pts, from, to, rects, frame, i / STEPS);
+        if (i > 0 && i < STEPS) expect(trailT, `map ${mapId} t=${i / STEPS} trail behind ship`).toBeLessThan(ship.param);
+        expect(trailT, `map ${mapId} t=${i / STEPS} trail monotonic`).toBeGreaterThanOrEqual(prev);
+        prev = trailT;
+      }
+    }
+  });
+
+  it('clamps shipT outside [0, 1]', () => {
+    const frame = { x: 0, y: 0, w: 800, h: 500 };
+    const pts = routePoints(frame, ROUTE);
+    const rects = nodeRects(frame, ROUTE, 'tall', LAYOUT);
+    expect(flight(pts, 1, 2, rects, frame, -1)).toEqual(flight(pts, 1, 2, rects, frame, 0));
+    expect(flight(pts, 1, 2, rects, frame, 2)).toEqual(flight(pts, 1, 2, rects, frame, 1));
   });
 });

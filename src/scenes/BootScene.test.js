@@ -156,18 +156,13 @@ describe('BootScene world-map backdrop probe (deferred asset, spec 4.4)', () => 
     return { set, loaded };
   }
 
-  it('probes BACKDROP_ART in preload', () => {
-    const { loaded } = run([]);
-    expect(loaded.some(l => l.path === BACKDROP_ART)).toBe(true);
-  });
-
-  it('registers false when the art 404s (today), so the vista stays procedural', () => {
-    expect(run([]).set.get('worldBackdrop')).toBe(false);
-  });
-
-  it('registers the URL once the art loads', () => {
-    const { loaded } = run([]);
-    const key = loaded.find(l => l.path === BACKDROP_ART).key;
-    expect(run([key]).set.get('worldBackdrop')).toBe(BACKDROP_ART);
+  // The slot is empty today: queueing a load for a missing file logs
+  // "Failed to process file" on every boot (the matrix fails on console errors).
+  it('queues no backdrop load while the slot is empty, and registers false', () => {
+    expect(BACKDROP_ART).toBeNull();
+    const { loaded, set } = run([]);
+    expect(loaded.some(l => l.key === 'wm_backdrop' || l.path == null)).toBe(false);
+    expect(set.get('worldBackdrop')).toBe(false);
   });
 });
+// A filled slot (art dropped in): BootScene.backdrop.test.js.
