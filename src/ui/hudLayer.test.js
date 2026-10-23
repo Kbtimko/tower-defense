@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { hudLayerTransform, fitHudLayer, applyHudLayerSize, railAnchorRect, mapRectIn } from './hudLayer.js';
+import { hudLayerTransform, fitHudLayer, applyHudLayerSize, railAnchorRect, mapRectIn, mapRectPage } from './hudLayer.js';
 import { CANVAS_WIDTH, WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH, HUD_CELL } from '../data/layout.js';
 import { PEEK_GAP_PX } from '../data/input.js';
+import { radialMetrics } from '../systems/radialLayout.js';
 
 // FIT keeps the canvas aspect; these build the canvas rect Phaser would produce.
 const fitCanvas = (game) => {
@@ -97,6 +98,14 @@ describe('applyHudLayerSize', () => {
     expect(s.getPropertyValue('--peek-gap')).toBe(`${PEEK_GAP_PX}px`);
   });
 
+  it('publishes the radial sizes from radialMetrics(HUD_CELL)', () => {
+    applyHudLayerSize(document);
+    const s = document.documentElement.style;
+    const m = radialMetrics(HUD_CELL);
+    expect(s.getPropertyValue('--radial-item')).toBe(`${m.item}px`);
+    expect(s.getPropertyValue('--radial-hub')).toBe(`${m.hub}px`);
+  });
+
   it('publishes the unitless rail scale --hud-k (1 on touch)', () => {
     applyHudLayerSize(document);
     expect(document.documentElement.style.getPropertyValue('--hud-k')).toBe('1');
@@ -143,5 +152,26 @@ describe('mapRectIn', () => {
   it('is the whole #game box when there is no canvas yet', () => {
     expect(mapRectIn({ gameRect: { left: 3, top: 4, width: 100, height: 50 }, canvasRect: null }))
       .toEqual({ left: 0, top: 0, width: 100, height: 50 });
+  });
+});
+
+// Page px: mapRectIn shifted by #game's own page offset, for body-level cards.
+describe('mapRectPage', () => {
+  it('is the #game-local map rect offset to the page', () => {
+    document.body.replaceChildren();
+    const game = document.body.appendChild(document.createElement('div'));
+    game.id = 'game';
+    const canvas = game.appendChild(document.createElement('canvas'));
+    const gameRect = { left: 47, top: 9, width: 750, height: 340 };
+    const canvasRect = fitCanvas(gameRect);
+    game.getBoundingClientRect = () => gameRect;
+    canvas.getBoundingClientRect = () => canvasRect;
+    const local = mapRectIn({ gameRect, canvasRect });
+    expect(mapRectPage(document)).toEqual({ ...local, left: local.left + 47, top: local.top + 9 });
+  });
+
+  it('falls back to the window without #game', () => {
+    document.body.replaceChildren();
+    expect(mapRectPage(document)).toEqual({ left: 0, top: 0, width: window.innerWidth, height: window.innerHeight });
   });
 });

@@ -112,3 +112,39 @@ export function layoutProblems(m) {
   for (const t of m.targets) problems.push(...targetProblems(t, m.innerWidth, m.innerHeight));
   return problems;
 }
+
+const intersects = (a, b) => a.left < b.right - EDGE_TOLERANCE_PX && a.right > b.left + EDGE_TOLERANCE_PX
+  && a.top < b.bottom - EDGE_TOLERANCE_PX && a.bottom > b.top + EDGE_TOLERANCE_PX;
+
+// Radial faces are round, so overlap is circle-vs-circle: the hub's bounding
+// square legitimately overlaps the diagonal items' squares while the faces clear.
+function facesOverlap(a, b) {
+  const r = f => Math.min(f.rect.width, f.rect.height) / 2;
+  const cx = f => f.rect.left + f.rect.width / 2;
+  const cy = f => f.rect.top + f.rect.height / 2;
+  return Math.hypot(cx(a) - cx(b), cy(a) - cy(b)) < r(a) + r(b) - EDGE_TOLERANCE_PX;
+}
+
+// An open radial (roadmap 3.3) must sit wholly on the map, clear of both rails,
+// tappable, and with no face covering another. Hidden items are unused ring
+// slots. minTouchPx 0 skips the size rule (a fine pointer has no touch floor).
+export function radialProblems({ items, hub, mapRect, rails, minTouchPx }) {
+  const faces = items.filter(t => t.rect && t.visible);
+  const problems = [];
+  if (faces.length === 0) problems.push('radial has no visible items');
+  if (hub?.rect && hub.visible) faces.push(hub);
+  else problems.push(`${hub?.name ?? 'hub'} hidden`);
+  for (const f of faces) {
+    if (!insideRect(f.rect, mapRect)) problems.push(`${f.name} outside map ${fmt(f.rect)}`);
+    for (const [id, rail] of [['rail-left', rails.left], ['rail-right', rails.right]]) {
+      if (rail && intersects(f.rect, rail)) problems.push(`${f.name} intersects ${id}`);
+    }
+  }
+  if (minTouchPx > 0) problems.push(...targetSizeProblems(faces, minTouchPx));
+  for (let i = 0; i < faces.length; i++) {
+    for (let j = i + 1; j < faces.length; j++) {
+      if (facesOverlap(faces[i], faces[j])) problems.push(`${faces[i].name} overlaps ${faces[j].name}`);
+    }
+  }
+  return problems;
+}

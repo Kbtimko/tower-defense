@@ -61,12 +61,14 @@ describe('renderUpgradeNode', () => {
     expect(mgr.purchase).not.toHaveBeenCalled();
   });
 
-  it('locked-hero: returns element with .locked-hero + unlock tooltip', () => {
+  it('locked-hero: returns element with .locked-hero + visible unlock line', () => {
     const mgr = makeMgr('locked-hero');
     const el  = renderUpgradeNode(ENG_NODE, mgr, HERO_DEFS, onChange);
     expect(el.classList.contains('locked-hero')).toBe(true);
-    expect(el.title).toContain('Clear Map 3');
-    expect(el.title).toContain('Engineer Dax');
+    const gate = el.querySelector('.upgrade-node-gate');
+    expect(gate.textContent).toContain('Clear Map 3');
+    expect(gate.textContent).toContain('Engineer Dax');
+    expect(el.title).toBe('');
     el.click();
     expect(mgr.purchase).not.toHaveBeenCalled();
   });

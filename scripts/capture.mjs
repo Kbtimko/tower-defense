@@ -11,7 +11,7 @@
 //   npm run matrix -- [--devices iphone] [--no-build]     (= capture.mjs --flow)
 //
 // --screens shoots the non-gameplay screens instead (first-run story, map
-// select, in-game, tower panel, defeat, victory) into <device>/screens/, using
+// select, in-game, tower ring, build radial, defeat, victory) into <device>/screens/, using
 // the first of --maps.
 // Output: .art-cache/captures/<device>/map<N>-w<W>.png (+ .mp4 with --video)
 // and .art-cache/captures/report.json listing console errors per capture.
@@ -19,7 +19,7 @@
 // every tower at mixed tiers (defaultCaptureBuild).
 //
 // --flow plays the opening of a fresh first run with real input on each device
-// (boot -> map 0 -> build archer -> upgrade -> send wave -> pause), asserting
+// (boot -> map 0 -> radial build archer -> ring upgrade -> send wave -> pause), asserting
 // the game state after every step and shooting <device>/flow/NN-id.png. It
 // always uses map 0 and ignores --maps/--wave/--build/--hero/--video; without
 // --devices it runs desktop,iphone,pixel,ipad. Exits 1 if any device fails.
@@ -31,12 +31,11 @@ import { chromium, devices } from 'playwright';
 import { MAPS } from '../src/data/maps.js';
 import { MAP_WAVES } from '../src/data/waves.js';
 import { defaultCaptureBuild } from '../src/systems/debugCapture.js';
-import { layoutProblems, railProblems, railGeometryProblems, overlayProblems, minTouchFor } from '../src/systems/layoutAudit.js';
+import { layoutProblems, railProblems, railGeometryProblems, overlayProblems, minTouchFor, radialProblems } from '../src/systems/layoutAudit.js';
 import { POINTER_FINE_QUERY } from '../src/data/mobile.js';
 import { CONFIRM_WINDOW_MS } from '../src/data/input.js';
 import { WORLD_WIDTH, WORLD_HEIGHT } from '../src/data/layout.js';
-import { TOWER_DEFS } from '../src/data/towers.js';
-import { stepsFor, shotName, worldToPagePoint, flowExpectations, summarizeFlow } from '../src/systems/deviceFlow.js';
+import { stepsFor, shotName, worldToPagePoint, flowExpectations, summarizeFlow, freePad, padWorldPoint, buildStates } from '../src/systems/deviceFlow.js';
 
 const OUT_DIR   = '.art-cache/captures';
 const DIST_DIR  = '.art-cache/capture-dist';
@@ -256,6 +255,32 @@ async function auditOverlay(page, deviceName, { open, root, close, targets, labe
   return { result, file };
 }
 
+// Measures the open radial in page px and judges it with radialProblems. The map
+// rect is the canvas minus both rails, from the page's own pointer class.
+async function radialAudit(page, deviceName, label) {
+  const pointerFine = await page.evaluate(q => matchMedia(q).matches, POINTER_FINE_QUERY);
+  const box = await page.locator('#game canvas').boundingBox();
+  const a = worldToPagePoint({ x: 0, y: 0 }, box, { pointerFine });
+  const b = worldToPagePoint({ x: WORLD_WIDTH, y: WORLD_HEIGHT }, box, { pointerFine });
+  const m = await page.evaluate(() => {
+    const plain = r => ({ left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height });
+    const face = (el, name) => ({ name, rect: plain(el.getBoundingClientRect()), visible: el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) });
+    const rect = sel => { const el = document.querySelector(sel); return el ? plain(el.getBoundingClientRect()) : null; };
+    const hub = document.querySelector('#radial-hub');
+    return {
+      items: [...document.querySelectorAll('#radial .radial-item')].map((el, i) => face(el, el.dataset.id ?? `.radial-item[${i}]`)),
+      hub: hub ? face(hub, '#radial-hub') : null,
+      rails: { left: rect('#rail-left'), right: rect('#rail-right') },
+    };
+  });
+  const viewport = page.viewportSize();
+  // The touch floor binds the coarse pointer class only (as in railProblems), read
+  // from the page like the map rect so the two cannot disagree.
+  const minTouchPx = pointerFine ? 0 : minTouchFor({ vw: viewport.width, vh: viewport.height });
+  const mapRect = { left: a.x, top: a.y, right: b.x, bottom: b.y, width: b.x - a.x, height: b.y - a.y };
+  return { device: deviceName, label, problems: radialProblems({ ...m, mapRect, minTouchPx }) };
+}
+
 async function shoot(page, file, options = {}) {
   await page.screenshot({ path: file, ...options });
   return file;
@@ -310,9 +335,23 @@ async function captureScreens(browser, base, deviceName, opts) {
     const tower = cap.towers[0];
     if (tower) {
       await clickGamePoint(page, tower.x, tower.y);
-      await page.locator('#tower-panel').waitFor({ state: 'visible', timeout: 5_000 });
+      await page.locator('#radial[data-kind="tower"]').waitFor({ state: 'visible', timeout: 5_000 });
       await page.waitForTimeout(300);
-      files.push(await shoot(page, join(dir, '04-tower-panel.png')));
+      files.push(await shoot(page, join(dir, '04-tower-ring.png')));
+      layout.push(await radialAudit(page, deviceName, 'tower-ring'));
+      await tap(page, deviceName, '#cancel-btn');
+      await page.locator('#radial').waitFor({ state: 'hidden', timeout: 5_000 });
+    }
+    const pad = freePad(MAPS[mapId], cap.towers);
+    if (pad === null) {
+      layout.push({ device: deviceName, label: 'build-radial', problems: ['no free pad for the build radial'] });
+    } else {
+      const p = padWorldPoint(MAPS[mapId], pad);
+      await clickGamePoint(page, p.x, p.y);
+      await page.locator('#radial[data-kind="build"]').waitFor({ state: 'visible', timeout: 5_000 });
+      await page.waitForTimeout(300);
+      files.push(await shoot(page, join(dir, '04b-build-radial.png')));
+      layout.push(await radialAudit(page, deviceName, 'build-radial'));
     }
     await page.evaluate(() => window.__capture.end('defeat'));
     await page.locator('#game-msg').waitFor({ state: 'visible', timeout: 5_000 });
@@ -460,7 +499,48 @@ async function expectVisible(page, sel, want = true, timeout) {
   await until(() => visible(page, sel), v => v === want, () => `${sel} ${want ? 'not visible' : 'still visible'}`, timeout);
 }
 
-// One function per spec step-table row (docs/superpowers/specs/2026-10-22-device-matrix-design.md).
+const UPGRADE_ITEM = '.radial-item[data-id="upgrade"]';
+
+// The open radial as the player sees it: kind, every visible item's face and
+// state, and the hub lines. Unused ring slots are hidden and left out.
+const radialSnapshot = page => page.evaluate(() => {
+  const root = document.querySelector('#radial');
+  return {
+    open: !!root && !root.hidden,
+    kind: root?.dataset.kind ?? null,
+    items: [...document.querySelectorAll('#radial .radial-item:not([hidden])')].map(el => ({
+      id: el.dataset.id, state: el.dataset.state, ariaDisabled: el.getAttribute('aria-disabled') === 'true',
+      classes: [...el.classList], icon: el.querySelector('.radial-icon')?.textContent ?? null,
+      label: el.querySelector('.radial-label')?.textContent ?? null,
+    })),
+    hub: [...document.querySelectorAll('#radial-hub .radial-hub-line')].map(el => el.textContent),
+  };
+});
+
+async function expectRadial(page, kind) {
+  return until(() => radialSnapshot(page), r => r.open && r.kind === kind,
+    r => (r.open ? `#radial data-kind=${r.kind}, expected ${kind}` : `#radial not open, expected ${kind}`));
+}
+
+function radialItem(snapshot, id) {
+  const item = snapshot.items.find(i => i.id === id);
+  if (!item) throw new Error(`no .radial-item[data-id=${id}] (have ${snapshot.items.map(i => i.id).join(', ')})`);
+  return item;
+}
+
+// Each item's data-state and aria-disabled must both match: a ready-looking
+// face that is aria-disabled (or the reverse) is a broken item.
+function expectStates(snapshot, states) {
+  for (const [id, want] of Object.entries(states)) {
+    const item = radialItem(snapshot, id);
+    if (item.state !== want || item.ariaDisabled !== (want !== 'ready')) {
+      throw new Error(`${id} state=${item.state} aria-disabled=${item.ariaDisabled}, expected ${want}`);
+    }
+  }
+}
+
+// One function per spec step-table row (docs/superpowers/specs/2026-10-22-device-matrix-design.md;
+// steps 7-17 per docs/superpowers/specs/2026-10-23-radial-menus-design.md).
 // Each performs the row's action and asserts its condition; a throw fails the step.
 const FLOW_ACTIONS = {
   async boot(ctx) {
@@ -510,28 +590,43 @@ const FLOW_ACTIONS = {
     await expectVisible(page, '#cancel-btn');
     await expectText(page, '#stat-gold', exp.startGold);
   },
-  async build({ page, deviceName, exp }) {
-    await tapGamePoint(page, deviceName, exp.pad.x, exp.pad.y);
-    await expectText(page, '#stat-gold', exp.goldAfterBuild);
+  async 'cancel-arm'({ page, deviceName }) {
+    await tap(page, deviceName, '#cancel-btn');
+    await expectVisible(page, '#cancel-btn', false);
+    const selected = await page.locator('.tower-btn.selected').count();
+    if (selected) throw new Error(`${selected} .tower-btn still .selected`);
   },
-  async 'open-panel'(ctx) {
-    const { page, deviceName, exp } = ctx;
-    // The armed build stays armed, but resolveTap checks towers first, so this opens the panel.
+  async 'open-build-radial'({ page, deviceName, exp }) {
     await tapGamePoint(page, deviceName, exp.pad.x, exp.pad.y);
-    await expectVisible(page, '#tower-panel');
-    const name = TOWER_DEFS[FLOW_TOWER].name;
-    await until(() => text(page, '#panel-name'), t => t?.includes(name), t => `#panel-name "${t}", expected it to contain "${name}"`);
-    await expectText(page, '#panel-lvl', 'Level: 1/4');
-    if (!(await page.locator('#panel-upgrade-btn').isEnabled())) throw new Error('#panel-upgrade-btn disabled');
-    ctx.labelBefore = await text(page, '#panel-upgrade-btn');
+    const r = await expectRadial(page, 'build');
+    if (r.items.length !== Object.keys(exp.buildStatesStart).length) throw new Error(`${r.items.length} build items, expected ${Object.keys(exp.buildStatesStart).length}`);
+    expectStates(r, exp.buildStatesStart);
+    const { problems } = await radialAudit(page, deviceName, 'flow-build-radial');
+    if (problems.length) throw new Error(problems.join('; '));
+  },
+  async 'radial-build'({ page, deviceName, exp }) {
+    await tap(page, deviceName, `.radial-item[data-id="build:${FLOW_TOWER}"]`);
+    await expectText(page, '#stat-gold', exp.goldAfterBuild);
+    await expectVisible(page, '#radial', false);
+  },
+  async 'open-ring'({ page, deviceName, exp }) {
+    await tapGamePoint(page, deviceName, exp.pad.x, exp.pad.y);
+    const r = await expectRadial(page, 'tower');
+    if (!r.hub.includes(exp.hubBefore)) throw new Error(`hub [${r.hub.join(' | ')}], expected it to contain "${exp.hubBefore}"`);
+    const up = radialItem(r, 'upgrade');
+    if (up.state !== 'ready' || up.ariaDisabled) throw new Error(`upgrade ${up.state}${up.ariaDisabled ? ' aria-disabled' : ''}, expected ready`);
+    const sell = radialItem(r, 'sell');
+    if (sell.label !== exp.sellLabelAfterBuild) throw new Error(`sell caption "${sell.label}", expected "${exp.sellLabelAfterBuild}"`);
+    const { problems } = await radialAudit(page, deviceName, 'flow-tower-ring');
+    if (problems.length) throw new Error(problems.join('; '));
   },
   async 'upgrade-arm'(ctx, step, dir) {
     const { page, deviceName, exp } = ctx;
-    await tap(page, deviceName, '#panel-upgrade-btn');
-    // Clock starts at the first tap: step 11 must land its second tap inside the window.
+    await tap(page, deviceName, UPGRADE_ITEM);
+    // Clock starts at the first tap: step 13 must land its second tap inside the window.
     ctx.armedAt = Date.now();
-    await expectText(page, '#panel-upgrade-btn', `Tap again: ${ctx.labelBefore}`);
-    if (!(await hasClass(page, '#panel-upgrade-btn', 'confirming'))) throw new Error('#panel-upgrade-btn not .confirming');
+    await until(() => hasClass(page, UPGRADE_ITEM, 'confirming'), Boolean, () => `${UPGRADE_ITEM} not .confirming`);
+    await expectText(page, `${UPGRADE_ITEM} .radial-label`, 'Tap again');
     await expectText(page, '#stat-gold', exp.goldAfterBuild);
     // CSS-px shot: a DPR-3 full-resolution capture eats a large share of the confirm window.
     return { file: await shoot(page, join(dir, shotName(step)), { scale: 'css' }) };
@@ -544,17 +639,38 @@ const FLOW_ACTIONS = {
     }
     const gap = gapMs === null ? '' : `confirm gap ${gapMs} ms`;
     try {
-      await tap(page, deviceName, '#panel-upgrade-btn');
+      await tap(page, deviceName, UPGRADE_ITEM);
       await expectText(page, '#stat-gold', exp.goldAfterUpgrade);
-      await expectText(page, '#panel-lvl', 'Level: 2/4');
-      if (await hasClass(page, '#panel-upgrade-btn', 'confirming')) throw new Error('#panel-upgrade-btn still .confirming');
-      const disabled = await page.locator('#panel-upgrade-btn').isDisabled();
-      if (disabled !== exp.lockedAfterUpgrade) throw new Error(`#panel-upgrade-btn disabled=${disabled}, expected ${exp.lockedAfterUpgrade}`);
+      const r = await until(() => radialSnapshot(page), s => s.hub.includes(exp.hubAfter),
+        s => `hub [${s.hub.join(' | ')}], expected it to contain "${exp.hubAfter}"`);
+      const up = radialItem(r, 'upgrade');
+      if (up.classes.includes('confirming')) throw new Error(`${UPGRADE_ITEM} still .confirming`);
+      const locked = up.state === 'locked';
+      if (locked !== exp.lockedAfterUpgrade) throw new Error(`upgrade state ${up.state}, expected ${exp.lockedAfterUpgrade ? 'locked' : 'not locked'}`);
+      if (locked && (up.icon !== '🔒' || up.label !== exp.lockedLabel || !up.ariaDisabled)) {
+        throw new Error(`locked upgrade face "${up.icon} ${up.label}" aria-disabled=${up.ariaDisabled}, expected "🔒 ${exp.lockedLabel}" aria-disabled`);
+      }
     } catch (err) {
       // The gap tells a timing-related re-arm apart from a real upgrade failure.
       throw new Error(gap ? `${err.message.split('\n')[0]} (${gap})` : err.message);
     }
     return { detail: gap };
+  },
+  async 'radial-unaffordable'({ page, deviceName, exp }) {
+    // An open ring eats this tap and retargets to the free pad's build radial.
+    await tapGamePoint(page, deviceName, exp.pad2.x, exp.pad2.y);
+    const r = await expectRadial(page, 'build');
+    const want = buildStates(exp.goldAfterUpgrade);
+    // A short or empty radial would make the per-item checks below pass vacuously.
+    if (r.items.length !== Object.keys(want).length) throw new Error(`${r.items.length} build items, expected ${Object.keys(want).length}`);
+    const ready = r.items.filter(i => !i.ariaDisabled).map(i => i.id);
+    if (ready.length) throw new Error(`not aria-disabled at ${exp.goldAfterUpgrade}g: ${ready.join(', ')}`);
+    expectStates(r, want);
+    await expectText(page, '#stat-gold', exp.goldAfterUpgrade);
+  },
+  async 'close-radial'({ page, deviceName }) {
+    await tap(page, deviceName, '#radial-hub');
+    await expectVisible(page, '#radial', false);
   },
   async 'send-wave'({ page, deviceName, exp }) {
     await tap(page, deviceName, '#wave-btn');

@@ -63,8 +63,7 @@ function setupHeroDOM() {
   card.id = 'ability-card';
   document.body.appendChild(card);
 
-  for (const id of ['wave-btn', 'speed-btn', 'panel-upgrade-btn', 'panel-sell-btn',
-                     'msg-btn', 'panel-reposition-btn']) {
+  for (const id of ['wave-btn', 'speed-btn', 'msg-btn']) {
     const b = document.createElement('button');
     b.id = id;
     document.body.appendChild(b);
@@ -86,6 +85,25 @@ const unhover = (slot) => document.getElementById(`ability-${slot}-wrap`).dispat
 
 describe('UIScene ability hover card', () => {
   beforeEach(setupHeroDOM);
+
+  // title= went away with #42a; screen readers still need the name and effect.
+  it('labels every ability wrapper and button from the hero data, and relabels on a hero change', () => {
+    const s = makeScene();
+    for (const heroId of ['rael', 'engineer']) {
+      const def = HEROES[heroId];
+      s._onHeroHudInit({ heroId, def });
+      for (const slot of ['q', 'w', 'e']) {
+        const a = def.abilities[slot];
+        for (const el of [document.getElementById(`ability-${slot}-wrap`), document.getElementById(`ability-${slot}`)]) {
+          const label = el.getAttribute('aria-label');
+          expect(label).toContain(slot.toUpperCase());
+          expect(label).toContain(a.label);
+          expect(label).toContain(a.tooltip);
+          expect(el.hasAttribute('title')).toBe(false);
+        }
+      }
+    }
+  });
 
   it('shows the card with the ability label and effect on hover', () => {
     const s = makeScene();

@@ -4,7 +4,7 @@ vi.mock('../entities/Hero.js', () => ({}));
 
 import { InspectController } from './InspectController.js';
 import { RAIL_WIDTH, CANVAS_WIDTH, WORLD_WIDTH, WORLD_HEIGHT } from '../data/layout.js';
-import { PANEL_EDGE_MARGIN } from '../data/input.js';
+import { PANEL_EDGE_MARGIN, TAP_TOWER_RADIUS } from '../data/input.js';
 
 // Build the inspector DOM scaffolding (createElement/appendChild — no innerHTML).
 function setupDom() {
@@ -44,6 +44,12 @@ function setupDom() {
   hi.appendChild(mk('div', 'hi-abilities'));
   hi.appendChild(mk('div', 'hi-matchups'));
   document.body.appendChild(hi);
+
+  // #tower-inspector (peek-only: no close button)
+  const ti = mk('div', 'tower-inspector');
+  ti.style.display = 'none';
+  for (const id of ['ti-name', 'ti-level', 'ti-stats', 'ti-matchups', 'ti-armour']) ti.appendChild(mk('div', id));
+  document.body.appendChild(ti);
 
   // #inspect-peek
   const peek = mk('div', 'inspect-peek');
@@ -820,6 +826,91 @@ describe('InspectController — side-effect-free hit test and touch peek', () =>
     ctrl.onPointerMove(100, 100);
     ctrl.hidePeek();
     expect(document.getElementById('inspect-peek').style.display).toBe('none');
+    expect(ctrl.peekTarget).toBeNull();
+  });
+});
+
+describe('InspectController — tower long-press target and peek', () => {
+  beforeEach(setupDom);
+
+  const makeTower = (over = {}) => ({
+    x: 200, y: 200, type: 'ice', level: 1, branch: null,
+    damage: 8, range: 115, fireRate: 0.7, pierce: false, ...over,
+  });
+  const sceneWith = (towers, enemies = [], hero = null) =>
+    ({ enemies, hero, placementManager: { getTowers: () => towers } });
+  const ti = () => document.getElementById('tower-inspector');
+
+  it('longPressTargetAt reports a tower within the tap radius and pins nothing', () => {
+    const t = makeTower();
+    const ctrl = new InspectController(sceneWith([t]));
+    expect(ctrl.longPressTargetAt(200 + TAP_TOWER_RADIUS - 1, 200)).toEqual({ kind: 'tower', target: t });
+    expect(ctrl.longPressTargetAt(200 + TAP_TOWER_RADIUS, 200)).toBeNull();
+    expect(ctrl.pinned).toBeNull();
+    expect(ti().style.display).toBe('none');
+  });
+
+  it('longPressTargetAt is null with no placement manager or no towers', () => {
+    expect(new InspectController(makeScene()).longPressTargetAt(200, 200)).toBeNull();
+    expect(new InspectController(sceneWith([])).longPressTargetAt(200, 200)).toBeNull();
+  });
+
+  it('inspectableAt never reports a tower, so a tap on one still reaches the ring', () => {
+    const ctrl = new InspectController(sceneWith([makeTower()]));
+    expect(ctrl.inspectableAt(200, 200)).toBeNull();
+    expect(ctrl.tryClickInspect(200, 200)).toBe(false);
+  });
+
+  it('peekHit shows the tower inspector for a standing tower', () => {
+    const t = makeTower();
+    const ctrl = new InspectController(sceneWith([t]));
+    expect(ctrl.peekHit({ kind: 'tower', target: t })).toBe(true);
+    expect(ti().style.display).toBe('block');
+    expect(document.getElementById('ti-name').textContent).toContain('Ice');
+  });
+
+  it('peekHit refuses a tower sold during the hold', () => {
+    const t = makeTower();
+    const scene = sceneWith([t]);
+    const ctrl = new InspectController(scene);
+    scene.placementManager.getTowers = () => [];
+    expect(ctrl.peekHit({ kind: 'tower', target: t })).toBe(false);
+    expect(ti().style.display).toBe('none');
+  });
+
+  it('peekTower renders level, stats, matchups and the armour line', () => {
+    const ctrl = new InspectController(sceneWith([]));
+    ctrl.peekTower(makeTower(), { left: 300, top: 300, width: 40, height: 40 });
+    expect(document.getElementById('ti-level').textContent).toBe('Level: 1/4');
+    expect(document.getElementById('ti-stats').textContent).toContain('Damage: 8');
+    expect(document.getElementById('ti-matchups').querySelector('.mu-good, .mu-bad')).not.toBeNull();
+    const armour = document.getElementById('ti-armour');
+    expect(armour.style.display).toBe('');
+    expect(armour.querySelector('.ar-head').textContent).toContain('Armour absorbs');
+    expect(armour.querySelector('.ar-floor')).not.toBeNull();
+  });
+
+  it('peekTower hides the armour line for a tower armour barely dents, and clears the last one', () => {
+    const ctrl = new InspectController(sceneWith([]));
+    const rect = { left: 300, top: 300, width: 40, height: 40 };
+    ctrl.peekTower(makeTower(), rect);
+    ctrl.peekTower(makeTower({ type: 'sniper', damage: 80, pierce: true }), rect);
+    const armour = document.getElementById('ti-armour');
+    expect(armour.childNodes.length).toBe(0);
+    expect(armour.style.display).toBe('none');
+  });
+
+  it('peekTower opens beside the anchor rect, not on top of it', () => {
+    const ctrl = new InspectController(sceneWith([]));
+    ctrl.peekTower(makeTower(), { left: 300, top: 300, width: 40, height: 40 });
+    expect(parseFloat(ti().style.left)).toBeGreaterThanOrEqual(340);
+  });
+
+  it('hidePeek hides the tower inspector too', () => {
+    const ctrl = new InspectController(sceneWith([]));
+    ctrl.peekTower(makeTower(), { left: 300, top: 300, width: 40, height: 40 });
+    ctrl.hidePeek();
+    expect(ti().style.display).toBe('none');
     expect(ctrl.peekTarget).toBeNull();
   });
 });

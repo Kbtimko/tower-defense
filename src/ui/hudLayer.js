@@ -1,5 +1,6 @@
 import { CANVAS_WIDTH, WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH, HUD_CELL, HUD_K } from '../data/layout.js';
 import { PEEK_GAP_PX } from '../data/input.js';
+import { radialMetrics } from '../systems/radialLayout.js';
 
 // The HUD is DOM laid out in game px (CANVAS_WIDTH x WORLD_HEIGHT) and pinned
 // over the canvas with the same FIT factor, so one transform keeps every rail
@@ -25,8 +26,22 @@ export function mapRectIn({ gameRect, canvasRect }) {
   };
 }
 
+// Page-coordinate bounds a floating body-level card may occupy: the MAP, so a
+// card near the right edge never covers a rail button (it is z40+ and would
+// swallow the tap). No #game (bare DOM) falls back to the window.
+export function mapRectPage(doc) {
+  const gameEl = doc.getElementById('game');
+  if (!gameEl) {
+    return { left: 0, top: 0, width: window.innerWidth || 1024, height: window.innerHeight || 768 };
+  }
+  const gameRect = gameEl.getBoundingClientRect();
+  const canvas = doc.querySelector('#game canvas');
+  const map = mapRectIn({ gameRect, canvasRect: canvas?.getBoundingClientRect() ?? null });
+  return { ...map, left: map.left + gameRect.left, top: map.top + gameRect.top };
+}
+
 // Also publishes the map rect on #game, so DOM anchored to #game (toast,
-// banners, tower panel) can sit over the map instead of the rails/letterbox.
+// banners) can sit over the map instead of the rails/letterbox.
 export function fitHudLayer(doc, game) {
   const layer = doc.getElementById('hud-layer');
   const gameEl = doc.getElementById('game');
@@ -51,6 +66,9 @@ export function applyHudLayerSize(doc) {
   s.setProperty('--hud-cell', `${HUD_CELL}px`);
   s.setProperty('--hud-k', String(HUD_K));
   s.setProperty('--peek-gap', `${PEEK_GAP_PX}px`);
+  const radial = radialMetrics(HUD_CELL);
+  s.setProperty('--radial-item', `${radial.item}px`);
+  s.setProperty('--radial-hub', `${radial.hub}px`);
 }
 
 // Where a peek card should anchor for a rail control: the control's rows, the

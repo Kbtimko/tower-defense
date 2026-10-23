@@ -37,8 +37,7 @@ function parseRules(text) {
   return rules;
 }
 
-// Kit className strings built in JS (codex entries, story-log entries, tower
-// panel buttons), read from the source so the guard sees what ships. They join
+// Kit className strings built in JS (codex entries, story-log entries), read from the source so the guard sees what ships. They join
 // the static markup in a detached container, so CSS rules aimed at them are
 // checked like any other surface.
 const jsClassNames = readdirSync(new URL('../', import.meta.url), { recursive: true })
@@ -53,8 +52,6 @@ doc.body.appendChild(jsBuilt);
 const JS_SURFACES = {
   'codex-entry': ['ui-btn'],
   'story-log-entry': ['ui-btn'],
-  'upgrade-btn': ['ui-btn', 'ui-btn--currency'],
-  'branch-choose-btn': ['ui-btn', 'ui-btn--currency'],
 };
 
 // The spec's "Kit surfaces" list (Rollout), as it appears in static markup.
@@ -69,10 +66,8 @@ const SURFACES = {
   '#cancel-btn': ['ui-btn', 'ui-btn--danger'],
   '#exit-btn': ['ui-btn', 'ui-btn--danger'],
   '#wave-btn': ['ui-btn', 'ui-btn--danger'],
-  '#tower-panel': ['ui-panel'],
-  '#panel-upgrade-btn': ['ui-btn', 'ui-btn--currency'],
-  '#panel-sell-btn': ['ui-btn', 'ui-btn--danger'],
-  '#panel-reposition-btn': ['ui-btn', 'ui-btn--primary'],
+  '#radial-hub': ['ui-btn'],
+  '.radial-item': ['ui-btn'],
   '#tower-tooltip': ['ui-panel'],
   '#inspect-peek': ['ui-panel'],
   '.inspector-panel': ['ui-panel'],

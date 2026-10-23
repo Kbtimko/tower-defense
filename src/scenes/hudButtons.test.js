@@ -18,8 +18,7 @@ import { TOWER_DEFS } from '../data/towers.js';
 import { PANEL_EDGE_MARGIN, PEEK_GAP_PX } from '../data/input.js';
 
 const BUTTON_IDS = [
-  'wave-btn', 'speed-btn', 'pause-btn', 'panel-upgrade-btn', 'panel-sell-btn',
-  'panel-reposition-btn', 'msg-btn', 'msg-cancel-btn', 'exit-btn', 'cancel-btn',
+  'wave-btn', 'speed-btn', 'pause-btn', 'msg-btn', 'msg-cancel-btn', 'exit-btn', 'cancel-btn',
   'ability-q', 'ability-w', 'ability-e',
 ];
 const TEXT_IDS = ['stat-lives', 'stat-gold', 'stat-wave', 'stat-kills', 'tower-tooltip'];
@@ -46,7 +45,6 @@ function bindBothScenes() {
   const gs = Object.create(GameScene.prototype);
   gs.selectedType = null;
   gs.game = { events: gameEvents() };
-  gs._closeTowerPanel = () => {};
   gs.events = { once() {} }; // _bindDOMEvents registers the shell 'create' hook
   gs._bindDOMEvents();
 
@@ -131,7 +129,6 @@ describe('tower tooltip across levels', () => {
     // Level 2: only GameScene binds again.
     const gs = Object.create(GameScene.prototype);
     gs.selectedType = null;
-    gs._closeTowerPanel = () => {};
     gs.events = { once() {} };
     gs._bindDOMEvents();
 

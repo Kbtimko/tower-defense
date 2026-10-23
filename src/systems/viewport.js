@@ -64,3 +64,15 @@ export function clampPanelWithin(desired, size, rect, margin) {
   const local = clampPanel({ left: desired.left - rect.left, top: desired.top - rect.top }, size, rect, margin);
   return { left: local.left + rect.left, top: local.top + rect.top };
 }
+
+// A peek card beside a whole rect (the radial footprint): right side first, the
+// left when the right has no room, vertically centred, then clamped inside
+// `bounds` (left/top/width/height, e.g. the map rect) so it never leaves the map.
+export function placeBeside(rect, size, bounds, gap, margin) {
+  const right = rect.left + rect.width + gap;
+  const left = rect.left - gap - size.width;
+  const fitsRight = right + size.width <= bounds.left + bounds.width - margin;
+  const fitsLeft = left >= bounds.left + margin;
+  const desiredLeft = fitsRight || !fitsLeft ? right : left;
+  return clampPanelWithin({ left: desiredLeft, top: centredOn(rect, size) }, size, bounds, margin);
+}

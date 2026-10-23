@@ -1,4 +1,5 @@
 import { TowerPlacementManager } from './TowerPlacementManager.js';
+import { sellRefund } from '../data/towers.js';
 import { TOWER_DEFS } from '../data/towers.js';
 
 const makeEconomy = (gold = 500) => ({
@@ -137,5 +138,21 @@ describe('TowerPlacementManager.getNearestSlot', () => {
     const result = mgr.getNearestSlot(210, 100, 100, false);
     expect(result).not.toBeNull();
     expect(result.slotIndex).toBe(1);
+  });
+});
+
+describe('sellRefund', () => {
+  it('equals the original floor(totalCost * 0.6) for every total, including 0 and odd values', () => {
+    for (const total of [0, 1, 59, 60, 61, 137, 330, 1000]) {
+      expect(sellRefund(total)).toBe(Math.floor(total * 0.6));
+    }
+  });
+  it('is what sellTower pays out', () => {
+    const economy = makeEconomy(500);
+    const zones = [{ cx: 1, cy: 1, radius: 22, occupied: false }];
+    const mgr = new TowerPlacementManager(zones, economy, makeFactory());
+    const t = mgr.placeTower(0, 'archer', null);
+    t.totalCost = 137;
+    expect(mgr.sellTower(t)).toBe(sellRefund(137));
   });
 });

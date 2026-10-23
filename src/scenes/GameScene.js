@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { TOWER_DEFS, PROJECTILE_HIT_RADIUS } from '../data/towers.js';
+import { TOWER_DEFS, PROJECTILE_HIT_RADIUS, sellRefund } from '../data/towers.js';
 import { MAPS } from '../data/maps.js';
 import { MAP_WAVES } from '../data/waves.js';
 import { PathManager } from '../systems/PathManager.js';
@@ -25,13 +25,15 @@ import { SOLDIER_MUZZLE, HIT_STOP } from '../data/fx.js';
 import { BUILD_POP, UPGRADE_POP, SELL_FX, SELECTION_RING, PAD_GLOW, RETICLE } from '../data/juice.js';
 import { deathClass, isHeavyHit, canHitStop } from '../systems/hitFx.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
-import { worldToPageCss, clampPanelWithin, placeLeftOf } from '../systems/viewport.js';
+import { placeLeftOf, placeBeside } from '../systems/viewport.js';
+import { attachHint } from '../ui/HintPeek.js';
+import { HINTS } from '../data/hints.js';
 import { WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH } from '../data/layout.js';
 import {
   PANEL_EDGE_MARGIN, TAP_TOWER_RADIUS, TAP_SLOT_RADIUS, TAP_PATH_RADIUS, REPOSITION_SNAP_RADIUS, PEEK_GAP_PX,
 } from '../data/input.js';
 import { pulseClass } from '../ui/pulse.js';
-import { railAnchorRect, mapRectIn } from '../ui/hudLayer.js';
+import { railAnchorRect, mapRectPage } from '../ui/hudLayer.js';
 import { WaveBanner } from '../ui/WaveBanner.js';
 import { bossWarning, padGlowAlpha } from '../systems/juiceMath.js';
 import { PAD_BEACON } from '../data/ambient.js';
@@ -42,8 +44,8 @@ import { starsDisplay }    from '../utils/display.js';
 import { soldierSource, heroAbilitySource } from '../data/sourceBuilders.js';
 import { ENEMY_MELEE_DAMAGE, findBlockingSoldier, heroBlocksEnemy } from '../systems/soldierCombat.js';
 import { AreaEffectsManager } from '../systems/AreaEffectsManager.js';
-import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
-import { describeTowerArmour, armourRowLabel } from '../systems/armourLegibility.js';
+import { describeMatchups } from '../data/weaknessMatrix.js';
+import { appendArmourRows } from '../ui/armourRows.js';
 import { shortEnemyName } from '../systems/entityDescriptors.js';
 import { InspectController } from './InspectController.js';
 import { InputController } from './InputController.js';
@@ -68,8 +70,10 @@ import { SFX_KEYS } from '../systems/AudioManager.js';
 import { towerFireSfxKey } from '../systems/sfxKeys.js';
 import { WavePreviewPopover } from '../ui/WavePreviewPopover.js';
 import { attachLongPress } from '../ui/longPress.js';
-import { createConfirmGate } from '../systems/confirmGate.js';
-import { CONFIRM_WINDOW_MS, PEEK_LINGER_MS } from '../data/input.js';
+import { PEEK_LINGER_MS } from '../data/input.js';
+import { RadialMenu, RADIAL_HUB } from '../ui/RadialMenu.js';
+import { buildItems, ringItems, ringHub, unlockMapNumber, previewRadius } from '../systems/radialItems.js';
+import { describeBranchPreview, describeUpgradeDelta } from '../systems/towerDetail.js';
 import { summarizeWave }      from '../systems/wavePreview.js';
 import { CodexOverlay }       from '../ui/CodexOverlay.js';
 import { shouldAutoPause }    from '../systems/shellLifecycle.js';
@@ -78,6 +82,10 @@ import { buildCatalog, progressFromSave } from '../systems/codexCatalog.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const WAVE_CLEAR_BONUS   = 38;
+// Radial range preview: the same gold / invalid red as the armed-build ring.
+const PREVIEW_OK         = 0xffd700;
+const PREVIEW_BAD        = 0x884444;
+const BUILD_HUB          = 'Build';
 
 // Scripted state for scripts/capture.mjs. Module-level, not a method, so the
 // production build drops it along with its only (dead) call site.
@@ -104,7 +112,7 @@ function applyDebugCapture(scene) {
   if (errors.length) console.warn('[capture] ignored:', errors.join('; '));
   window.__capture = {
     simMs: 0, enemies: 0, errors,
-    // Game-space positions, so the harness can click a tower to open its panel.
+    // Game-space positions, so the harness can click a tower to open its ring.
     towers: placed.map(t => ({ type: t.type, x: t.x, y: t.y })),
     // Jumps straight to a results screen without playing a level out.
     end: (result) => (result === 'victory' ? scene._onVictory() : scene._onDefeat()),
@@ -153,6 +161,8 @@ export default class GameScene extends Phaser.Scene {
     this.killGoldMult = mods.killGoldMult;
     this.rewardMult = map.rewardMult ?? 1;
     this._towerRangeMult = mods.towerRangeMult ?? 1;
+    // Mirrors placeTower's charge so the build radial shows the real price.
+    this._towerCostMult  = mods.towerCostMult ?? 1;
 
     this.pathMgr  = new PathManager(map.waypoints, map.towerSlots, WORLD_WIDTH, WORLD_HEIGHT);
     this.economy  = new EconomyManager(
@@ -202,8 +212,8 @@ export default class GameScene extends Phaser.Scene {
     this.over        = false;
     this.won         = false;
     this.selectedType   = null;
-    this.selectedTower  = null;
-    this._openTowerId   = null;
+    this.selectedTower  = null;   // the tower whose ring is open
+    this._buildSlot     = null;   // the pad the build radial is open on
 
     // Latest pointer world position, used to draw the build-time range ring.
     this._buildCursorX  = 0;
@@ -237,6 +247,9 @@ export default class GameScene extends Phaser.Scene {
     // Per-frame graphics (depth 30) — cleared + redrawn every frame; sits on
     // top of the static layer so hover indicators stay visible.
     this.gfx = this.add.graphics().setDepth(30);
+    // Radial range preview, just above gfx. Redrawn on change rather than
+    // per frame, so it still updates while the scene is paused.
+    this._previewGfx = this.add.graphics().setDepth(31);
 
     // Idle pad glow lives under the unit band: on gfx it would tint towers and
     // units standing on or near a pad.
@@ -268,6 +281,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Wire DOM buttons (use once-registered named functions; shutdown() cleans up via clone)
     this._bindDOMEvents();
+    this._createRadial();
     this._syncCancelButton();
     this._wavePreview = new WavePreviewPopover();
     this._updateHUD();
@@ -346,7 +360,12 @@ export default class GameScene extends Phaser.Scene {
       // Hover is a mouse affordance. Touch synthesises mouseenter on every tap,
       // which flashed the tooltip over the tap that arms a build; touch peeks
       // via long-press instead.
-      btn.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') this._showTowerTooltip(btn); });
+      // A radial peek's pending linger would otherwise hide this tooltip.
+      btn.addEventListener('pointerenter', (e) => {
+        if (e.pointerType !== 'mouse') return;
+        this._clearTooltipLinger();
+        this._showTowerTooltip(btn);
+      });
       btn.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') this._hideTowerTooltip(); });
       this._longPressDetachers.push(attachLongPress(btn, {
         onLongPress: () => { this._clearTooltipLinger(); this._showTowerTooltip(btn); },
@@ -360,9 +379,6 @@ export default class GameScene extends Phaser.Scene {
     document.getElementById('speed-btn').addEventListener('click',         () => this._toggleSpeed());
     // Shutdown's clone keeps the old label, but this.speed resets each level.
     this._renderSpeedButton();
-    this._bindConfirmable(document.getElementById('panel-upgrade-btn'), 'upgrade', () => this._upgradeSelectedTower());
-    this._bindConfirmable(document.getElementById('panel-sell-btn'),    'sell',    () => this._sellSelectedTower());
-    document.getElementById('panel-reposition-btn').addEventListener('click', () => this._startReposition());
     document.getElementById('msg-btn').addEventListener('click', () => this.scene.start('MapSelectScene'));
     document.getElementById('exit-btn').addEventListener('click', () => this._showConfirmExit());
     document.getElementById('msg-cancel-btn').addEventListener('click', () => {
@@ -371,6 +387,10 @@ export default class GameScene extends Phaser.Scene {
     });
     document.getElementById('pause-btn').addEventListener('click', () => this._onPauseToggle());
     document.getElementById('open-codex')?.addEventListener('click', () => this._openCodex());
+    this._hintDetachers = [
+      attachHint(document.getElementById('pause-btn'), () => HINTS.pause),
+      attachHint(document.getElementById('open-codex'), () => HINTS.codex),
+    ];
     this._bindCancelButton();
     this._wireShellListeners();
   }
@@ -401,6 +421,8 @@ export default class GameScene extends Phaser.Scene {
 
   _showConfirmExit() {
     if (this.over || this.won) return;
+    // The paused scene drops canvas taps, but the DOM radial would stay live under the dialog.
+    this._closeRadial();
     this.scene.pause();
     document.getElementById('msg-title').textContent        = 'Abandon level?';
     document.getElementById('msg-body').textContent         = 'Progress on this level will be lost.';
@@ -542,20 +564,26 @@ export default class GameScene extends Phaser.Scene {
     this._inputCtl?.destroy();
     this._inputCtl = null;
     this.inspector?.destroy();
-    // Before the clones below: they keep classes and text, so an armed
-    // "Tap again" label would otherwise greet the next level.
-    this._resetConfirm();
+    // Removes every listener the radial added and restores its markup; the
+    // _onUiCancel above has already closed it.
+    this.radial?.destroy();
+    this.radial = null;
+    this._previewGfx?.destroy();
+    this._previewGfx = null;
     this._clearTooltipLinger();
     // Cancelling the linger above would otherwise strand a peeked tooltip open.
     this._hideTowerTooltip();
     this._longPressDetachers?.forEach(detach => detach());
     this._longPressDetachers = [];
+    // Before the clone below replaces the anchors, so detach hides a shown hint.
+    this._hintDetachers?.forEach(detach => detach());
+    this._hintDetachers = [];
     if (import.meta.env.DEV) window.__game = null;
     this.game.events.off('ui:ability', this._onAbility, this);
     this.game.events.off('ui:pause-toggle', this._onPauseToggle, this);
     this.game.events.off('ui:cancel', this._onUiCancel, this);
     // Remove all DOM listeners without tracking refs: clone replaces the node
-    ['wave-btn','speed-btn','pause-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','msg-cancel-btn','exit-btn','panel-reposition-btn','story-dismiss','open-codex','cancel-btn'].forEach(id => {
+    ['wave-btn','speed-btn','pause-btn','msg-btn','msg-cancel-btn','exit-btn','story-dismiss','open-codex','cancel-btn'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.replaceWith(el.cloneNode(true));
     });
@@ -565,7 +593,6 @@ export default class GameScene extends Phaser.Scene {
     if (cancelBtn) cancelBtn.hidden = true;
     document.querySelectorAll('.tower-btn').forEach(btn => btn.replaceWith(btn.cloneNode(true)));
     document.getElementById('hud-layer').style.display    = 'none';
-    document.getElementById('tower-panel').style.display  = 'none';
     document.getElementById('game-msg').style.display     = 'none';
     document.getElementById('paused-overlay').classList.remove('shown');
     const am = this.game.registry.get('audio');
@@ -872,6 +899,7 @@ export default class GameScene extends Phaser.Scene {
       if (this.hero.dead) return;
       if (this.hero._timers[slot] > 0) return;
       if (this.hero.level < this.hero.def.stats.abilityUnlockLevels[slot]) return;
+      this._closeRadial();
       this.aimMode  = true;
       this._aimSlot = slot;
       this.game.events.emit('hero:aim-mode');
@@ -1225,7 +1253,8 @@ export default class GameScene extends Phaser.Scene {
   // ─── Input ─────────────────────────────────────────────────────────────────
 
   // Canvas tap entry point: InputController calls this on release. The order
-  // (aim -> reposition -> tower -> inspect -> build -> hero) lives in resolveTap.
+  // (aim -> reposition -> radial -> tower -> inspect -> build -> pad -> hero)
+  // lives in resolveTap.
   _onTap(mx, my) {
     const hits = this._tapHits(mx, my);
     this._runTapAction(resolveTap(this._modeState(), hits), mx, my, hits);
@@ -1238,6 +1267,7 @@ export default class GameScene extends Phaser.Scene {
       repositioning: !!(this.repositionMode && this.repositioningBarracks),
       selectedType:  this.selectedType,
       heroDead:      !!this.hero?.dead,
+      radial:        this.radial?.isOpen ? { kind: this.radial.kind, target: this.radial.target } : null,
     };
   }
 
@@ -1253,7 +1283,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _runTapAction(action, mx, my, hits) {
-    if (action.closePanel) this._closeTowerPanel();
+    if (action.closeRadial) this._closeRadial();
     if (action.clearBuild) {
       this.selectedType = null;
       this._deselectButtons();
@@ -1261,11 +1291,12 @@ export default class GameScene extends Phaser.Scene {
     switch (action.type) {
       case 'fireAim':     this._triggerAimAbility(mx, my); break;
       case 'reposition':  this._repositionTo(mx, my); break;
-      case 'openPanel':   this._openPanelFromTap(action.tower, mx, my); break;
+      case 'openRing':    this._openRing(action.tower); break;
+      case 'openBuild':   this._openBuild(action.slot); break;
       // tryClickInspect agrees with inspectableAt (same hit test), so a pin
       // decision is always consumed — a same-target tap dismisses, as today.
       case 'pin':         this.inspector.tryClickInspect(mx, my); break;
-      case 'place':       this._placeAt(hits.slot); break;
+      case 'place':       this._placeAt(hits.slot, this.selectedType); break;
       case 'cancelBuild':
         // Nothing to build on here. Cancel the armed selection instead of
         // swallowing the click: leaving it armed made every subsequent click a
@@ -1278,7 +1309,7 @@ export default class GameScene extends Phaser.Scene {
         break;
       case 'moveHero':    this.hero.moveToProgress(this.pathMgr.getNearestPathProgress(mx, my)); break;
       case 'offPath':     this._toast('Hero can only move along the path'); break;
-      // 'none': a dead hero ignores the tap.
+      // 'none': a dead hero, or a tap that only closed the radial.
     }
   }
 
@@ -1300,18 +1331,12 @@ export default class GameScene extends Phaser.Scene {
     this._repaintStaticLayers();
   }
 
-  _openPanelFromTap(tower, mx, my) {
-    const panelCss = worldToPageCss(this.scale, mx, my);
-    const gRect = document.getElementById('game').getBoundingClientRect();
-    this._openTowerPanel(tower, panelCss.x - gRect.left, panelCss.y - gRect.top);
-  }
-
-  _placeAt(slot) {
-    const tower = this.placementManager.placeTower(slot.slotIndex, this.selectedType, this);
+  _placeAt(slot, type) {
+    const tower = this.placementManager.placeTower(slot.slotIndex, type, this);
     if (!tower) { this._toast('Not enough gold!'); return; }
     this._playTowerPop(tower, BUILD_POP);
     this._repaintStaticLayers();
-    if (this.selectedType === 'barracks') {
+    if (type === 'barracks') {
       tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(slot.x, slot.y);
       tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
     }
@@ -1328,6 +1353,7 @@ export default class GameScene extends Phaser.Scene {
     if (wasAiming) this.game.events.emit('hero:aim-cancel');
     this.repositionMode = false;
     this.repositioningBarracks = null;
+    this._closeRadial();
     this._syncCancelButton();
   }
 
@@ -1354,9 +1380,8 @@ export default class GameScene extends Phaser.Scene {
       this.selectedType = null;
       this._deselectButtons();
     } else {
+      this._closeRadial();
       this.selectedType = type;
-      this.selectedTower = null;
-      this._closeTowerPanel();
       this._deselectButtons();
       btn.classList.add('selected');
     }
@@ -1373,68 +1398,11 @@ export default class GameScene extends Phaser.Scene {
     this._tooltipLinger = null;
   }
 
-  // Touch/pen buy-or-sell needs two presses (a fat-fingered tap on Upgrade or
-  // Sell is costly); a mouse click, or a keyboard activation (detail 0), runs
-  // at once as it always did. The first press relabels the button and arms a
-  // revert; the second press inside CONFIRM_WINDOW_MS runs the action.
-  _bindConfirmable(btn, key, run) {
-    let pointerType = 'mouse';
-    btn.addEventListener('pointerdown', (e) => { pointerType = e.pointerType; });
-    btn.addEventListener('click', (e) => {
-      const touchLike = e.detail > 0 && (pointerType === 'touch' || pointerType === 'pen');
-      if (!touchLike) { this._resetConfirm(); run(); return; }
-      if (this._confirmBtn && this._confirmBtn !== btn) this._resetConfirm();
-      this._confirmGate ??= createConfirmGate();
-      if (this._confirmGate.press(key, Date.now()) === 'confirmed') {
-        this._resetConfirm();
-        run();
-        return;
-      }
-      this._confirmBtn   = btn;
-      this._confirmLabel = btn.textContent;
-      btn.classList.add('confirming');
-      btn.textContent = `Tap again: ${this._confirmLabel}`;
-      this._confirmTimer = setTimeout(() => this._resetConfirm(), CONFIRM_WINDOW_MS);
-    });
-  }
-
-  // Restores the label captured when armed, not a recomputed one: whatever
-  // changes the label (an upgrade re-render) resets first, so the stored text
-  // is always the current one.
-  _resetConfirm() {
-    clearTimeout(this._confirmTimer);
-    this._confirmTimer = null;
-    if (this._confirmBtn) {
-      this._confirmBtn.classList.remove('confirming');
-      this._confirmBtn.textContent = this._confirmLabel;
-    }
-    this._confirmBtn = null;
-    this._confirmGate?.reset();
-  }
-
   _showTowerTooltip(btn) {
     const type = btn.dataset.type;
     const def  = TOWER_DEFS[type];
     if (!def) return;
-    const m = describeMatchups({ kind: 'tower', type, tier: 1, branch: null });
-    const renderEnemyNames = (types) => types.map(shortEnemyName).join(', ');
-    const tt = document.getElementById('tower-tooltip');
-    tt.replaceChildren();
-    const header = document.createElement('strong');
-    header.textContent = `${def.icon} ${def.name} — ${def.cost}g`;
-    tt.appendChild(header);
-    if (m.effective.length) {
-      const line = document.createElement('span');
-      line.className = 'tt-line-good';
-      line.textContent = `Effective vs: ${renderEnemyNames(m.effective)}`;
-      tt.appendChild(line);
-    }
-    if (m.weak.length) {
-      const line = document.createElement('span');
-      line.className = 'tt-line-bad';
-      line.textContent = `Weak vs: ${renderEnemyNames(m.weak)}`;
-      tt.appendChild(line);
-    }
+    const tt = this._fillTowerTooltip(type, this._towerCost(type));
     // Shown before measuring: display:none has no size. The tower buttons sit
     // in the right HUD rail, so the tooltip opens to their left, over the map.
     tt.style.display = 'block';
@@ -1453,227 +1421,242 @@ export default class GameScene extends Phaser.Scene {
     document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('selected'));
   }
 
-  // ─── Tower panel ───────────────────────────────────────────────────────────
+  // Name/cost/effective/weak for a tower type, shared by the rail button
+  // tooltip and the build radial's item peek. `cost` is what the caller
+  // charges, so the radial can show the meta-discounted price.
+  _fillTowerTooltip(type, cost) {
+    const def = TOWER_DEFS[type];
+    const m = describeMatchups({ kind: 'tower', type, tier: 1, branch: null });
+    const renderEnemyNames = (types) => types.map(shortEnemyName).join(', ');
+    const tt = document.getElementById('tower-tooltip');
+    tt.replaceChildren();
+    this._tooltipHeader(tt, `${def.icon} ${def.name} — ${cost}g`);
+    if (m.effective.length) this._tooltipLine(tt, `Effective vs: ${renderEnemyNames(m.effective)}`, 'tt-line-good');
+    if (m.weak.length)      this._tooltipLine(tt, `Weak vs: ${renderEnemyNames(m.weak)}`, 'tt-line-bad');
+    return tt;
+  }
 
-  _openTowerPanel(tower, mx, my) {
-    // Kept so an upgrade reopens from the original tap, not from the already
-    // offset (+10/-10) and clamped panel position, which would drift each time.
-    this._panelAnchor = { x: mx, y: my };
-    this._resetConfirm();
-    this._openTowerId = tower.id ?? null;
-    this.selectedTower = tower;
-    const def = TOWER_DEFS[tower.type];
-    const map = MAPS[this.mapId];
+  _tooltipHeader(tt, text) {
+    const header = document.createElement('strong');
+    header.textContent = text;
+    tt.appendChild(header);
+  }
 
-    const branchLabel = tower.branch ? ` · ${def['tier4' + tower.branch]?.label ?? ''}` : '';
-    document.getElementById('panel-name').textContent = def.icon + ' ' + def.name + branchLabel;
-    document.getElementById('panel-lvl').textContent  = 'Level: ' + tower.level + '/4';
+  _tooltipLine(tt, text, className = 'tt-line') {
+    const line = document.createElement('span');
+    line.className = className;
+    line.textContent = text;
+    tt.appendChild(line);
+    return line;
+  }
 
-    if (tower.type === 'barracks') {
-      document.getElementById('panel-std-stats').style.display      = 'none';
-      document.getElementById('panel-barracks-stats').style.display = 'block';
-      const ss = tower.soldierStats;
-      document.getElementById('panel-soldier-count').textContent   = 'Soldiers: '  + ss.count;
-      document.getElementById('panel-soldier-hp').textContent      = 'HP: '        + ss.hp        + ' each';
-      document.getElementById('panel-soldier-dmg').textContent     = 'DMG: '       + ss.damage    + ' each';
-      document.getElementById('panel-soldier-respawn').textContent = 'Respawn: '   + ss.respawnDuration + 's';
-      document.getElementById('panel-soldier-blocks').textContent  = 'Blocks: '    + (ss.canBlockFlyers ? 'Ground + Air' : 'Ground');
-    } else {
-      document.getElementById('panel-std-stats').style.display      = 'block';
-      document.getElementById('panel-barracks-stats').style.display = 'none';
-      document.getElementById('panel-dmg').textContent = 'Damage: '    + tower.damage;
-      document.getElementById('panel-rng').textContent = 'Range: '     + tower.range;
-      document.getElementById('panel-spd').textContent = 'Fire rate: ' + (tower.fireRate * 100).toFixed(0) + '%';
-    }
+  // ─── Radial menus ──────────────────────────────────────────────────────────
 
-    // Phase 9b: Matchup line — uses safe DOM construction (no innerHTML)
-    const matchupsEl = document.getElementById('panel-matchups');
-    matchupsEl.replaceChildren();
-    const m = describeMatchups({ kind: 'tower', type: tower.type, tier: tower.level, branch: tower.branch });
-    const renderEnemyNames = (types) =>
-      types.map(shortEnemyName).join(', ');
-    if (m.effective.length) {
-      const line = document.createElement('span');
-      line.className = 'mu-good';
-      line.textContent = `Effective vs: ${renderEnemyNames(m.effective)}`;
-      matchupsEl.appendChild(line);
-    }
-    if (m.weak.length) {
-      const line = document.createElement('span');
-      line.className = 'mu-bad';
-      line.textContent = `Weak vs: ${renderEnemyNames(m.weak)}`;
-      matchupsEl.appendChild(line);
-    }
+  // The presenter listens on static #radial markup that outlives the scene;
+  // destroy() in shutdown removes every listener, so a replay wires one copy.
+  _createRadial() {
+    this.radial = new RadialMenu(document, {
+      onActivate: (item) => this._onRadialActivate(item),
+      onPreview:  (item) => this._onRadialPreview(item),
+      onPeek:     (item, rect) => this._onRadialPeek(item, rect),
+    });
+  }
 
-    this._renderArmourLine(tower);
-
-    const upgradeBtn = document.getElementById('panel-upgrade-btn');
-    const picker     = document.getElementById('panel-branch-picker');
-    picker.style.display = 'none';
-    picker.replaceChildren();
-    upgradeBtn.style.display = '';
-
-    if (tower.level === 3 && !tower.branch) {
-      upgradeBtn.style.display = 'none';
-      picker.style.display     = 'block';
-      this._renderBranchPicker(picker, def, map);
-    } else {
-      this._setUpgradeButton(upgradeBtn, tower, def, map);
-    }
-
-    document.getElementById('panel-reposition-btn').style.display =
-      tower.type === 'barracks' ? 'block' : 'none';
-
-    document.getElementById('panel-sell-btn').textContent =
-      '💰 Sell (' + Math.floor(tower.totalCost * 0.6) + 'g)';
-
-    const gameRect = document.getElementById('game').getBoundingClientRect();
-    const canvas   = document.querySelector('#game canvas');
-    const panel    = document.getElementById('tower-panel');
-    // Measure only once populated and displayed (display:none reports 0), so the
-    // clamp uses the real size: the branch picker makes the panel much taller.
-    // Clamped to the map, not #game, so it never covers a rail or the letterbox.
-    panel.style.display = 'block';
-    const spot = clampPanelWithin(
-      { left: mx + 10, top: my - 10 },
-      { width: panel.offsetWidth, height: panel.offsetHeight },
-      mapRectIn({ gameRect, canvasRect: canvas?.getBoundingClientRect() ?? null }),
-      PANEL_EDGE_MARGIN,
-    );
-    panel.style.left = spot.left + 'px';
-    panel.style.top  = spot.top + 'px';
-
-    this.selectedType = null;
-    document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('selected'));
+  _openBuild(slot) {
+    if (this.over || this.won) return;
+    this._closeRadial();
+    this._buildSlot = slot;
+    this.radial.open({
+      kind: 'build', anchor: { x: slot.x, y: slot.y }, items: this._buildItems(), hub: this._hubLines(), target: slot,
+    });
     this._syncCancelButton();
   }
 
-  // Flat armour is subtracted before any multiplier, so a tower at or below an
-  // enemy's armour lands exactly 1 a shot. The Effective/Weak line above cannot
-  // say this — it reads only the multiplicative weakness matrix, which is why an
-  // Ice tower shows no warning at all against a brute it can barely scratch.
-  _renderArmourLine(tower) {
-    const el = document.getElementById('panel-armour');
-    el.replaceChildren();
-
-    // A barracks deals no damage itself; its soldiers are its damage.
-    const damage = tower.type === 'barracks'
-      ? (tower.soldierStats?.damage ?? 0)
-      : tower.damage;
-    const rows = describeTowerArmour({ damage, pierce: Boolean(tower.pierce) });
-
-    if (!rows.length) { el.style.display = 'none'; return; }
-    el.style.display = '';
-
-    const head = document.createElement('span');
-    head.className = 'ar-head';
-    head.textContent = tower.type === 'barracks'
-      ? '🛡 Armour absorbs (soldiers): '
-      : '🛡 Armour absorbs: ';
-
-    appendArmourRows(head, rows);
-    el.appendChild(head);
+  _openRing(tower) {
+    if (this.over || this.won) return;
+    this._closeRadial();
+    this.selectedTower = tower;
+    tower.showRange();
+    this.radial.open({
+      kind: 'tower', anchor: { x: tower.x, y: tower.y }, items: this._ringItems(tower), hub: this._hubLines(), target: tower,
+    });
+    this._syncCancelButton();
   }
 
-  _closeTowerPanel() {
-    this._resetConfirm();
-    document.getElementById('tower-panel').style.display         = 'none';
-    document.getElementById('panel-branch-picker').style.display = 'none';
-    document.getElementById('panel-branch-picker').replaceChildren();
-    document.getElementById('panel-upgrade-btn').style.display   = '';
-    document.getElementById('panel-std-stats').style.display     = 'block';
-    document.getElementById('panel-barracks-stats').style.display = 'none';
-    document.getElementById('panel-reposition-btn').style.display = 'none';
+  _closeRadial() {
+    if (!this.radial?.isOpen) return;
+    this.selectedTower?.hideRange();
     this.selectedTower = null;
+    // Cleared before close(): its preview-clear callback must not re-render a build hub.
+    this._buildSlot = null;
+    this.radial.close();
+    // close() reports the peek ended, which would start a linger; a closed
+    // radial leaves nothing floating.
+    this._clearTooltipLinger();
+    this._hideTowerTooltip();
+    this._peekConfirming = false;
+    this.inspector?.hidePeek();
+    this._previewGfx?.clear();
+    this._syncCancelButton();
   }
 
-  _setUpgradeButton(btn, tower, def, map) {
-    const nextLevel = tower.level + 1;
-    if (tower.level >= 4) {
-      btn.disabled    = true;
-      btn.textContent = 'MAX LEVEL';
-      btn.className   = 'ui-btn ui-btn--currency upgrade-btn maxed';
-    } else if (nextLevel > map.maxTierAllowed) {
-      const unlockMap = nextLevel <= 3 ? 3 : 5;
-      btn.disabled    = true;
-      btn.textContent = '🔒 Unlocked on Map ' + unlockMap;
-      btn.className   = 'ui-btn ui-btn--currency upgrade-btn maxed';
-    } else {
-      btn.disabled    = false;
-      const tierDef   = def['tier' + nextLevel];
-      btn.textContent = 'Upgrade 💰' + tierDef.cost + ': ' + tierDef.label;
-      btn.className   = 'ui-btn ui-btn--currency upgrade-btn';
+  // What placeTower charges (its meta discount included), so the rail, the pad
+  // highlight and the build radial never disagree about a price.
+  _towerCost(type) {
+    return Math.round(TOWER_DEFS[type].cost * (this._towerCostMult ?? 1));
+  }
+
+  _buildItems() {
+    return buildItems({ towerDefs: TOWER_DEFS, gold: this.economy.gold, costMult: this._towerCostMult });
+  }
+
+  _ringItems(tower) {
+    return ringItems({ tower, towerDefs: TOWER_DEFS, map: MAPS[this.mapId], maps: MAPS, gold: this.economy.gold });
+  }
+
+  // Runs on every economy:update (via _updateHUD) and after an upgrade, so
+  // item states track gold live and a bought tier re-renders in place.
+  _refreshRadial() {
+    if (!this.radial?.isOpen) return;
+    if (this.radial.kind === 'build') {
+      this.radial.refresh(this._buildItems(), this._hubLines());
+      return;
+    }
+    const tower = this.selectedTower;
+    if (!this.placementManager.getTowers().includes(tower)) { this._closeRadial(); return; }
+    this.radial.refresh(this._ringItems(tower), this._hubLines());
+  }
+
+  // The hub never carries item text: at 11 CSS px a name does not fit it on a
+  // phone, so names, deltas and the confirm prompt live in the item peek.
+  _hubLines() {
+    return this._buildSlot ? [BUILD_HUB] : ringHub(this.selectedTower, TOWER_DEFS);
+  }
+
+  _onRadialActivate(item) {
+    if (item.id === RADIAL_HUB) { this._closeRadial(); return; }
+    // RadialMenu reports not-ready items too: they must never buy, only say why.
+    if (item.state !== 'ready') { this._explainUnready(item); return; }
+    if (item.towerType) { this._buildFromRadial(item.towerType); return; }
+    switch (item.id) {
+      case 'upgrade':    this._upgradeSelectedTower(); break;
+      case 'branchA':
+      case 'branchB':    this._upgradeSelectedTower(item.branch); break;
+      case 'sell':       this._sellSelectedTower(); break;
+      case 'reposition': this._startReposition(); break;
     }
   }
 
-  _renderBranchPicker(container, def, map) {
-    const towerType = Object.keys(TOWER_DEFS).find(k => TOWER_DEFS[k] === def);
-    const tierLocked = map.maxTierAllowed < 4;
+  _explainUnready(item) {
+    if (item.state === 'disabled') this._toast('Not enough gold!');
+    else if (item.state === 'locked') this._toast(`🔒 Unlocked on Map ${unlockMapNumber(item.tier, MAPS)}`);
+  }
 
-    const header = document.createElement('div');
-    header.className   = 'branch-header';
-    header.textContent = '⚡ Choose Tier 4 Path';
-    container.appendChild(header);
+  _buildFromRadial(type) {
+    const slot = this._buildSlot;
+    this._closeRadial();
+    this._placeAt(slot, type);
+  }
 
-    const cards = document.createElement('div');
-    cards.className = 'branch-cards';
-
-    for (const [branch, tierDef] of [['A', def.tier4A], ['B', def.tier4B]]) {
-      const card = document.createElement('div');
-      card.className = tierLocked ? 'branch-card locked' : 'branch-card';
-
-      const label = document.createElement('div');
-      label.className   = 'branch-label';
-      label.textContent = tierDef.label;
-
-      const effect = document.createElement('div');
-      effect.className   = 'branch-effect';
-      effect.textContent = tierDef.passiveEffect;
-
-      card.append(label, effect);
-
-      const headline = headlineOverride(towerType, branch);
-      if (headline) {
-        const matchup = document.createElement('div');
-        matchup.className = 'branch-matchup';
-        matchup.textContent = `⚡ ${headline.value}× vs ${headline.name}`;
-        card.appendChild(matchup);
-      }
-
-      // The branch pick is the one purchase the armour floor should change:
-      // Permafrost and Shatter look alike on the matchup line above, yet one
-      // loses most of each shot to colossus and titan armour.
-      // Mirror Tower.upgrade: the branch lands its table damage scaled by the
-      // tower's meta-upgrade multiplier, and a branch-set pierce wins.
-      const damageMult = this.selectedTower?._damageMult ?? 1;
-      const damage = Math.round((tierDef.damage ?? 0) * damageMult);
-      const pierce = tierDef.pierce ?? def.pierce;
-      const armourRows = describeTowerArmour({ damage, pierce: Boolean(pierce) });
-      if (armourRows.length) {
-        const armour = document.createElement('div');
-        armour.className = 'branch-armour';
-        armour.textContent = '🛡 ';
-        appendArmourRows(armour, armourRows);
-        card.appendChild(armour);
-      }
-
-      const cost = document.createElement('div');
-      cost.className   = 'branch-cost';
-      cost.textContent = tierDef.cost + 'g';
-
-      const btn = document.createElement('button');
-      btn.className   = 'ui-btn ui-btn--currency upgrade-btn branch-choose-btn';
-      btn.textContent = 'Choose';
-      if (tierLocked) {
-        btn.disabled = true;
-        btn.title    = 'Unlocked on Map 5';
-      }
-      this._bindConfirmable(btn, `branch:${branch}`, () => this._upgradeSelectedTower(branch));
-
-      card.append(cost, btn);
-      cards.appendChild(card);
+  // Redrawn on change, not in update(), so it still updates while paused.
+  _onRadialPreview(item) {
+    const g = this._previewGfx;
+    g?.clear();
+    const at = this._buildSlot ?? this.selectedTower;
+    if (!item || !g || !at) return;
+    const radius = this._buildSlot
+      ? previewRange(item.range, this._towerRangeMult)
+      : previewRadius(item, { rangeMult: at._rangeMult, currentRange: at.range });
+    if (radius == null) return;
+    const ok = item.state === 'ready';
+    g.lineStyle(2, ok ? PREVIEW_OK : PREVIEW_BAD, 0.5);
+    g.strokeCircle(at.x, at.y, radius);
+    if (ok) {
+      g.fillStyle(PREVIEW_OK, 0.07);
+      g.fillCircle(at.x, at.y, radius);
     }
-    container.appendChild(cards);
+  }
+
+  // `item` null means the peek gesture ended; linger as the rail peeks do.
+  _onRadialPeek(item, rect) {
+    this._clearTooltipLinger();
+    if (!item) {
+      // A lapsed or spent confirm must not keep saying "Tap again".
+      if (this._peekConfirming) {
+        this._peekConfirming = false;
+        this._hideTowerTooltip();
+        return;
+      }
+      this._tooltipLinger = setTimeout(() => {
+        this._hideTowerTooltip();
+        this.inspector?.hidePeek();
+      }, PEEK_LINGER_MS);
+      return;
+    }
+    this._peekConfirming = false;
+    if (item.id === RADIAL_HUB) {
+      // Hidden either way: an item peek must not outlive the move to the hub.
+      this._hideTowerTooltip();
+      // A build radial's hub has no tower to describe.
+      if (this.selectedTower) this.inspector?.peekTower(this.selectedTower, rect);
+      return;
+    }
+    // A ring item with no ring tower is a stale event from a closed radial.
+    if (!item.towerType && !this.selectedTower) return;
+    this.inspector?.hidePeek();
+    const tt = item.towerType ? this._fillTowerTooltip(item.towerType, item.cost) : this._fillRingPeek(item);
+    // The touch two-tap confirm prompt: the hub is too small for it on a phone.
+    this._peekConfirming = this.radial?.armedId === item.id;
+    if (this._peekConfirming) tt.prepend(this._tooltipLine(tt, 'Tap again to confirm', 'tt-line-confirm'));
+    // Shown before measuring: display:none has no size.
+    tt.style.display = 'block';
+    const { left, top } = placeBeside(
+      rect,
+      { width: tt.offsetWidth, height: tt.offsetHeight },
+      mapRectPage(document),
+      PEEK_GAP_PX,
+      PANEL_EDGE_MARGIN,
+    );
+    tt.style.left = `${left}px`;
+    tt.style.top  = `${top}px`;
+  }
+
+  _fillRingPeek(item) {
+    const tower = this.selectedTower;
+    const def = TOWER_DEFS[tower.type];
+    const tt = document.getElementById('tower-tooltip');
+    tt.replaceChildren();
+    switch (item.id) {
+      case 'upgrade':
+        if (item.state === 'maxed') { this._tooltipHeader(tt, `${def.name}: maximum level`); break; }
+        this._tooltipHeader(tt, `⬆ ${item.name} — ${item.cost}g`);
+        this._tooltipLine(tt, describeUpgradeDelta(tower, item.tier));
+        if (item.state === 'locked') this._tooltipLine(tt, `🔒 Unlocked on Map ${unlockMapNumber(item.tier, MAPS)}`, 'tt-line-bad');
+        break;
+      case 'branchA':
+      case 'branchB': {
+        const p = describeBranchPreview({
+          towerType: tower.type, branch: item.branch, damageMult: tower._damageMult ?? 1, locked: item.state === 'locked',
+        });
+        this._tooltipHeader(tt, `${p.label} — ${item.cost}g`);
+        this._tooltipLine(tt, p.effect);
+        this._tooltipLine(tt, describeUpgradeDelta(tower, 4, item.branch));
+        if (p.matchup) this._tooltipLine(tt, p.matchup, 'tt-line-good');
+        // The branch pick is the purchase the armour floor changes most.
+        if (p.armourRows.length) appendArmourRows(this._tooltipLine(tt, '🛡 ', 'tt-line-armour'), p.armourRows);
+        if (p.lockText) this._tooltipLine(tt, p.lockText, 'tt-line-bad');
+        break;
+      }
+      case 'sell':
+        this._tooltipHeader(tt, `Sell ${def.name}`);
+        this._tooltipLine(tt, `Refund ${sellRefund(tower.totalCost)}g`);
+        break;
+      case 'reposition':
+        this._tooltipHeader(tt, 'Move');
+        this._tooltipLine(tt, 'Then tap a free pad to move this barracks there.');
+        break;
+    }
+    return tt;
   }
 
   _upgradeSelectedTower(branch = null) {
@@ -1690,7 +1673,7 @@ export default class GameScene extends Phaser.Scene {
       tower._rebuildSoldiers(this, this.pathMgr.getPathPoints());
     }
     this._playTowerPop(tower, UPGRADE_POP);
-    this._openTowerPanel(tower, this._panelAnchor.x, this._panelAnchor.y);
+    this._refreshRadial();
   }
 
   // `pop` is BUILD_POP/UPGRADE_POP: the ring burst always plays, the scale pop
@@ -1708,27 +1691,28 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _sellSelectedTower() {
-    if (!this.selectedTower) return;
+    const tower = this.selectedTower;
+    if (!tower) return;
+    // Closed first so the ring hides the range while the tower still exists.
+    this._closeRadial();
     // Read the position first: sellTower destroys the tower. The tower is still
     // removed this frame; only the effects play on after it.
-    const { x, y } = this.selectedTower;
-    const refund = this.placementManager.sellTower(this.selectedTower);
+    const { x, y } = tower;
+    const refund = this.placementManager.sellTower(tower);
     this._playSellFx(x, y, refund);
     this._repaintStaticLayers();
-    this.selectedTower = null;
-    this._closeTowerPanel();
   }
 
   _startReposition() {
-    if (!this.selectedTower || this.selectedTower.type !== 'barracks') return;
     const barracks = this.selectedTower;
-    this._resetConfirm();
-    document.getElementById('tower-panel').style.display = 'none';
+    if (barracks?.type !== 'barracks') return;
+    this._closeRadial();
     this.repositionMode = true;
     this.repositioningBarracks = barracks;
     this._syncCancelButton();
     this._redrawZones();
-    this._toast('Click on the path within Barracks range to reposition soldiers');
+    // _repositionTo snaps the tap to the nearest free pad and moves the barracks there.
+    this._toast('Tap a free pad to move the barracks there');
   }
 
   _toggleSpeed() {
@@ -1750,9 +1734,10 @@ export default class GameScene extends Phaser.Scene {
     // Runs on every economy:update, so the dimming tracks gold as it moves.
     const gold = this.economy.gold;
     document.querySelectorAll('.tower-btn').forEach(btn => {
-      const cost = TOWER_DEFS[btn.dataset.type]?.cost ?? Infinity;
+      const cost = TOWER_DEFS[btn.dataset.type] ? this._towerCost(btn.dataset.type) : Infinity;
       btn.style.opacity = gold >= cost ? '1' : '0.4';
     });
+    this._refreshRadial();
   }
 
   _updateWaveButton() {
@@ -1812,6 +1797,7 @@ export default class GameScene extends Phaser.Scene {
     const am = this.game.registry.get('audio');
     if (am) am.playSfx('victory');
     this.won = true;
+    this._closeRadial();
     this._syncCancelButton();
     this._commitStats(true);
     const map   = MAPS[this.mapId];
@@ -1846,6 +1832,7 @@ export default class GameScene extends Phaser.Scene {
     const am = this.game.registry.get('audio');
     if (am) am.playSfx('defeat');
     this.over = true;
+    this._closeRadial();
     this._syncCancelButton();
     this._commitStats(false);
     document.getElementById('msg-title').textContent = '💀 Defeat';
@@ -1960,7 +1947,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _drawZones() {
-    const canAfford = this.selectedType && this.economy.gold >= (TOWER_DEFS[this.selectedType]?.cost ?? Infinity);
+    const canAfford = this.selectedType && this.economy.gold >= this._towerCost(this.selectedType);
     const zones = this.placementManager.getZones();
     const glow = this._padGlow;
     glow.clear();
@@ -2033,7 +2020,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _drawSelectionRing() {
-    const t = this.selectedTower;
+    // The ring stays on the pad or tower even when a clamped radial slides off it.
+    const t = this.selectedTower ?? this._buildSlot;
     if (!t) return;
     const pulse = this.game.registry.get('ambientMotion') === false
       ? 1
@@ -2072,25 +2060,3 @@ export default class GameScene extends Phaser.Scene {
   }
 }
 
-function appendArmourRows(parent, rows) {
-  rows.forEach((row, i) => {
-    const span = document.createElement('span');
-    span.className = row.band === 'floored' ? 'ar-floor' : 'ar-heavy';
-    span.textContent = armourRowLabel(row);
-    parent.appendChild(span);
-    if (i < rows.length - 1) parent.appendChild(document.createTextNode(' · '));
-  });
-}
-
-function headlineOverride(towerType, branch) {
-  const cells = TIER4_OVERRIDES[towerType]?.[branch];
-  if (!cells || Object.keys(cells).length === 0) return null;
-  let bestEnemy = null;
-  let bestVal = -Infinity;
-  for (const enemy of Object.keys(cells).sort()) { // alphabetical tiebreak
-    const v = cells[enemy];
-    if (v > bestVal) { bestVal = v; bestEnemy = enemy; }
-  }
-  const niceName = shortEnemyName(bestEnemy);
-  return { enemy: bestEnemy, value: bestVal, name: niceName };
-}

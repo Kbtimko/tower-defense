@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { AbilityTooltip } from '../ui/AbilityTooltip.js';
+import { attachHint } from '../ui/HintPeek.js';
 import { describeAbility } from '../systems/entityDescriptors.js';
 import { cooldownFraction } from '../systems/juiceMath.js';
 
@@ -19,12 +20,19 @@ export default class UIScene extends Phaser.Scene {
     this._heroXpPct    = null;
     this._heroXpAtMax  = null;
     this._heroXpLevel  = null;
+    this._heroXpHint   = '';
 
     document.getElementById('hud-layer').style.display = 'block';
     document.getElementById('game-msg').style.display  = 'none';
 
     this._bindDOMEvents();
     this._subscribeToGameEvents();
+
+    // UIScene owns the hero card, so it (not GameScene) attaches and detaches
+    // this hint: UIScene outlives levels and GameScene's shutdown clone would
+    // strip a foreign listener.
+    this._detachHeroHint?.();
+    this._detachHeroHint = attachHint(document.getElementById('hero-section'), () => this._heroXpHint);
 
     // GameScene paints the stats and wave button itself before launching this
     // scene; only the hero HUD is owned here.
@@ -47,6 +55,8 @@ export default class UIScene extends Phaser.Scene {
 
     this._abilityTip?.destroy();
     this._abilityTip = null;
+    this._detachHeroHint?.();
+    this._detachHeroHint = null;
 
     // Only the ids this scene binds. GameScene binds the rest itself, and
     // cloning one here would strip GameScene's handler along with ours.
@@ -128,6 +138,12 @@ export default class UIScene extends Phaser.Scene {
       const nameEl = btn.querySelector('.ability-name');
       if (keyEl)  keyEl.textContent  = slot.toUpperCase();
       if (nameEl) nameEl.textContent = a.icon;
+      // The face is only a key + glyph and native title= is gone (#42a), so
+      // assistive tech gets the name and effect here. The focusable wrapper
+      // carries it too: a disabled button is skipped by focus.
+      const spoken = `${slot.toUpperCase()}: ${a.label}. ${a.tooltip}`;
+      btn.setAttribute('aria-label', spoken);
+      document.getElementById(`ability-${slot}-wrap`)?.setAttribute('aria-label', spoken);
       btn.classList.add('locked');
       btn.disabled = true;
     }
@@ -169,9 +185,7 @@ export default class UIScene extends Phaser.Scene {
     this._heroXpAtMax = xp.atMax;
     this._heroXpLevel = xp.level;
 
-    const section = document.getElementById('hero-section');
-    if (!section) return;
-    section.title = xp.atMax
+    this._heroXpHint = xp.atMax
       ? `Level ${xp.level} — MAX`
       : `Level ${xp.level} — ${pct}% to Level ${xp.level + 1}`
         + ` · damage dealt ${Math.round(xp.current).toLocaleString('en-US')}`

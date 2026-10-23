@@ -17,7 +17,6 @@ vi.mock('../entities/Projectile.js', () => ({
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import GameScene from './GameScene.js';
-import { RAIL_WIDTH } from '../data/layout.js';
 
 function setupDOM() {
   document.body.replaceChildren();
@@ -58,8 +57,8 @@ function makeScene(overrides = {}) {
     },
     inspector: { inspectableAt: () => null, tryClickInspect: vi.fn(() => true) },
     pathMgr: { isOnPath: () => true, getNearestPathProgress: () => 0.5, getPathPoints: () => [] },
-    _closeTowerPanel: vi.fn(),
-    _openTowerPanel: vi.fn(),
+    _closeRadial: vi.fn(),
+    _openRing: vi.fn(),
     _repaintStaticLayers: vi.fn(),
     _redrawZones: vi.fn(),
     _playTowerPop: vi.fn(),
@@ -91,7 +90,6 @@ describe('Cancel button follows the active mode', () => {
 
   it('shows on reposition entry and hides when a tap cancels it', () => {
     const s = makeScene({ selectedTower: { type: 'barracks' } });
-    document.body.appendChild(Object.assign(document.createElement('div'), { id: 'tower-panel' }));
     s._startReposition();
     expect(cancelShown()).toBe(true);
     s._onTap(400, 300); // no free slot within 60px -> silent cancel, as today
@@ -120,17 +118,14 @@ describe('Cancel button follows the active mode', () => {
     expect(cancelShown()).toBe(false);
   });
 
-  it('hides when tapping a tower clears the build to open its panel', () => {
+  it('hides when tapping a tower clears the build to open its ring', () => {
     const tower = { x: 400, y: 300 };
     const s = makeScene({
       placementManager: { getTowers: () => [tower], getNearestSlot: () => null, getZones: () => [] },
-      scale: { displayScale: { x: 1, y: 1 } },
     });
-    const game = Object.assign(document.createElement('div'), { id: 'game' });
-    document.body.appendChild(game);
     s._selectTowerType('archer', btn('archer'));
     s._onTap(400, 300);
-    expect(s._openTowerPanel).toHaveBeenCalled();
+    expect(s._openRing).toHaveBeenCalledWith(tower);
     expect(cancelShown()).toBe(false);
   });
 });
@@ -205,7 +200,7 @@ describe('_onTap inspect step', () => {
     const s = makeScene({ inspector: { inspectableAt: () => target, tryClickInspect: vi.fn(() => true) } });
     s._onTap(400, 300);
     expect(s.inspector.tryClickInspect).toHaveBeenCalledWith(400, 300);
-    expect(s._closeTowerPanel).toHaveBeenCalled();
+    expect(s._closeRadial).toHaveBeenCalled();
     expect(s.hero.moveToProgress).not.toHaveBeenCalled();
   });
 
@@ -216,11 +211,11 @@ describe('_onTap inspect step', () => {
     expect(s.hero.moveToProgress).toHaveBeenCalledWith(0.5);
   });
 
-  it('a dead hero ignores a path tap but still closes the panel', () => {
+  it('a dead hero ignores a path tap but still closes the radial', () => {
     const s = makeScene();
     s.hero.dead = true;
     s._onTap(400, 300);
-    expect(s._closeTowerPanel).toHaveBeenCalled();
+    expect(s._closeRadial).toHaveBeenCalled();
     expect(s.hero.moveToProgress).not.toHaveBeenCalled();
     expect(s._toast).not.toHaveBeenCalled();
   });
@@ -239,7 +234,7 @@ describe('_onTap inspect step', () => {
     s._onAbility({ slot: 'w' });
     s._onTap(400, 300);
     expect(s.hero.fireAbility).toHaveBeenCalledWith('w', { x: 400, y: 300 });
-    expect(s._openTowerPanel).not.toHaveBeenCalled();
+    expect(s._openRing).not.toHaveBeenCalled();
   });
 });
 
@@ -322,40 +317,22 @@ describe('tap hit radii are pinned', () => {
   });
 });
 
-describe('openPanel honours clearBuild', () => {
+describe('openRing honours clearBuild', () => {
   beforeEach(setupDOM);
 
-  it('clears the armed build and highlight even when the panel opener does not', () => {
-    const s = makeScene({ _openPanelFromTap: vi.fn() });
+  it('clears the armed build and highlight even when the ring opener does not', () => {
+    const s = makeScene();
     s._selectTowerType('archer', btn('archer'));
-    s._runTapAction({ type: 'openPanel', tower: {}, clearBuild: true }, 0, 0, {});
+    s._runTapAction({ type: 'openRing', tower: {}, clearBuild: true }, 0, 0, {});
     expect(s.selectedType).toBeNull();
     expect(document.querySelectorAll('.tower-btn.selected').length).toBe(0);
   });
 
   it('leaves the build armed when clearBuild is absent', () => {
-    const s = makeScene({ _openPanelFromTap: vi.fn() });
+    const s = makeScene();
     s._selectTowerType('archer', btn('archer'));
-    s._runTapAction({ type: 'openPanel', tower: {} }, 0, 0, {});
+    s._runTapAction({ type: 'openRing', tower: {} }, 0, 0, {});
     expect(s.selectedType).toBe('archer');
-  });
-});
-
-describe('_openPanelFromTap', () => {
-  beforeEach(setupDOM);
-
-  it('anchors the panel at the tapped world point, rail offset and FIT scale applied', () => {
-    const s = makeScene({
-      _openTowerPanel: vi.fn(),
-      scale: { canvasBounds: { x: 30, y: 8 }, displayScale: { x: 2, y: 2 } },
-    });
-    const game = Object.assign(document.createElement('div'), { id: 'game' });
-    game.getBoundingClientRect = () => ({ left: 20, top: 8, width: 900, height: 400 });
-    document.body.appendChild(game);
-    const tower = {};
-    s._openPanelFromTap(tower, 100, 50);
-    // page x = 30 + (100 + RAIL_WIDTH) / 2, then made relative to #game.
-    expect(s._openTowerPanel).toHaveBeenCalledWith(tower, 30 + (100 + RAIL_WIDTH) / 2 - 20, 8 + 25 - 8);
   });
 });
 

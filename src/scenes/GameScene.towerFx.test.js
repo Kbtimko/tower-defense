@@ -65,12 +65,12 @@ describe('GameScene tower hooks', () => {
     const ctx = {
       selectedTower: tower,
       placementManager: { sellTower: vi.fn(() => 36) },
-      _playSellFx: vi.fn(), _repaintStaticLayers: vi.fn(), _closeTowerPanel: vi.fn(),
+      _playSellFx: vi.fn(), _repaintStaticLayers: vi.fn(), _closeRadial: vi.fn(),
     };
     proto._sellSelectedTower.call(ctx);
     expect(ctx.placementManager.sellTower).toHaveBeenCalledWith(tower);
     expect(ctx._playSellFx).toHaveBeenCalledWith(1, 2, 36);
-    expect(ctx.selectedTower).toBeNull();
+    expect(ctx._closeRadial).toHaveBeenCalled();
   });
 
   it('_updateTowers advances every tower pop, even ones that do not fire', () => {
@@ -87,9 +87,9 @@ describe('GameScene._upgradeSelectedTower', () => {
   it('plays the upgrade pop only after a successful upgrade', () => {
     const tower = { level: 1, type: 'archer', x: 0, y: 0 };
     const ctx = {
-      selectedTower: tower, mapId: 0, _panelAnchor: { x: 1, y: 2 },
+      selectedTower: tower, mapId: 0,
       placementManager: { upgradeTower: vi.fn(() => true) },
-      _playTowerPop: vi.fn(), _openTowerPanel: vi.fn(), _toast: vi.fn(),
+      _playTowerPop: vi.fn(), _refreshRadial: vi.fn(), _toast: vi.fn(),
     };
     proto._upgradeSelectedTower.call(ctx);
     expect(ctx._playTowerPop).toHaveBeenCalledWith(tower, UPGRADE_POP);

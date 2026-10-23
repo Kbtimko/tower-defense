@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gameToPageCss, pageToGame, worldToPageCss, pageToWorld, clampPanel, placeLeftOf, placeRightOf, clampPanelWithin } from './viewport.js';
+import { gameToPageCss, pageToGame, worldToPageCss, pageToWorld, clampPanel, placeLeftOf, placeRightOf, placeBeside, clampPanelWithin } from './viewport.js';
 import { RAIL_WIDTH, CANVAS_WIDTH, WORLD_WIDTH, WORLD_HEIGHT } from '../data/layout.js';
 
 describe('gameToPageCss', () => {
@@ -171,5 +171,36 @@ describe('clampPanelWithin', () => {
   });
   it('clamps off the left rail and the top letterbox', () => {
     expect(clampPanelWithin({ left: 10, top: 0 }, size, rect, 6)).toEqual({ left: 91 + 6, top: 8 + 6 });
+  });
+});
+
+// The radial item peek sits beside the ring's whole footprint, so it never covers an item.
+describe('placeBeside', () => {
+  const bounds = { left: 0, top: 0, width: 1280, height: 720 };
+  const size = { width: 200, height: 100 };
+  const rect = { left: 500, top: 300, width: 300, height: 300 };
+
+  it('prefers the right of the rect, by the gap, centred vertically', () => {
+    expect(placeBeside(rect, size, bounds, 10, 8)).toEqual({ left: 500 + 300 + 10, top: 300 + (300 - 100) / 2 });
+  });
+  it('flips to the left when the right side has no room', () => {
+    const r = { ...rect, left: 900 };
+    expect(placeBeside(r, size, bounds, 10, 8)).toEqual({ left: 900 - 10 - 200, top: 400 });
+  });
+  it('clamps vertically inside bounds with the margin', () => {
+    expect(placeBeside({ ...rect, top: -40, height: 100 }, size, bounds, 10, 8).top).toBe(8);
+    expect(placeBeside({ ...rect, top: 700, height: 100 }, size, bounds, 10, 8).top).toBe(720 - 100 - 8);
+  });
+  it('honours a bounds origin (the map inside #game)', () => {
+    const b = { left: 91, top: 8, width: 662, height: 372 };
+    const p = placeBeside({ left: 91 + 100, top: 8 + 50, width: 150, height: 150 }, { width: 170, height: 60 }, b, 6, 6);
+    expect(p.left).toBe(91 + 100 + 150 + 6);
+    expect(p.top).toBe(8 + 50 + 45);
+  });
+  it('stays inside bounds when neither side fits', () => {
+    const b = { left: 0, top: 0, width: 300, height: 300 };
+    const p = placeBeside({ left: 60, top: 60, width: 180, height: 180 }, { width: 200, height: 50 }, b, 10, 8);
+    expect(p.left).toBeGreaterThanOrEqual(8);
+    expect(p.left + 200).toBeLessThanOrEqual(300 - 8);
   });
 });

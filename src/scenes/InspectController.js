@@ -2,10 +2,12 @@ import { describeEnemyMatchups } from '../data/weaknessMatrix.js';
 import { shortEnemyName } from '../systems/entityDescriptors.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { HEROES } from '../data/heroes.js';
-import { worldToPageCss, clampPanelWithin } from '../systems/viewport.js';
-import { mapRectIn } from '../ui/hudLayer.js';
-import { PANEL_EDGE_MARGIN } from '../data/input.js';
+import { worldToPageCss, clampPanelWithin, placeBeside } from '../systems/viewport.js';
+import { mapRectPage } from '../ui/hudLayer.js';
+import { PANEL_EDGE_MARGIN, PEEK_GAP_PX, TAP_TOWER_RADIUS } from '../data/input.js';
 import { heroAttackDamage } from '../systems/heroLeveling.js';
+import { describeTowerDetail } from '../systems/towerDetail.js';
+import { appendArmourRows } from '../ui/armourRows.js';
 
 export class InspectController {
   constructor(scene) {
@@ -28,6 +30,14 @@ export class InspectController {
     return null;
   }
 
+  // Touch long-press only. Kept out of inspectableAt on purpose: a TAP on a
+  // tower must reach the tap pipeline (it opens the ring), so only a held press
+  // falls back to inspecting one. Side-effect-free, like inspectableAt.
+  longPressTargetAt(mx, my) {
+    const tower = this._towers().find(t => Math.hypot(t.x - mx, t.y - my) < TAP_TOWER_RADIUS);
+    return tower ? { kind: 'tower', target: tower } : null;
+  }
+
   // Called by GameScene._onTap. Returns true if the tap was consumed — including
   // a same-target dismiss — so it agrees with inspectableAt by construction.
   tryClickInspect(mx, my) {
@@ -48,6 +58,12 @@ export class InspectController {
   // now. Returns false (no peek) if it died or left the field meanwhile.
   peekHit(hit) {
     const t = hit.target;
+    if (hit.kind === 'tower') {
+      // Sold during the hold: nothing left to describe.
+      if (!this._towers().includes(t)) return false;
+      this.peekTower(t, this._towerRectPage(t));
+      return true;
+    }
     const live = hit.kind === 'enemy'
       ? !t.dead && this.scene.enemies.includes(t)
       : !t.dead;
@@ -102,6 +118,17 @@ export class InspectController {
       if (Math.hypot(e.x - mx, e.y - my) <= r) return e;
     }
     return null;
+  }
+
+  _towers() {
+    return this.scene.placementManager?.getTowers() ?? [];
+  }
+
+  // The tower's tap footprint in page px, so the card clears the sprite.
+  _towerRectPage(tower) {
+    const a = worldToPageCss(this.scene?.scale, tower.x - TAP_TOWER_RADIUS, tower.y - TAP_TOWER_RADIUS);
+    const b = worldToPageCss(this.scene?.scale, tower.x + TAP_TOWER_RADIUS, tower.y + TAP_TOWER_RADIUS);
+    return { left: a.x, top: a.y, width: b.x - a.x, height: b.y - a.y };
   }
 
   _hitTestHero(mx, my) {
@@ -313,25 +340,57 @@ export class InspectController {
   hidePeek() {
     this.peekTarget = null;
     document.getElementById('inspect-peek').style.display = 'none';
+    document.getElementById('tower-inspector').style.display = 'none';
   }
 
-  // Page-coordinate bounds a floating card may occupy: the MAP, so a card pinned
-  // near the right edge never covers a rail button (it is body-level, z40, and
-  // would swallow the tap). No #game (bare DOM) falls back to the window.
-  _mapBoundsPage() {
-    const gameEl = document.getElementById('game');
-    if (!gameEl) {
-      return { left: 0, top: 0,
-        width: window.innerWidth || 1024, height: window.innerHeight || 768 };
+  // Peek-only (never pinned): a tap on a tower opens the ring, so there is no
+  // free gesture left to pin with. `anchorRect` is in page px — the tower on the
+  // canvas, or the ring hub — and the card opens beside it, not over it.
+  peekTower(tower, anchorRect) {
+    this.peekTarget = tower;
+    document.getElementById('inspect-peek').style.display = 'none';
+    const d = describeTowerDetail(tower);
+    document.getElementById('ti-name').textContent = d.name;
+    document.getElementById('ti-level').textContent = d.level;
+
+    const stats = document.getElementById('ti-stats');
+    stats.replaceChildren(...d.stats.map((text) => {
+      const line = document.createElement('div');
+      line.className = 'inspector-stat';
+      line.textContent = text;
+      return line;
+    }));
+
+    const matchups = document.getElementById('ti-matchups');
+    matchups.replaceChildren(...d.matchups.map(({ tone, text }) => {
+      const line = document.createElement('span');
+      line.className = tone === 'good' ? 'mu-good' : 'mu-bad';
+      line.textContent = text;
+      return line;
+    }));
+
+    const armour = document.getElementById('ti-armour');
+    armour.replaceChildren();
+    if (d.armour) {
+      const head = document.createElement('span');
+      head.className = 'ar-head';
+      head.textContent = d.armour.head;
+      appendArmourRows(head, d.armour.rows);
+      armour.appendChild(head);
     }
-    const gameRect = gameEl.getBoundingClientRect();
-    const canvas = document.querySelector('#game canvas');
-    const map = mapRectIn({ gameRect, canvasRect: canvas?.getBoundingClientRect() ?? null });
-    return { ...map, left: map.left + gameRect.left, top: map.top + gameRect.top };
+    armour.style.display = d.armour ? '' : 'none';
+
+    const el = document.getElementById('tower-inspector');
+    // Measured once populated and displayed: display:none reports 0.
+    el.style.display = 'block';
+    const size = { width: el.offsetWidth || 220, height: el.offsetHeight || 100 };
+    const spot = placeBeside(anchorRect, size, mapRectPage(document), PEEK_GAP_PX, PANEL_EDGE_MARGIN);
+    el.style.left = `${spot.left}px`;
+    el.style.top  = `${spot.top}px`;
   }
 
   _positionPanel(el, targetX, targetY) {
-    const map = this._mapBoundsPage();
+    const map = mapRectPage(document);
     const size = { width: el.offsetWidth || 220, height: el.offsetHeight || 100 };
     let left = targetX + 24;
     // Prefer opening to the target's left over sliding on top of it.

@@ -43,7 +43,6 @@ function setupDOM() {
   document.body.textContent = '';
   el('div', { id: 'hud-layer', display: 'block' });
   el('button', { id: 'open-codex' });
-  el('div', { id: 'tower-panel', display: 'block' });
   const gameMsg = el('div', { id: 'game-msg', display: 'block' });
   el('button', { id: 'msg-btn' }, gameMsg);
   el('button', { id: 'msg-cancel-btn' }, gameMsg);
@@ -54,9 +53,6 @@ function setupDOM() {
   el('button', { id: 'wave-btn' }, bar);
   el('button', { id: 'speed-btn' });
   el('button', { id: 'pause-btn' });
-  el('button', { id: 'panel-upgrade-btn' });
-  el('button', { id: 'panel-sell-btn' });
-  el('button', { id: 'panel-reposition-btn' });
   el('button', { id: 'story-dismiss' });
 
   const codex  = el('div', { id: 'codex-overlay', display: 'none' });

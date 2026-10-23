@@ -68,6 +68,12 @@ describe('rail CSS scales with --hud-k', () => {
     expect(railRules.length).toBeGreaterThanOrEqual(20);
   });
 
+  // #radial sits inside #hud-layer, so its rules must be walked by the same guard.
+  it('finds the radial rules', () => {
+    const hits = (sel) => railRules.some((r) => r.selector.split(',').some((p) => stripPseudo(p.trim()) === sel));
+    for (const sel of ['#radial', '#radial-hub', '.radial-item']) expect(hits(sel), sel).toBe(true);
+  });
+
   it('never keeps a bare px length in a rail rule', () => {
     const bad = [];
     for (const { selector, body } of railRules) {
@@ -85,6 +91,11 @@ describe('rail CSS scales with --hud-k', () => {
   // The kit's 1u ring must equal today's 2px rail ring at both k values.
   it('.hud-rail scales the kit unit with --hud-k', () => {
     const rule = parseRules(css).find((r) => r.selector === '.hud-rail');
+    expect(rule.body).toMatch(/--ui-u:\s*calc\(2px \* var\(--hud-k\)\)/);
+  });
+
+  it('#radial scales the kit unit with --hud-k too', () => {
+    const rule = parseRules(css).find((r) => r.selector === '#radial');
     expect(rule.body).toMatch(/--ui-u:\s*calc\(2px \* var\(--hud-k\)\)/);
   });
 });

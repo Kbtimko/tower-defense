@@ -28,7 +28,6 @@ function el(tag, attrs, parent) {
 function setupDOM() {
   document.body.textContent = '';
   el('div', { id: 'hud-layer', display: 'block' });
-  el('div', { id: 'tower-panel', display: 'block' });
   const gameMsg = el('div', { id: 'game-msg', display: 'block' });
   el('button', { id: 'msg-btn' }, gameMsg);
   el('button', { id: 'msg-cancel-btn' }, gameMsg);
@@ -39,9 +38,6 @@ function setupDOM() {
   el('button', { id: 'wave-btn' }, bar);
   el('button', { id: 'speed-btn' });
   el('button', { id: 'pause-btn' });
-  el('button', { id: 'panel-upgrade-btn' });
-  el('button', { id: 'panel-sell-btn' });
-  el('button', { id: 'panel-reposition-btn' });
   el('button', { id: 'story-dismiss' });
 }
 
@@ -95,10 +91,9 @@ function makeScene() {
 describe('GameScene.shutdown', () => {
   beforeEach(setupDOM);
 
-  it('hides the hud layer/tower-panel/game-msg and clears the paused-overlay shown class', () => {
+  it('hides the hud layer/game-msg and clears the paused-overlay shown class', () => {
     makeScene().shutdown();
     expect(document.getElementById('hud-layer').style.display).toBe('none');
-    expect(document.getElementById('tower-panel').style.display).toBe('none');
     expect(document.getElementById('game-msg').style.display).toBe('none');
     expect(document.getElementById('paused-overlay').classList.contains('shown')).toBe(false);
   });
