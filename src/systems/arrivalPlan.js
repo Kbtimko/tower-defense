@@ -26,7 +26,7 @@ export function planArrival({ from, stars }) {
   const prevStars = count(from.prevStars);
   const earned = count(from.stars);
   if (earned <= prevStars) return NONE;
-  const newStars = earned - prevStars;
+  const newStars = earned;
   if (prevStars > 0) return { kind: 'stamp', mapId, toId: null, newStars, prevStars };
 
   const before = stars.slice();
@@ -39,9 +39,10 @@ export function planArrival({ from, stars }) {
 export function arrivalFrame(plan, tMs, A = ARRIVAL) {
   const t = tMs;
   const focus = span(t, 0, A.focusMs);
-  const shown = Math.min(plan.newStars, t < A.stampStartMs ? 0 : Math.floor((t - A.stampStartMs) / A.stampEachMs) + 1);
+  const toShow = plan.newStars - plan.prevStars;
+  const shown = Math.min(toShow, t < A.stampStartMs ? 0 : Math.floor((t - A.stampStartMs) / A.stampEachMs) + 1);
   const stamped = plan.prevStars + shown;
-  const stampsEnd = A.stampStartMs + plan.newStars * A.stampEachMs;
+  const stampsEnd = A.stampStartMs + toShow * A.stampEachMs;
 
   if (plan.kind === 'none') {
     return { focus: 1, stamped: plan.prevStars, shipT: 0, trailT: 0, frontT: 0, nextLit: false, cardOpen: true, done: true };

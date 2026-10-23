@@ -31,7 +31,7 @@ describe('planArrival', () => {
   });
   it('stamp when a cleared map improves', () => {
     expect(planArrival({ from: win(0, 1, 3), stars: withStars({ 0: 3 }) })).toMatchObject({
-      kind: 'stamp', mapId: 0, newStars: 2, prevStars: 1,
+      kind: 'stamp', mapId: 0, newStars: 3, prevStars: 1,
     });
   });
   it('complete on first clear of the last map', () => {
@@ -82,6 +82,7 @@ describe('arrivalFrame', () => {
     expect(arrivalFrame(p, 599).done).toBe(false);
     expect(arrivalFrame(p, 600)).toMatchObject({ done: true, stamped: 3, shipT: 0, trailT: 0, frontT: 0 });
     expect(arrivalFrame(p, Infinity)).toMatchObject({ shipT: 0, done: true });
+    expect(arrivalFrame(p, Infinity).stamped).toBe(p.newStars);
   });
   it('none: done at t = 0', () => {
     expect(arrivalFrame(planArrival({ from: undefined, stars: zeros() }), 0).done).toBe(true);
