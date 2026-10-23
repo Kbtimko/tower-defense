@@ -282,6 +282,17 @@ describe('MapSelectScene world map', () => {
       expect(scene.scene.start).toHaveBeenCalledTimes(1);
     });
 
+    // The guard is for the title's tap or key, never for a browser shortcut (Cmd+R).
+    it.each(['ctrlKey', 'metaKey', 'altKey'])('lets a %s shortcut through during the window', (mod) => {
+      seedSave(PARTIAL);
+      enter();
+      for (const type of ['keydown', 'keyup']) {
+        const ev = new KeyboardEvent(type, { bubbles: true, cancelable: true, key: 'r', [mod]: true });
+        document.body.dispatchEvent(ev);
+        expect(ev.defaultPrevented, type).toBe(false);
+      }
+    });
+
     it.each(['pointerdown', 'pointerup', 'click', 'keydown', 'keyup'])('blocks %s during the window', (type) => {
       seedSave(PARTIAL);
       enter();

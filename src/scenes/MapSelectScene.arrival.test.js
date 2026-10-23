@@ -246,6 +246,36 @@ describe('MapSelectScene post-win arrival (spec 2.3)', () => {
       expect($('.ow-node.active').dataset.mapId).toBe('0');
     });
 
+    // A held key auto-repeats keydown; a repeat is still the same gesture.
+    it('a held key\'s repeat keydowns are swallowed and do not end the gesture swallow', () => {
+      seedSave(AFTER_FIRST_CLEAR);
+      enter({ from: FIRST_CLEAR_0 });
+      vi.advanceTimersByTime(LAYOUT.inputGuardMs);
+      node(0).dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter' }));
+      expect(arrival()).toBe('done');
+      const repeat = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter', repeat: true });
+      node(0).dispatchEvent(repeat);
+      expect(repeat.defaultPrevented).toBe(true);
+      const up = new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: 'Enter' });
+      node(0).dispatchEvent(up);
+      expect(up.defaultPrevented).toBe(true);
+      const next = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter' });
+      node(0).dispatchEvent(next);
+      expect(next.defaultPrevented).toBe(false);
+    });
+
+    it('a browser shortcut (Ctrl/Cmd/Alt) mid-arrival is neither prevented nor a skip', () => {
+      seedSave(AFTER_FIRST_CLEAR);
+      enter({ from: FIRST_CLEAR_0 });
+      vi.advanceTimersByTime(LAYOUT.inputGuardMs);
+      for (const mod of ['ctrlKey', 'metaKey', 'altKey']) {
+        const ev = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'r', [mod]: true });
+        document.body.dispatchEvent(ev);
+        expect(ev.defaultPrevented, mod).toBe(false);
+      }
+      expect(arrival()).toBe('playing');
+    });
+
     it('a skip followed by shutdown leaves zero net document / #map-select listeners', () => {
       const rootLive = trackLive($('#map-select'));
       const docLive = trackLive(document);

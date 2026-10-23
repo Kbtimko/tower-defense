@@ -33,6 +33,12 @@ const GESTURE_TAIL = ['pointerup', 'click', 'keyup'];
 const GESTURE_START = ['pointerdown', 'keydown'];
 const ONE_SHOT_CLASSES = ['wm-stamp', 'wm-fade'];
 
+// Ctrl/Cmd/Alt combos are the browser's (reload, new tab, back); no swallow or
+// skip may eat them.
+function isBrowserShortcut(e) {
+  return e.ctrlKey || e.metaKey || e.altKey;
+}
+
 function lerp(a, b, t) {
   return a + (b - a) * t;
 }
@@ -186,7 +192,7 @@ export default class MapSelectScene extends Phaser.Scene {
   // gesture, however long it is held, so it can't select or launch. A key that
   // the entry guard already swallowed (it shares document capture) is ignored.
   _skipArrival(e) {
-    if (this._guardTimer) return;
+    if (this._guardTimer || isBrowserShortcut(e)) return;
     e.preventDefault();
     e.stopPropagation();
     this._finishArrival();
@@ -199,8 +205,13 @@ export default class MapSelectScene extends Phaser.Scene {
     for (const type of GESTURE_START) document.addEventListener(type, this._endGestureSwallow, true);
   }
 
-  // The next gesture's first event passes through untouched.
-  _endGestureSwallow() {
+  // The next gesture's first event passes through untouched. A held key's
+  // auto-repeat is still the skip's gesture: swallowed, and the swallow stays.
+  _endGestureSwallow(e) {
+    if (e?.repeat) {
+      this._swallowTail(e);
+      return;
+    }
     for (const type of GESTURE_TAIL) document.removeEventListener(type, this._swallowTail, true);
     for (const type of GESTURE_START) document.removeEventListener(type, this._endGestureSwallow, true);
   }
@@ -291,6 +302,7 @@ export default class MapSelectScene extends Phaser.Scene {
   }
 
   _swallow(e) {
+    if (isBrowserShortcut(e)) return;
     e.preventDefault();
     e.stopPropagation();
   }
