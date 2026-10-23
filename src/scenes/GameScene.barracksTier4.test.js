@@ -26,7 +26,7 @@ import { MAPS } from '../data/maps.js';
 
 const html = readFileSync(join(__dirname, '..', '..', 'index.html'), 'utf8');
 const panelMarkup = html.slice(
-  html.indexOf('<div id="tower-panel">'),
+  html.indexOf('<div id="tower-panel"'),
   html.indexOf('</div>', html.indexOf('id="panel-sell-btn"')) + '</div>'.length,
 );
 
@@ -73,6 +73,8 @@ describe('tier-3 barracks panel (#44)', () => {
     const buttons = document.querySelectorAll('#panel-branch-picker .branch-choose-btn');
     expect(buttons.length).toBe(2);
     buttons.forEach(b => expect(b.disabled).toBe(true));
+    // Built in JS, so the kit classes ride in the className string (3.1).
+    buttons.forEach(b => expect([...b.classList]).toEqual(expect.arrayContaining(['ui-btn', 'ui-btn--currency'])));
   });
 
   it('buys the chosen path: Vanguard soldiers block flyers', () => {
@@ -97,5 +99,8 @@ describe('tier-3 barracks panel (#44)', () => {
       .toContain(TOWER_DEFS.barracks.tier4A.label);
     expect(document.getElementById('panel-soldier-blocks').textContent).toBe('Blocks: Ground + Air');
     expect(document.getElementById('panel-upgrade-btn').textContent).toBe('MAX LEVEL');
+    // _setUpgradeButton rewrites className; the kit must survive it.
+    expect([...document.getElementById('panel-upgrade-btn').classList])
+      .toEqual(expect.arrayContaining(['ui-btn', 'ui-btn--currency', 'maxed']));
   });
 });

@@ -253,7 +253,7 @@ export default class MapSelectScene extends Phaser.Scene {
       } else {
         for (const e of entries) {
           const btn = document.createElement('button');
-          btn.className = 'story-log-entry';
+          btn.className = 'ui-btn story-log-entry';
           btn.textContent = e.label;
           btn.addEventListener('click', () => {
             overlay.style.display = 'none';

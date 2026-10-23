@@ -40,6 +40,8 @@ describe('CodexOverlay', () => {
     // Derived, not hardcoded: a hardcoded 6 would silently stop catching a
     // new tower being added without a codex entry.
     expect(dom.list.querySelectorAll('.codex-entry').length).toBe(Object.keys(TOWER_DEFS).length);
+    // Entries are built in JS, so the kit button class rides in className (3.1).
+    expect(dom.list.querySelectorAll('.codex-entry:not(.ui-btn)').length).toBe(0);
   });
 
   it('switches tabs', () => {

@@ -1591,17 +1591,17 @@ export default class GameScene extends Phaser.Scene {
     if (tower.level >= 4) {
       btn.disabled    = true;
       btn.textContent = 'MAX LEVEL';
-      btn.className   = 'upgrade-btn maxed';
+      btn.className   = 'ui-btn ui-btn--currency upgrade-btn maxed';
     } else if (nextLevel > map.maxTierAllowed) {
       const unlockMap = nextLevel <= 3 ? 3 : 5;
       btn.disabled    = true;
       btn.textContent = '🔒 Unlocked on Map ' + unlockMap;
-      btn.className   = 'upgrade-btn maxed';
+      btn.className   = 'ui-btn ui-btn--currency upgrade-btn maxed';
     } else {
       btn.disabled    = false;
       const tierDef   = def['tier' + nextLevel];
       btn.textContent = 'Upgrade 💰' + tierDef.cost + ': ' + tierDef.label;
-      btn.className   = 'upgrade-btn';
+      btn.className   = 'ui-btn ui-btn--currency upgrade-btn';
     }
   }
 
@@ -1661,7 +1661,7 @@ export default class GameScene extends Phaser.Scene {
       cost.textContent = tierDef.cost + 'g';
 
       const btn = document.createElement('button');
-      btn.className   = 'upgrade-btn branch-choose-btn';
+      btn.className   = 'ui-btn ui-btn--currency upgrade-btn branch-choose-btn';
       btn.textContent = 'Choose';
       if (tierLocked) {
         btn.disabled = true;

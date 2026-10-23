@@ -107,7 +107,7 @@ export class CodexOverlay {
 
     for (const entry of entries) {
       const btn = document.createElement('button');
-      btn.className = 'codex-entry';
+      btn.className = 'ui-btn codex-entry';
       if (!entry.encountered) btn.classList.add('codex-unseen');
 
       const icon = document.createElement('span');
