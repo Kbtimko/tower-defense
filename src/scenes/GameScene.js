@@ -43,7 +43,8 @@ import { soldierSource, heroAbilitySource } from '../data/sourceBuilders.js';
 import { ENEMY_MELEE_DAMAGE, findBlockingSoldier, heroBlocksEnemy } from '../systems/soldierCombat.js';
 import { AreaEffectsManager } from '../systems/AreaEffectsManager.js';
 import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
-import { describeTowerArmour, armourRowLabel } from '../systems/armourLegibility.js';
+import { describeTowerArmour } from '../systems/armourLegibility.js';
+import { appendArmourRows } from '../ui/armourRows.js';
 import { shortEnemyName } from '../systems/entityDescriptors.js';
 import { InspectController } from './InspectController.js';
 import { InputController } from './InputController.js';
@@ -2070,16 +2071,6 @@ export default class GameScene extends Phaser.Scene {
   _redrawZones() {
     // Placeholder — redrawn every frame in update()
   }
-}
-
-function appendArmourRows(parent, rows) {
-  rows.forEach((row, i) => {
-    const span = document.createElement('span');
-    span.className = row.band === 'floored' ? 'ar-floor' : 'ar-heavy';
-    span.textContent = armourRowLabel(row);
-    parent.appendChild(span);
-    if (i < rows.length - 1) parent.appendChild(document.createTextNode(' · '));
-  });
 }
 
 function headlineOverride(towerType, branch) {

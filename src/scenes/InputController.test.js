@@ -39,6 +39,7 @@ function makeScene(displayScale = 1) {
     inspector: {
       onPointerMove: vi.fn(),
       inspectableAt: vi.fn(() => HIT),
+      longPressTargetAt: vi.fn(() => null),
       peekHit: vi.fn(() => true),
       hidePeek: vi.fn(),
     },
@@ -49,6 +50,7 @@ function makeScene(displayScale = 1) {
 }
 
 const HIT = { kind: 'enemy', target: { x: 100, y: 100 } };
+const TOWER_HIT = { kind: 'tower', target: { x: 100, y: 100, type: 'archer' } };
 
 const MAP_CAMERA = { id: 'main' };
 
@@ -263,6 +265,50 @@ describe('InputController', () => {
       scene.input.fire('pointerupoutside', ptr(100, 100, { touch: true }));
       vi.advanceTimersByTime(PEEK_LINGER_MS);
       expect(scene.inspector.hidePeek).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('long-press on a tower (touch)', () => {
+    beforeEach(() => {
+      scene.inspector.inspectableAt.mockReturnValue(null);
+      scene.inspector.longPressTargetAt.mockReturnValue(TOWER_HIT);
+    });
+
+    it('falls back to the tower, peeks it and swallows the release', () => {
+      press(100, 100, { touch: true });
+      expect(scene.inspector.longPressTargetAt).toHaveBeenCalledWith(100, 100);
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      expect(scene.inspector.peekHit).toHaveBeenCalledWith(TOWER_HIT);
+      release(100, 100, { touch: true });
+      expect(scene._onTap).not.toHaveBeenCalled();
+    });
+
+    it('lingers the tower peek after release, then hides it', () => {
+      press(100, 100, { touch: true });
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      release(100, 100, { touch: true });
+      vi.advanceTimersByTime(PEEK_LINGER_MS);
+      expect(scene.inspector.hidePeek).toHaveBeenCalledTimes(1);
+    });
+
+    it('a quick tap on a tower is still a tap (opens the ring)', () => {
+      press(100, 100, { touch: true });
+      release(100, 100, { touch: true });
+      expect(scene.inspector.peekHit).not.toHaveBeenCalled();
+      expect(scene._onTap).toHaveBeenCalledWith(100, 100);
+    });
+
+    it('an enemy or the hero under the finger wins over the tower', () => {
+      scene.inspector.inspectableAt.mockReturnValue(HIT);
+      press(100, 100, { touch: true });
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      expect(scene.inspector.longPressTargetAt).not.toHaveBeenCalled();
+      expect(scene.inspector.peekHit).toHaveBeenCalledWith(HIT);
+    });
+
+    it('a mouse press never asks for a tower', () => {
+      press(100, 100);
+      expect(scene.inspector.longPressTargetAt).not.toHaveBeenCalled();
     });
   });
 

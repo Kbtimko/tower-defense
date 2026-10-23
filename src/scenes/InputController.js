@@ -11,8 +11,9 @@ import { classifyGesture } from '../systems/inputGesture.js';
 //    finger lifts. A mouse click is never a drag in practice, so desktop is
 //    unchanged.
 //  - long-press (touch only, held still): when the press landed on an
-//    inspectable target it swallows the release, so an inspect hold never moves
-//    the hero, fires an armed aim or cancels a build. The target is hit-tested at
+//    inspectable target (enemy or hero, else a tower) it swallows the release,
+//    so an inspect hold never moves the hero, fires an armed aim, cancels a
+//    build or opens a tower's ring. The target is hit-tested at
 //    the press (enemies walk 17-81px in 450ms, well past their 11-15px hit
 //    radius) and peeked where it is when the timer fires; if it died during the
 //    hold the press is still consumed. A slow press on empty ground is NOT an
@@ -73,7 +74,11 @@ export class InputController {
       downMs: Date.now(), movedPx: 0, consumed: false, target: null,
     };
     if (!pointer.wasTouch) return;
-    this._press.target = this.scene.inspector?.inspectableAt(pointer.worldX, pointer.worldY) ?? null;
+    // An enemy or the hero wins; a tower is only a long-press target, because a
+    // tap on it must still open the ring.
+    const inspector = this.scene.inspector;
+    this._press.target = inspector?.inspectableAt(pointer.worldX, pointer.worldY)
+      ?? inspector?.longPressTargetAt(pointer.worldX, pointer.worldY) ?? null;
     this._longPressTimer = setTimeout(this._onLongPress, LONG_PRESS_MS);
   }
 
