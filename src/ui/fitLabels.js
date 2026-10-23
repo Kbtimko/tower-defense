@@ -67,7 +67,7 @@ export function railLabels(root) {
 // pause/speed/wave buttons relabel, the stats tick on every kill).
 export function watchRailLabels(doc) {
   const layer = doc.getElementById('hud-layer');
-  if (!layer) return;
+  if (!layer) return () => {};
   let all = false;
   const changed = new Set();
   let queued = false;
@@ -89,4 +89,8 @@ export function watchRailLabels(doc) {
   }).observe(layer, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['hidden'] });
   new MutationObserver(refitAll).observe(layer, { attributes: true, attributeFilter: ['style'] });
   doc.fonts?.ready.then(refitAll);
+  // ready resolves immediately while the rails are display:none (a face only
+  // starts loading once a level shows them), so a late face is signalled here.
+  doc.fonts?.addEventListener?.('loadingdone', refitAll);
+  return refitAll;
 }

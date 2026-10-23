@@ -35,6 +35,7 @@ import { railAnchorRect, mapRectIn } from '../ui/hudLayer.js';
 import { WaveBanner } from '../ui/WaveBanner.js';
 import { bossWarning, padGlowAlpha } from '../systems/juiceMath.js';
 import { PAD_BEACON } from '../data/ambient.js';
+import { FONTS } from '../data/theme.js';
 import { beaconAlpha, beaconLevel } from '../systems/padBeacon.js';
 import { STORY_PANELS, briefKey, victorySequenceId, STORY_SEQUENCES } from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
@@ -1591,17 +1592,17 @@ export default class GameScene extends Phaser.Scene {
     if (tower.level >= 4) {
       btn.disabled    = true;
       btn.textContent = 'MAX LEVEL';
-      btn.className   = 'upgrade-btn maxed';
+      btn.className   = 'ui-btn ui-btn--currency upgrade-btn maxed';
     } else if (nextLevel > map.maxTierAllowed) {
       const unlockMap = nextLevel <= 3 ? 3 : 5;
       btn.disabled    = true;
       btn.textContent = '🔒 Unlocked on Map ' + unlockMap;
-      btn.className   = 'upgrade-btn maxed';
+      btn.className   = 'ui-btn ui-btn--currency upgrade-btn maxed';
     } else {
       btn.disabled    = false;
       const tierDef   = def['tier' + nextLevel];
       btn.textContent = 'Upgrade 💰' + tierDef.cost + ': ' + tierDef.label;
-      btn.className   = 'upgrade-btn';
+      btn.className   = 'ui-btn ui-btn--currency upgrade-btn';
     }
   }
 
@@ -1661,7 +1662,7 @@ export default class GameScene extends Phaser.Scene {
       cost.textContent = tierDef.cost + 'g';
 
       const btn = document.createElement('button');
-      btn.className   = 'upgrade-btn branch-choose-btn';
+      btn.className   = 'ui-btn ui-btn--currency upgrade-btn branch-choose-btn';
       btn.textContent = 'Choose';
       if (tierLocked) {
         btn.disabled = true;
@@ -1919,8 +1920,8 @@ export default class GameScene extends Phaser.Scene {
   _setupRoad(map) {
     const p = this.pathMgr.path;
     if (roadRendererFor(map) === 'legacy') {
-      this.add.text(p[0].x, p[0].y, 'IN',  { fontSize: '10px', color: '#fff', fontFamily: 'Georgia', fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
-      this.add.text(p[p.length-1].x, p[p.length-1].y, 'OUT', { fontSize: '10px', color: '#fff', fontFamily: 'Georgia', fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
+      this.add.text(p[0].x, p[0].y, 'IN',  { fontSize: '10px', color: '#fff', fontFamily: FONTS.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
+      this.add.text(p[p.length-1].x, p[p.length-1].y, 'OUT', { fontSize: '10px', color: '#fff', fontFamily: FONTS.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
       return;
     }
     const key = bakeRoad(this, {

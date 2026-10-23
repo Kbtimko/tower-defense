@@ -1,3 +1,5 @@
+import { FONTS } from '../data/theme.js';
+
 const POOL_SIZE = 24;
 const THRESHOLD = 30;
 // A floored tower fires continuously; without a per-enemy gate the screen
@@ -5,11 +7,11 @@ const THRESHOLD = 30;
 const ABSORBED_COOLDOWN_MS = 700;
 
 const STYLES = {
-  big:  { fontSize: '16px', color: '#ffffff', stroke: '#000000', strokeThickness: 2 },
-  aoe:  { fontSize: '16px', color: '#ff9966', stroke: '#000000', strokeThickness: 2 },
+  big:  { fontFamily: FONTS.body, fontSize: '16px', color: '#ffffff', stroke: '#000000', strokeThickness: 2 },
+  aoe:  { fontFamily: FONTS.body, fontSize: '16px', color: '#ff9966', stroke: '#000000', strokeThickness: 2 },
   // Muted and small on purpose: this marks a hit that barely landed, and must
   // not read as a good one.
-  absorbed: { fontSize: '13px', color: '#9aa4b0', stroke: '#000000', strokeThickness: 2 },
+  absorbed: { fontFamily: FONTS.body, fontSize: '13px', color: '#9aa4b0', stroke: '#000000', strokeThickness: 2 },
 };
 
 export class DamageNumberOverlay {

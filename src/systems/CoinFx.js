@@ -30,7 +30,7 @@ export class CoinFx {
     this._texts = [];
     for (let i = 0; i < GOLD_POP.maxLive; i++) {
       const txt = scene.add.text(0, 0, '', {
-        fontSize: GOLD_POP.fontSize, color: GOLD_POP.color, stroke: GOLD_POP.stroke, strokeThickness: GOLD_POP.strokeThickness,
+        fontFamily: GOLD_POP.fontFamily, fontSize: GOLD_POP.fontSize, color: GOLD_POP.color, stroke: GOLD_POP.stroke, strokeThickness: GOLD_POP.strokeThickness,
         fontStyle: GOLD_POP.fontStyle,
       });
       txt.setOrigin(0.5, 0.5);

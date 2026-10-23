@@ -66,8 +66,94 @@ Shared by FX, damage numbers and UI icons, and never reused for anything else:
 | danger | `#f07a7a` | lives lost, sell, defeat |
 | text | `#e8e0d0` | body text (current `body` colour) |
 
-Fonts are decided in 3.1 (bundled OFL via `@fontsource`; the roadmap proposes
-Orbitron headings + Rajdhani/Exo 2 body). Georgia is the stopgap.
+The six tokens above are the source of truth: `PALETTE` in `src/data/theme.js`
+must equal them (a test parses this table). Everything below is derived from
+them by mixing, so the UI never grows a hue this table doesn't name.
+
+#### Type
+Bundled OFL faces via `@fontsource`, latin subset only (3 woff2, ~36 KB).
+`TYPE_SCALE` in `src/data/theme.js` gives the sizes (`--ui-fs-xs` 11 px … `--ui-fs-title` 32 px).
+
+| Role | Family / weight | Size | Where |
+|---|---|---|---|
+| Heading | Orbitron 700 (`--ui-font-heading`) | ≥ 16 px only | map-select title, game-message title, codex/settings/story-log/upgrade/hero-management titles, paused overlay, wave banners, wave-preview title |
+| Body | Rajdhani 500 (`--ui-font-body`) | `--ui-fs-xs` (11 px) minimum | body text, story narration, codex lore, overlays |
+| Emphasis / small names | Rajdhani 700 | < 16 px | tower panel and inspector names (Orbitron is too wide this small) |
+| HUD rail labels | Rajdhani (`--hud-label-font`) | `calc(24px * var(--hud-k))` | every rail button and stat |
+
+- **Orbitron ≥ 16 px only.** It is a wide display face; smaller titles use Rajdhani 700.
+- **Nothing below 11 px.** Rajdhani's thin strokes vanish on navy below that size.
+- Fallback stacks, so a blocked or missing font can't overflow:
+  - heading: `"Orbitron", "Bahnschrift", "Segoe UI", system-ui, sans-serif` (every fallback is narrower than Orbitron)
+  - body: `"Rajdhani", "Avenir Next Condensed", "Arial Narrow", "Roboto Condensed", sans-serif-condensed, "Bahnschrift SemiCondensed", "Helvetica Neue", Arial, sans-serif` (the pre-3.1 condensed HUD stack, so the failure layout is the old layout)
+- No serif and no monospace anywhere in the game UI (the map editor, a dev tool, keeps monospace).
+
+#### Derived tokens
+`deriveShades(PALETTE, MIX)` in `src/ui/theme.js`; `mix(a, b, t)` moves `t` of the
+way from `a` to `b`. Ratios live in `MIX` (`src/data/theme.js`). Published as
+`--ui-<kebab-name>` (e.g. `faceHover_primary` → `--ui-face-hover-primary`). If a
+ratio changes, regenerate the hexes here from `deriveShades`.
+
+| Token | Formula | Resolved |
+|---|---|---|
+| text-muted | mix(text, panel, 0.3) | `#a7a39c` |
+| text-dim | mix(text, panel, 0.55) | `#717071` |
+| face-disabled | mix(panel, panel-edge, 0.12) | `#121929` |
+| bevel-hi | mix(panel-edge, text, 0.4) | `#767c80` |
+| bevel-lo | mix(panel, black, 0.55) | `#070910` |
+| face-neutral | mix(panel, panel-edge, 0.3) | `#171f2f` |
+| face-primary / -danger / -currency | mix(panel, hue, 0.06) | `#131f31` / `#1d1a29` / `#1d2022` |
+| face-hover-* | mix(face, hue, 0.04) | neutral `#182030`, primary `#152639`, danger `#251e2c`, currency `#262721` |
+| face-pressed-* | mix(face, panel, 0.5) | neutral `#131a2a`, primary `#111a2b`, danger `#161727`, currency `#161a23` |
+| glow-* | mix(face, hue, 0.45) | neutral `#202b3b`, primary `#2e698a`, danger `#7c454d`, currency `#837213` |
+| edge-* | the variant hue | neutral = panel-edge, primary = accent, danger = danger, currency = currency |
+| edge-hover-* | mix(edge, text, 0.35) | neutral `#6d7479`, primary `#85cde9`, danger `#ed9e98`, currency `#f7da49` |
+| ink-* | the variant ink | neutral = text, primary = accent, danger = danger, currency = currency |
+
+Hue per variant: neutral = panel-edge, primary = accent, danger = danger,
+currency = currency. Effect strengths (`EFFECTS`): scanline alpha 0.03 (≤ 0.04;
+0 is the moiré kill switch), sheen 0.05, glow 50 % at rest / 80 % hover / 90 %
+armed. A test holds every ink at ≥ 4.5:1 on its normal and hover face after the
+scanline and sheen are composited, and text-dim at ≥ 3:1 on face-disabled.
+
+#### Components
+`.ui-panel` (optionally `.ui-panel--primary`) and `.ui-btn` with a variant
+class (`.ui-btn--primary`, `--danger`, `--currency`; neutral is the default).
+Surface recipe: a face colour under two background images (a vertical sheen
+above a soft scanline, period 3u), then box-shadows listed front to back (the
+first-listed shadow paints frontmost): inset 1u edge ring → upper-left bevel
+highlight and lower-right shade (the §1 key light), each offset 2u so a 1u band
+shows just inside the ring → 6u inner glow. Panels add an outer drop shadow via
+`--panel-drop`; surfaces flush with the map (rails) or parked off-screen (story
+banner) set it to `0 0 0 transparent`, since it is the one layer painted outside the box.
+
+| State | Selectors | Neutral | Primary | Danger | Currency |
+|---|---|---|---|---|---|
+| normal | `.ui-btn` | panel-edge ring, text ink | accent ring and ink | danger ring and ink | gold ring and ink |
+| hover (fine pointers) | `:hover` under `@media (hover: hover)` | face-hover, ring lifted to edge-hover, glow 80 % | same | same | same |
+| pressed | `:active`, `.is-pressed` | face-pressed, bevel swapped, glow off | same | same | same |
+| selected | `.selected`, `.active` | face-pressed, bevel swapped, accent ring, accent glow 80 % | same | same | same |
+| armed (two-step confirm) | `.is-armed`, `.confirming` | gold ring, gold glow 90 % | same | same | same |
+| disabled | `:disabled`, `.is-disabled`, `.disabled`, `.locked`, `.maxed` | face-disabled, text-dim ink, panel-edge ring, no glow, `not-allowed` | same | same | same |
+| focus | `:focus-visible` | 1u accent outline, offset −2u | same | same | same |
+
+States stack in that order: disabled beats armed beats selected beats pressed beats hover.
+
+#### Kit rules
+- **The kit paints, surfaces lay out.** Kit rules set only `background-color`,
+  `background-image`, `box-shadow`, `color`, `cursor`, `transition` and the focus
+  outline, plus a zero-specificity border reset on buttons. Size, padding, radius
+  and font-size belong to the surface. Surfaces restyle by setting `--btn-*` /
+  `--panel-*` vars, never by repainting. The kit never uses the `background`
+  shorthand (it would reset `background-clip`, which the rail's transparent touch
+  gutter relies on) and never draws its ring with `border`.
+- **Every kit length is `calc(N * var(--ui-u))`.** `--ui-u` is 1 px at `:root`,
+  `calc(2px * var(--hud-k))` on `.hud-rail` (so a 1u ring equals the old rail
+  ring) and 2 px in `.wave-preview`. Anything built on `--ui-u` (scanline period,
+  bevel offset, glow blur) is written inside the `.ui-*` rule, never composed in a
+  `:root` custom property: a custom property resolves `var()` where it is
+  declared, so a root-composed value would carry the 1 px unit into the rails.
+  `src/ui/themeCss.test.js` enforces both rules.
 
 ### Biome moods (feeds 1.4 grading and 1.9 ambient FX)
 | Map | Name | Ambient family | Grade direction |

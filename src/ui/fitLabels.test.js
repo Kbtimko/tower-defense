@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { fittedFontPx, fitLabels, textWidthOf } from './fitLabels.js';
+import { fittedFontPx, fitLabels, textWidthOf, watchRailLabels } from './fitLabels.js';
 
 describe('fittedFontPx', () => {
   it('keeps the size when the label fits', () => {
@@ -115,5 +115,57 @@ describe('fitLabels convergence', () => {
     Object.defineProperty(btn, 'clientWidth', { configurable: true, get: () => 82 });
     fitLabels([btn], { baseFontPx: () => 24, measureText: el => el.scrollWidth });
     expect(btn.scrollWidth).toBeLessThanOrEqual(82);
+  });
+});
+
+describe('watchRailLabels late fonts', () => {
+  // The rails are display:none at boot, so fonts.ready can resolve before the
+  // bundled face starts loading; loadingdone is the only signal it arrived.
+  function setup(fonts) {
+    document.body.replaceChildren();
+    const layer = document.createElement('div');
+    layer.id = 'hud-layer';
+    layer.className = 'hud-rail';
+    const cell = document.createElement('div');
+    cell.className = 'hud-stat';
+    const span = document.createElement('span');
+    // fitLabels clears the inline size first, so the base must come from CSS.
+    const css = document.createElement('style');
+    css.textContent = '.hud-stat > span { font-size: 24px; }';
+    document.head.appendChild(css);
+    cell.appendChild(span);
+    layer.appendChild(cell);
+    document.body.appendChild(layer);
+    Object.defineProperty(span, 'offsetWidth', { configurable: true, get: () => 100 * (parseFloat(span.style.fontSize || 24) / 24) });
+    Object.defineProperty(cell, 'clientWidth', { configurable: true, get: () => 50 });
+    const doc = { getElementById: id => document.getElementById(id), fonts };
+    return { doc, span };
+  }
+  const flushFrames = () => vi.stubGlobal('requestAnimationFrame', cb => cb());
+
+  it('refits every rail label on loadingdone', () => {
+    flushFrames();
+    const fonts = new EventTarget();
+    fonts.ready = new Promise(() => {});
+    const { doc, span } = setup(fonts);
+    watchRailLabels(doc);
+    expect(span.style.fontSize).toBe('');
+    fonts.dispatchEvent(new Event('loadingdone'));
+    expect(span.style.fontSize).toBe('12px');
+    vi.unstubAllGlobals();
+  });
+
+  it('returns a refitAll hook for the theme-font promise', () => {
+    flushFrames();
+    const { doc, span } = setup(undefined);
+    const refitAll = watchRailLabels(doc);
+    refitAll();
+    expect(span.style.fontSize).toBe('12px');
+    vi.unstubAllGlobals();
+  });
+
+  it('tolerates a doc without fonts', () => {
+    const { doc } = setup(undefined);
+    expect(() => watchRailLabels(doc)).not.toThrow();
   });
 });

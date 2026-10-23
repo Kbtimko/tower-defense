@@ -9,11 +9,122 @@
     html, body { height: 100%; }
     /* Coarse pointers only: on desktop this would disable trackpad swipe-back. */
     @media (pointer: coarse) { html, body { overscroll-behavior: none; } }
-    body { background: #1a1a2e; font-family: 'Georgia', serif; color: #e8e0d0;
+    /* The fallback covers the pre-JS paint (rotate prompt) before applyTheme runs. */
+    body { background: #1a1a2e; font-family: var(--ui-font-body, sans-serif); color: #e8e0d0;
            overflow: hidden; height: 100vh; height: 100dvh;
            touch-action: manipulation; -webkit-tap-highlight-color: transparent;
            padding: env(safe-area-inset-top) env(safe-area-inset-right)
                     env(safe-area-inset-bottom) env(safe-area-inset-left); }
+    /* Form controls don't inherit font-family from the UA sheet. Family only: the
+       `font` shorthand would also reset the UA control font-size. */
+    button, input, select, textarea { font-family: inherit; }
+    /* Titles >= 16 px take the display face; smaller names stay Rajdhani 700. */
+    #map-select-title, #game-msg h2, #codex-overlay-title, #settings-overlay-title,
+    #story-log-inner h3, #upgrade-overlay-title, #hero-mgmt-overlay-title,
+    #paused-overlay, #wave-banner, #wave-banner-boss, .wp-title { font-family: var(--ui-font-heading); }
+
+    /* ── UI kit (roadmap 3.1) ────────────────────────────────────────────────
+       Procedural panel/button surfaces: gradients plus stacked inset shadows
+       stretch like a 9-slice with fixed-size edges. The kit PAINTS ONLY; each
+       surface keeps its own size, padding, radius and font-size, and customises
+       the look by setting --btn-* / --panel-* rather than repainting.
+       - Never `background` shorthand: it resets background-clip, and the rail
+         buttons' transparent border is their touch gutter.
+       - The ring is a box-shadow, never a border. The first-listed shadow paints
+         frontmost, so the bevels are offset 2u: the 1u ring covers the outer
+         band and a 1u bevel shows just inside it.
+       - Every length is calc(N * var(--ui-u)): 1px at :root, 2px*k on the rails,
+         2px in the wave preview. Lengths built on --ui-u live in these rules,
+         never in a :root custom property, which would freeze the 1px unit.
+       Existing state classes are aliases so no JS has to rename anything.
+       src/ui/themeCss.test.js enforces all of the above. */
+    .ui-panel {
+      --panel-face: var(--ui-panel);
+      --panel-edge: var(--ui-panel-edge);
+      --panel-glow: var(--ui-glow-neutral);
+      --panel-glow-a: var(--ui-glow-rest);
+      /* The only layer painted outside the box; flush or parked surfaces set
+         it to `0 0 0 transparent` (a valid no-op inside the shadow list). */
+      --panel-drop: 0 calc(3 * var(--ui-u)) calc(14 * var(--ui-u)) rgba(0,0,0,0.5);
+      background-color: var(--panel-face);
+      background-image:
+        linear-gradient(to bottom, rgba(255,255,255,var(--ui-sheen-alpha)), transparent),
+        repeating-linear-gradient(to bottom, transparent 0, rgba(255,255,255,var(--ui-scanline-alpha)) calc(1.5 * var(--ui-u)), transparent calc(3 * var(--ui-u)));
+      box-shadow:
+        inset 0 0 0 calc(1 * var(--ui-u)) var(--panel-edge),
+        inset calc(2 * var(--ui-u)) calc(2 * var(--ui-u)) 0 var(--ui-bevel-hi),
+        inset calc(-2 * var(--ui-u)) calc(-2 * var(--ui-u)) 0 var(--ui-bevel-lo),
+        inset 0 0 calc(6 * var(--ui-u)) color-mix(in srgb, var(--panel-glow) var(--panel-glow-a), transparent),
+        var(--panel-drop);
+      color: var(--ui-text);
+    }
+    .ui-panel--primary { --panel-edge: var(--ui-edge-primary); --panel-glow: var(--ui-glow-primary); }
+
+    /* Zero specificity: drops the UA button border without beating the rail's
+       transparent gutter border (or any surface's own border). */
+    :where(.ui-btn) { border: none; }
+    .ui-btn {
+      --btn-face: var(--ui-face-neutral);
+      --btn-face-hover: var(--ui-face-hover-neutral);
+      --btn-face-pressed: var(--ui-face-pressed-neutral);
+      --btn-edge: var(--ui-edge-neutral);
+      --btn-edge-hover: var(--ui-edge-hover-neutral);
+      --btn-glow: var(--ui-glow-neutral);
+      --btn-ink: var(--ui-ink-neutral);
+      --btn-glow-a: var(--ui-glow-rest);
+      --btn-bevel-hi: var(--ui-bevel-hi);
+      --btn-bevel-lo: var(--ui-bevel-lo);
+      background-color: var(--btn-face);
+      background-image:
+        linear-gradient(to bottom, rgba(255,255,255,var(--ui-sheen-alpha)), transparent),
+        repeating-linear-gradient(to bottom, transparent 0, rgba(255,255,255,var(--ui-scanline-alpha)) calc(1.5 * var(--ui-u)), transparent calc(3 * var(--ui-u)));
+      box-shadow:
+        inset 0 0 0 calc(1 * var(--ui-u)) var(--btn-edge),
+        inset calc(2 * var(--ui-u)) calc(2 * var(--ui-u)) 0 var(--btn-bevel-hi),
+        inset calc(-2 * var(--ui-u)) calc(-2 * var(--ui-u)) 0 var(--btn-bevel-lo),
+        inset 0 0 calc(6 * var(--ui-u)) color-mix(in srgb, var(--btn-glow) var(--btn-glow-a), transparent);
+      color: var(--btn-ink);
+      cursor: pointer;
+      transition: background-color 0.12s, box-shadow 0.12s, color 0.12s;
+    }
+    .ui-btn--primary {
+      --btn-face: var(--ui-face-primary); --btn-face-hover: var(--ui-face-hover-primary);
+      --btn-face-pressed: var(--ui-face-pressed-primary); --btn-edge: var(--ui-edge-primary);
+      --btn-edge-hover: var(--ui-edge-hover-primary);
+      --btn-glow: var(--ui-glow-primary); --btn-ink: var(--ui-ink-primary); }
+    .ui-btn--danger {
+      --btn-face: var(--ui-face-danger); --btn-face-hover: var(--ui-face-hover-danger);
+      --btn-face-pressed: var(--ui-face-pressed-danger); --btn-edge: var(--ui-edge-danger);
+      --btn-edge-hover: var(--ui-edge-hover-danger);
+      --btn-glow: var(--ui-glow-danger); --btn-ink: var(--ui-ink-danger); }
+    .ui-btn--currency {
+      --btn-face: var(--ui-face-currency); --btn-face-hover: var(--ui-face-hover-currency);
+      --btn-face-pressed: var(--ui-face-pressed-currency); --btn-edge: var(--ui-edge-currency);
+      --btn-edge-hover: var(--ui-edge-hover-currency);
+      --btn-glow: var(--ui-glow-currency); --btn-ink: var(--ui-ink-currency); }
+    /* State rules follow in cascade order: on equal specificity the later one
+       wins, so disabled beats armed beats selected beats pressed beats hover. Hover is fine
+       pointers only, or a tap would leave it stuck on. */
+    @media (hover: hover) {
+      /* The ring carries hover: neutral's face step alone is 1/255. */
+      .ui-btn:hover { background-color: var(--btn-face-hover); --btn-edge: var(--btn-edge-hover); --btn-glow-a: var(--ui-glow-hover); }
+    }
+    .ui-btn:active, .ui-btn.is-pressed {
+      background-color: var(--btn-face-pressed);
+      --btn-bevel-hi: var(--ui-bevel-lo); --btn-bevel-lo: var(--ui-bevel-hi); --btn-glow-a: 0%; }
+    /* Selected is a resting state the player has to find among identical
+       neighbours (armed tower, active tab), so it keeps the sunk bevel but
+       lights an accent ring and glow: accent is the bible's selection hue. */
+    .ui-btn.selected, .ui-btn.active {
+      background-color: var(--btn-face-pressed);
+      --btn-bevel-hi: var(--ui-bevel-lo); --btn-bevel-lo: var(--ui-bevel-hi);
+      --btn-edge: var(--ui-accent); --btn-glow: var(--ui-accent); --btn-glow-a: var(--ui-glow-hover); }
+    .ui-btn.is-armed, .ui-btn.confirming {
+      --btn-edge: var(--ui-edge-currency); --btn-glow: var(--ui-edge-currency); --btn-glow-a: var(--ui-glow-armed); }
+    .ui-btn:disabled, .ui-btn.is-disabled, .ui-btn.disabled, .ui-btn.locked, .ui-btn.maxed {
+      background-color: var(--ui-face-disabled); color: var(--ui-text-dim);
+      --btn-edge: var(--ui-edge-neutral); --btn-glow-a: 0%; cursor: not-allowed; }
+    .ui-btn:focus-visible { outline: calc(1 * var(--ui-u)) solid var(--ui-accent); outline-offset: calc(-2 * var(--ui-u)); }
     /* ── Side-rail HUD (roadmap 2.2) ─────────────────────────────────────────
        #hud-layer is laid out in GAME px (the canvas is CANVAS_WIDTH x WORLD_HEIGHT,
        sizes from src/data/layout.js via custom properties) and src/ui/hudLayer.js
@@ -26,62 +137,56 @@
        below is calc(Npx * var(--hud-k)): k is 1 on touch and 52/88 on a mouse,
        so content shrinks with its cell (src/ui/railCss.test.js enforces it).
        Text is >= 24 game px on touch (11 CSS px at the 0.46 iPhone scale). */
-    /* Condensed faces so 24-px labels fit an 82-px button face: macOS/iOS ship
-       Avenir Next Condensed, Office installs Arial Narrow, Android maps
-       sans-serif-condensed to Roboto Condensed, Windows 10+ has Bahnschrift.
-       Anything wider is shrunk to fit by src/ui/fitLabels.js. */
+    /* The theme body stack (FONTS.body: Rajdhani, then condensed system faces)
+       so 24-px labels fit an 82-px button face; one source, so the rails can't
+       drift from the theme. Anything wider is shrunk by src/ui/fitLabels.js. */
     #hud-layer { --hud-label-inset: calc(4px * var(--hud-k)); /* label clearance from the button ring; fitLabels reads the real padding */
-                 --hud-label-font: "Avenir Next Condensed", "Arial Narrow", "Roboto Condensed",
-                   sans-serif-condensed, "Bahnschrift SemiCondensed", "Helvetica Neue", Arial, sans-serif;
+                 --hud-label-font: var(--ui-font-body);
                  display: none; position: absolute; left: 0; top: 0; z-index: 6;
                  width: var(--canvas-w); height: var(--world-h);
                  transform-origin: 0 0; pointer-events: none; }
     .hud-rail { position: absolute; top: 0; width: var(--rail-w); height: 100%;
-                pointer-events: auto; background: #0f0f1e;
+                pointer-events: auto;
+                /* The kit's 1u ring equals the 2px rail ring at both k values. */
+                --ui-u: calc(2px * var(--hud-k));
+                /* Flush with the map: a drop shadow would darken its outer columns. */
+                --panel-drop: 0 0 0 transparent;
                 display: flex; flex-direction: column; align-items: center; }
-    #rail-left { left: 0; justify-content: space-evenly; box-shadow: inset calc(-3px * var(--hud-k)) 0 0 #8b6914; }
-    #rail-right { right: 0; justify-content: center; gap: calc(28px * var(--hud-k)); box-shadow: inset calc(3px * var(--hud-k)) 0 0 #8b6914; }
+    #rail-left { left: 0; justify-content: space-evenly; }
+    #rail-right { right: 0; justify-content: center; gap: calc(28px * var(--hud-k)); }
     .rail-grid { display: grid; grid-template-columns: repeat(2, var(--hud-cell));
                  grid-auto-rows: var(--hud-cell); }
-    /* :where() keeps this at zero specificity so every control's own rule wins.
-       The face colour is background-color (a `background` shorthand would reset
-       background-clip and paint over the gutter); the ring is --edge. */
+    /* Geometry only: every rail button is a .ui-btn and the kit paints it.
+       :where() keeps this at zero specificity so every control's own rule wins.
+       The transparent border is the touch gutter; background-clip keeps the
+       kit's face inside it. */
     :where(.hud-rail) button { width: 100%; height: 100%; margin: 0; padding: 0 var(--hud-label-inset);
       border: calc(3px * var(--hud-k)) solid transparent; background-clip: padding-box; border-radius: calc(12px * var(--hud-k));
-      box-shadow: inset 0 0 0 calc(2px * var(--hud-k)) var(--edge, #444);
       display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(2px * var(--hud-k));
+      /* Must stay after the global `button { font-family: inherit }` rule: both are (0,0,1), so order decides. */
       font-family: var(--hud-label-font); font-stretch: condensed;
-      font-size: calc(24px * var(--hud-k)); line-height: 1.05; text-align: center;
-      color: #e8e0d0; background-color: #1a1a3a; cursor: pointer;
-      transition: background-color 0.12s, box-shadow 0.12s, color 0.12s; }
+      font-size: calc(24px * var(--hud-k)); line-height: 1.05; text-align: center; }
     .hud-stat { display: flex; flex-direction: column; align-items: center; justify-content: center;
                 gap: calc(1px * var(--hud-k)); line-height: 1.05; font-size: calc(24px * var(--hud-k)); }
-    .hud-val { font-weight: bold; color: #ffd700; font-size: calc(28px * var(--hud-k)); }
-    .hud-lbl { color: #aaa; font-size: calc(24px * var(--hud-k)); }
-    /* Speed is a quiet green toggle; pause takes the HUD's gold accent, because
-       it is the one button a player needs to find without looking for it. */
-    #speed-btn { --edge: #4a6a4a; background-color: #1a2a1a; color: #aaddaa; }
-    #speed-btn:hover { --edge: #6a8a6a; background-color: #243824; }
+    .hud-val { font-weight: bold; color: var(--ui-ink-currency); font-size: calc(28px * var(--hud-k)); }
+    .hud-lbl { color: var(--ui-text-muted); font-size: calc(24px * var(--hud-k)); }
+    /* Variants live in the markup: speed is neutral (the UI palette has no
+       green); pause is currency, because it is the one button a player needs
+       to find without looking for it. */
     /* Exit for build/aim/reposition modes (a finger has no Escape key). It lives
        in the rail, not over the field, so it can never sit on a pad or the path.
        GameScene toggles [hidden]; its cell stays reserved so nothing moves. */
-    #cancel-btn { --edge: #c04040; background-color: #3a1212; color: #ffb0b0; font-weight: bold; }
-    #cancel-btn:hover { --edge: #f07a7a; background-color: #4d1818; }
+    #cancel-btn { font-weight: bold; }
     #cancel-btn[hidden] { display: none; }
 
-    #pause-btn { --edge: #8b6914; background-color: #3a2c08; color: #ffd700; font-weight: bold; }
-    #pause-btn:hover { --edge: #c39a1d; background-color: #4d3a0b; }
-    #pause-btn:focus-visible { outline: calc(2px * var(--hud-k)) solid #ffd700; outline-offset: calc(-3px * var(--hud-k)); }
+    #pause-btn { font-weight: bold; }
     /* Paused is a state you can get stuck in, so the way back out is the
-       brightest thing in the rail rather than the same tile with new text. */
-    #pause-btn.paused { --edge: #ffd700; background-color: #ffd700; color: #241a00; }
-    #pause-btn.paused:hover { --edge: #ffe34d; background-color: #ffe34d; }
-    #open-codex { --edge: #4fc3f7; background-color: #1a2a3a; color: #4fc3f7; }
-    #open-codex:hover { background-color: #223344; }
+       brightest thing in the rail rather than the same tile with new text.
+       Vars only: the kit's states still read them (pressed swaps the bevel). */
+    #pause-btn.paused { --btn-face: var(--ui-currency); --btn-face-hover: var(--ui-currency);
+      --btn-face-pressed: var(--ui-currency); --btn-ink: var(--ui-panel); }
 
-    #pause-btn.disabled, #exit-btn.disabled {
-                 --edge: #444; background-color: #2a2a2a; color: #666;
-                 cursor: not-allowed; pointer-events: none; }
+    #pause-btn.disabled, #exit-btn.disabled { pointer-events: none; }
     /* #game is the whole safe-area box: the canvas FITs inside it and the HUD
        rails are part of the canvas footprint. Block, not flex-centred: Phaser's
        CENTER_BOTH already centres the canvas with margins, and a flex centre on
@@ -164,56 +269,48 @@
         100% { text-shadow: 0 0 0 transparent; }
       }
     }
-    .tower-btn { --edge: #444; background-color: #1a1a3a; color: #e8e0d0; gap: 0; }
-    .tower-btn:hover { --edge: #ffd700; background-color: #252545; }
-    .tower-btn.selected { --edge: #ffd700; background-color: #2a2a1a; }
-    .tower-btn .t-icon { font-size: calc(30px * var(--hud-k)); }
+    .tower-btn { gap: 0; }
+    /* The three lines' 1.05 line boxes already fill the 82-px face, and the
+       last line's glyphs overhang their box (Rajdhani's content area is ~1.25em;
+       the condensed fallbacks are taller still), so the button overflowed by
+       2-4 px. The emoji line gives that height back: its glyph ink is unchanged,
+       only the line box shrinks. 0.8 fits Rajdhani and the font-blocked stack. */
+    .tower-btn .t-icon { font-size: calc(30px * var(--hud-k)); line-height: 0.8; }
     .tower-btn .t-cost { font-size: calc(24px * var(--hud-k)); color: #ffd700; }
     .tower-btn .t-name { font-size: calc(24px * var(--hud-k)); color: #aaa; }
     #tower-tooltip { position: absolute; display: none; z-index: 50;
-                     background: #0f0f1e; border: 1px solid #8b6914; border-radius: 5px;
-                     padding: 6px 8px; font-size: 11px; color: #ddd;
+                     border-radius: 5px; padding: 6px 8px; font-size: 11px;
                      pointer-events: none; max-width: 220px; }
     #tower-tooltip strong { display: block; margin-bottom: 3px; color: #ffd700; }
     #tower-tooltip .tt-line-good { display: block; color: #6f6; }
     #tower-tooltip .tt-line-bad  { display: block; color: #f88; }
-    #tower-panel .panel-matchups { font-size: 10px; margin: 4px 0; line-height: 1.4; }
+    #tower-panel .panel-matchups { font-size: var(--ui-fs-xs); margin: 4px 0; line-height: 1.4; }
     #tower-panel .panel-matchups .mu-good { display: block; color: #6f6; }
     #tower-panel .panel-matchups .mu-bad  { display: block; color: #f88; }
-    #tower-panel .panel-armour { font-size: 10px; margin: 4px 0; line-height: 1.4; }
+    #tower-panel .panel-armour { font-size: var(--ui-fs-xs); margin: 4px 0; line-height: 1.4; }
     #tower-panel .panel-armour .ar-head  { display: block; color: #aaa; }
     #tower-panel .panel-armour .ar-heavy { color: #fc6; }
     #tower-panel .panel-armour .ar-floor { color: #f66; font-weight: bold; }
-    .branch-card .branch-matchup { color: #ffcc66; font-size: 10px; margin-bottom: 3px; }
-    .branch-card .branch-armour { color: #aaa; font-size: 10px; margin-bottom: 3px; }
+    .branch-card .branch-matchup { color: #ffcc66; font-size: var(--ui-fs-xs); margin-bottom: 3px; }
+    .branch-card .branch-armour { color: #aaa; font-size: var(--ui-fs-xs); margin-bottom: 3px; }
     .branch-card .branch-armour .ar-heavy { color: #fc6; }
     .branch-card .branch-armour .ar-floor { color: #f66; font-weight: bold; }
-    #wave-btn { --edge: #cc3333; background-color: #8b1a1a; color: #fff;
-                font-size: calc(26px * var(--hud-k)); font-weight: bold; }
-    #wave-btn:hover { background-color: #aa2222; }
-    #wave-btn:disabled { --edge: #555; background-color: #333; color: #666; cursor: not-allowed; }
-    #exit-btn { --edge: #6a4a4a; background-color: #2a1a1a; color: #ddaaaa; }
-    #exit-btn:hover { --edge: #8a5a5a; background-color: #3a2222; }
+    #wave-btn { font-size: calc(26px * var(--hud-k)); font-weight: bold; }
     /* GameScene clamps the panel to the map with PANEL_EDGE_MARGIN (6) each
        side; a panel (with branch picker) taller than a phone's map scrolls
        instead of hiding Sell. */
     #tower-panel { max-height: calc(var(--map-height, 100%) - 12px); overflow-y: auto; }
-    #tower-panel { position: absolute; background: #0f0f1e; border: 2px solid #8b6914;
+    #tower-panel { position: absolute;
                    border-radius: 8px; padding: 11px; width: 170px; z-index: 10; display: none; }
     #tower-panel .panel-name { font-size: 13px; font-weight: bold; color: #ffd700; margin-bottom: 5px; }
     #tower-panel .panel-stat { font-size: 11px; color: #aaa; margin: 2px 0; }
-    #tower-panel .upgrade-btn { width: 100%; background: #1a3a1a; border: 1px solid #4a8a4a;
-                                 color: #7af07a; padding: 5px; border-radius: 4px;
-                                 cursor: pointer; font-size: 11px; margin-top: 4px; }
-    #tower-panel .upgrade-btn:hover { background: #2a4a2a; }
-    #tower-panel .upgrade-btn.maxed { background: #1a1a3a; border-color: #4a4aaa;
-                                       color: #7a7af0; cursor: default; }
-    #tower-panel .sell-btn { width: 100%; background: #3a1a1a; border: 1px solid #8a3a3a;
-                              color: #f07a7a; padding: 5px; border-radius: 4px;
-                              cursor: pointer; font-size: 11px; margin-top: 3px; }
-    /* Touch/pen first press of a two-step confirm (upgrade / sell / branch). */
-    #tower-panel button.confirming { background: #4a3408; border-color: #ffd700; color: #ffe27a;
-                                     font-weight: bold; }
+    #tower-panel .upgrade-btn { width: 100%; padding: 5px; border-radius: 4px;
+                                 font-size: 11px; margin-top: 4px; }
+    #tower-panel .sell-btn { width: 100%; padding: 5px; border-radius: 4px;
+                              font-size: 11px; margin-top: 3px; }
+    /* Touch/pen first press of a two-step confirm (upgrade / sell / branch);
+       the kit's .confirming state paints the gold ring and glow. */
+    #tower-panel button.confirming { font-weight: bold; }
     /* Long-press targets: stop the iOS callout and text selection that would
        otherwise open over the peek card. */
     .tower-btn, .ability-btn-wrap, #wave-btn, #tower-panel button {
@@ -232,29 +329,28 @@
     .branch-card:not(.locked) { border-color: #f0a500; background: #1a1400; }
     .branch-card.locked { opacity: 0.45; }
     .branch-label { font-weight: bold; margin-bottom: 3px; }
-    .branch-effect { color: #888; margin-bottom: 4px; font-size: 10px; }
+    .branch-effect { color: #888; margin-bottom: 4px; font-size: var(--ui-fs-xs); }
     .branch-cost { color: #f0a500; font-weight: bold; margin-bottom: 5px; }
-    .reposition-btn { width: 100%; background: #1a2a3a; border: 1px solid #4fc3f7;
-                      color: #4fc3f7; padding: 5px; border-radius: 4px;
-                      cursor: pointer; font-size: 11px; margin-top: 3px; }
-    .reposition-btn:hover { background: #223344; }
+    .reposition-btn { width: 100%; padding: 5px; border-radius: 4px;
+                      font-size: 11px; margin-top: 3px; }
     #game-msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-                background: rgba(0,0,0,0.88); border: 3px solid #8b6914; border-radius: 12px;
+                border-radius: 12px;
                 padding: 28px 38px; text-align: center; display: none; z-index: 20; }
     #game-msg h2 { font-size: 26px; margin-bottom: 8px; }
     #game-msg p { color: #aaa; margin-bottom: 14px; font-size: 13px; }
-    #game-msg button { background: #8b6914; border: none; color: #fff; padding: 9px 22px;
-                       border-radius: 6px; cursor: pointer; font-size: 14px; }
-    #game-msg #msg-cancel-btn { background: #333; margin-left: 8px; }
+    #game-msg button { padding: 9px 22px; border-radius: 6px; font-size: 14px; }
+    #game-msg #msg-cancel-btn { margin-left: 8px; }
     /* Spans the middle 90% of the map; hidden, it sits wholly above #game
        (overflow hidden) wherever the map's top edge is. */
     .story-banner { position:absolute; top:calc(var(--map-top, 0px) + 15px);
                     left:calc(var(--map-left, 0px) + var(--map-width, 100%) * 0.05);
                     width:calc(var(--map-width, 100%) * 0.9);
-                    transform:translateY(calc(-100% - var(--map-top, 0px) - 20px)); background:linear-gradient(135deg,#0a1a2a,#0a2a1a);
-                    border:1px solid #2a5a3a; border-radius:8px; padding:12px 16px; z-index:25;
+                    transform:translateY(calc(-100% - var(--map-top, 0px) - 20px));
+                    border-radius:8px; padding:12px 16px; z-index:25;
                     display:flex; align-items:flex-start; gap:12px;
-                    transition:transform 0.35s ease; pointer-events:none; }
+                    transition:transform 0.35s ease; pointer-events:none;
+                    /* Parked just above #game while hidden: a drop would leak below it. */
+                    --panel-drop: 0 0 0 transparent; }
     .story-banner.visible { transform:none; pointer-events:auto; }
     .game-toast { position: absolute; z-index: 30; pointer-events: none;
                   top: calc(var(--map-top, 0px) + 16px);
@@ -268,15 +364,13 @@
                       text-shadow: 0 2px 8px rgba(0,0,0,0.7); letter-spacing: 6px; }
     #paused-overlay.shown { display: flex; }
     .story-content { flex:1; }
-    #story-headline { font-size:10px; color:#5a9a6a; letter-spacing:1px; text-transform:uppercase; margin-bottom:5px; }
+    #story-headline { font-size:var(--ui-fs-xs); color:#5a9a6a; letter-spacing:1px; text-transform:uppercase; margin-bottom:5px; }
     #story-body { font-size:13px; color:#ddd; line-height:1.6; }
-    #story-dismiss { background:transparent; border:1px solid #3a6a4a; color:#7aba8a;
-                     padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px; flex-shrink:0; }
-    #story-dismiss:hover { background:#1a2a1a; }
+    #story-dismiss { padding:4px 10px; border-radius:4px; font-size:12px; flex-shrink:0; }
     .story-dialog-overlay { display:none; position:absolute; inset:0; z-index:18;
       background:rgba(2,4,10,0.78); align-items:center; justify-content:center; }
-    .story-dialog-card { width:90%; max-width:680px; background:linear-gradient(135deg,#0a1426,#0a1a14);
-      border:1px solid #2a4a6a; border-radius:10px; padding:22px; display:flex; gap:18px; }
+    .story-dialog-card { width:90%; max-width:680px;
+      border-radius:10px; padding:22px; display:flex; gap:18px; }
     .story-dialog-portrait { width:96px; height:96px; flex:0 0 96px; border-radius:8px;
       display:flex; align-items:center; justify-content:center; font-size:42px; font-weight:bold;
       color:#0a0a0a; overflow:hidden; }
@@ -285,23 +379,18 @@
     .story-dialog-name { font-size:13px; letter-spacing:1px; text-transform:uppercase; margin-bottom:8px; font-weight:bold; }
     .story-dialog-text { font-size:15px; color:#e6e6e6; line-height:1.6; flex:1; }
     .story-dialog-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; }
-    .story-dialog-actions button { background:#16324a; border:1px solid #2a5a7a; color:#cfe;
-      padding:7px 16px; border-radius:6px; cursor:pointer; font-size:13px; }
-    .story-dialog-actions button:hover { background:#1d4360; }
-    #story-dialog-skip { background:transparent; border-color:#3a4a5a; color:#8aa; }
+    .story-dialog-actions button { padding:7px 16px; border-radius:6px; font-size:13px; }
     #story-log-overlay { display:none; position:absolute; inset:0; z-index:17;
       background:rgba(2,4,10,0.85); align-items:center; justify-content:center; }
     #story-log-inner { width:90%; max-width:420px; max-height:70%; overflow:auto;
-      background:#0a1018; border:1px solid #2a4a6a; border-radius:10px; padding:18px; }
+      border-radius:10px; padding:18px; }
     #story-log-inner h3 { color:#6bf; margin:0 0 12px; font-size:16px; }
-    .story-log-entry { display:block; width:100%; text-align:left; background:#12202e;
-      border:1px solid #24405a; color:#cde; padding:9px 12px; border-radius:6px; margin-bottom:7px; cursor:pointer; }
-    .story-log-entry:hover { background:#1a3145; }
+    .story-log-entry { display:block; width:100%; text-align:left;
+      padding:9px 12px; border-radius:6px; margin-bottom:7px; }
     #story-log-empty { color:#789; font-size:13px; }
-    #story-log-close { margin-top:8px; background:transparent; border:1px solid #3a4a5a; color:#8aa;
-      padding:6px 14px; border-radius:6px; cursor:pointer; }
+    #story-log-close { margin-top:8px; padding:6px 14px; border-radius:6px; }
     #map-select { display:none; position:absolute; inset:0; background:#08081e; z-index:5;
-                  padding:20px; flex-direction:column; font-family:'Georgia',serif; }
+                  padding:20px; flex-direction:column; }
     #map-select-title { font-size:34px; color:#ffd700; font-weight:bold; text-align:center;
                         margin-bottom:18px; letter-spacing:4px; }
     #map-select-layout { display:flex; gap:16px; flex:1; min-height:0; overflow:hidden; }
@@ -357,44 +446,39 @@
        goes disabled (locked / on cooldown) — same reason as #wave-btn-wrap. The
        wrapper is the grid cell; the button fills it. */
     .ability-btn-wrap { position: relative; display: block; width: 100%; height: 100%; }
-    .ability-btn { --edge: #4fc3f7; background-color:#1a2a3a; color:#4fc3f7; gap:0; }
-    .ability-btn.locked { --edge: #333; background-color:#111; color:#444; cursor:default; }
-    .ability-btn:disabled { opacity:0.45; cursor:not-allowed; }
+    /* Cooldown and locked are :disabled / .locked, which the kit paints; no
+       opacity here, or the countdown would fade below text-muted. */
+    .ability-btn { gap:0; }
     /* --cd (1 -> 0) is set by UIScene; the dark wedge shrinks as the cooldown runs out. */
     .ability-btn { position:relative; }
     .ability-btn::after { content:''; position:absolute; inset:0; border-radius:calc(9px * var(--hud-k)); pointer-events:none;
                           background:conic-gradient(rgba(0,0,0,0.6) calc(var(--cd, 0) * 360deg), transparent 0); }
     /* Keep the key/name/countdown above the cooldown wedge. */
     .ability-btn > span { position:relative; z-index:1; }
-    .ability-btn:not(:disabled):not(.locked):hover { background-color:#253a4a; }
     .ability-key  { font-size:calc(24px * var(--hud-k)); font-weight:bold; letter-spacing:calc(1px * var(--hud-k)); }
     .ability-name { font-size:calc(28px * var(--hud-k)); }
-    .ability-cd   { font-size:calc(24px * var(--hud-k)); color:#aaa; min-height:calc(24px * var(--hud-k)); }
+    .ability-cd   { font-size:calc(24px * var(--hud-k)); color:var(--ui-text-muted); min-height:calc(24px * var(--hud-k)); }
     #map-meta-bar { display:flex; align-items:center; justify-content:center; gap:18px;
                     margin-bottom:14px; }
     #total-stars { font-size:18px; color:#ffd700; font-weight:bold; letter-spacing:1px; }
     #open-upgrades, #open-story-log, #open-codex-ms { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
-                     padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
-                     font-family:'Georgia',serif; }
+                     padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px; }
     #open-upgrades:hover, #open-story-log:hover, #open-codex-ms:hover { background:#223344; }
     #open-heroes { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
-                   padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
-                   font-family:'Georgia',serif; }
+                   padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px; }
     #open-heroes:hover { background:#223344; }
     #open-settings { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
-                     padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
-                     font-family:'Georgia',serif; }
+                     padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px; }
     #open-settings:hover { background:#223344; }
     #fullscreen-btn { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
-                      padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
-                      font-family:'Georgia',serif; }
+                      padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px; }
     #fullscreen-btn:hover { background:#223344; }
     /* Above every overlay (highest in-page z-index is 50). No scene owns this. */
     #rotate-prompt { display:none; }
     @media (orientation: portrait) and (pointer: coarse) {
       #rotate-prompt { position:fixed; inset:0; z-index:1000; display:flex; flex-direction:column;
                        align-items:center; justify-content:center; gap:18px; background:#08081e;
-                       color:#e8e8ff; font-family:'Georgia',serif; font-size:20px; text-align:center;
+                       color:#e8e8ff; font-size:20px; text-align:center;
                        padding:24px; }
       #rotate-prompt-glyph { font-size:72px; color:#4fc3f7; }
     }
@@ -456,8 +540,7 @@
     #upgrade-overlay-title { font-size:22px; color:#ffd700; font-weight:bold; flex:1; }
     #upgrade-available { font-size:15px; color:#ffd700; font-weight:bold; }
     #upgrade-close { background:#3a1a1a; border:1px solid #8a3a3a; color:#f07a7a;
-                     padding:6px 14px; border-radius:6px; cursor:pointer; font-size:13px;
-                     font-family:'Georgia',serif; }
+                     padding:6px 14px; border-radius:6px; cursor:pointer; font-size:13px; }
     #upgrade-tree { display:flex; gap:14px; overflow-y:auto; }
     .upgrade-branch { flex:1; background:#11161f; border:1px solid #2a3442;
                       border-radius:10px; padding:12px; }
@@ -474,7 +557,7 @@
                          padding:1px 6px; display:inline-block; margin-top:4px; }
     .upgrade-node-refund { background:#3a1a1a; border:1px solid #8a3a3a; color:#f07a7a;
                            font-size:10px; padding:2px 8px; border-radius:4px;
-                           cursor:pointer; margin-top:6px; font-family:'Georgia',serif; }
+                           cursor:pointer; margin-top:6px; }
     .upgrade-node.purchased { border-color:#4a8a4a; background:#16261a; }
     .upgrade-node.affordable { border-color:#4fc3f7; cursor:pointer; }
     .upgrade-node.affordable:hover { background:#223344; }
@@ -485,12 +568,11 @@
     .upgrade-branch-subtitle { font-size:11px; color:#8899aa; margin-bottom:8px; margin-top:-6px; }
     #settings-overlay { display:none; position:absolute; inset:0; z-index:16;
       background:rgba(0,0,0,0.7); align-items:center; justify-content:center; padding:24px; }
-    #settings-overlay-inner { width:100%; max-width:420px; background:#0a1018;
-      border:2px solid #4a8aff; border-radius:8px; padding:18px 22px; font-family:'Courier New',monospace; color:#cfd8e8; }
+    #settings-overlay-inner { width:100%; max-width:420px;
+      border-radius:8px; padding:18px 22px; }
     #settings-overlay-header { display:flex; align-items:center; gap:14px; margin-bottom:14px; }
     #settings-overlay-title { font-size:18px; color:#6bf; font-weight:bold; flex:1; }
-    #settings-close { background:#3a1a1a; border:1px solid #8a3a3a; color:#f07a7a;
-      padding:4px 10px; cursor:pointer; font-family:inherit; border-radius:4px; }
+    #settings-close { padding:4px 10px; font-family:inherit; border-radius:4px; }
     .settings-row { display:flex; align-items:center; gap:10px; margin:8px 0; font-size:12px; }
     .settings-row label { width:90px; color:#8ab; }
     .settings-row input[type=range] { flex:1; }
@@ -506,8 +588,9 @@
     .wave-preview { display: none; position: absolute; right: calc(100% + var(--peek-gap)); top: 0;
       width: max-content; min-width: 440px; max-width: 600px;
       max-height: calc(var(--world-h) - 12px); overflow-y: auto;
-      background: #0a1018; border: 3px solid #4fc3f7; border-radius: 10px;
-      padding: 16px 20px; z-index: 19; text-align: left; box-shadow: 0 6px 28px rgba(0,0,0,0.6); }
+      border-radius: 10px; padding: 16px 20px; z-index: 19; text-align: left;
+      /* Game px but unscaled (#43 R5), so its kit unit is a flat 2px. */
+      --ui-u: 2px; }
     .wave-preview.shown { display: block; }
     .wp-title { color: #ffd700; font-size: 28px; font-weight: bold; margin-bottom: 12px; }
     .wp-row { display: flex; gap: 12px; align-items: baseline; margin-bottom: 8px; }
@@ -523,27 +606,20 @@
     #codex-overlay { display: none; position: absolute; inset: 0; z-index: 20;
       background: rgba(0,0,0,0.72); align-items: center; justify-content: center; padding: 20px; }
     #codex-overlay-inner { width: 100%; max-width: 900px; max-height: 100%; display: flex;
-      flex-direction: column; background: #0a1018; border: 2px solid #2a3a4a;
-      border-radius: 8px; padding: 16px; }
+      flex-direction: column; border-radius: 8px; padding: 16px; }
     #codex-overlay-header { display: flex; align-items: center; gap: 14px; padding-bottom: 10px;
       border-bottom: 1px solid #2a3a4a; }
     #codex-overlay-title { font-size: 18px; color: #ffd700; font-weight: bold; }
     #codex-tabs { display: flex; gap: 6px; flex: 1; }
-    .codex-tab { background: #12202e; border: 1px solid #2a3a4a; color: #8aa; border-radius: 4px;
-      padding: 5px 12px; font-size: 12px; cursor: pointer; }
-    .codex-tab.active { background: #1a3145; border-color: #4fc3f7; color: #cfe; }
-    #codex-close { background: transparent; border: 1px solid #3a4a5a; color: #8aa;
-      border-radius: 4px; padding: 5px 12px; cursor: pointer; }
+    .codex-tab { border-radius: 4px; padding: 5px 12px; font-size: 12px; }
+    #codex-close { border-radius: 4px; padding: 5px 12px; }
     #codex-body { display: flex; gap: 14px; flex: 1; min-height: 0; padding-top: 12px; }
     #codex-list { width: 210px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; }
     #codex-detail { flex: 1; overflow-y: auto; padding-left: 14px; border-left: 1px solid #2a3a4a; }
     .codex-entry { display: flex; gap: 8px; align-items: center; width: 100%; text-align: left;
-      background: #12202e; border: 1px solid #2a3a4a; border-radius: 4px; color: #cde;
-      padding: 7px 9px; font-size: 12px; cursor: pointer; }
-    .codex-entry:hover { background: #1a3145; }
-    .codex-entry.active { border-color: #ffd700; }
+      border-radius: 4px; padding: 7px 9px; font-size: 12px; }
     .codex-entry.codex-unseen { opacity: 0.55; }
-    .codex-unseen-tag { font-size: 9px; color: #789; margin-left: auto; }
+    .codex-unseen-tag { font-size: var(--ui-fs-xs); color: #789; margin-left: auto; }
     .codex-detail-title { font-size: 16px; color: #ffd700; font-weight: bold; margin-bottom: 2px; }
     .codex-detail-sub { font-size: 11px; color: #8aa; margin-bottom: 10px; }
     .codex-stat { font-size: 12px; color: #cde; margin-bottom: 3px; }
@@ -556,21 +632,20 @@
 
     /* Shared ability hover card */
     .ability-card { display: none; position: absolute; z-index: 21; min-width: 210px;
-      max-width: 280px; background: #0a1018; border: 2px solid #4fc3f7; border-radius: 6px;
-      padding: 9px 11px; text-align: left; box-shadow: 0 4px 18px rgba(0,0,0,0.6);
+      max-width: 280px; border-radius: 6px; padding: 9px 11px; text-align: left;
       pointer-events: none; }
     .ability-card.shown { display: block; }
     .ac-head { display: flex; gap: 7px; align-items: baseline; margin-bottom: 5px; }
     .ac-icon { font-size: 16px; }
     .ac-label { font-size: 13px; color: #ffd700; font-weight: bold; flex: 1; }
-    .ac-key { font-size: 10px; color: #8aa; border: 1px solid #3a4a5a; border-radius: 3px;
+    .ac-key { font-size: var(--ui-fs-xs); color: #8aa; border: 1px solid #3a4a5a; border-radius: 3px;
       padding: 1px 5px; }
     .ac-effect { font-size: 11px; color: #cde; margin-bottom: 5px; line-height: 1.4; }
-    .ac-meta { font-size: 10px; color: #8aa; }
-    .ac-lock { font-size: 10px; color: #c87; margin-top: 4px; }
+    .ac-meta { font-size: var(--ui-fs-xs); color: #8aa; }
+    .ac-lock { font-size: var(--ui-fs-xs); color: #c87; margin-top: 4px; }
 
-    .inspector-panel { position: absolute; background: #0f0f1e; border: 2px solid #8b6914;
-                       border-radius: 6px; padding: 8px 10px; font-size: 11px; color: #ddd;
+    .inspector-panel { position: absolute;
+                       border-radius: 6px; padding: 8px 10px; font-size: 11px;
                        min-width: 200px; max-width: 260px; z-index: 40; }
     .inspector-header { display: flex; justify-content: space-between; align-items: center;
                         margin-bottom: 6px; }
@@ -581,21 +656,20 @@
     .inspector-hpbar { background: #222; height: 8px; border-radius: 2px; overflow: hidden;
                        margin-bottom: 2px; }
     .inspector-hpfill { background: #6f6; height: 100%; transition: width 0.1s linear; }
-    .inspector-hp-label { font-size: 10px; color: #888; margin-bottom: 5px; }
+    .inspector-hp-label { font-size: var(--ui-fs-xs); color: #888; margin-bottom: 5px; }
     /* Shares .inspector-hpbar's shell; gold matches the HUD's #hero-xp-fill so
        the two readouts of the same number look like the same thing. */
     .inspector-xpfill { background: #ffd700; height: 100%; transition: width 0.1s linear; }
     .inspector-stat { font-size: 11px; color: #aaa; margin: 2px 0; }
     .inspector-stat .ei-status-active { color: #6cf; }
-    .inspector-matchups { margin-top: 5px; font-size: 10px; line-height: 1.4; }
+    .inspector-matchups { margin-top: 5px; font-size: var(--ui-fs-xs); line-height: 1.4; }
     .inspector-matchups .mu-good { display: block; color: #6f6; }
     .inspector-matchups .mu-bad  { display: block; color: #f88; }
     .inspector-abilities .ab-line { display: flex; justify-content: space-between;
                                     margin: 1px 0; }
     .inspector-abilities .ab-line.locked { color: #555; }
     #inspect-peek { position: absolute; display: none; z-index: 45; pointer-events: none;
-                    background: #0f0f1e; border: 1px solid #8b6914; border-radius: 4px;
-                    padding: 5px 7px; font-size: 10px; color: #ddd; white-space: nowrap;
+                    border-radius: 4px; padding: 5px 7px; font-size: var(--ui-fs-xs); white-space: nowrap;
                     max-width: 220px; }
     #inspect-peek strong { display: block; color: #ffd700; margin-bottom: 2px; }
 
@@ -664,7 +738,7 @@
          inspectors) stay outside it: a transformed ancestor would re-base their
          position:fixed/absolute and their rect units. -->
     <div id="hud-layer">
-      <div id="rail-left" class="hud-rail">
+      <div id="rail-left" class="hud-rail ui-panel">
         <div class="rail-grid" id="hud-stats">
           <div class="hud-stat"><span class="hud-ico">❤️</span><span class="hud-val" id="stat-lives">20</span><span class="hud-lbl">Lives</span></div>
           <div class="hud-stat"><span class="hud-ico">💰</span><span class="hud-val" id="stat-gold">150</span><span class="hud-lbl">Gold</span></div>
@@ -681,53 +755,53 @@
         </div>
         <div class="rail-grid">
           <span class="ability-btn-wrap" id="ability-q-wrap" tabindex="0">
-            <button class="ability-btn" id="ability-q" disabled title="Overcharge — +50% tower fire rate 6s">
+            <button class="ui-btn ui-btn--primary ability-btn" id="ability-q" disabled title="Overcharge — +50% tower fire rate 6s">
               <span class="ability-key">Q</span><span class="ability-name">⚡</span><span class="ability-cd"></span>
             </button>
           </span>
           <span class="ability-btn-wrap" id="ability-w-wrap" tabindex="0">
-            <button class="ability-btn locked" id="ability-w" disabled title="Airstrike — AoE damage on target area">
+            <button class="ui-btn ui-btn--primary ability-btn locked" id="ability-w" disabled title="Airstrike — AoE damage on target area">
               <span class="ability-key">W</span><span class="ability-name">🎯</span><span class="ability-cd"></span>
             </button>
           </span>
           <span class="ability-btn-wrap" id="ability-e-wrap" tabindex="0">
-            <button class="ability-btn locked" id="ability-e" disabled title="EMP Pulse — stuns all aliens 3s">
+            <button class="ui-btn ui-btn--primary ability-btn locked" id="ability-e" disabled title="EMP Pulse — stuns all aliens 3s">
               <span class="ability-key">E</span><span class="ability-name">💥</span><span class="ability-cd"></span>
             </button>
           </span>
-          <button id="cancel-btn" type="button" hidden>✕ Cancel</button>
+          <button id="cancel-btn" class="ui-btn ui-btn--danger" type="button" hidden>✕ Cancel</button>
         </div>
         <div class="rail-grid">
-          <button id="pause-btn" title="Pause the level (Spacebar)">⏸ Pause</button>
-          <button id="speed-btn">⏩ 2x</button>
-          <button id="open-codex" title="Codex (towers, heroes, enemies)">📚 Codex</button>
-          <button id="exit-btn">⏻ Exit</button>
+          <button id="pause-btn" class="ui-btn ui-btn--currency" title="Pause the level (Spacebar)">⏸ Pause</button>
+          <button id="speed-btn" class="ui-btn">⏩ 2x</button>
+          <button id="open-codex" class="ui-btn ui-btn--primary" title="Codex (towers, heroes, enemies)">📚 Codex</button>
+          <button id="exit-btn" class="ui-btn ui-btn--danger">⏻ Exit</button>
         </div>
       </div>
-      <div id="rail-right" class="hud-rail">
+      <div id="rail-right" class="hud-rail ui-panel">
         <div class="rail-grid">
-          <button class="tower-btn" data-type="archer">
+          <button class="ui-btn tower-btn" data-type="archer">
             <span class="t-icon">🏹</span><span class="t-cost">60g</span><span class="t-name">Archer</span>
           </button>
-          <button class="tower-btn" data-type="mage">
+          <button class="ui-btn tower-btn" data-type="mage">
             <span class="t-icon">🔮</span><span class="t-cost">90g</span><span class="t-name">Mage</span>
           </button>
-          <button class="tower-btn" data-type="cannon">
+          <button class="ui-btn tower-btn" data-type="cannon">
             <span class="t-icon">💣</span><span class="t-cost">110g</span><span class="t-name">Cannon</span>
           </button>
-          <button class="tower-btn" data-type="ice">
+          <button class="ui-btn tower-btn" data-type="ice">
             <span class="t-icon">❄️</span><span class="t-cost">80g</span><span class="t-name">Ice</span>
           </button>
-          <button class="tower-btn" data-type="sniper">
+          <button class="ui-btn tower-btn" data-type="sniper">
             <span class="t-icon">🎯</span><span class="t-cost">120g</span><span class="t-name">Sniper</span>
           </button>
-          <button class="tower-btn" data-type="barracks">
+          <button class="ui-btn tower-btn" data-type="barracks">
             <span class="t-icon">⚔️</span><span class="t-cost">100g</span><span class="t-name">Barracks</span>
           </button>
         </div>
         <span id="wave-btn-wrap" tabindex="0">
-          <button id="wave-btn">▶ Send Wave 1</button>
-          <div id="wave-preview" class="wave-preview" role="tooltip" aria-hidden="true"></div>
+          <button id="wave-btn" class="ui-btn ui-btn--danger">▶ Send Wave 1</button>
+          <div id="wave-preview" class="wave-preview ui-panel ui-panel--primary" role="tooltip" aria-hidden="true"></div>
         </span>
       </div>
     </div>
@@ -735,31 +809,31 @@
     <div id="wave-banner"></div>
     <div id="wave-banner-boss"></div>
     <div id="boss-frame"></div>
-    <div id="story-banner" class="story-banner">
+    <div id="story-banner" class="story-banner ui-panel">
       <div class="story-content">
         <div id="story-headline"></div>
         <div id="story-body"></div>
       </div>
-      <button id="story-dismiss">&#10005;</button>
+      <button id="story-dismiss" class="ui-btn">&#10005;</button>
     </div>
     <div id="story-dialog" class="story-dialog-overlay">
-      <div class="story-dialog-card">
+      <div class="story-dialog-card ui-panel">
         <div id="story-dialog-portrait" class="story-dialog-portrait"></div>
         <div class="story-dialog-body">
           <div id="story-dialog-name" class="story-dialog-name"></div>
           <div id="story-dialog-text" class="story-dialog-text"></div>
           <div class="story-dialog-actions">
-            <button id="story-dialog-skip">Skip</button>
-            <button id="story-dialog-next">Next ▸</button>
+            <button id="story-dialog-skip" class="ui-btn">Skip</button>
+            <button id="story-dialog-next" class="ui-btn ui-btn--primary">Next ▸</button>
           </div>
         </div>
       </div>
     </div>
     <div id="story-log-overlay">
-      <div id="story-log-inner">
+      <div id="story-log-inner" class="ui-panel">
         <h3>Story Log</h3>
         <div id="story-log-list"></div>
-        <button id="story-log-close">Close</button>
+        <button id="story-log-close" class="ui-btn">Close</button>
       </div>
     </div>
     <div id="map-select">
@@ -785,7 +859,7 @@
       </div>
       <div id="lifetime-stats"></div>
     </div>
-    <div id="tower-panel">
+    <div id="tower-panel" class="ui-panel">
       <div class="panel-name" id="panel-name">Tower</div>
       <div id="panel-std-stats">
         <div class="panel-stat" id="panel-dmg">Damage: -</div>
@@ -803,15 +877,15 @@
       <div class="panel-matchups" id="panel-matchups"></div>
       <div class="panel-armour" id="panel-armour"></div>
       <div id="panel-branch-picker" style="display:none"></div>
-      <button class="upgrade-btn" id="panel-upgrade-btn">Upgrade</button>
-      <button class="reposition-btn" id="panel-reposition-btn" style="display:none">&#8635; Reposition Soldiers</button>
-      <button class="sell-btn" id="panel-sell-btn">&#128176; Sell</button>
+      <button class="ui-btn ui-btn--currency upgrade-btn" id="panel-upgrade-btn">Upgrade</button>
+      <button class="ui-btn ui-btn--primary reposition-btn" id="panel-reposition-btn" style="display:none">&#8635; Reposition Soldiers</button>
+      <button class="ui-btn ui-btn--danger sell-btn" id="panel-sell-btn">&#128176; Sell</button>
     </div>
-    <div id="game-msg">
+    <div id="game-msg" class="ui-panel">
       <h2 id="msg-title">Victory!</h2>
       <p id="msg-body">You defended humanity!</p>
-      <button id="msg-btn">&#8617; Map Select</button>
-      <button id="msg-cancel-btn" style="display:none">Cancel</button>
+      <button id="msg-btn" class="ui-btn ui-btn--primary">&#8617; Map Select</button>
+      <button id="msg-cancel-btn" class="ui-btn" style="display:none">Cancel</button>
     </div>
     <div id="upgrade-overlay">
       <div id="upgrade-overlay-inner">
@@ -837,10 +911,10 @@
       </div>
     </div>
     <div id="settings-overlay">
-      <div id="settings-overlay-inner">
+      <div id="settings-overlay-inner" class="ui-panel">
         <div id="settings-overlay-header">
           <span id="settings-overlay-title">Settings</span>
-          <button id="settings-close">CLOSE</button>
+          <button id="settings-close" class="ui-btn ui-btn--danger">CLOSE</button>
         </div>
         <div class="settings-row">
           <label for="vol-master">Master</label>
@@ -869,15 +943,15 @@
       </div>
     </div>
     <div id="codex-overlay">
-      <div id="codex-overlay-inner">
+      <div id="codex-overlay-inner" class="ui-panel">
         <div id="codex-overlay-header">
           <span id="codex-overlay-title">📚 Codex</span>
           <div id="codex-tabs">
-            <button class="codex-tab" data-tab="towers">Towers</button>
-            <button class="codex-tab" data-tab="heroes">Heroes</button>
-            <button class="codex-tab" data-tab="enemies">Enemies</button>
+            <button class="ui-btn codex-tab" data-tab="towers">Towers</button>
+            <button class="ui-btn codex-tab" data-tab="heroes">Heroes</button>
+            <button class="ui-btn codex-tab" data-tab="enemies">Enemies</button>
           </div>
-          <button id="codex-close">Close</button>
+          <button id="codex-close" class="ui-btn">Close</button>
         </div>
         <div id="codex-body">
           <div id="codex-list"></div>
@@ -886,8 +960,8 @@
       </div>
     </div>
   </div>
-  <div id="tower-tooltip"></div>
-  <div id="enemy-inspector" class="inspector-panel" style="display:none">
+  <div id="tower-tooltip" class="ui-panel"></div>
+  <div id="enemy-inspector" class="inspector-panel ui-panel" style="display:none">
     <div class="inspector-header">
       <span class="inspector-name" id="ei-name">Enemy</span>
       <button class="inspector-close" id="ei-close">✕</button>
@@ -900,7 +974,7 @@
     <div class="inspector-matchups" id="ei-matchups"></div>
   </div>
 
-  <div id="hero-inspector" class="inspector-panel" style="display:none">
+  <div id="hero-inspector" class="inspector-panel ui-panel" style="display:none">
     <div class="inspector-header">
       <span class="inspector-name">🛡️ Commander Rael</span>
       <button class="inspector-close" id="hi-close">✕</button>
@@ -915,8 +989,8 @@
     <div class="inspector-matchups" id="hi-matchups"></div>
   </div>
 
-  <div id="inspect-peek" style="display:none"></div>
-  <div id="ability-card" class="ability-card" role="tooltip" aria-hidden="true"></div>
+  <div id="inspect-peek" class="ui-panel" style="display:none"></div>
+  <div id="ability-card" class="ability-card ui-panel ui-panel--primary" role="tooltip" aria-hidden="true"></div>
   <script type="module" src="/src/main.js"></script>
   <div id="rotate-prompt"><div id="rotate-prompt-glyph">&#10227;</div><div>Rotate your device to landscape</div></div>
 </body>
