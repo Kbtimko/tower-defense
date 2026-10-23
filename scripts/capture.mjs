@@ -10,16 +10,19 @@
 //
 //   npm run matrix -- [--devices iphone] [--no-build]     (= capture.mjs --flow)
 //
-// --screens shoots the non-gameplay screens instead (first-run story, map
-// select, in-game, tower ring, build radial, defeat, victory) into <device>/screens/, using
-// the first of --maps.
+// --screens shoots the non-gameplay screens instead (title, first-run story, world
+// map, in-game, tower ring, build radial, defeat, victory, post-win arrival) into
+// <device>/screens/, using the first of --maps for the level shots. The victory and
+// arrival always use map 0: only a fresh save's frontier mission flies the ship.
+// It also runs the world map with fonts blocked and with one node's art blocked on
+// every device, and with reduced motion on desktop1440 and iphone.
 // Output: .art-cache/captures/<device>/map<N>-w<W>.png (+ .mp4 with --video)
 // and .art-cache/captures/report.json listing console errors per capture.
 // --wave defaults to the middle wave of each map; --build defaults to one of
 // every tower at mixed tiers (defaultCaptureBuild).
 //
 // --flow plays the opening of a fresh first run with real input on each device
-// (boot -> map 0 -> radial build archer -> ring upgrade -> send wave -> pause), asserting
+// (boot -> title -> map 0 -> radial build archer -> ring upgrade -> send wave -> pause), asserting
 // the game state after every step and shooting <device>/flow/NN-id.png. It
 // always uses map 0 and ignores --maps/--wave/--build/--hero/--video; without
 // --devices it runs desktop,iphone,pixel,ipad. Exits 1 if any device fails.
@@ -33,9 +36,12 @@ import { MAPS } from '../src/data/maps.js';
 import { MAP_WAVES } from '../src/data/waves.js';
 import { defaultCaptureBuild } from '../src/systems/debugCapture.js';
 import { layoutProblems, railProblems, railGeometryProblems, overlayProblems, minTouchFor, radialProblems } from '../src/systems/layoutAudit.js';
+import { layoutClass, routeFrameFor, worldMapProblems } from '../src/systems/worldMapLayout.js';
 import { POINTER_FINE_QUERY } from '../src/data/mobile.js';
 import { CONFIRM_WINDOW_MS } from '../src/data/input.js';
-import { WORLD_WIDTH, WORLD_HEIGHT } from '../src/data/layout.js';
+import { WORLD_WIDTH, WORLD_HEIGHT, MIN_TOUCH_PX } from '../src/data/layout.js';
+import { TITLE } from '../src/data/title.js';
+import { ARRIVAL } from '../src/data/worldMap.js';
 import { stepsFor, shotName, worldToPagePoint, flowExpectations, summarizeFlow, freePad, padWorldPoint, buildStates } from '../src/systems/deviceFlow.js';
 
 const OUT_DIR   = '.art-cache/captures';
@@ -48,7 +54,28 @@ const FLOW_TOWER = 'archer';
 const STEP_TIMEOUT = 10_000;
 
 // Controls a phone player must be able to reach on each screen.
-const MAP_SELECT_TARGETS = ['#featured-play'];
+const MAP_SELECT_TARGETS = ['#featured-play', '#map-meta-bar button', '.ow-node:not(.locked)'];
+const TITLE_TARGETS = ['#title-screen'];
+// Phaser's canvas is #game's direct child; #map-select inside #game has canvases of its own.
+const GAME_CANVAS = '#game > canvas';
+// Set by MapSelectScene once its entry input guard ends; a tap before it is swallowed.
+const MAP_READY = '#map-overworld[data-ready="1"]';
+// The post-win shot lands mid-flight (spec 7.3: about 1.5 s). The ship sets off from
+// its park point behind node 1 and is hidden under that node until about 1.6 s.
+const ARRIVAL_MID_MS = ARRIVAL.flyStartMs + ARRIVAL.flyMs / 2;
+// Longer than any tap, so a held skip's late pointerup / click is what gets tested.
+const HOLD_MS = 1200;
+const REDUCED_MOTION_DEVICES = new Set(['desktop1440', 'iphone']);
+// Node 4's art: blocked in one run to exercise the numbered-circle fallback.
+const BLOCKED_ART = 'overworld_3_orbital_station.png';
+const BLOCKED_ART_MAP = MAPS.findIndex(m => m.overworldArt === BLOCKED_ART);
+// Node 4 is the frontier on this save, so its fallback carries next + active.
+const BLOCKED_ART_SAVE = {
+  version: 4, maps: MAPS.map((_, i) => Math.max(0, BLOCKED_ART_MAP - i)),
+  seenStoryBeats: { campaign_intro: true },
+};
+// What a blocked request logs; expected in the runs that block one on purpose.
+const BLOCKED_LOAD = /^error: Failed to load resource/;
 const IN_GAME_TARGETS = ['#pause-btn', '#speed-btn', '#open-codex', '.tower-btn', '#exit-btn', '#wave-btn', '.ability-btn-wrap'];
 // DOM overlays opened from map select. Their controls are in CSS px (not the scaled canvas), so
 // touch devices hold them to the full 44 px. Labels, not checkboxes: the label row is the target.
@@ -138,7 +165,7 @@ async function shootBusiestFrame(page, waitMs, file) {
 // on the page's pointer class, which this Node process can't see, so ask the page.
 async function gamePagePoint(page, x, y) {
   const pointerFine = await page.evaluate(q => matchMedia(q).matches, POINTER_FINE_QUERY);
-  const box = await page.locator('#game canvas').boundingBox();
+  const box = await page.locator(GAME_CANVAS).boundingBox();
   return worldToPagePoint({ x, y }, box, { pointerFine });
 }
 
@@ -161,11 +188,49 @@ async function tap(page, deviceName, selector) {
   else await locator.click();
 }
 
+// tap() at a page point, with no actionability wait (a node mid-arrival is still scaling).
+async function tapPoint(page, deviceName, { x, y }) {
+  if (DEVICES[deviceName].hasTouch) await page.touchscreen.tap(x, y);
+  else await page.mouse.click(x, y);
+}
+
+async function tapCentre(page, deviceName) {
+  const { width, height } = page.viewportSize();
+  await tapPoint(page, deviceName, { x: width / 2, y: height / 2 });
+}
+
+// A real press held for `ms`. Playwright's touchscreen only taps, so touch goes
+// through CDP, which is what touchscreen.tap itself sends.
+async function holdPoint(page, deviceName, { x, y }, ms) {
+  if (!DEVICES[deviceName].hasTouch) {
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.waitForTimeout(ms);
+    await page.mouse.up();
+    return;
+  }
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+  await page.waitForTimeout(ms);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.detach();
+}
+
+// Centre of a node's round face (art, or the fallback circle): the finger's target.
+async function nodeFace(page, mapId) {
+  return page.evaluate(id => {
+    const btn = document.querySelector(`.ow-node[data-map-id="${id}"]`);
+    const face = btn.classList.contains('ow-node-fallback') ? btn.querySelector('.ow-node-num') : btn.querySelector('.ow-node-art');
+    const r = face.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }, mapId);
+}
+
 // Collects layout metrics inside the page and returns { device, label, problems }.
 // getBoundingClientRect ignores ancestor clipping, so each target also gets
 // visibleRect: its rect intersected with every overflow-clipping ancestor.
 async function audit(page, deviceName, label, selectors, railOnly = []) {
-  const metrics = await page.evaluate(({ sels, pointerFineQuery }) => {
+  const metrics = await page.evaluate(({ sels, pointerFineQuery, gameCanvas }) => {
     const clipRect = el => {
       const r = el.getBoundingClientRect();
       let { left, top, right, bottom } = r;
@@ -195,10 +260,10 @@ async function audit(page, deviceName, label, selectors, railOnly = []) {
       innerWidth: window.innerWidth, innerHeight: window.innerHeight,
       scale: window.visualViewport.scale, scrollWidth: document.documentElement.scrollWidth, targets,
       rails: { left: rect('#rail-left'), right: rect('#rail-right') },
-      canvas: rect('#game canvas'),
+      canvas: rect(gameCanvas),
       pointerFine: matchMedia(pointerFineQuery).matches,
     };
-  }, { sels: [...selectors, ...railOnly], pointerFineQuery: POINTER_FINE_QUERY });
+  }, { sels: [...selectors, ...railOnly], pointerFineQuery: POINTER_FINE_QUERY, gameCanvas: GAME_CANVAS });
   const viewport = page.viewportSize();
   const problems = layoutProblems({ ...metrics, device: viewport, targets: metrics.targets.filter(t => !railOnly.includes(t.name)) });
   // Rails only exist in-game; the map-select audits list no HUD controls.
@@ -216,10 +281,42 @@ async function audit(page, deviceName, label, selectors, railOnly = []) {
         .filter(([, rect]) => rect).map(([id, rect]) => ({ id, width: rect.width })),
     }));
   }
-  if (OVERLAY_AUDITS.has(selectors)) {
+  if (OVERLAY_AUDITS.has(selectors) || selectors === MAP_SELECT_TARGETS) {
     problems.push(...overlayProblems({ device: { hasTouch: !!DEVICES[deviceName].hasTouch }, targets: metrics.targets }));
   }
+  if (selectors === MAP_SELECT_TARGETS) problems.push(...await worldMapAudit(page, metrics.pointerFine));
   return { device: deviceName, label, problems };
+}
+
+// The fit rule (spec 5) on what actually painted: each node rect is its button's
+// box (face + label + stars), the face is the touch target, and the frame is
+// routeFrameFor over #map-select's content box, as MapSelectScene measures it.
+async function worldMapAudit(page, pointerFine) {
+  const m = await page.evaluate(() => {
+    const root = document.querySelector('#map-select');
+    const r = root.getBoundingClientRect();
+    const cs = getComputedStyle(root);
+    const pad = side => parseFloat(cs[`padding${side}`]) || 0;
+    const nodes = [...document.querySelectorAll('.ow-node')].map(btn => {
+      const b = btn.getBoundingClientRect();
+      const face = btn.classList.contains('ow-node-fallback') ? btn.querySelector('.ow-node-num') : btn.querySelector('.ow-node-art');
+      const f = face.getBoundingClientRect();
+      return {
+        id: Number(btn.dataset.mapId), cx: b.left + b.width / 2, cy: b.top + b.height / 2, w: b.width, h: b.height,
+        d: Math.min(f.width, f.height), locked: btn.classList.contains('locked'),
+      };
+    });
+    return {
+      origin: { x: r.left + pad('Left'), y: r.top + pad('Top') },
+      content: { width: r.width - pad('Left') - pad('Right'), height: r.height - pad('Top') - pad('Bottom') },
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      nodes,
+    };
+  });
+  const f = routeFrameFor(m.content, layoutClass(m.content));
+  const frame = { ...f, x: f.x + m.origin.x, y: f.y + m.origin.y };
+  return worldMapProblems({ nodes: m.nodes, frame, viewport: m.viewport, coarse: !pointerFine, minTouchPx: MIN_TOUCH_PX })
+    .map(p => `world map: ${p}`);
 }
 
 // Opens a map-select overlay with a real tap, audits + shoots it, closes it with a real tap.
@@ -238,7 +335,7 @@ async function auditOverlay(page, deviceName, { open, root, close, targets, labe
 // rect is the canvas minus both rails, from the page's own pointer class.
 async function radialAudit(page, deviceName, label) {
   const pointerFine = await page.evaluate(q => matchMedia(q).matches, POINTER_FINE_QUERY);
-  const box = await page.locator('#game canvas').boundingBox();
+  const box = await page.locator(GAME_CANVAS).boundingBox();
   const a = worldToPagePoint({ x: 0, y: 0 }, box, { pointerFine });
   const b = worldToPagePoint({ x: WORLD_WIDTH, y: WORLD_HEIGHT }, box, { pointerFine });
   const m = await page.evaluate(() => {
@@ -269,6 +366,8 @@ async function shoot(page, file, options = {}) {
 // before/after baseline (roadmap 0.3).
 async function captureScreens(browser, base, deviceName, opts) {
   const dir = join(OUT_DIR, deviceName, 'screens');
+  // A leftover <run>-FAILED.png from an earlier run would contradict this run's result.
+  rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   const mapId = opts.maps[0];
   const { path } = captureUrl(mapId, opts);
@@ -281,9 +380,19 @@ async function captureScreens(browser, base, deviceName, opts) {
     let page = await context.newPage();
     const p1 = watchProblems(page);
     await page.goto(base + '/');
-    await page.locator('#story-dialog-skip').waitFor({ state: 'visible', timeout: 30_000 });
+    await page.locator('#title-screen').waitFor({ state: 'visible', timeout: 30_000 });
+    await titlePhase(page, 'sweep');
+    // Mid-sweep: the beam starts sweepDelayMs into the phase, so this is it halfway across.
+    await page.waitForTimeout(TITLE.sweepDelayMs + TITLE.sweepMs / 2);
+    files.push(await shoot(page, join(dir, '00-title.png')));
+    await titlePhase(page, 'lit');
+    files.push(await shoot(page, join(dir, '00b-title-lit.png')));
+    layout.push(await audit(page, deviceName, 'title', TITLE_TARGETS));
+    await tapCentre(page, deviceName);
+    await page.locator('#story-dialog-skip').waitFor({ state: 'visible', timeout: 10_000 });
     await page.waitForTimeout(1500);
     files.push(await shoot(page, join(dir, '01-first-run-story.png')));
+    await page.locator(MAP_READY).waitFor({ timeout: 5_000 });
     await page.locator('#story-dialog-skip').click();
     await page.waitForTimeout(800);
     files.push(await shoot(page, join(dir, '02-map-select.png')));
@@ -337,24 +446,22 @@ async function captureScreens(browser, base, deviceName, opts) {
     await page.waitForTimeout(500);
     files.push(await shoot(page, join(dir, '05-defeat.png')));
     problems.push(...p2);
-    await page.close();
-
-    page = await context.newPage();
-    const p3 = watchProblems(page);
-    await page.goto(base + path);
-    await page.waitForFunction(() => window.__capture, null, { timeout: 30_000 });
-    await page.evaluate(() => window.__capture.end('victory'));
-    await page.waitForTimeout(1500);
-    if (await page.locator('#story-dialog-skip').isVisible()) {
-      files.push(await shoot(page, join(dir, '06-victory-story.png')));
-      await page.locator('#story-dialog-skip').click();
-    }
-    await page.locator('#game-msg').waitFor({ state: 'visible', timeout: 5_000 });
-    await page.waitForTimeout(500);
-    files.push(await shoot(page, join(dir, '07-victory.png')));
-    problems.push(...p3);
   } finally {
     await context.close();
+  }
+  const runs = [
+    () => capturePostWin(browser, base, deviceName, dir, opts),
+    () => captureHeldSkip(browser, base, deviceName, opts),
+    () => captureNoFonts(browser, base, deviceName, dir),
+    () => captureMissingArt(browser, base, deviceName, dir),
+  ];
+  if (REDUCED_MOTION_DEVICES.has(deviceName)) runs.push(() => captureReducedMotion(browser, base, deviceName, dir, opts));
+  // One at a time: each run times a live animation, so they must not share the CPU.
+  for (const run of runs) {
+    const r = await run();
+    files.push(...r.files);
+    layout.push(...r.layout);
+    problems.push(...r.problems);
   }
   if (DEVICES[deviceName].portrait) {
     const rotated = await captureRotation(browser, base, deviceName, path, dir);
@@ -385,9 +492,13 @@ async function captureRotation(browser, base, deviceName, levelPath, dir) {
     const page = await context.newPage();
     const p4 = watchProblems(page);
     await page.goto(base + '/');
-    await page.locator('#story-dialog-skip').waitFor({ state: 'visible', timeout: 30_000 });
-    await page.waitForTimeout(1500);
     // el.click(), not a pointer click: the rotate prompt covers the page upright.
+    await page.locator('#title-screen').waitFor({ state: 'visible', timeout: 30_000 });
+    await page.evaluate(() => document.querySelector('#title-screen')?.click());
+    await page.locator('#story-dialog-skip').waitFor({ state: 'visible', timeout: 10_000 });
+    await page.waitForTimeout(1500);
+    // The map's entry guard swallows clicks until it ends, synthetic ones included.
+    await page.locator(MAP_READY).waitFor({ timeout: 5_000 });
     await page.evaluate(() => document.querySelector('#story-dialog-skip')?.click());
     await page.waitForTimeout(800);
     files.push(await shoot(page, join(dir, '00-portrait.png')));
@@ -431,6 +542,202 @@ async function captureRotation(browser, base, deviceName, levelPath, dir) {
   return { files, layout, problems };
 }
 
+// One fresh context for one extra --screens run. A thrown step becomes a layout
+// problem under `label` (so it fails the run) instead of ending every device.
+// `blocked` runs abort a request on purpose, so its load error is expected.
+async function screensRun(browser, deviceName, label, { contextOptions: extra = {}, blocked = false }, body) {
+  const context = await browser.newContext({ ...contextOptions(DEVICES[deviceName]), ...extra });
+  const out = { files: [], layout: [], problems: [] };
+  try {
+    const page = await context.newPage();
+    const seen = watchProblems(page);
+    try {
+      await body(page, out, context);
+    } catch (err) {
+      out.layout.push({ device: deviceName, label, problems: [err.message.split('\n')[0]] });
+      await shoot(page, join(OUT_DIR, deviceName, 'screens', `${label}-FAILED.png`)).catch(() => null);
+    }
+    out.problems.push(...seen.filter(p => !(blocked && BLOCKED_LOAD.test(p))));
+  } finally {
+    await context.close();
+  }
+  return out;
+}
+
+async function titlePhase(page, phase, timeout = 10_000) {
+  await page.waitForFunction(p => document.querySelector('#title-screen')?.dataset.phase === p, phase, { timeout, polling: 'raf' });
+}
+
+const attr = (page, sel, name) => page.locator(sel).first().getAttribute(`data-${name}`, { timeout: 1_000 });
+
+async function expectAttr(page, sel, name, want, timeout) {
+  await until(() => attr(page, sel, name), v => v === want, v => `${sel} data-${name}="${v}", expected "${want}"`, timeout);
+}
+
+// Map 0 to its results screen in the capture build, skipping any story dialog on
+// the way (the first one is shot to `storyFile` when given).
+async function winMapZero(page, base, opts, storyFile) {
+  const files = [];
+  await page.goto(base + captureUrl(0, opts).path);
+  await page.waitForFunction(() => window.__capture, null, { timeout: 30_000 });
+  await page.evaluate(() => window.__capture.end('victory'));
+  const deadline = Date.now() + 15_000;
+  while (!(await visible(page, '#game-msg'))) {
+    if (Date.now() > deadline) throw new Error('#game-msg never showed after the victory');
+    if (await visible(page, '#story-dialog-skip')) {
+      await page.waitForTimeout(1500);
+      if (storyFile && !files.length) files.push(await shoot(page, storyFile));
+      await page.locator('#story-dialog-skip').click();
+    }
+    await page.waitForTimeout(200);
+  }
+  await expectText(page, '#msg-btn', '↩ World Map');
+  return files;
+}
+
+// "↩ World Map" with a real tap, then through campaign_intro (a fresh context has
+// not seen it), which the arrival waits under. data-arrival changes are logged
+// from here on, so a run can prove which states it passed through.
+async function returnToMap(page, deviceName) {
+  await tap(page, deviceName, '#msg-btn');
+  await page.locator('#map-select').waitFor({ state: 'visible', timeout: 10_000 });
+  await expectVisible(page, '#story-dialog');
+  await expectAttr(page, '#map-overworld', 'arrival', 'waiting');
+  await page.evaluate(() => {
+    const el = document.querySelector('#map-overworld');
+    window.__arrivals = [];
+    new MutationObserver(() => window.__arrivals.push(el.dataset.arrival))
+      .observe(el, { attributes: true, attributeFilter: ['data-arrival'] });
+  });
+  await page.locator(MAP_READY).waitFor({ timeout: 5_000 });
+  await tap(page, deviceName, '#story-dialog-skip');
+  await expectVisible(page, '#story-dialog', false);
+}
+
+const arrivals = page => page.evaluate(() => window.__arrivals);
+
+// The post-win end state of a fresh map-0 win (spec 7.3): frontier 1, Lunar Gate's
+// card open on the newly lit node, and nothing else selected.
+async function expectArrivalDone(page) {
+  await expectAttr(page, '#map-overworld', 'arrival', 'done');
+  await expectAttr(page, '#map-overworld', 'frontier', '1');
+  await expectText(page, '#featured-name', MAPS[1].name);
+  const next = '.ow-node[data-map-id="1"]';
+  for (const cls of ['next', 'active']) {
+    if (!(await hasClass(page, next, cls))) throw new Error(`${next} not .${cls}`);
+  }
+  if (await hasClass(page, '.ow-node[data-map-id="0"]', 'active')) throw new Error('.ow-node[data-map-id="0"] still .active');
+}
+
+// Win map 0, return, shoot the flight, then skip it with a real tap ON node 0: a
+// leaked tap would select node 0 and fail the end-state check.
+function capturePostWin(browser, base, deviceName, dir, opts) {
+  return screensRun(browser, deviceName, 'post-win', {}, async (page, out) => {
+    out.files.push(...await winMapZero(page, base, opts, join(dir, '06-victory-story.png')));
+    await page.waitForTimeout(500);
+    out.files.push(await shoot(page, join(dir, '07-victory.png')));
+    await returnToMap(page, deviceName);
+    await expectAttr(page, '#map-overworld', 'arrival', 'playing');
+    await page.waitForTimeout(ARRIVAL_MID_MS);
+    // CSS-px shot: a DPR-3 full-resolution capture eats a large share of the flight.
+    out.files.push(await shoot(page, join(dir, '07b-arrival-mid.png'), { scale: 'css' }));
+    const state = await attr(page, '#map-overworld', 'arrival');
+    if (state !== 'playing') throw new Error(`arrival "${state}" before the skip tap; the harness was too slow to test the skip`);
+    await tapPoint(page, deviceName, await nodeFace(page, 0));
+    await expectArrivalDone(page);
+    await page.waitForTimeout(500);
+    out.files.push(await shoot(page, join(dir, '07c-arrival-done.png')));
+    out.layout.push(await audit(page, deviceName, 'post-win-map', MAP_SELECT_TARGETS));
+  });
+}
+
+// The skip as a long press on a selectable node: the press skips, and its late
+// release must not select. The next ordinary tap then does.
+function captureHeldSkip(browser, base, deviceName, opts) {
+  return screensRun(browser, deviceName, 'held-skip', {}, async page => {
+    await winMapZero(page, base, opts, null);
+    await returnToMap(page, deviceName);
+    await expectAttr(page, '#map-overworld', 'arrival', 'playing');
+    await holdPoint(page, deviceName, await nodeFace(page, 0), HOLD_MS);
+    await expectArrivalDone(page);
+    await tapPoint(page, deviceName, await nodeFace(page, 0));
+    await expectText(page, '#featured-name', MAPS[0].name);
+  });
+}
+
+// Reduced motion (spec 6): the title is lit on show, and the arrival jumps
+// straight to its end state without ever playing.
+function captureReducedMotion(browser, base, deviceName, dir, opts) {
+  return screensRun(browser, deviceName, 'reduced-motion', { contextOptions: { reducedMotion: 'reduce' } }, async (page, out) => {
+    await page.goto(base + '/');
+    await page.locator('#title-screen').waitFor({ state: 'visible', timeout: 30_000 });
+    const phase = await attr(page, '#title-screen', 'phase');
+    if (phase !== 'lit') throw new Error(`title data-phase="${phase}" on show, expected "lit"`);
+    out.files.push(await shoot(page, join(dir, '00c-title-reduced-motion.png')));
+    // The title is not tapped, so campaign_intro is still unseen for the return.
+    await winMapZero(page, base, opts, null);
+    await returnToMap(page, deviceName);
+    await expectArrivalDone(page);
+    const seen = await arrivals(page);
+    if (seen.includes('playing')) throw new Error(`arrival went through ${seen.join(' -> ')}, expected straight to done`);
+    out.files.push(await shoot(page, join(dir, '07d-arrival-reduced-motion.png')));
+    out.layout.push(await audit(page, deviceName, 'reduced-motion-map', MAP_SELECT_TARGETS));
+  });
+}
+
+// Both webfont formats blocked (a .woff fallback would otherwise load): the title
+// still reaches lit on the fallback face, and the title and map audits stay clean.
+function captureNoFonts(browser, base, deviceName, dir) {
+  return screensRun(browser, deviceName, 'no-fonts', { blocked: true }, async (page, out, context) => {
+    await context.route(/\.woff2?(\?.*)?$/, r => r.abort());
+    await page.goto(base + '/');
+    await page.locator('#title-screen').waitFor({ state: 'visible', timeout: 30_000 });
+    await titlePhase(page, 'lit');
+    // Sentinel: prove the block held, or this run tests the real fonts.
+    const faces = await page.evaluate(() => [...document.fonts].map(f => `${f.family} ${f.status}`));
+    const loaded = faces.filter(f => f.endsWith(' loaded'));
+    if (loaded.length) throw new Error(`webfonts loaded despite the block: ${loaded.join(', ')}`);
+    out.files.push(await shoot(page, join(dir, '00d-title-no-fonts.png')));
+    out.layout.push(await audit(page, deviceName, 'no-fonts-title', TITLE_TARGETS));
+    await tapCentre(page, deviceName);
+    await page.locator('#story-dialog-skip').waitFor({ state: 'visible', timeout: 10_000 });
+    await page.locator(MAP_READY).waitFor({ timeout: 5_000 });
+    await tap(page, deviceName, '#story-dialog-skip');
+    await expectVisible(page, '#story-dialog', false);
+    await page.waitForTimeout(800);
+    out.files.push(await shoot(page, join(dir, '02c-map-no-fonts.png')));
+    out.layout.push(await audit(page, deviceName, 'no-fonts-map', MAP_SELECT_TARGETS));
+  });
+}
+
+// One node's art 404s: that node shows the numbered circle with its state
+// classes (the seeded save makes it the frontier: next + active).
+function captureMissingArt(browser, base, deviceName, dir) {
+  return screensRun(browser, deviceName, 'missing-art', { blocked: true }, async (page, out, context) => {
+    await context.route(`**/${BLOCKED_ART}`, r => r.abort());
+    await page.addInitScript(save => localStorage.setItem('lastlight_save', JSON.stringify(save)), BLOCKED_ART_SAVE);
+    await page.goto(base + '/');
+    await page.locator('#title-screen').waitFor({ state: 'visible', timeout: 30_000 });
+    await tapCentre(page, deviceName);
+    await page.locator(MAP_READY).waitFor({ timeout: 10_000 });
+    if (await visible(page, '#story-dialog')) throw new Error('campaign_intro played on a save that has seen it');
+    const sel = `.ow-node[data-map-id="${BLOCKED_ART_MAP}"]`;
+    await until(() => hasClass(page, sel, 'ow-node-fallback'), Boolean, () => `${sel} never fell back to the numbered circle`);
+    const node = await page.locator(sel).evaluate(el => {
+      const num = el.querySelector('.ow-node-num');
+      return { classes: [...el.classList], art: !!el.querySelector('.ow-node-art'), num: num.textContent, numVisible: num.checkVisibility() };
+    });
+    const missing = ['next', 'active'].filter(c => !node.classes.includes(c));
+    if (missing.length) throw new Error(`${sel} [${node.classes.join(' ')}] lacks .${missing.join(', .')}`);
+    if (node.art || !node.numVisible || node.num !== String(BLOCKED_ART_MAP + 1)) {
+      throw new Error(`${sel} fallback art=${node.art} num="${node.num}" visible=${node.numVisible}, expected the circle "${BLOCKED_ART_MAP + 1}"`);
+    }
+    await page.waitForTimeout(500);
+    out.files.push(await shoot(page, join(dir, '02d-missing-art.png')));
+    out.layout.push(await audit(page, deviceName, 'missing-art-map', MAP_SELECT_TARGETS));
+  });
+}
+
 // Polls `read` until `ok` holds; on timeout throws with the last value seen,
 // so a failing step says what the page actually showed.
 async function until(read, ok, describe, timeout = STEP_TIMEOUT) {
@@ -454,7 +761,7 @@ const hasClass = (page, sel, cls) => page.locator(sel).first().evaluate((el, c) 
 // make any "canvas changed" check pass without Phaser drawing anything.
 async function mapShot(page) {
   const pointerFine = await page.evaluate(q => matchMedia(q).matches, POINTER_FINE_QUERY);
-  const box = await page.locator('#game canvas').boundingBox();
+  const box = await page.locator(GAME_CANVAS).boundingBox();
   const a = worldToPagePoint({ x: 0, y: 0 }, box, { pointerFine });
   const b = worldToPagePoint({ x: WORLD_WIDTH, y: WORLD_HEIGHT }, box, { pointerFine });
   return page.screenshot({ clip: { x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y } });
@@ -519,17 +826,28 @@ function expectStates(snapshot, states) {
 }
 
 // One function per spec step-table row (docs/superpowers/specs/2026-10-22-device-matrix-design.md;
-// steps 7-17 per docs/superpowers/specs/2026-10-23-radial-menus-design.md).
+// steps 8-18 per docs/superpowers/specs/2026-10-23-radial-menus-design.md; step 2 per
+// docs/superpowers/specs/2026-10-23-title-world-map-design.md, which renumbered 2-17 to 3-18).
 // Each performs the row's action and asserts its condition; a throw fails the step.
 const FLOW_ACTIONS = {
   async boot(ctx) {
     const { page, base, hasTouch } = ctx;
     await page.goto(base + '/');
-    await expectVisible(page, '#story-dialog', true, 30_000);
+    // Every launch shows the title first; the intro dialog waits for the map.
+    await expectVisible(page, '#title-screen', true, 30_000);
+    await expectVisible(page, '#story-dialog', false);
     ctx.pointerFine = await page.evaluate(q => matchMedia(q).matches, POINTER_FINE_QUERY);
     if (ctx.pointerFine !== !hasTouch) throw new Error(`pointer fine=${ctx.pointerFine}, expected ${!hasTouch}`);
   },
+  async title({ page, deviceName }) {
+    await tapCentre(page, deviceName);
+    await expectVisible(page, '#title-screen', false);
+    await expectVisible(page, '#map-select');
+    // A fresh run: campaign_intro plays over the map.
+    await expectVisible(page, '#story-dialog');
+  },
   async 'skip-story'({ page, deviceName }) {
+    await page.locator(MAP_READY).waitFor({ timeout: STEP_TIMEOUT });
     await tap(page, deviceName, '#story-dialog-skip');
     await expectVisible(page, '#story-dialog', false);
     await expectVisible(page, '#map-select');
@@ -539,8 +857,12 @@ const FLOW_ACTIONS = {
     await tap(page, deviceName, node);
     await until(() => hasClass(page, node, 'active'), Boolean, () => `${node} not .active`);
     await expectText(page, '#featured-name', MAPS[0].name);
+    const { problems } = await audit(page, deviceName, 'flow-world-map', MAP_SELECT_TARGETS);
+    if (problems.length) throw new Error(problems.join('; '));
   },
   async play({ page, deviceName, exp }) {
+    // LAUNCH must come after the entry input guard, or the guard eats the tap.
+    await page.locator(MAP_READY).waitFor({ timeout: STEP_TIMEOUT });
     await tap(page, deviceName, '#featured-play');
     await expectVisible(page, '#hud-layer');
     await expectText(page, '#stat-gold', exp.startGold);
@@ -549,7 +871,7 @@ const FLOW_ACTIONS = {
   },
   async briefing({ page, deviceName, exp }, step, dir) {
     // The briefing is created in the same create() that shows #hud-layer, so its
-    // state is already settled once step 04 passed: no wait-for-appearance race.
+    // state is already settled once step 05 passed: no wait-for-appearance race.
     const shown = await visible(page, '#story-dialog');
     if (shown !== exp.expectBriefing) throw new Error(`briefing ${shown ? 'shown' : 'missing'}, expected ${exp.expectBriefing ? 'shown' : 'none'}`);
     if (!shown) return { file: null };
@@ -602,7 +924,7 @@ const FLOW_ACTIONS = {
   async 'upgrade-arm'(ctx, step, dir) {
     const { page, deviceName, exp } = ctx;
     await tap(page, deviceName, UPGRADE_ITEM);
-    // Clock starts at the first tap: step 13 must land its second tap inside the window.
+    // Clock starts at the first tap: step 14 must land its second tap inside the window.
     ctx.armedAt = Date.now();
     await until(() => hasClass(page, UPGRADE_ITEM, 'confirming'), Boolean, () => `${UPGRADE_ITEM} not .confirming`);
     await expectText(page, `${UPGRADE_ITEM} .radial-label`, 'Tap again');
@@ -654,8 +976,8 @@ const FLOW_ACTIONS = {
   async 'send-wave'({ page, deviceName, exp }) {
     await tap(page, deviceName, '#wave-btn');
     await expectText(page, '#stat-wave', exp.waveAfter);
-    // Mirror of step 13 under the same conditions: proves the map sample can differ,
-    // so step 13's byte-identical check is meaningful.
+    // Mirror of step 18 under the same conditions: proves the map sample can differ,
+    // so step 18's byte-identical check is meaningful.
     await animationsSettled(page);
     const a = await mapShot(page);
     await until(() => mapShot(page), b => !b.equals(a), () => 'map unchanged 5 s after Send Wave', 5_000);

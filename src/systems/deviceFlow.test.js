@@ -184,16 +184,21 @@ describe('worldToPagePoint', () => {
 describe('stepsFor / shotName', () => {
   it('drops the touch-only step without touch', () => {
     const s = stepsFor({ hasTouch: false });
-    expect(s).toHaveLength(16);
+    expect(s).toHaveLength(17);
     expect(s.some((x) => x.id === 'upgrade-arm')).toBe(false);
   });
-  it('keeps all 17 with touch', () => {
-    expect(stepsFor({ hasTouch: true })).toHaveLength(17);
+  it('keeps all 18 with touch', () => {
+    expect(stepsFor({ hasTouch: true })).toHaveLength(18);
   });
-  it('follows the spec step table 7-17', () => {
-    expect(FLOW_STEPS.filter((x) => x.n >= 7).map((x) => `${x.n} ${x.id}`)).toEqual([
-      '7 arm-tower', '8 cancel-arm', '9 open-build-radial', '10 radial-build', '11 open-ring',
-      '12 upgrade-arm', '13 upgrade', '14 radial-unaffordable', '15 close-radial', '16 send-wave', '17 pause',
+  it('dismisses the title as its own step between boot and the story skip', () => {
+    expect(FLOW_STEPS.filter((x) => x.n <= 7).map((x) => `${x.n} ${x.id}`)).toEqual([
+      '1 boot', '2 title', '3 skip-story', '4 select-map', '5 play', '6 briefing', '7 level-ready',
+    ]);
+  });
+  it('follows the spec step table 8-18', () => {
+    expect(FLOW_STEPS.filter((x) => x.n >= 8).map((x) => `${x.n} ${x.id}`)).toEqual([
+      '8 arm-tower', '9 cancel-arm', '10 open-build-radial', '11 radial-build', '12 open-ring',
+      '13 upgrade-arm', '14 upgrade', '15 radial-unaffordable', '16 close-radial', '17 send-wave', '18 pause',
     ]);
     expect(FLOW_STEPS.filter((x) => x.touchOnly).map((x) => x.id)).toEqual(['upgrade-arm']);
   });
@@ -215,7 +220,7 @@ describe('summarizeFlow', () => {
   });
   it('prints passed/total for a full device', () => {
     const steps = stepsFor({ hasTouch: false }).map((x) => pass(x.n, x.id));
-    expect(summarizeFlow([{ device: 'desktop', steps, problems: [] }]).lines[0]).toBe('PASS desktop 16/16');
+    expect(summarizeFlow([{ device: 'desktop', steps, problems: [] }]).lines[0]).toBe('PASS desktop 17/17');
   });
   it('fails a device with no steps', () => {
     const r = summarizeFlow([{ device: 'd', steps: [], problems: [] }]);
