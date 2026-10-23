@@ -26,7 +26,10 @@ export class TitleScreen {
   constructor(root) {
     this._root = root;
     this._prompt = root.querySelector('.title-prompt');
-    this._space = new SpaceCanvas(root.querySelector('canvas'), { maxDpr: LAYOUT.maxCanvasDpr });
+    this._space = new SpaceCanvas(root.querySelector('canvas'), {
+      maxDpr: LAYOUT.maxCanvasDpr,
+      minFrameMs: STARS_TITLE.minFrameMs,
+    });
     this._onStart = null;
     this._bound = false;
     this._motion = true;

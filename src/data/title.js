@@ -23,8 +23,13 @@ const layer = (z, count) => ({
   alpha: 0.35 + 0.65 * z,
 });
 
+const TITLE_LAYERS = [layer(0.15, 54), layer(0.4, 53), layer(1, 53)];
+
+// minFrameMs: the same cap as the world map, repaint once the fastest layer has
+// moved 1 CSS px.
 export const STARS_TITLE = {
   seed: 1,
   twinkle: { depth: 0.25, radPerS: 2 },
-  layers: [layer(0.15, 54), layer(0.4, 53), layer(1, 53)],
+  layers: TITLE_LAYERS,
+  minFrameMs: 1000 / Math.max(...TITLE_LAYERS.map(l => l.speed)),
 };

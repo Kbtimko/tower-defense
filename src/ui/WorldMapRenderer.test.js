@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { WorldMapRenderer } from './WorldMapRenderer.js';
-import { HAZE, TRAIL } from '../data/worldMap.js';
+import { HAZE, TRAIL, STARS_MAP } from '../data/worldMap.js';
 import { PALETTE } from '../data/theme.js';
 import { splitRoute } from '../systems/worldRoute.js';
 
@@ -113,5 +113,59 @@ describe('WorldMapRenderer', () => {
     expect(raf.size).toBe(1);
     r.destroy();
     expect(raf.size).toBe(0);
+  });
+
+  describe('backdrop loop', () => {
+    let frames;
+
+    beforeEach(() => {
+      frames = [];
+      let next = 1;
+      vi.stubGlobal('requestAnimationFrame', (fn) => { const id = next++; frames.push({ id, fn }); return id; });
+      vi.stubGlobal('cancelAnimationFrame', (id) => { frames = frames.filter(f => f.id !== id); });
+    });
+
+    function makeLive({ motion = () => true } = {}) {
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => recordingCtx(log));
+      const backdrop = document.createElement('canvas');
+      const story = document.createElement('canvas');
+      const r = new WorldMapRenderer({ backdrop, story, maxDpr: 2, source: 'procedural', motion });
+      r.resize(frame, viewport);
+      return { r, backdrop, story };
+    }
+
+    // The stars drift a few px/s at <= 18% alpha: a 60 fps full-viewport repaint
+    // of them is wasted work (final review I2).
+    it('an idle map with motion on repaints far less often than rAF fires', () => {
+      const paint = vi.spyOn(WorldMapRenderer.prototype, '_drawBackdrop');
+      const { r } = makeLive();
+      let fired = 0;
+      for (let t = 1000; t < 2000 && frames.length; t += 1000 / 60) {
+        frames.shift().fn(t);
+        fired++;
+      }
+      expect(fired).toBeGreaterThanOrEqual(59);
+      expect(paint.mock.calls.length).toBeLessThanOrEqual(Math.ceil(1000 / STARS_MAP.minFrameMs) + 1);
+      expect(paint.mock.calls.length).toBeLessThan(fired / 4);
+      r.destroy();
+    });
+
+    it('destroy releases both canvas backing stores', () => {
+      const { r, backdrop, story } = makeLive();
+      frames.shift().fn(1000);
+      expect(story.width).toBeGreaterThan(0);
+      r.destroy();
+      expect([backdrop.width, backdrop.height, story.width, story.height]).toEqual([0, 0, 0, 0]);
+    });
+
+    it('a re-entry after destroy sizes the canvases again', () => {
+      const { r, story } = makeLive();
+      frames.shift().fn(1000);
+      r.destroy();
+      r.resize(frame, viewport);
+      expect(story.width).toBe(viewport.width);
+      expect(story.height).toBe(viewport.height);
+      r.destroy();
+    });
   });
 });

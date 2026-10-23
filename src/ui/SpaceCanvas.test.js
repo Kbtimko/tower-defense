@@ -107,4 +107,83 @@ describe('SpaceCanvas', () => {
     expect(draw).toHaveBeenCalledWith(ctx, 0, 100, 50);
     space.destroy();
   });
+
+  describe('minFrameMs (idle repaint cap)', () => {
+    const RAF_MS = 1000 / 60;
+
+    function run(space, ms, t0 = 1000) {
+      let t = t0;
+      let fired = 0;
+      while (t < t0 + ms && frames.length) {
+        frames.shift()(t);
+        fired++;
+        t += RAF_MS;
+      }
+      return { fired, t };
+    }
+
+    it('repaints far fewer times than rAF fires, carrying the skipped time in dt', () => {
+      const canvas = document.createElement('canvas');
+      vi.spyOn(canvas, 'getContext').mockReturnValue(ctx);
+      const draw = vi.fn();
+      const space = new SpaceCanvas(canvas, { maxDpr: 2, minFrameMs: 100 });
+      space.start(draw);
+      const { fired } = run(space, 1000);
+      expect(fired).toBeGreaterThanOrEqual(59);
+      expect(draw.mock.calls.length).toBeLessThanOrEqual(11);
+      expect(draw.mock.calls.length).toBeGreaterThanOrEqual(9);
+      for (const [, dt] of draw.mock.calls.slice(1)) expect(dt).toBeGreaterThanOrEqual(100);
+      space.destroy();
+    });
+
+    it('without minFrameMs it repaints every frame', () => {
+      const canvas = document.createElement('canvas');
+      vi.spyOn(canvas, 'getContext').mockReturnValue(ctx);
+      const draw = vi.fn();
+      const space = new SpaceCanvas(canvas, { maxDpr: 2 });
+      space.start(draw);
+      const { fired } = run(space, 1000);
+      expect(draw).toHaveBeenCalledTimes(fired);
+      space.destroy();
+    });
+
+    // A resize clears the backing store, so it can't wait out the cap.
+    it('a size change repaints on the next frame', () => {
+      const canvas = document.createElement('canvas');
+      vi.spyOn(canvas, 'getContext').mockReturnValue(ctx);
+      let w = 100;
+      Object.defineProperty(canvas, 'clientWidth', { get: () => w });
+      Object.defineProperty(canvas, 'clientHeight', { value: 50 });
+      const draw = vi.fn();
+      const space = new SpaceCanvas(canvas, { maxDpr: 2, minFrameMs: 100 });
+      space.start(draw);
+      frames.shift()(1000);
+      w = 120;
+      frames.shift()(1016);
+      expect(draw).toHaveBeenCalledTimes(2);
+      expect(draw.mock.lastCall[2]).toBe(120);
+      space.destroy();
+    });
+  });
+
+  // A hidden screen's canvas otherwise holds ~20 MB at 1440x900 @2x (final review M1).
+  it('destroy releases the backing store; a restart sizes it again', () => {
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getContext').mockReturnValue(ctx);
+    Object.defineProperty(canvas, 'clientWidth', { value: 100 });
+    Object.defineProperty(canvas, 'clientHeight', { value: 50 });
+    vi.stubGlobal('devicePixelRatio', 2);
+    const space = new SpaceCanvas(canvas, { maxDpr: 2 });
+    space.start(() => {});
+    frames.shift()(1000);
+    expect(canvas.width).toBe(200);
+    space.destroy();
+    expect(canvas.width).toBe(0);
+    expect(canvas.height).toBe(0);
+    space.start(() => {});
+    frames.shift()(2000);
+    expect(canvas.width).toBe(200);
+    expect(canvas.height).toBe(100);
+    space.destroy();
+  });
 });

@@ -119,6 +119,20 @@ describe('MapSelectScene post-win arrival (spec 2.3)', () => {
       expect(document.querySelectorAll('.ow-node.active')).toHaveLength(1);
     });
 
+    // The backdrop's idle repaint cap (final review I2) must not reach the arrival:
+    // the story layer repaints on every rAF while it plays.
+    it('the story layer repaints on every frame while the arrival plays', () => {
+      const render = vi.spyOn(WorldMapRenderer.prototype, 'render');
+      sizeMapSelect(1440, 900);
+      seedSave(AFTER_FIRST_CLEAR);
+      enter({ from: FIRST_CLEAR_0 });
+      const before = render.mock.calls.length;
+      const frames = 30;
+      vi.advanceTimersByTime(frames * FRAME_MS);
+      expect(arrival()).toBe('playing');
+      expect(render.mock.calls.length - before).toBeGreaterThanOrEqual(frames);
+    });
+
     it('the lit next node is selectable once the arrival is done', () => {
       seedSave([1, 1, 0, 0, 0, 0, 0, 0, 0, 0]);
       enter({ from: { mapId: 1, result: 'victory', prevStars: 0, stars: 1 } });

@@ -21,7 +21,7 @@ function polyline(ctx, pts) {
 
 export class WorldMapRenderer {
   constructor({ backdrop, story, maxDpr, source, motion = () => true }) {
-    this._space = new SpaceCanvas(backdrop, { maxDpr });
+    this._space = new SpaceCanvas(backdrop, { maxDpr, minFrameMs: STARS_MAP.minFrameMs });
     this._story = story;
     this._storyCtx = story.getContext('2d');
     this._maxDpr = maxDpr;
@@ -70,6 +70,8 @@ export class WorldMapRenderer {
     this._drawShip(ctx, splitRoute(points, state.ship.param), state.ship.offset ?? 0);
   }
 
+  // Releases every backing store (story, backdrop, the cached layers): this
+  // screen is hidden through gameplay and would otherwise hold them.
   destroy() {
     this._space.destroy();
     if (this._img) {
@@ -77,6 +79,14 @@ export class WorldMapRenderer {
       this._img = null;
     }
     this._state = null;
+    for (const c of [this._story, this._far, this._near]) {
+      if (!c) continue;
+      c.width = 0;
+      c.height = 0;
+    }
+    this._far = null;
+    this._near = null;
+    this._painted = null;
   }
 
   _dpr() {

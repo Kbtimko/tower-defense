@@ -178,12 +178,17 @@ export const SHIP = {
 };
 
 // Ambient drift stays under 20% opacity (art bible 8). speed is CSS px/s.
+const MAP_STAR_LAYERS = [
+  { count: 90, speed: 3, size: 1, alpha: 0.12 },
+  { count: 40, speed: 7, size: 1.6, alpha: 0.18 },
+];
+
+// minFrameMs: repaint only once the fastest layer has moved 1 CSS px. The drift
+// is faint and slow, so 60 fps full-viewport repaints buy nothing (final review I2).
 export const STARS_MAP = {
   seed: 7,
-  layers: [
-    { count: 90, speed: 3, size: 1, alpha: 0.12 },
-    { count: 40, speed: 7, size: 1.6, alpha: 0.18 },
-  ],
+  layers: MAP_STAR_LAYERS,
+  minFrameMs: 1000 / Math.max(...MAP_STAR_LAYERS.map(l => l.speed)),
 };
 
 // Deferred-asset slot (spec 4.4): empty today, so nothing is loaded and the
