@@ -150,6 +150,8 @@ export class RadialMenu {
     this._kind = null;
     this._target = null;
     this._anchor = null;
+    // A late timer or event on a hidden button must resolve to nothing.
+    this._items = [];
   }
 
   // Shutdown: every listener off as a pair, timers cleared, markup back to
@@ -285,12 +287,17 @@ export class RadialMenu {
     this._hidePeek();
   }
 
+  // Pointer focus is ignored: Android focuses a tapped button after pointerup,
+  // so a preview started here would never see its release. Hover and press
+  // already preview for pointers.
   _onFocus(btn, e) {
+    if (!isKeyboardFocus(e)) return;
     this._preview(btn);
-    if (isKeyboardFocus(e)) this._showPeek(btn);
+    this._showPeek(btn);
   }
 
   _preview(btn) {
+    if (!this.isOpen) return;
     const item = this._itemFor(btn);
     if (!item || item === HUB_ITEM) return;
     this._previewing = true;
@@ -307,7 +314,9 @@ export class RadialMenu {
     this._cb.onPreview(null);
   }
 
+  // Long-press timers can fire after the radial closed (defeat, a D5 close).
   _showPeek(btn) {
+    if (!this.isOpen) return;
     const item = this._itemFor(btn);
     if (!item) return;
     this._peeking = true;

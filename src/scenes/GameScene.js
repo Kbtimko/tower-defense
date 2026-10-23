@@ -1,12 +1,12 @@
 import Phaser from 'phaser';
-import { TOWER_DEFS, PROJECTILE_HIT_RADIUS } from '../data/towers.js';
+import { TOWER_DEFS, PROJECTILE_HIT_RADIUS, sellRefund } from '../data/towers.js';
 import { MAPS } from '../data/maps.js';
 import { MAP_WAVES } from '../data/waves.js';
 import { PathManager } from '../systems/PathManager.js';
 import { facingDirX } from '../systems/facing.js';
 import { WaveManager } from '../systems/WaveManager.js';
 import { EconomyManager } from '../systems/EconomyManager.js';
-import { TowerPlacementManager, sellRefund } from '../systems/TowerPlacementManager.js';
+import { TowerPlacementManager } from '../systems/TowerPlacementManager.js';
 import { Tower } from '../entities/Tower.js';
 import { Barracks } from '../entities/Barracks.js';
 import { Enemy } from '../entities/Enemy.js';
@@ -360,7 +360,12 @@ export default class GameScene extends Phaser.Scene {
       // Hover is a mouse affordance. Touch synthesises mouseenter on every tap,
       // which flashed the tooltip over the tap that arms a build; touch peeks
       // via long-press instead.
-      btn.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') this._showTowerTooltip(btn); });
+      // A radial peek's pending linger would otherwise hide this tooltip.
+      btn.addEventListener('pointerenter', (e) => {
+        if (e.pointerType !== 'mouse') return;
+        this._clearTooltipLinger();
+        this._showTowerTooltip(btn);
+      });
       btn.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') this._hideTowerTooltip(); });
       this._longPressDetachers.push(attachLongPress(btn, {
         onLongPress: () => { this._clearTooltipLinger(); this._showTowerTooltip(btn); },
@@ -416,6 +421,8 @@ export default class GameScene extends Phaser.Scene {
 
   _showConfirmExit() {
     if (this.over || this.won) return;
+    // The paused scene drops canvas taps, but the DOM radial would stay live under the dialog.
+    this._closeRadial();
     this.scene.pause();
     document.getElementById('msg-title').textContent        = 'Abandon level?';
     document.getElementById('msg-body').textContent         = 'Progress on this level will be lost.';
@@ -1523,7 +1530,7 @@ export default class GameScene extends Phaser.Scene {
   // The hub never carries item text: at 11 CSS px a name does not fit it on a
   // phone, so names, deltas and the confirm prompt live in the item peek.
   _hubLines() {
-    return this._buildSlot ? [BUILD_HUB] : ringHub(this.selectedTower);
+    return this._buildSlot ? [BUILD_HUB] : ringHub(this.selectedTower, TOWER_DEFS);
   }
 
   _onRadialActivate(item) {
@@ -1588,12 +1595,14 @@ export default class GameScene extends Phaser.Scene {
     }
     this._peekConfirming = false;
     if (item.id === RADIAL_HUB) {
-      // A build radial's hub has no tower to describe.
-      if (!this.selectedTower) return;
+      // Hidden either way: an item peek must not outlive the move to the hub.
       this._hideTowerTooltip();
-      this.inspector?.peekTower(this.selectedTower, rect);
+      // A build radial's hub has no tower to describe.
+      if (this.selectedTower) this.inspector?.peekTower(this.selectedTower, rect);
       return;
     }
+    // A ring item with no ring tower is a stale event from a closed radial.
+    if (!item.towerType && !this.selectedTower) return;
     this.inspector?.hidePeek();
     const tt = item.towerType ? this._fillTowerTooltip(item.towerType, item.cost) : this._fillRingPeek(item);
     // The touch two-tap confirm prompt: the hub is too small for it on a phone.
@@ -1644,7 +1653,7 @@ export default class GameScene extends Phaser.Scene {
         break;
       case 'reposition':
         this._tooltipHeader(tt, 'Move');
-        this._tooltipLine(tt, 'Tap a free pad nearby to move this barracks there.');
+        this._tooltipLine(tt, 'Then tap a free pad to move this barracks there.');
         break;
     }
     return tt;
@@ -1702,7 +1711,8 @@ export default class GameScene extends Phaser.Scene {
     this.repositioningBarracks = barracks;
     this._syncCancelButton();
     this._redrawZones();
-    this._toast('Click on the path within Barracks range to reposition soldiers');
+    // _repositionTo snaps the tap to the nearest free pad and moves the barracks there.
+    this._toast('Tap a free pad to move the barracks there');
   }
 
   _toggleSpeed() {

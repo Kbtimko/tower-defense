@@ -486,6 +486,39 @@ describe('RadialMenu', () => {
       expect(cb.onPreview).toHaveBeenLastCalledWith(null);
     });
 
+    // Android focuses a tapped button AFTER pointerup, so a preview from that
+    // focus would never get its release and the range ring would stay drawn.
+    it('a pointer-driven focus (not :focus-visible) neither previews nor peeks', () => {
+      openRing();
+      const matches = Element.prototype.matches;
+      const spy = vi.spyOn(Element.prototype, 'matches').mockImplementation(function (sel) {
+        return sel === ':focus-visible' ? false : matches.call(this, sel);
+      });
+      try {
+        $item('upgrade').focus();
+        expect(cb.onPreview).not.toHaveBeenCalled();
+        expect(cb.onPeek).not.toHaveBeenCalled();
+      } finally { spy.mockRestore(); }
+    });
+
+    // A long-press started on an item can outlive the radial (defeat, D5 close,
+    // ✕, W); its timer must not peek an item that is no longer on screen.
+    it('a long-press timer firing after close() peeks nothing', () => {
+      openRing();
+      $item('sell').dispatchEvent(ptr('pointerdown', 'touch'));
+      cb.onPeek.mockClear();
+      menu.close();
+      vi.advanceTimersByTime(LONG_PRESS_MS + 50);
+      expect(cb.onPeek.mock.calls.filter(([item]) => item)).toEqual([]);
+    });
+
+    it('close() forgets its items, so a stale button resolves to nothing', () => {
+      openRing();
+      menu.close();
+      $item('sell')?.dispatchEvent(ptr('pointerdown', 'touch'));
+      expect(cb.onPreview.mock.calls.filter(([item]) => item)).toEqual([]);
+    });
+
     it('keyboard focus on the hub peeks the hub', () => {
       openRing();
       $hub().focus();

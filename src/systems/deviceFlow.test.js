@@ -13,7 +13,7 @@ import { STORY_SEQUENCES, briefKey } from '../data/story.js';
 import { WORLD_WIDTH, WORLD_HEIGHT, TOUCH_HUD_CELL, FINE_HUD_CELL } from '../data/layout.js';
 import { RING_ANGLES, RADIAL_MARGIN } from '../data/radial.js';
 import { radialMetrics, layoutRadial } from './radialLayout.js';
-import { sellRefund } from './TowerPlacementManager.js';
+import { sellRefund } from '../data/towers.js';
 import { unlockMapNumber } from './radialItems.js';
 import { defaultCaptureBuild } from './debugCapture.js';
 

@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildItems, ringItems, ringHub, unlockMapNumber, previewRadius } from './radialItems.js';
-import { TOWER_DEFS } from '../data/towers.js';
+import { TOWER_DEFS, sellRefund } from '../data/towers.js';
 import { MAPS } from '../data/maps.js';
-import { sellRefund } from './TowerPlacementManager.js';
 import { RING_ANGLES, buildAngles } from '../data/radial.js';
 
 const types = Object.keys(TOWER_DEFS);
@@ -76,7 +75,7 @@ describe('ringItems', () => {
             if (allowed) {
               expect(up.state).toBe(expected);
               // Spec "Items per ring": a glyph + cost on the face, like build items;
-              // the tier name goes to the hub on preview, so the face stays readable.
+              // the tier name goes to the item peek, so the face stays readable.
               expect(up).toMatchObject({ icon: '⬆', label: `${cost}g`, name: def[`tier${next}`].label });
             } else {
               expect(up.state).toBe('locked');
@@ -142,13 +141,17 @@ describe('ringItems', () => {
 
 describe('ringHub', () => {
   it('shows tier, damage and range for a firing tower', () => {
-    expect(ringHub(tower('archer', 2))).toEqual(['T2', 'DMG 12', 'RNG 120']);
+    expect(ringHub(tower('archer', 2), TOWER_DEFS)).toEqual(['T2', 'DMG 12', 'RNG 120']);
   });
   it('shows the branch label at tier 4', () => {
-    expect(ringHub(tower('archer', 4, 'B'))[0]).toBe(TOWER_DEFS.archer.tier4B.label);
+    expect(ringHub(tower('archer', 4, 'B'), TOWER_DEFS)[0]).toBe(TOWER_DEFS.archer.tier4B.label);
   });
   it('shows squad size x HP and damage for barracks', () => {
-    expect(ringHub(tower('barracks', 1))).toEqual(['T1', '3× 25HP', 'DMG 35']);
+    expect(ringHub(tower('barracks', 1), TOWER_DEFS)).toEqual(['T1', '3× 25HP', 'DMG 35']);
+  });
+  it('reads the branch label from the defs it is given, like its siblings', () => {
+    const defs = { archer: { ...TOWER_DEFS.archer, tier4B: { ...TOWER_DEFS.archer.tier4B, label: 'Test Branch' } } };
+    expect(ringHub(tower('archer', 4, 'B'), defs)[0]).toBe('Test Branch');
   });
 });
 

@@ -1,4 +1,5 @@
-import { TowerPlacementManager, sellRefund } from './TowerPlacementManager.js';
+import { TowerPlacementManager } from './TowerPlacementManager.js';
+import { sellRefund } from '../data/towers.js';
 import { TOWER_DEFS } from '../data/towers.js';
 
 const makeEconomy = (gold = 500) => ({

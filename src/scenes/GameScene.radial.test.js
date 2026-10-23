@@ -13,9 +13,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import GameScene from './GameScene.js';
 import { EconomyManager } from '../systems/EconomyManager.js';
-import { TowerPlacementManager, sellRefund } from '../systems/TowerPlacementManager.js';
+import { TowerPlacementManager } from '../systems/TowerPlacementManager.js';
 import { previewRange } from '../systems/rangePreview.js';
-import { TOWER_DEFS } from '../data/towers.js';
+import { TOWER_DEFS, sellRefund } from '../data/towers.js';
 import { MAPS } from '../data/maps.js';
 import { CANVAS_WIDTH, RAIL_WIDTH, WORLD_WIDTH, WORLD_HEIGHT } from '../data/layout.js';
 import { CONFIRM_WINDOW_MS, PEEK_LINGER_MS } from '../data/input.js';
@@ -41,7 +41,7 @@ function setupDOM() {
   cancel.hidden = true;
   for (const id of ['stat-lives', 'stat-gold', 'stat-wave', 'stat-kills', 'tower-tooltip',
     'msg-title', 'msg-body', 'game-msg', 'paused-overlay']) add('div', id);
-  for (const id of ['msg-btn', 'msg-cancel-btn', 'exit-btn', 'pause-btn']) add('button', id);
+  for (const id of ['msg-btn', 'msg-cancel-btn', 'exit-btn', 'pause-btn', 'wave-btn', 'speed-btn']) add('button', id);
   for (const type of Object.keys(TOWER_DEFS)) {
     const b = add('button');
     b.className = 'tower-btn';
@@ -274,7 +274,7 @@ describe('GameScene radial wiring', () => {
       expect(s.selectedTower).toBe(t);
       expect(t.showRange).toHaveBeenCalled();
       expect(hubText()).toContain('T1');
-      // The face is glyph + cost; the tier name lives in the hub on preview.
+      // The face is glyph + cost; the tier name lives in the item peek and aria-label.
       expect($item('upgrade').textContent).toBe(`⬆${TOWER_DEFS.archer.tier2.cost}g`);
       expect($item('upgrade').getAttribute('aria-label')).toContain(TOWER_DEFS.archer.tier2.label);
     });
@@ -423,6 +423,30 @@ describe('GameScene radial wiring', () => {
   });
 
   describe('modes close the radial', () => {
+    it('the "Abandon level?" confirm closes it, so nothing stays live under the dialog', () => {
+      const s = makeScene();
+      s.scene = { pause: vi.fn() };
+      tapZone(s, 0);
+      s._showConfirmExit();
+      expect(isOpen()).toBe(false);
+    });
+
+    // _repositionTo snaps to the nearest free pad within REPOSITION_SNAP_RADIUS of
+    // the tap and moves the barracks there; the copy must describe that.
+    it('reposition copy (toast and peek) says what the next tap does: pick a free pad', () => {
+      const s = makeScene();
+      const b = buildAt(s, 0, 'barracks');
+      s._onTap(b.x, b.y);
+      s._onRadialPeek(s.radial._items.find(i => i.id === 'reposition'), { left: 0, top: 0, width: 10, height: 10 });
+      const peek = document.getElementById('tower-tooltip').textContent;
+      clickItem($item('reposition'));
+      const toast = toasts().at(-1);
+      for (const text of [peek, toast]) {
+        expect(text).toMatch(/free pad/i);
+        expect(text).not.toMatch(/path/i);
+      }
+    });
+
     it('starting aim closes it', () => {
       const s = makeScene();
       tapZone(s, 0);
@@ -518,6 +542,39 @@ describe('GameScene radial wiring', () => {
   describe('item peek', () => {
     const rect = { left: 0, top: 0, width: 100, height: 100 };
     const tip = () => document.getElementById('tower-tooltip');
+
+    it('a ring-item peek with no ring tower (a late timer) does nothing and does not throw', () => {
+      const s = makeScene();
+      const t = buildAt(s, 0, 'archer');
+      s._onTap(t.x, t.y);
+      const sell = s.radial._items.find(i => i.id === 'sell');
+      s._onUiCancel();
+      expect(() => s._onRadialPeek(sell, rect)).not.toThrow();
+      expect(tip().style.display).not.toBe('block');
+    });
+
+    it('moving from a build item to the build hub hides the item peek', () => {
+      const s = makeScene();
+      tapZone(s, 0);
+      s._onRadialPeek(s.radial._items[0], rect);
+      expect(tip().style.display).toBe('block');
+      s._onRadialPeek({ id: 'hub' }, rect);
+      expect(tip().style.display).toBe('none');
+    });
+
+    it('a radial peek linger does not hide a rail tooltip hovered after it', () => {
+      const s = makeScene();
+      s._wireShellListeners = () => {};            // document/matchMedia hooks are not under test
+      s._bindDOMEvents();
+      tapZone(s, 0);
+      s._onRadialPeek(s.radial._items[0], rect);
+      s._onRadialPeek(null);                      // linger armed
+      const rail = document.querySelector('.tower-btn[data-type="ice"]');
+      rail.dispatchEvent(ptr('pointerenter', 'mouse'));
+      vi.advanceTimersByTime(PEEK_LINGER_MS + 10);
+      expect(tip().style.display).toBe('block');
+      expect(tip().textContent).toContain(TOWER_DEFS.ice.name);
+    });
 
     it('a build item peeks its name, cost and matchups', () => {
       const s = makeScene();

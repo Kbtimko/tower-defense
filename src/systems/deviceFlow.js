@@ -3,7 +3,7 @@ import { RING_ANGLES, RADIAL_MARGIN } from '../data/radial.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { STORY_SEQUENCES, briefKey } from '../data/story.js';
 import { MAPS } from '../data/maps.js';
-import { sellRefund } from './TowerPlacementManager.js';
+import { sellRefund } from '../data/towers.js';
 import { unlockMapNumber } from './radialItems.js';
 import { radialMetrics, layoutRadial } from './radialLayout.js';
 

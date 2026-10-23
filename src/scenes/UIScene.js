@@ -138,6 +138,12 @@ export default class UIScene extends Phaser.Scene {
       const nameEl = btn.querySelector('.ability-name');
       if (keyEl)  keyEl.textContent  = slot.toUpperCase();
       if (nameEl) nameEl.textContent = a.icon;
+      // The face is only a key + glyph and native title= is gone (#42a), so
+      // assistive tech gets the name and effect here. The focusable wrapper
+      // carries it too: a disabled button is skipped by focus.
+      const spoken = `${slot.toUpperCase()}: ${a.label}. ${a.tooltip}`;
+      btn.setAttribute('aria-label', spoken);
+      document.getElementById(`ability-${slot}-wrap`)?.setAttribute('aria-label', spoken);
       btn.classList.add('locked');
       btn.disabled = true;
     }

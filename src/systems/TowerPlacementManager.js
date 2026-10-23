@@ -1,9 +1,4 @@
-import { TOWER_DEFS, SELL_REFUND_RATIO } from '../data/towers.js';
-
-// One formula for what Sell pays and what the ring advertises.
-export function sellRefund(totalCost) {
-  return Math.floor(totalCost * SELL_REFUND_RATIO);
-}
+import { TOWER_DEFS, sellRefund } from '../data/towers.js';
 
 export class TowerPlacementManager {
   constructor(zones, economy, entityFactory, modifiers = {}) {

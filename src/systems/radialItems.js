@@ -1,6 +1,5 @@
 import { RING_ANGLES, buildAngles } from '../data/radial.js';
-import { TOWER_DEFS } from '../data/towers.js';
-import { sellRefund } from './TowerPlacementManager.js';
+import { sellRefund } from '../data/towers.js';
 
 /**
  * The single source the RadialMenu presenter renders from.
@@ -93,9 +92,9 @@ export function ringItems({ tower, towerDefs, map, maps, gold }) {
   return items;
 }
 
-// Three short lines for the ring hub (the caller runs them through fitLabels).
-export function ringHub(tower) {
-  const def = TOWER_DEFS[tower.type];
+// Three short lines for the ring hub (RadialMenu fits them to the circle).
+export function ringHub(tower, towerDefs) {
+  const def = towerDefs[tower.type];
   const tier = tower.branch ? def[`tier4${tower.branch}`].label : `T${tower.level}`;
   if (tower.type === 'barracks') {
     const s = tower.soldierStats;
