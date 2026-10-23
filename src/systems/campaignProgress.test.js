@@ -42,7 +42,7 @@ describe('campaignProgress', () => {
     expect(bannerFor(Array(10).fill(3))).toEqual({
       act: 'CAMPAIGN COMPLETE',
       objective: 'The war is won',
-      sectors: 'Front line: 10 of 10 sectors retaken',
+      sectors: '10 of 10 sectors retaken',
       complete: true,
     });
   });

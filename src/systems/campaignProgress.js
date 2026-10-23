@@ -29,10 +29,15 @@ export function actForMap(id, acts = ACTS) {
 export function bannerFor(stars, { maps = MAPS, acts = ACTS, objectives = OBJECTIVES } = {}) {
   const retaken = sectorsRetaken(stars);
   const total = maps.length;
-  const sectors = `Front line: ${retaken} of ${total} sectors retaken`;
   if (retaken >= total) {
-    return { act: CAMPAIGN_COMPLETE.act, objective: CAMPAIGN_COMPLETE.objective, sectors, complete: true };
+    return {
+      act: CAMPAIGN_COMPLETE.act,
+      objective: CAMPAIGN_COMPLETE.objective,
+      sectors: `${total} of ${total} sectors retaken`,
+      complete: true,
+    };
   }
+  const sectors = `Front line: ${retaken} of ${total} sectors retaken`;
   const frontier = maps[retaken];
   const act = actForMap(frontier.id, acts);
   return {
