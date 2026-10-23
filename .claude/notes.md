@@ -3,13 +3,13 @@
 ## Goal
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
-## Current Status (2026-10-22)
+## Current Status (2026-10-23)
 
-**2026-10-22 (later session): #44 fix, #43 desktop rails, roadmap 2.4 device matrix — all as open PRs.**
-- **#44:** PR #103 into `main` (production) and forward-port #104 into `visual/integration`. A tier-3 barracks on a tier-4 map no longer crashes, and barracks tier 4 (Vanguard / Rapid Response) is purchasable for the first time.
-- **#43:** PR #105, stacked on #104. On a `(pointer: fine)` device the rails are 104 px and the canvas 1488×720, so the map is +6 / −9 / −1 % vs the pre-rail layout at 1280×720 / 1440×900 / 1920×1080. Touch devices are unchanged value-for-value (fingerprint-verified).
-- **2.4:** device-matrix PR stacked on #105. `npm run matrix` (`scripts/capture.mjs --flow`) plays first-run → map 0 → build archer → two-tap Upgrade → Send Wave → Pause with real input on desktop, iPhone 14, Pixel 7 and iPad. It asserts state on every step, checks that the map area freezes while paused, and exits 1 on any failure. 2276 tests.
-- **Merge order:** #104 → #105 → 2.4 (retarget each to `visual/integration` once the one below merges). #103 into `main` is separate: merging it deploys production.
+**2026-10-23: everything is merged into `visual/integration` — Phase 2 code (2.1–2.4), #43 desktop rails, 3.1 theme module and 3.3 radial menus. `main` (production) has only the #44 barracks hotfix (#103, live and hash-verified).**
+- **Merged into `visual/integration`:** #104 (#44 forward-port), #107 (landed the stacked #105 #43 rails + #106 2.4 matrix), #108 (3.1 theme: Orbitron + Rajdhani, strict art-bible palette, CSS kit `.ui-panel`/`.ui-btn`), #109 (3.3 radial build/upgrade menus, tower inspector on long-press, HintPeek replaces `title=`). 2644 tests.
+- **Device matrix:** `npm run matrix` passes on desktop 16/16 and iphone/pixel/ipad 17/17 and drives the radial. The 5-device `--screens` audit is clean, including `radialProblems`.
+- **Open HIGH bug on production:** #52, Scout Vex's Mark Target (Q) throws on every use. A fix on `main` is the user's call.
+- **Waiting on the user:** the G3 Phase-2 gate (desktop: narrow rails, Safari/Firefox, theme look, radial; real phone: rails, gestures, radial, long-press peeks), the #52 decision, and `visual/integration` → `main` after G3.
 
 **2026-10-22: visual roadmap 2.2 — side-rail HUD in game space, MERGED into `visual/integration` (#102).** User decisions: side rails, and DOM-in-game-space instead of a Phaser-drawn HUD. Canvas is now **1632×720** (`src/data/layout.js`: WORLD 1280×720, RAIL_WIDTH 176 = two 88-px cells, so ≥44 CSS px at a 360-px-high phone); GameScene draws the map in a camera viewport offset by the rail (world coordinates unchanged; `worldToPageCss`/`pageToWorld`; taps over a rail are ignored via `pointer.camera`). The HTML HUD lives in `#hud-layer > #rail-left/#rail-right`, pinned over the canvas and scaled by one CSS transform (`src/ui/hudLayer.js`); left rail = stats, hero, Q/W/E/✕Cancel, Pause/2×, Codex/Exit; right rail = 6 towers + Send Wave. Rail labels shrink-to-fit with a condensed stack (`src/ui/fitLabels.js`). Toast/banners anchor to the map (`--map-*` vars); tower panel + inspectors clamp to the map. Vignette re-done in world space (matches the pre-rail look ±0.005). Phaser kept a STALE canvas size after portrait→landscape (orientationchange refresh uses the old parentSize) — the old bars masked it; `main.js` now `getParentBounds(); refresh()` on resize/fullscreen. Every DOM overlay has ≥44 px controls on coarse pointers; Story/Codex meta buttons now styled on desktop too. Layout audit is rail-aware with 844×390 / 932×430 devices and a touch-size rule. Phone map 662×372 at 844×390 (was ~478×269). **Desktop trade-off:** the 2.27:1 canvas letterboxes on 16:9/16:10 windows — map −3 % at 1280×720 but −10 % at 1920×1080 and −17 % at 1440×900 (backlog #43). 2229 tests.
 
@@ -64,15 +64,11 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
-- **2026-10-23 (later):** #107 and #108 are merged. Roadmap **3.3 radial menus is done** (PR from `visual/3.3-radial-menus` into `visual/integration`). **New HIGH bug #52:** Scout Q throws, and it is live on production. Fixing it on `main` is the user's call. **Next:** roadmap 3.4 (title & map select; takes #41f, #50a) → 3.5 → 3.6. The G3 Phase-2 gate is the user's.
-  - Building works both ways: tap a pad for the radial, or arm from the rail.
-  - The upgrade ring holds actions plus compact stats; full detail moves to long-press inspect.
-  - The #42a tooltips become a long-press peek on touch and hover on desktop, and native `title=` goes away.
-  - Then 3.4–3.6. The G3 Phase-2 gate is the user's.
+- Nothing in flight; no open PRs (2026-10-23). **Next session:** decide #52 (Scout Q, live on production) and the order of roadmap 3.4 (title & map select; takes #41f, #50a) versus the user's backlog items #48 (soldier walk-to-rally), #49 (upgrade visuals) and #51 (auto-send waves). Kickoff prompt: `.claude/prompts/2026-10-23-next-session-kickoff.md`.
 - Preview for playtesting: `https://tower-defense-git-visual-integration-kbtimko-5183s-projects.vercel.app` (verified 2026-10-22; Vercel SSO-protected — sign in on the device or use the dashboard Share link).
 
 ## Loose ends
-- **Worktrees from 2026-10-22's later session:** `.claude/worktrees/fix-44` (main hotfix), `fix-44-visual`, `rails-43` and `matrix-24`. Remove each once its PR merges.
+- **Session worktrees removed 2026-10-23** (fix-44, fix-44-visual, rails-43, matrix-24, theme-31, radial-33 — all merged). Their local branches remain for a `commit-commands:clean_gone` sweep. **`chore/session-log-visual` (remote) is stale:** its notes, session file and prompt were carried into #104 verbatim, so it can be deleted (user's call). This wrap is on `chore/session-log-2026-10-23`.
 - **`chore/session-log` (local + remote) and its worktree `.claude/worktrees/uiscene` still exist** — its only commit (3fdea37) was cherry-picked into PR #84; deleting them was blocked by permissions on 2026-10-13. Run: `git worktree remove .claude/worktrees/uiscene && git branch -D chore/session-log && git push origin --delete chore/session-log`.
 - **9 worktrees and ~20 local branches are all on merged branches** and want a sweep: `armour-legibility`, `codex-and-previews`, `fix-enemy-hit-feedback`, `hero-xp-card`, `listener-leak`, `maps39`, `onramp-recalibration`, `pause-btn`, `sim-matchup`. Deliberately not swept — destructive, and not asked for.
 - **The primary checkout sits on merged `feat/hero-melee-and-regen`** with uncommitted `SESSION_NOTES.md`, a deleted `.claude/session-wrapped` and untracked `.claude/prompts/`. Left alone on purpose: those edits may belong to a concurrent session, and the standing rule is to report rather than auto-stash.
