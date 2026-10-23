@@ -39,8 +39,20 @@ export function engPowerSurge(hero, _scene) {
   return { kind: 'power_surge', x: hero.x, y: hero.y, radius: 200, fireRateMult: 2.0, duration: 8 };
 }
 
-export function scoutMark(hero, _scene, target) {
+// How far (px) from the click an enemy can be and still count as clicked —
+// generous enough for a fingertip on a small enemy sprite.
+export const MARK_PICK_RADIUS = 40;
+
+// The aim is a click point; returning null on a miss keeps the cooldown unspent.
+export function scoutMark(hero, scene, aim) {
   if (hero.dead) return null;
+  if (!aim) return null;
+  let target = null, best = MARK_PICK_RADIUS;
+  for (const e of scene?.enemies ?? []) {
+    if (e.dead) continue;
+    const d = Math.hypot(e.x - aim.x, e.y - aim.y);
+    if (d <= best) { best = d; target = e; }
+  }
   if (!target) return null;
   return { kind: 'mark', target, multiplier: 2.0, duration: 6 };
 }
