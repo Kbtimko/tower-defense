@@ -273,8 +273,21 @@ describe('GameScene radial wiring', () => {
       expect(s.selectedTower).toBe(t);
       expect(t.showRange).toHaveBeenCalled();
       expect(hubText()).toContain('T1');
-      expect($item('upgrade').textContent).toContain(TOWER_DEFS.archer.tier2.label);
-      expect($item('upgrade').querySelector('.radial-cost').textContent).toBe(`${TOWER_DEFS.archer.tier2.cost}g`);
+      // The face is glyph + cost; the tier name lives in the hub on preview.
+      expect($item('upgrade').textContent).toBe(`⬆${TOWER_DEFS.archer.tier2.cost}g`);
+      expect($item('upgrade').getAttribute('aria-label')).toContain(TOWER_DEFS.archer.tier2.label);
+    });
+
+    it('previewing an upgrade names it and its stat change in the hub; releasing restores the tower stats', () => {
+      const s = makeScene();
+      const t = buildAt(s, 0, 'archer');
+      s._onTap(t.x, t.y);
+      $item('upgrade').focus();
+      expect(hubText()).toContain(TOWER_DEFS.archer.tier2.label);
+      expect(hubText()).toContain(`DMG ${t.damage}→${TOWER_DEFS.archer.tier2.damage}`);
+      $item('upgrade').blur();
+      expect(hubText()).toContain('T1');
+      expect(hubText()).not.toContain(TOWER_DEFS.archer.tier2.label);
       expect($item('sell').textContent).toContain(`+${sellRefund(t.totalCost)}g`);
     });
 
@@ -338,10 +351,11 @@ describe('GameScene radial wiring', () => {
       clickItem($item('upgrade'));
       expect(b.level).toBe(3);
       expect($item('upgrade')).toBeNull();
-      expect($item('branchA').textContent).toContain(TOWER_DEFS.barracks.tier4A.label);
-      expect($item('branchB').textContent).toContain(TOWER_DEFS.barracks.tier4B.label);
-      expect($item('branchA').textContent).toContain(`${TOWER_DEFS.barracks.tier4A.cost}g`);
-      expect($item('branchB').textContent).toContain(`${TOWER_DEFS.barracks.tier4B.cost}g`);
+      expect($item('branchA').textContent).toBe(`A${TOWER_DEFS.barracks.tier4A.cost}g`);
+      expect($item('branchB').textContent).toBe(`B${TOWER_DEFS.barracks.tier4B.cost}g`);
+      $item('branchB').focus();
+      expect(hubText()).toContain(TOWER_DEFS.barracks.tier4B.label);
+      $item('branchB').blur();
       expect($item('sell')).not.toBeNull();
       expect($item('reposition')).not.toBeNull();
       clickItem($item('branchA'));

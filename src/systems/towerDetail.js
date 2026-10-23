@@ -44,17 +44,22 @@ export function describeBranchPreview({ towerType, branch, damageMult = 1, locke
 // stats by tier key), so the preview is what the purchase actually lands.
 export function describeUpgradeDelta(tower, tier, branch = null) {
   const key = tier === 4 && branch ? `tier4${branch}` : `tier${tier}`;
-  const arrow = (name, from, to) => `${name} ${from} → ${to}`;
+  // A stat the tier leaves alone says nothing, so only changes are listed.
+  const changes = (pairs) => pairs
+    .filter(([, from, to]) => to !== undefined && to !== from)
+    .map(([name, from, to]) => `${name} ${from} → ${to}`)
+    .join(' · ');
   if (tower.type === 'barracks') {
     const now = tower.soldierStats;
     const next = TOWER_DEFS.barracks.soldierStats[key] ?? now;
-    return [arrow('HP', now.hp, next.hp), arrow('DMG', now.damage, next.damage)].join(' · ');
+    return changes([['HP', now.hp, next.hp], ['DMG', now.damage, next.damage], ['Soldiers', now.count, next.count]]);
   }
   const tierDef = TOWER_DEFS[tower.type][key];
-  const parts = [];
-  if (tierDef.damage !== undefined) parts.push(arrow('DMG', tower.damage, Math.round(tierDef.damage * (tower._damageMult ?? 1))));
-  if (tierDef.range !== undefined) parts.push(arrow('RNG', tower.range, Math.round(tierDef.range * (tower._rangeMult ?? 1))));
-  return parts.join(' · ');
+  const scaled = (v, mult) => (v === undefined ? undefined : Math.round(v * (mult ?? 1)));
+  return changes([
+    ['DMG', tower.damage, scaled(tierDef.damage, tower._damageMult)],
+    ['RNG', tower.range, scaled(tierDef.range, tower._rangeMult)],
+  ]);
 }
 
 function firingLines(tower) {

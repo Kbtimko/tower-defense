@@ -8,14 +8,14 @@ import { sellRefund } from './TowerPlacementManager.js';
  * @typedef {Object} RadialItem
  * @property {string} id         'build:<type>' | 'upgrade' | 'branchA' | 'branchB' | 'sell' | 'reposition'
  * @property {number} slot       Angle in degrees (0 = east, clockwise on screen), fed to layoutRadial.
- * @property {string} label      Caption, e.g. '60g', '⬆ Eagle Eye', '🔒 Map 3', 'MAX', '💰 +36g', '↻ Move'.
- * @property {string} [costLabel] Second line with the price, e.g. '50g'; buyable (ready/disabled) upgrades and branches only.
+ * @property {string} label      Caption under the icon, e.g. '60g', '50g', 'Map 3', 'MAX', '+36g', 'Move'.
  * @property {number|null} cost  Gold needed to activate; null for MAX, Sell and Reposition.
  * @property {'currency'|'danger'|'primary'|'neutral'} variant  .ui-btn modifier.
  * @property {'ready'|'disabled'|'locked'|'maxed'} state
  *           ready: activatable. disabled: costs more than gold. locked: the map caps the tier. maxed: level 4.
  * @property {string} ariaLabel  Full spoken text including cost and why it is not usable.
- * @property {string} [icon]     Build items only.
+ * @property {string} [icon]     Glyph above the caption: tower icon (build), '⬆' (upgrade), 'A'/'B' (branch), '🔒' (locked), '💰' (sell), '↻' (reposition).
+ * @property {string} [name]     What the item does in words: the tier name (hub on preview) or 'Sell'/'Move' (the armed-confirm hub prompt).
  * @property {string} [towerType] Build items only.
  * @property {number} [tier]     Upgrade/branch items: the tier bought (2, 3 or 4).
  * @property {'A'|'B'} [branch]  Branch items only.
@@ -47,17 +47,19 @@ export function buildItems({ towerDefs, gold, costMult = 1 }) {
   });
 }
 
-function purchaseItem({ id, def, tierDef, tier, branch, label, gold, maps, allowed }) {
-  const base = { id, slot: RING_ANGLES[id], cost: tierDef.cost, variant: 'currency', tier, range: tierDef.range };
+// The face shows only a glyph + cost: a tier name at a size that fits the
+// round face was unreadable on phones, so the name moves to the hub on preview.
+function purchaseItem({ id, def, tierDef, tier, branch, icon, gold, maps, allowed }) {
+  const base = { id, slot: RING_ANGLES[id], cost: tierDef.cost, variant: 'currency', tier, range: tierDef.range, name: tierDef.label };
   if (branch) base.branch = branch;
   const what = `${tier === 4 ? 'Evolve' : 'Upgrade'} ${def.name} to ${tierDef.label}`;
   if (!allowed) {
     const n = unlockMapNumber(tier, maps);
-    return { ...base, label: `🔒 Map ${n}`, state: 'locked', ariaLabel: `${what}, locked until Map ${n}` };
+    return { ...base, icon: '🔒', label: `Map ${n}`, state: 'locked', ariaLabel: `${what}, locked until Map ${n}` };
   }
   const state = affordState(gold, tierDef.cost);
   return {
-    ...base, label, state, costLabel: `${tierDef.cost}g`,
+    ...base, icon, label: `${tierDef.cost}g`, state,
     ariaLabel: `${what}, ${tierDef.cost} gold${state === 'disabled' ? ', not enough gold' : ''}`,
   };
 }
@@ -68,24 +70,24 @@ export function ringItems({ tower, towerDefs, map, maps, gold }) {
   const items = [];
 
   if (tower.type === 'barracks') {
-    items.push({ id: 'reposition', slot: RING_ANGLES.reposition, label: '↻ Move', cost: null, variant: 'primary', state: 'ready', ariaLabel: `Move ${def.name}` });
+    items.push({ id: 'reposition', slot: RING_ANGLES.reposition, icon: '↻', label: 'Move', name: 'Move', cost: null, variant: 'primary', state: 'ready', ariaLabel: `Move ${def.name}` });
   }
 
   if (tower.level === 3 && !tower.branch) {
     for (const b of ['A', 'B']) {
       const tierDef = def[`tier4${b}`];
-      items.push(purchaseItem({ id: `branch${b}`, def, tierDef, tier: 4, branch: b, label: tierDef.label, gold, maps, allowed: map.maxTierAllowed >= 4 }));
+      items.push(purchaseItem({ id: `branch${b}`, def, tierDef, tier: 4, branch: b, icon: b, gold, maps, allowed: map.maxTierAllowed >= 4 }));
     }
   } else if (tower.level >= 4) {
     items.push({ id: 'upgrade', slot: RING_ANGLES.upgrade, label: 'MAX', cost: null, variant: 'currency', state: 'maxed', ariaLabel: `${def.name} is at maximum level` });
   } else {
     const next = tower.level + 1;
     const tierDef = def[`tier${next}`];
-    items.push(purchaseItem({ id: 'upgrade', def, tierDef, tier: next, label: `⬆ ${tierDef.label}`, gold, maps, allowed: map.maxTierAllowed >= next }));
+    items.push(purchaseItem({ id: 'upgrade', def, tierDef, tier: next, icon: '⬆', gold, maps, allowed: map.maxTierAllowed >= next }));
   }
 
   items.push({
-    id: 'sell', slot: RING_ANGLES.sell, label: `💰 +${sellRefund(tower.totalCost)}g`, cost: null,
+    id: 'sell', slot: RING_ANGLES.sell, icon: '💰', label: `+${sellRefund(tower.totalCost)}g`, name: 'Sell', cost: null,
     variant: 'danger', state: 'ready', ariaLabel: `Sell ${def.name}, refund ${sellRefund(tower.totalCost)} gold`,
   });
   return items;

@@ -60,21 +60,27 @@ Order is clockwise, 0° = east, in screen coordinates. Angles live in `src/data/
   - The hub (neutral `.ui-btn`) reads "Build", or the previewed item's name + range. A hub tap closes the radial.
 - **Upgrade ring:** slots are `upgrade` -90°, `branchA` -120°, `branchB` -60°, `reposition` 180°, `sell` 90°. Pairwise no-overlap at both cell sizes is enforced by test (60° ⇒ chord 108 ≥ 97).
 
-| Tower state | Items (variant · state) |
-|---|---|
-| level < 3, next ≤ `maxTierAllowed` | `upgrade` "⬆ {label}" + cost · currency · ready / is-disabled |
-| level < 4, next > `maxTierAllowed` | `upgrade` or both branches · currency · **locked** "🔒 Map N", where N = `unlockMapNumber(tier)` is derived from `MAPS` (replaces the literal 3/5) |
-| level 3, no branch, tier 4 allowed | `branchA`, `branchB`: label + cost · currency · ready / is-disabled. **Barracks included (#44).** |
-| level 4 | `upgrade` "MAX" · `.maxed` |
-| always | `sell` "💰 +{refund}g" · danger. `refund = sellRefund(totalCost)` is shared with `sellTower`. |
-| barracks | `reposition` "↻ Move" · primary. It closes the ring and enters today's reposition mode. |
+Every ring face is a short **glyph over a caption**, the same pattern as build items (icon + cost). Tier and branch names were unreadable at the size that fits a round face on a phone (about 6.7 CSS px on iPhone 14), so the name is moved to the hub on preview. The name also stays in the item peek and in `aria-label`.
 
-**Hub (ring):** 3 short lines, passed through `fitLabels`.
-- Line 1: tier (`T2` or branch label).
-- Lines 2–3: damage and range for firing towers, or soldier count×HP and damage for barracks.
+| Tower state | Face: glyph / caption (variant · state) |
+|---|---|
+| level < 3, next ≤ `maxTierAllowed` | `upgrade` "⬆" / "{cost}g" · currency · ready / is-disabled |
+| level < 4, next > `maxTierAllowed` | `upgrade` or both branches: "🔒" / "Map N" · currency · **locked**. N = `unlockMapNumber(tier)`, derived from `MAPS` (replaces the literal 3/5). |
+| level 3, no branch, tier 4 allowed | `branchA`, `branchB`: "A" / "{cost}g" and "B" / "{cost}g" · currency · ready / is-disabled. **Barracks included (#44).** |
+| level 4 | `upgrade` "MAX" · `.maxed` |
+| always | `sell` "💰" / "+{refund}g" · danger. `refund = sellRefund(totalCost)` is shared with `sellTower`. |
+| barracks | `reposition` "↻" / "Move" · primary. It closes the ring and enters today's reposition mode. |
+
+Upgrade and branch items carry `name` (the tier label); sell and reposition carry "Sell" / "Move". While a touch confirm is armed, the hub prompt uses the name: "Tap again:" / name / caption.
+
+**Face size:** item text is 24 game px (glyph and caption alike). RadialMenu fits every line inside the circle (`circleFitScale`, inset 0.9) after the radial is shown. On iPhone 14 landscape no face renders below 11 CSS px. This is measured on the production build; see the task-4 report.
+
+**Hub (ring):** short lines fitted to the hub circle.
+- Nothing previewed: line 1 is the tier (`T2` or branch label); lines 2–3 are damage and range for firing towers, or soldier count×HP and damage for barracks.
+- Upgrade or branch previewed (hover, focus or touch press): the tier name plus its headline stat change, e.g. "Eagle Eye" / "DMG 15→25". The change is the first stat the tier actually changes (`describeUpgradeDelta`), e.g. "Soldiers 3→4" for Rapid Response. Range is shown by the preview ring instead.
 
 **Item peek** (`#tower-tooltip`, placed beside the radial footprint):
-- Upgrade: stat deltas, e.g. "DMG 15 → 25 · RNG 120 → 135".
+- Upgrade: name, cost and the stats it changes, e.g. "DMG 15 → 25 · RNG 120 → 135". Unchanged stats are omitted.
 - Branch: label, `passiveEffect`, matchup headline, armour rows using the tower's `_damageMult`, and the lock reason.
 - Sell: refund. Reposition: one line. Build item: today's name/cost/effective/weak text.
 

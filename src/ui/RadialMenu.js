@@ -26,7 +26,7 @@ const MAP_BOUNDS = { left: 0, top: 0, width: WORLD_WIDTH, height: WORLD_HEIGHT }
 
 const isTouchLike = (t) => t === 'touch' || t === 'pen';
 // Everything a preview or peek renders from; a refresh that changes none of it is silent.
-const sameItem = (a, b) => a === b || (!!a && !!b && a.id === b.id && a.label === b.label && a.cost === b.cost && a.state === b.state);
+const sameItem = (a, b) => a === b || (!!a && !!b && a.id === b.id && a.label === b.label && a.name === b.name && a.cost === b.cost && a.state === b.state);
 
 // Writes only on change: refresh runs on every gold tick, and a churned node
 // under a press in progress would swallow its click.
@@ -359,24 +359,21 @@ export class RadialMenu {
     setAttr(btn, 'aria-label', item.ariaLabel);
     setAttr(btn, 'aria-disabled', item.state === 'ready' ? null : 'true');
     let icon = btn.querySelector('.radial-icon');
+    let iconChanged = false;
     if (item.icon) {
       if (!icon) icon = btn.insertBefore(this._span('radial-icon'), btn.firstChild);
-      setText(icon, item.icon);
-    } else icon?.remove();
+      iconChanged = setText(icon, item.icon);
+    } else if (icon) { icon.remove(); iconChanged = true; }
     const label = btn.querySelector('.radial-label') ?? btn.appendChild(this._span('radial-label'));
-    let changed = setText(label, armed ? ARMED_CAPTION : item.label);
-    let cost = btn.querySelector('.radial-cost');
-    if (item.costLabel) {
-      if (!cost) { cost = btn.appendChild(this._span('radial-cost')); changed = true; }
-      changed = setText(cost, item.costLabel) || changed;
-    } else if (cost) { cost.remove(); changed = true; }
-    if (changed) this._fitFace(btn);
+    if (setText(label, armed ? ARMED_CAPTION : item.label) || iconChanged) this._fitFace(btn);
   }
 
   // While a confirm is armed the hub spells out what the second tap will do.
   _paintHub() {
     const armedItem = this._armed && this._items.find((i) => i?.id === this._armed);
-    const lines = armedItem ? [`${ARMED_CAPTION}: ${armedItem.label}`] : this._hubLines;
+    // A face is only glyph + caption, so the prompt names the purchase in words.
+    const armedLines = (i) => (i.name ? [`${ARMED_CAPTION}:`, i.name, i.label] : [`${ARMED_CAPTION}: ${i.label}`]);
+    const lines = armedItem ? armedLines(armedItem) : this._hubLines;
     const spans = [...this._hub.querySelectorAll('.radial-hub-line')];
     while (spans.length > lines.length) spans.pop().remove();
     while (spans.length < lines.length) spans.push(this._hub.appendChild(this._span('radial-hub-line')));

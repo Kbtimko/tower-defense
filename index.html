@@ -302,13 +302,14 @@
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       gap: calc(2px * var(--hud-k)); line-height: 1.05; text-align: center; white-space: nowrap;
       font-family: var(--hud-label-font); font-stretch: condensed; font-size: calc(22px * var(--hud-k)); }
-    .radial-item { width: var(--radial-item); height: var(--radial-item); }
+    /* 24 game px is the smallest caption that stays ~11 CSS px on a 340-px-tall
+       phone (FIT ~0.46); faces hold only a glyph + short caption, so it fits. */
+    .radial-item { width: var(--radial-item); height: var(--radial-item); font-size: calc(24px * var(--hud-k)); }
     .radial-item[hidden] { display: none; }
-    .radial-item .radial-icon { font-size: calc(28px * var(--hud-k)); line-height: 0.9; }
-    /* A long tier name ("Rapid Response") breaks between words rather than
-       shrinking to one tiny line; RadialMenu then fits the lines to the circle. */
-    .radial-item .radial-label { white-space: normal; text-wrap: balance; }
-    #radial-hub { width: var(--radial-hub); height: var(--radial-hub); }
+    /* The glyph matches the caption size: a taller glyph pushes the caption
+       (the widest line) toward the rim, where the circle is narrowest. */
+    .radial-item .radial-icon { font-size: calc(24px * var(--hud-k)); line-height: 0.9; }
+    #radial-hub { width: var(--radial-hub); height: var(--radial-hub); font-size: calc(24px * var(--hud-k)); }
     #radial-hub .radial-hub-line:first-child { font-weight: bold; }
     /* Long-press targets: stop the iOS callout and text selection that would
        otherwise open over the peek card. */

@@ -211,6 +211,7 @@ export default class GameScene extends Phaser.Scene {
     this.won         = false;
     this.selectedType   = null;
     this.selectedTower  = null;   // the tower whose ring is open
+    this._previewItem   = null;   // the radial item under hover/focus/press, named in the hub
     this._buildSlot     = null;   // the pad the build radial is open on
 
     // Latest pointer world position, used to draw the build-time range ring.
@@ -1450,9 +1451,8 @@ export default class GameScene extends Phaser.Scene {
     if (this.over || this.won) return;
     this._closeRadial();
     this._buildSlot = slot;
-    this._buildHub  = [BUILD_HUB];
     this.radial.open({
-      kind: 'build', anchor: { x: slot.x, y: slot.y }, items: this._buildItems(), hub: this._buildHub, target: slot,
+      kind: 'build', anchor: { x: slot.x, y: slot.y }, items: this._buildItems(), hub: this._hubLines(), target: slot,
     });
     this._syncCancelButton();
   }
@@ -1463,7 +1463,7 @@ export default class GameScene extends Phaser.Scene {
     this.selectedTower = tower;
     tower.showRange();
     this.radial.open({
-      kind: 'tower', anchor: { x: tower.x, y: tower.y }, items: this._ringItems(tower), hub: ringHub(tower), target: tower,
+      kind: 'tower', anchor: { x: tower.x, y: tower.y }, items: this._ringItems(tower), hub: this._hubLines(), target: tower,
     });
     this._syncCancelButton();
   }
@@ -1475,6 +1475,7 @@ export default class GameScene extends Phaser.Scene {
     // Cleared before close(): its preview-clear callback must not re-render a build hub.
     this._buildSlot = null;
     this.radial.close();
+    this._previewItem = null;
     // close() reports the peek ended, which would start a linger; a closed
     // radial leaves nothing floating.
     this._clearTooltipLinger();
@@ -1503,12 +1504,29 @@ export default class GameScene extends Phaser.Scene {
   _refreshRadial() {
     if (!this.radial?.isOpen) return;
     if (this.radial.kind === 'build') {
-      this.radial.refresh(this._buildItems(), this._buildHub);
+      this.radial.refresh(this._buildItems(), this._hubLines());
       return;
     }
     const tower = this.selectedTower;
     if (!this.placementManager.getTowers().includes(tower)) { this._closeRadial(); return; }
-    this.radial.refresh(this._ringItems(tower), ringHub(tower));
+    this.radial.refresh(this._ringItems(tower), this._hubLines());
+  }
+
+  // A face only has room for a glyph + cost, so the hub names whatever is
+  // previewed; otherwise it shows the build prompt or the tower's own stats.
+  _hubLines() {
+    const item = this._previewItem;
+    if (this._buildSlot) {
+      return item
+        ? [TOWER_DEFS[item.towerType].name, `RNG ${previewRange(item.range, this._towerRangeMult)}`]
+        : [BUILD_HUB];
+    }
+    const tower = this.selectedTower;
+    if (!item?.tier) return ringHub(tower);
+    // Name + the headline stat only: every extra line or character in one
+    // round face costs font size. Range is already drawn by the preview ring.
+    const [headline] = describeUpgradeDelta(tower, item.tier, item.branch).split(' · ');
+    return headline ? [item.name, headline.replace(/ → /g, '→')] : [item.name];
   }
 
   _onRadialActivate(item) {
@@ -1540,7 +1558,9 @@ export default class GameScene extends Phaser.Scene {
   _onRadialPreview(item) {
     const g = this._previewGfx;
     g?.clear();
-    if (this._buildSlot) this._setBuildHub(item);
+    this._previewItem = item;
+    // Skipped while closing: _closeRadial clears the target before close() reports this.
+    if (this._buildSlot || this.selectedTower) this._refreshRadial();
     const at = this._buildSlot ?? this.selectedTower;
     if (!item || !g || !at) return;
     const radius = this._buildSlot
@@ -1554,16 +1574,6 @@ export default class GameScene extends Phaser.Scene {
       g.fillStyle(PREVIEW_OK, 0.07);
       g.fillCircle(at.x, at.y, radius);
     }
-  }
-
-  // The build hub names the previewed tower and the range it would have.
-  _setBuildHub(item) {
-    const hub = item
-      ? [TOWER_DEFS[item.towerType].name, `RNG ${previewRange(item.range, this._towerRangeMult)}`]
-      : [BUILD_HUB];
-    if (hub.join('\n') === this._buildHub.join('\n')) return;
-    this._buildHub = hub;
-    this.radial.refresh(this._buildItems(), hub);
   }
 
   // `item` null means the peek gesture ended; linger as the rail peeks do.

@@ -213,6 +213,12 @@ describe('RadialMenu', () => {
       expect(hubText()).toEqual(HUB);
     });
 
+    it('a named item spells out the purchase in the armed hub prompt', () => {
+      openRing(ring({ upgrade: { icon: '⬆', label: '120g', name: 'Longbow' } }));
+      press($item('upgrade'), 'touch');
+      expect(hubText()).toEqual(['Tap again:', 'Longbow', '120g']);
+    });
+
     it('pen behaves like touch', () => {
       press($item('sell'), 'pen');
       expect(cb.onActivate).not.toHaveBeenCalled();
@@ -506,13 +512,16 @@ describe('RadialMenu', () => {
     });
   });
 
-  describe('cost line and round-face fit', () => {
-    it('an upgrade or branch item shows its cost on its own line; items without one show none', () => {
-      openRing([item('upgrade', { label: '⬆ Eagle Eye', cost: 50, costLabel: '50g' }), item('sell', { label: '💰 +36g' })]);
-      expect($item('upgrade').querySelector('.radial-cost').textContent).toBe('50g');
-      expect($item('sell').querySelector('.radial-cost')).toBeNull();
-      menu.refresh([item('upgrade', { label: '🔒 Map 3', state: 'locked', cost: 80 }), item('sell')], HUB);
-      expect($item('upgrade').querySelector('.radial-cost')).toBeNull();
+  describe('glyph faces and round-face fit', () => {
+    it('a ring item shows its glyph over its caption; a refresh swaps or drops the glyph in place', () => {
+      openRing([item('upgrade', { icon: '⬆', label: '50g', name: 'Eagle Eye', cost: 50 }), item('sell', { label: '💰 +36g' })]);
+      expect($item('upgrade').querySelector('.radial-icon').textContent).toBe('⬆');
+      expect(caption($item('upgrade'))).toBe('50g');
+      expect($item('sell').querySelector('.radial-icon')).toBeNull();
+      menu.refresh([item('upgrade', { icon: '🔒', label: 'Map 3', state: 'locked', cost: 80 }), item('sell')], HUB);
+      expect($item('upgrade').querySelector('.radial-icon').textContent).toBe('🔒');
+      menu.refresh([item('upgrade', { label: 'MAX', state: 'maxed' }), item('sell')], HUB);
+      expect($item('upgrade').querySelector('.radial-icon')).toBeNull();
     });
 
     // jsdom has no layout, so the geometry is stubbed: a face measures 0 while
@@ -528,10 +537,11 @@ describe('RadialMenu', () => {
       }));
       const style = vi.spyOn(window, 'getComputedStyle').mockImplementation((el) => ({ fontSize: el.style.fontSize || '22px' }));
       try {
-        openRing([item('upgrade', { label: '⬆ Eagle Eye', cost: 50, costLabel: '50g' }), item('sell')]);
+        openRing([item('upgrade', { icon: '⬆', label: '50g', cost: 50 }), item('sell')]);
         const px = parseFloat($item('upgrade').querySelector('.radial-label').style.fontSize);
         expect(px).toBeLessThan(22);
-        expect(parseFloat($item('upgrade').querySelector('.radial-cost').style.fontSize)).toBe(px);
+        // The whole face shrinks together, glyph included.
+        expect(parseFloat($item('upgrade').querySelector('.radial-icon').style.fontSize)).toBe(px);
       } finally {
         rect.mockRestore(); range.mockRestore(); style.mockRestore();
       }

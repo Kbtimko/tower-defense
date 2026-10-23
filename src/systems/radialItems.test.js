@@ -75,13 +75,12 @@ describe('ringItems', () => {
             expect(up.cost).toBe(cost);
             if (allowed) {
               expect(up.state).toBe(expected);
-              expect(up.label).toBe(`⬆ ${def[`tier${next}`].label}`);
-              // Spec "Items per ring": label + cost, so the price is visible before a tap.
-              expect(up.costLabel).toBe(`${cost}g`);
+              // Spec "Items per ring": a glyph + cost on the face, like build items;
+              // the tier name goes to the hub on preview, so the face stays readable.
+              expect(up).toMatchObject({ icon: '⬆', label: `${cost}g`, name: def[`tier${next}`].label });
             } else {
               expect(up.state).toBe('locked');
-              expect(up.label).toBe(`🔒 Map ${unlockMapNumber(next, MAPS)}`);
-              expect(up.costLabel).toBeUndefined();
+              expect(up).toMatchObject({ icon: '🔒', label: `Map ${unlockMapNumber(next, MAPS)}`, name: def[`tier${next}`].label });
             }
           }
         });
@@ -95,13 +94,11 @@ describe('ringItems', () => {
             expect(it4.cost).toBe(def[`tier4${b}`].cost);
             if (cap >= 4) {
               expect(it4.state).toBe(expected);
-              expect(it4.label).toBe(def[`tier4${b}`].label);
-              expect(it4.costLabel).toBe(`${def[`tier4${b}`].cost}g`);
+              expect(it4).toMatchObject({ icon: b, label: `${def[`tier4${b}`].cost}g`, name: def[`tier4${b}`].label });
               expect(it4.slot).toBe(RING_ANGLES[`branch${b}`]);
             } else {
               expect(it4.state).toBe('locked');
-              expect(it4.label).toBe(`🔒 Map ${unlockMapNumber(4, MAPS)}`);
-              expect(it4.costLabel).toBeUndefined();
+              expect(it4).toMatchObject({ icon: '🔒', label: `Map ${unlockMapNumber(4, MAPS)}`, name: def[`tier4${b}`].label });
             }
           }
         }
@@ -116,17 +113,17 @@ describe('ringItems', () => {
     it(`${type}: sell refund is the shared sellRefund, reposition only for barracks`, () => {
       const t = tower(type, 2, null, 137);
       const items = ring(t, 0, 4);
-      expect(byId(items, 'sell')).toMatchObject({ variant: 'danger', state: 'ready', label: `💰 +${sellRefund(137)}g`, slot: RING_ANGLES.sell });
+      expect(byId(items, 'sell')).toMatchObject({ variant: 'danger', state: 'ready', icon: '💰', label: `+${sellRefund(137)}g`, name: 'Sell', slot: RING_ANGLES.sell });
       const rep = byId(items, 'reposition');
-      if (type === 'barracks') expect(rep).toMatchObject({ variant: 'primary', state: 'ready', label: '↻ Move', slot: RING_ANGLES.reposition });
+      if (type === 'barracks') expect(rep).toMatchObject({ variant: 'primary', state: 'ready', icon: '↻', label: 'Move', name: 'Move', slot: RING_ANGLES.reposition });
       else expect(rep).toBeUndefined();
     });
   }
 
   it('barracks T3 on a tier-4 map offers both branches (#44)', () => {
     const items = ring(tower('barracks', 3), 1000, 4);
-    expect(byId(items, 'branchA').label).toBe(TOWER_DEFS.barracks.tier4A.label);
-    expect(byId(items, 'branchB').label).toBe(TOWER_DEFS.barracks.tier4B.label);
+    expect(byId(items, 'branchA').name).toBe(TOWER_DEFS.barracks.tier4A.label);
+    expect(byId(items, 'branchB').name).toBe(TOWER_DEFS.barracks.tier4B.label);
   });
   it('every item has the documented fields', () => {
     for (const i of ring(tower('barracks', 3), 1000, 4)) {
@@ -139,7 +136,7 @@ describe('ringItems', () => {
   });
   it('uses the passed maps for the lock number', () => {
     const up = ringItems({ tower: tower('archer', 1), towerDefs: TOWER_DEFS, map: mapWith(1), maps: [{ maxTierAllowed: 1 }, { maxTierAllowed: 2 }], gold: 999 }).find(i => i.id === 'upgrade');
-    expect(up.label).toBe('🔒 Map 2');
+    expect(up.label).toBe('Map 2');
   });
 });
 

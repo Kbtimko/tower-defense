@@ -190,6 +190,13 @@ describe('describeUpgradeDelta', () => {
     const t = tower({ type: 'archer', level: 3, damage: 40, range: 150, _damageMult: 1, _rangeMult: 1 });
     expect(describeUpgradeDelta(t, 4, 'A')).toBe('DMG 40 → 60');
   });
+  it('omits a stat the tier leaves unchanged and names a soldier-count change', () => {
+    // Rapid Response keeps HP and damage but adds a soldier.
+    const t = tower({ type: 'barracks', level: 3, soldierStats: TOWER_DEFS.barracks.soldierStats.tier3 });
+    const next = TOWER_DEFS.barracks.soldierStats.tier4B;
+    expect(describeUpgradeDelta(t, 4, 'B')).toBe(`Soldiers ${TOWER_DEFS.barracks.soldierStats.tier3.count} → ${next.count}`);
+  });
+
   it('gives soldier HP and damage deltas for a barracks', () => {
     const t = tower({ type: 'barracks', soldierStats: TOWER_DEFS.barracks.soldierStats.tier1 });
     expect(describeUpgradeDelta(t, 2)).toBe('HP 15 → 25 · DMG 20 → 35');
