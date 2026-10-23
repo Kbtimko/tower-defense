@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { MAPS } from '../data/maps.js';
-import { ROUTE, LAYOUT, EARTH, NODE_PULSE_MS } from '../data/worldMap.js';
+import { ROUTE, LAYOUT, EARTH, NODE_PULSE_MS, ARRIVAL } from '../data/worldMap.js';
 import { FULLSCREEN_COPY } from '../data/campaign.js';
 import { SaveManager } from '../systems/SaveManager.js';
 import { starsDisplay } from '../utils/display.js';
@@ -10,6 +10,7 @@ import { briefingCardModel } from '../systems/briefingCard.js';
 import { layoutClass, routeFrameFor, cardWidth, nodeRects } from '../systems/worldMapLayout.js';
 import { routePoints, routeParamAt, frontRadius, parkShip } from '../systems/worldRoute.js';
 import { worldBackdropSource } from '../systems/worldBackdrop.js';
+import { planArrival, arrivalFrame } from '../systems/arrivalPlan.js';
 import { WorldMapRenderer } from '../ui/WorldMapRenderer.js';
 import { renderBriefingCard } from '../ui/BriefingCard.js';
 import { UpgradeManager }         from '../systems/UpgradeManager.js';
@@ -25,6 +26,18 @@ import { fullscreenSupported, isFullscreen, toggleFullscreen } from '../ui/fulls
 // Everything a tap that dismissed the title (or the key that did) can still emit.
 const GUARDED_EVENTS = ['pointerdown', 'pointerup', 'click', 'keydown', 'keyup'];
 const SECTORS_COUNT = /(\d+ of \d+)/;
+const NODE_STATES = ['completed', 'next', 'unlocked', 'locked'];
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+// Re-runs a one-shot CSS animation class (a stamp, a cross-fade).
+function replay(el, cls) {
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+}
 
 // The world map (spec 2.2). Scene key and #map-select id are kept for the harness;
 // the player sees "World Map". DOM holds every word and control; the two canvases
@@ -38,6 +51,9 @@ export default class MapSelectScene extends Phaser.Scene {
     this._swallow = this._swallow.bind(this);
     this._endInputGuard = this._endInputGuard.bind(this);
     this._syncQuoteFade = this._syncQuoteFade.bind(this);
+    this._tickArrival = this._tickArrival.bind(this);
+    this._skipArrival = this._skipArrival.bind(this);
+    this._onArrivalVisibility = this._onArrivalVisibility.bind(this);
   }
 
   create(data = {}) {
@@ -62,8 +78,8 @@ export default class MapSelectScene extends Phaser.Scene {
     this._frontier = frontierIndex(this._stars);
     this._totalStars = this._stars.reduce((sum, n) => sum + n, 0);
     this._selectedId = this._defaultSelection(data?.from);
-    this._overworld.dataset.frontier = String(this._frontier);
     this._overworld.dataset.arrival = 'none';
+    this._prepareArrival(data?.from);
 
     this._renderer = new WorldMapRenderer({
       backdrop: document.getElementById('wm-backdrop'),
@@ -77,7 +93,7 @@ export default class MapSelectScene extends Phaser.Scene {
     this._quote = document.getElementById('featured-quote');
     this._quote.addEventListener('scroll', this._syncQuoteFade);
     this._populateOverworld();
-    this._renderBanner();
+    this._renderProgress();
     this._renderFeatured(this._selectedId);
     this._bindPlay();
     this._renderMetaBar();
@@ -99,19 +115,128 @@ export default class MapSelectScene extends Phaser.Scene {
     const am = this.game.registry.get('audio');
     if (am) am.playMusic('menu');
 
-    if (!this._saveMgr.hasSeenBeat('campaign_intro')) {
-      this._storyDialog.play('campaign_intro', () => this._saveMgr.markBeatSeen('campaign_intro'));
+    if (this._saveMgr.hasSeenBeat('campaign_intro')) {
+      this._beginArrival();
+    } else {
+      // The movement waits for the dialog (spec 2.3): it starts when it closes.
+      if (this._frame) this._overworld.dataset.arrival = 'waiting';
+      this._storyDialog.play('campaign_intro', () => {
+        this._saveMgr.markBeatSeen('campaign_intro');
+        this._beginArrival();
+      });
     }
   }
 
-  // Defeat/abandon reopen the mission just played, so a retry is one tap; every
-  // other entry (title, victory end state) opens on the frontier.
+  // A return from a mission reopens the mission just played (a retry is one tap,
+  // a replay keeps its card); a first clear then moves on to the next mission
+  // through the arrival. The title opens on the frontier.
   _defaultSelection(from) {
     const last = MAPS.length - 1;
     const id = from?.mapId;
-    const retry = from?.result === 'defeat' || from?.result === 'abandon';
-    if (retry && Number.isInteger(id) && id >= 0 && id <= last && this._isOpen(id)) return id;
+    if (Number.isInteger(id) && id >= 0 && id <= last && this._isOpen(id)) return id;
     return Math.min(this._frontier, last);
+  }
+
+  // The map opens at its pre-win state: the won map shows its old stars and, on a
+  // first clear, is still the frontier. `_frame` is null when nothing plays.
+  _prepareArrival(from) {
+    this._plan = planArrival({ from, stars: this._stars });
+    this._frame = this._plan.kind === 'none' ? null : arrivalFrame(this._plan, 0);
+    this._preStars = this._stars.slice();
+    if (this._frame) this._preStars[this._plan.mapId] = this._plan.prevStars;
+    this._preFrontier = frontierIndex(this._preStars);
+  }
+
+  _beginArrival() {
+    if (!this._frame) return;
+    if (!this._syncMotion()) {
+      this._finishArrival();
+      return;
+    }
+    this._overworld.dataset.arrival = 'playing';
+    this._root.addEventListener('pointerdown', this._skipArrival, true);
+    this._root.addEventListener('keydown', this._skipArrival, true);
+    document.addEventListener('visibilitychange', this._onArrivalVisibility);
+    this._arrivalT0 = performance.now();
+    this._arrivalRaf = requestAnimationFrame(this._tickArrival);
+  }
+
+  // The clock is performance.now(), not frame count, so a slow device still
+  // lands on time.
+  _tickArrival() {
+    this._arrivalRaf = 0;
+    const frame = arrivalFrame(this._plan, Math.max(0, performance.now() - this._arrivalT0));
+    if (frame.done) {
+      this._finishArrival();
+      return;
+    }
+    this._applyFrame(frame);
+    this._arrivalRaf = requestAnimationFrame(this._tickArrival);
+  }
+
+  // Any tap or key jumps to the end and is swallowed; the guard window then eats
+  // the rest of that gesture (pointerup, click), so it can't select or launch.
+  _skipArrival(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    this._finishArrival();
+    this._guardInput();
+  }
+
+  // The rAF stalls while hidden; on return the arrival jumps to its end state.
+  _onArrivalVisibility() {
+    if (!document.hidden) this._finishArrival();
+  }
+
+  _stopArrival() {
+    if (this._arrivalRaf) cancelAnimationFrame(this._arrivalRaf);
+    this._arrivalRaf = 0;
+    this._root?.removeEventListener('pointerdown', this._skipArrival, true);
+    this._root?.removeEventListener('keydown', this._skipArrival, true);
+    document.removeEventListener('visibilitychange', this._onArrivalVisibility);
+  }
+
+  _finishArrival() {
+    if (!this._frame) return;
+    this._stopArrival();
+    this._applyFrame(arrivalFrame(this._plan, Infinity));
+    this._frame = null;
+    this._wonNode().classList.remove('wm-focus');
+    this._renderProgress();
+    this._renderStory();
+    this._overworld.dataset.arrival = 'done';
+  }
+
+  _wonNode() {
+    return this._overworld.querySelector(`.ow-node[data-map-id="${this._plan.mapId}"]`);
+  }
+
+  // One arrival frame into the DOM and the story canvas. DOM writes only happen
+  // on a beat change, so the stamp and cross-fade animations run once each.
+  _applyFrame(frame) {
+    const prev = this._frame;
+    this._frame = frame;
+    const won = this._wonNode();
+    won.classList.toggle('wm-focus', frame.focus > 0 && !frame.cardOpen);
+    if (this._lit(frame) !== this._lit(prev)) {
+      this._renderProgress();
+    } else if (frame.stamped !== prev.stamped) {
+      this._renderNodes();
+    }
+    if (frame.stamped !== prev.stamped) replay(won.querySelector('.ow-node-stars'), 'wm-stamp');
+    const target = this._plan.toId ?? this._plan.mapId;
+    if (frame.cardOpen && this._selectedId !== target) this._selectMap(target);
+    this._renderStory();
+  }
+
+  // Lit = the post-win progress shows (the next node's beat, or the end).
+  _lit(frame) {
+    return !frame || frame.nextLit || frame.done;
+  }
+
+  // The stars the nodes, banner and data-frontier show right now.
+  _shownStars() {
+    return this._lit(this._frame) ? this._stars : this._preStars;
   }
 
   _isOpen(mapId) {
@@ -129,6 +254,11 @@ export default class MapSelectScene extends Phaser.Scene {
   // A tap or key that left the title can't select or launch anything here.
   _startInputGuard() {
     delete this._overworld.dataset.ready;
+    this._guardInput();
+  }
+
+  _guardInput() {
+    if (this._guardTimer) return;
     for (const type of GUARDED_EVENTS) document.addEventListener(type, this._swallow, true);
     this._guardTimer = setTimeout(this._endInputGuard, LAYOUT.inputGuardMs);
   }
@@ -178,6 +308,11 @@ export default class MapSelectScene extends Phaser.Scene {
     };
     for (const [name, px] of Object.entries(vars)) this._root.style.setProperty(name, `${px}px`);
     this._root.style.setProperty('--wm-pulse', `${NODE_PULSE_MS}ms`);
+    this._root.style.setProperty('--wm-focus-scale', String(ARRIVAL.focusScale));
+    this._root.style.setProperty('--wm-focus-ms', `${ARRIVAL.focusMs}ms`);
+    this._root.style.setProperty('--wm-stamp-scale', String(ARRIVAL.stampScale));
+    this._root.style.setProperty('--wm-stamp-ms', `${ARRIVAL.stampEachMs}ms`);
+    this._root.style.setProperty('--wm-light-ms', `${ARRIVAL.lightMs}ms`);
   }
 
   // Re-measure, recompute the frame, publish the --wm-* vars, place the nodes and
@@ -195,7 +330,7 @@ export default class MapSelectScene extends Phaser.Scene {
     const frame = { ...f, x: f.x + origin.x, y: f.y + origin.y };
     const points = routePoints(frame, ROUTE);
     this._cls = cls;
-    this._points = points;
+    this._geom = { points, rects: nodeRects(frame, ROUTE, cls), frame };
 
     for (const btn of this._overworld.querySelectorAll('.ow-node')) {
       const p = points[Number(btn.dataset.mapId) + 1];
@@ -205,7 +340,7 @@ export default class MapSelectScene extends Phaser.Scene {
     this._placeTags(frame, points, cls);
 
     this._renderer.resize(frame, box);
-    this._renderer.render(this._storyState(points, nodeRects(frame, ROUTE, cls), frame));
+    this._renderStory();
   }
 
   // EARTH sits under the Earth globe; the hive tag sits above node 10, held inside
@@ -225,39 +360,60 @@ export default class MapSelectScene extends Phaser.Scene {
     hiveTag.style.top = `${hive.y - LAYOUT.node[cls].final / 2 - LAYOUT.tagGap}px`;
   }
 
-  // The static (no-arrival) story state: trail and ship at the frontier, haze edge
-  // through it; all cleared -> trail to the hive, no haze, the hive glow dimmed.
-  _storyState(points, rects, frame) {
-    const idx = Math.min(this._frontier, MAPS.length - 1) + 1;
+  _renderStory() {
+    if (this._geom) this._renderer.render(this._storyState());
+  }
+
+  // The story state for a frontier: trail and ship at it, haze edge through it;
+  // all cleared -> trail to the hive, no haze, the hive glow dimmed.
+  _storyAt(frontier) {
+    const { points, rects, frame } = this._geom;
+    const idx = Math.min(frontier, MAPS.length - 1) + 1;
+    const cleared = frontier >= MAPS.length;
     return {
       points,
       trailT: routeParamAt(points, idx),
-      frontR: frontRadius(points, this._frontier),
-      frontAlpha: 1,
+      frontR: frontRadius(points, frontier),
+      frontAlpha: cleared ? 0 : 1,
       ship: parkShip(points, idx, rects, frame),
-      hiveDim: this._frontier >= MAPS.length ? 1 : 0,
+      hiveDim: cleared ? 1 : 0,
+    };
+  }
+
+  // Mid-arrival the story is a blend of the pre- and post-win states by the
+  // frame's fractions, recomputed from the current geometry, so a resize keeps
+  // going (spec 5). Without an arrival it is the saved frontier's state.
+  _storyState() {
+    const end = this._storyAt(this._frontier);
+    const f = this._frame;
+    if (!f) return end;
+    const start = this._storyAt(this._preFrontier);
+    return {
+      points: end.points,
+      trailT: lerp(start.trailT, end.trailT, f.trailT),
+      frontR: lerp(start.frontR, end.frontR, f.frontT),
+      frontAlpha: lerp(start.frontAlpha, end.frontAlpha, f.frontT),
+      ship: {
+        param: lerp(start.ship.param, end.ship.param, f.shipT),
+        offset: lerp(start.ship.offset, end.ship.offset, f.shipT),
+      },
+      hiveDim: lerp(start.hiveDim, end.hiveDim, f.frontT),
     };
   }
 
   // Nodes go in their own container: #map-overworld also holds the canvases and
-  // the Earth/hive tags, which must survive a re-render.
+  // the Earth/hive tags, which must survive a re-render. States are applied by
+  // _renderNodes, since an arrival changes them in place.
   _populateOverworld() {
-    const entries = MAPS.map(m => ({ id: m.id, unlocked: this._isOpen(m.id), stars: this._stars[m.id] }));
-    const nodes = classifyOverworld(entries, MAPS.length - 1);
-    document.getElementById('wm-nodes').replaceChildren(...nodes.map(n => this._nodeButton(n)));
+    document.getElementById('wm-nodes').replaceChildren(...MAPS.map(m => this._nodeButton(m)));
   }
 
-  _nodeButton(node) {
-    const map = MAPS[node.id];
-    const locked = node.state === 'locked';
+  _nodeButton(map) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = `ow-node ${node.state}` + (node.isFinal ? ' final' : '');
-    if (node.id === this._selectedId && !locked) btn.classList.add('active');
-    btn.dataset.mapId = String(node.id);
-    btn.setAttribute('aria-label', `${node.id + 1} · ${map.name}`);
-    // Disabled: no click from mouse, Enter or Space, so a locked node can't select.
-    btn.disabled = locked;
+    btn.className = 'ow-node' + (map.id === MAPS.length - 1 ? ' final' : '');
+    btn.dataset.mapId = String(map.id);
+    btn.setAttribute('aria-label', `${map.id + 1} · ${map.name}`);
 
     const art = document.createElement('img');
     art.className = 'ow-node-art';
@@ -267,20 +423,47 @@ export default class MapSelectScene extends Phaser.Scene {
 
     const num = document.createElement('span');
     num.className   = 'ow-node-num';
-    num.textContent = locked ? '🔒' : String(node.id + 1);
 
     const label = document.createElement('span');
     label.className   = 'ow-node-label';
-    label.textContent = `${node.id + 1} · ${map.name}`;
+    label.textContent = `${map.id + 1} · ${map.name}`;
 
     // A sibling of the label, not a child: compact CSS hides the label only.
     const stars = document.createElement('span');
     stars.className = 'ow-node-stars';
-    if (node.unlocked) stars.textContent = node.stars > 0 ? starsDisplay(node.stars) : '—';
 
     btn.append(art, num, label, stars);
-    if (!locked) btn.addEventListener('click', () => this._selectMap(node.id));
+    // A node can unlock mid-arrival, so every node listens; disabled ones can't select.
+    btn.addEventListener('click', () => { if (!btn.disabled) this._selectMap(map.id); });
     return btn;
+  }
+
+  // Node states from the shown stars; the won node shows the arrival's stamped
+  // count while it plays.
+  _renderNodes() {
+    const shown = this._shownStars();
+    const entries = MAPS.map(m => ({ id: m.id, unlocked: m.id === 0 || shown[m.id - 1] > 0, stars: shown[m.id] }));
+    const stamping = this._frame ? this._plan.mapId : null;
+    for (const node of classifyOverworld(entries, MAPS.length - 1)) {
+      const btn = this._overworld.querySelector(`.ow-node[data-map-id="${node.id}"]`);
+      const locked = node.state === 'locked';
+      btn.classList.remove(...NODE_STATES);
+      btn.classList.add(node.state);
+      btn.classList.toggle('active', node.id === this._selectedId && !locked);
+      // Disabled: no click from mouse, Enter or Space, so a locked node can't select.
+      btn.disabled = locked;
+      btn.querySelector('.ow-node-num').textContent = locked ? '🔒' : String(node.id + 1);
+      const n = node.id === stamping ? this._frame.stamped : node.stars;
+      btn.querySelector('.ow-node-stars').textContent = node.unlocked ? (n > 0 ? starsDisplay(n) : '—') : '';
+    }
+  }
+
+  // Nodes, banner and data-frontier, from the shown (pre- or post-win) stars.
+  _renderProgress() {
+    const shown = this._shownStars();
+    this._overworld.dataset.frontier = String(frontierIndex(shown));
+    this._renderNodes();
+    this._renderBanner(shown);
   }
 
   _selectMap(mapId) {
@@ -290,11 +473,17 @@ export default class MapSelectScene extends Phaser.Scene {
     this._renderFeatured(mapId);
   }
 
-  _renderBanner() {
-    const b = bannerFor(this._stars);
+  // A line whose text changes (the arrival's lit beat) cross-fades in.
+  _renderBanner(stars) {
+    const b = bannerFor(stars);
     const banner = document.getElementById('wm-banner');
-    banner.querySelector('.wm-act').textContent = b.act;
-    banner.querySelector('.wm-objective').textContent = b.objective;
+    for (const [sel, text] of [['.wm-act', b.act], ['.wm-objective', b.objective]]) {
+      const line = banner.querySelector(sel);
+      if (line.textContent === text) continue;
+      const first = line.textContent === '';
+      line.textContent = text;
+      if (!first) replay(line, 'wm-fade');
+    }
     // The count is gold (mockup); the text stays exactly bannerFor's line.
     const [before, count, after] = b.sectors.split(SECTORS_COUNT);
     const strong = document.createElement('strong');
@@ -468,6 +657,7 @@ export default class MapSelectScene extends Phaser.Scene {
   }
 
   shutdown() {
+    this._stopArrival();
     window.removeEventListener('resize', this._layout);
     window.removeEventListener('orientationchange', this._layout);
     this._fonts?.removeEventListener?.('loadingdone', this._layout);

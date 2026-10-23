@@ -173,9 +173,10 @@ describe('MapSelectScene world map', () => {
       expect($('.ow-node.active').dataset.mapId).toBe('2');
     });
 
-    it('is the frontier after a victory, and ignores a from that points at a locked map', () => {
+    it('is the frontier after a first-clear victory (arrival end state), and ignores a from that points at a locked map', () => {
       seedSave(PARTIAL);
-      enter({ from: { mapId: 2, result: 'victory', prevStars: 0, stars: 1 } });
+      // Motion off: the arrival (MapSelectScene.arrival.test.js) jumps to its end state.
+      enter({ from: { mapId: 2, result: 'victory', prevStars: 0, stars: 1 } }, new Map([['ambientMotion', false]]));
       expect($('.ow-node.active').dataset.mapId).toBe('3');
       scenes.pop().emitShutdown();
       enter({ from: { mapId: 7, result: 'defeat', prevStars: 0, stars: 0 } });

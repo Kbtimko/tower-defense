@@ -436,6 +436,16 @@
     .ow-node-stars:empty { background-color:transparent; }
     .ow-node.locked .ow-node-label { color:var(--ui-text-dim); }
     .ow-node-stars { font-size:var(--ui-fs-sm); color:var(--ui-currency); min-height:calc(13 * var(--ui-u)); line-height:1; }
+    /* Post-win arrival (spec 2.3): the won node scales up while focused, each earned
+       star stamps in, and changed banner lines cross-fade. Timings from ARRIVAL. */
+    .ow-node-art, .ow-node.ow-node-fallback .ow-node-num { transition:scale var(--wm-focus-ms, 300ms) ease-in-out; }
+    .ow-node.wm-focus .ow-node-art, .ow-node.wm-focus.ow-node-fallback .ow-node-num { scale:var(--wm-focus-scale, 1.12); }
+    .ow-node-stars.wm-stamp { animation:wm-stamp var(--wm-stamp-ms, 150ms) ease-out; }
+    @keyframes wm-stamp { from { scale:var(--wm-stamp-scale, 1.6); filter:brightness(2); } }
+    .wm-fade { animation:wm-fade var(--wm-light-ms, 300ms) ease-in-out; }
+    @keyframes wm-fade { from { opacity:0; } }
+    #map-select.motion-off .wm-stamp, #map-select.motion-off .wm-fade { animation:none; }
+    #map-select.motion-off .ow-node-art, #map-select.motion-off .ow-node.ow-node-fallback .ow-node-num { transition:none; }
     /* Top band: act banner left, meta bar right; both shrink before they collide. */
     #wm-topbar { position:absolute; left:0; right:0; top:0; height:var(--wm-top, 112px); display:flex;
                  align-items:flex-start; justify-content:space-between; gap:var(--wm-gutter, 12px);

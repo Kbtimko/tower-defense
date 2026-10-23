@@ -1,6 +1,7 @@
 // Post-win movement beats (ms). Order and spans follow spec 2.3; keep them here so UI code has no literals.
 export const ARRIVAL = {
   focusMs: 300,
+  focusScale: 1.12,
   stampStartMs: 300,
   stampEachMs: 150,
   stampScale: 1.6,
