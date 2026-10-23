@@ -227,7 +227,7 @@ Act boundaries follow the dialogue:
 | `src/systems/campaignProgress.js` | `frontierIndex(stars)`, `sectorsRetaken(stars)`, `actForMap(id, acts)`, `bannerFor(stars, {maps, acts, objectives})` | Frontier = index of the first 0-star map, or `MAPS.length` when all are cleared. `sectorsRetaken` = the frontier index (a contiguous prefix), not a raw count, so a gap save can't claim sectors beyond a locked node. |
 | `src/systems/briefingCard.js` | `commandQuote(storyKey)`, `newThreats(mapId)`, `briefingCardModel(mapId, save)` | Quote = the first `speaker: 'command'` panel of `STORY_SEQUENCES[briefKey(storyKey)]`, verbatim. Threats = enemy types in `MAP_WAVES[mapId]` that appear on no earlier map, named from `ENEMY_DEFS`, with "(flying)" when `flying`. When there are none the line is omitted. Model = `{ missionNo, name, quote, threats, maxTier, stars, launchable }`. |
 | `src/systems/worldRoute.js` | `routePoints(frame, route)`, `frontRadius(points, hive, frontier)`, `trailProgress(points, frontier)` | Uses the existing `pathLength` / `pointAtProgress` in `src/systems/pathGeometry.js`. The front line is an arc centred on the hive core whose radius is the distance from the hive to the frontier node, so the fighting is at the next mission. All-cleared → 0. |
-| `src/systems/arrivalPlan.js` | `planArrival({ from, stars, maps })` → `{ kind: 'none'\|'stamp'\|'advance'\|'complete', mapId, toId, newStars }`; `arrivalFrame(plan, tMs, ARRIVAL)` → `{ stamped, shipT, trailT, frontT, nextLit, cardOpen, done }` | `advance` only when `result === 'victory'`, `prevStars === 0`, `stars > 0` **and** `mapId` was the frontier before the win. `tMs = Infinity` gives the end state. Skip and reduced motion both use it. |
+| `src/systems/arrivalPlan.js` | `planArrival({ from, stars, maps })` → `{ kind: 'none'\|'stamp'\|'advance'\|'complete', mapId, toId, newStars }`; `arrivalFrame(plan, tMs, ARRIVAL)` → `{ stamped, shipT, frontT, nextLit, cardOpen, done }` | `advance` only when `result === 'victory'`, `prevStars === 0`, `stars > 0` **and** `mapId` was the frontier before the win. `tMs = Infinity` gives the end state. Skip and reduced motion both use it. |
 | `src/systems/starfield.js` | `makeStars(seed, layers, w, h)`, `advanceStars(stars, dtMs, w)` | A seeded RNG, so captures are deterministic. Wraps on the left edge. |
 | `src/systems/worldMapLayout.js` | `routeFrame(rects)`, `nodeRects(frame, route, classSizes)`, `worldMapProblems({ nodes, frame, viewport, minTouchPx })` | The scene and the capture audit share it: pairwise overlap, outside frame or viewport, and touch size. |
 
@@ -306,7 +306,7 @@ Node positions are one normalized set. If one set can't pass for both frame aspe
 
 **Front-line consistency:** the route's distance to the hive core must strictly decrease from Earth through node 9. Otherwise a "retaken" node could sit inside the haze. A unit test asserts this in px for every device frame.
 
-Resize and orientation change re-measure the rects, recompute the frame and redraw. A running arrival continues in route-parameter space (`shipT`, `trailT`, `frontT` are fractions), so it survives a resize mid-flight.
+Resize and orientation change re-measure the rects, recompute the frame and redraw. A running arrival continues in route-parameter space (`shipT`, `frontT` and the `flight()` trail are fractions), so it survives a resize mid-flight.
 
 ## 6. Reduced motion
 The source is the existing registry flag `ambientMotion` (saved setting wins, otherwise `prefers-reduced-motion`, via `resolveAmbientMotion`). It is read **live**, the same way `AmbientBackgroundLayer` does, so toggling it in Settings from the map takes effect at once. It is applied as the `.motion-off` class from JS, not as a CSS media query, because the saved setting can override the OS preference.
@@ -482,3 +482,5 @@ The user said "move forward" rather than review these, so Claude settled them. E
 4. **Lifetime stats** stay as a bottom strip on desktop, hidden on phones, as today. The tall route frame is tuned with the strip present.
 5. **Locked missions** stay inert, with their names still shown under the nodes on desktop, as in the mockup.
 6. **Gap saves** (a hand-edited save with a map beyond the frontier unlocked): the ship parks at the **frontier**, not at the furthest unlocked map. [from the builder check]
+
+> **Implementation note (2026-10-23):** `arrivalFrame` no longer returns `trailT`. The trail is computed by `flight()` in `src/systems/worldRoute.js` (ship departs from the won node's exit point; the trail runs won node → landing spot, always behind the ship). `BACKDROP_ART` ships as `null` (empty deferred slot).

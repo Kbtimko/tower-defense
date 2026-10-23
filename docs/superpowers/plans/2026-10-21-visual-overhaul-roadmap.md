@@ -95,7 +95,7 @@ Failing tests after two attempts at the same fix; any change that would alter ba
   - *Removed: `#tower-panel`. Detail moved to a long-press tower inspector (user).*
   - *Removed: native `title=`, replaced by HintPeek (#42a).*
   - *Test: `npm run matrix` drives the radial; `radialProblems` audit.*
-- [ ] **3.4 [AUTO] Title & map select.** Animated starfield + parallax, typographic logo with glow (code, not generated — FLUX renders text badly), overworld nodes with state (locked/open/cleared + stars), polished transitions.
+- [x] **3.4 [AUTO] Title & map select.** Animated starfield + parallax, typographic logo with glow (code, not generated — FLUX renders text badly), overworld nodes with state (locked/open/cleared + stars), polished transitions. *Done 2026-10-23: spec `2026-10-23-title-world-map-design.md`, plan `2026-10-23-title-world-map.md`. User picks: space title with a beam-sweep "LAST LIGHT" (option A), tap → world map; the world map tells the story of the war (deep-space vista with 7 code-drawn planets, route Earth → hive core, receding Veth front line, act banner, Command briefing card); after a first-clear win the ship flies to the next mission. Absorbed #41c, #41f, #50a. Matrix desktop 17/17, touch 18/18 (new `title` step). Captures `docs/captures/3.4-title-world-map/`.*
 - [ ] **3.5 [AUTO] Story dialogs.** Portrait frames, typewriter text, skip/advance on tap.
 - [ ] **3.6 [AUTO] Results screen + stars.** Victory/defeat screens with stats, 3-star rating (lives remaining thresholds in `src/data/`), `SaveManager` extended + tests.
 
