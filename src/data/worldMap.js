@@ -44,7 +44,7 @@ export const LAYOUT = {
   node: { tall: { d: 56, final: 64 }, compact: { d: 44, final: 50 } },
   // Label box under each node: tall = "N · Name" + stars (two lines, capped at labelW
   // with an ellipsis); compact = the stars line only.
-  labelPx: { tall: 34, compact: 14 },
+  labelPx: { tall: 34, compact: 15 },
   labelW: { tall: 132, compact: 48 },
   topBand: { tall: 112, compact: 52 },
   card: {
@@ -155,14 +155,18 @@ export const TRAIL = {
 };
 
 // Amber engine is the art-bible human accent.
-// Parked gapPx short of its node along the route (worldRoute.parkParam), so the
-// node's button doesn't hide it; the gap is half the node plus one ship length.
+// Parked by worldRoute.parkShip: stepped back along the incoming leg (stepPx at a
+// time) until its sizePx box, grown by clearPx, misses every node rect (label and
+// stars included); if the whole leg is covered it steps sideways, up to maxOffsetPx.
 // shape is the chevron hull in sizePx units, nose along +x; the engine glow sits
 // at engineX with radius engineR (also sizePx units).
 export const SHIP = {
   sizePx: 16,
   hull: '#d8e2ee',
   engine: '#ffb000',
+  clearPx: 4,
+  stepPx: 2,
+  maxOffsetPx: 60,
   shape: [[0.6, 0], [-0.4, 0.45], [-0.15, 0], [-0.4, -0.45]],
   engineX: -0.35,
   engineR: 0.7,

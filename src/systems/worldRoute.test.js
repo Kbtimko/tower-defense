@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { DEVICES } from '../../scripts/captureDevices.mjs';
-import { ROUTE, LAYOUT } from '../data/worldMap.js';
+import { ROUTE, LAYOUT, SHIP } from '../data/worldMap.js';
 import { MAPS } from '../data/maps.js';
-import { layoutClass, routeFrameFor } from './worldMapLayout.js';
-import { routePoints, routeParamAt, frontRadius, splitRoute, parkParam } from './worldRoute.js';
+import { layoutClass, routeFrameFor, nodeRects } from './worldMapLayout.js';
+import { routePoints, routeParamAt, frontRadius, splitRoute, parkShip } from './worldRoute.js';
 
 const frame = { x: 10, y: 20, w: 800, h: 500 };
 
@@ -111,15 +111,54 @@ describe('splitRoute', () => {
   });
 });
 
-describe('parkParam', () => {
-  const line = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 200, y: 0 }];
+describe('parkShip (V1: the parked ship overlaps no node)', () => {
+  const box = (pts, park) => {
+    const { at, angle } = splitRoute(pts, park.param);
+    const x = at.x - Math.sin(angle) * park.offset;
+    const y = at.y + Math.cos(angle) * park.offset;
+    const h = SHIP.sizePx / 2;
+    return { l: x - h, r: x + h, t: y - h, b: y + h };
+  };
+  const hits = (b, n) => b.l < n.cx + n.w / 2 && n.cx - n.w / 2 < b.r && b.t < n.cy + n.h / 2 && n.cy - n.h / 2 < b.b;
 
-  it('stops gapPx short of the point along the route, so the ship is not under the node', () => {
-    expect(parkParam(line, 2, 20)).toBeCloseTo(180 / 200);
-    expect(parkParam(line, 1, 20)).toBeCloseTo(80 / 200);
+  it.each(Object.entries(DEVICES))('clears every node rect and stays in the frame, for every frontier, on %s', (_name, d) => {
+    const cls = layoutClass(d.viewport);
+    const frame = routeFrameFor(d.viewport, cls);
+    const pts = routePoints(frame, ROUTE);
+    const rects = nodeRects(frame, ROUTE, cls, LAYOUT);
+    for (let frontier = 0; frontier <= MAPS.length; frontier++) {
+      const idx = Math.min(frontier, MAPS.length - 1) + 1;
+      const park = parkShip(pts, idx, rects, frame);
+      const b = box(pts, park);
+      const hit = rects.filter(n => hits(b, n)).map(n => n.id);
+      expect(hit, `frontier ${frontier}`).toEqual([]);
+      expect(b.l >= frame.x && b.r <= frame.x + frame.w && b.t >= frame.y && b.b <= frame.y + frame.h, `frontier ${frontier} in frame`).toBe(true);
+    }
   });
 
-  it('never goes behind Earth', () => {
-    expect(parkParam(line, 1, 500)).toBe(0);
+  it('stays on the route (offset 0) when stepping back along the incoming leg is enough', () => {
+    const pts = [{ x: 0, y: 100 }, { x: 300, y: 100 }];
+    const rects = [{ id: 0, cx: 300, cy: 110, w: 60, h: 60 }];
+    const park = parkShip(pts, 1, rects, { x: -50, y: 0, w: 400, h: 200 });
+    expect(park.offset).toBe(0);
+    // Box right edge clears the rect's left edge (270) by the clearance.
+    expect(park.param * 300 + SHIP.sizePx / 2 + SHIP.clearPx).toBeLessThanOrEqual(270 + SHIP.stepPx);
+    expect(park.param * 300 + SHIP.sizePx / 2).toBeLessThanOrEqual(270);
+  });
+
+  it('steps sideways when the whole incoming leg is covered by node rects', () => {
+    const pts = [{ x: 100, y: 0 }, { x: 100, y: 60 }];
+    const rects = [{ id: 0, cx: 100, cy: 5, w: 40, h: 50 }, { id: 1, cx: 100, cy: 65, w: 40, h: 50 }];
+    const park = parkShip(pts, 1, rects, { x: 0, y: -40, w: 200, h: 160 });
+    expect(park.offset).not.toBe(0);
+    expect(Math.abs(park.offset)).toBeGreaterThanOrEqual(20 + SHIP.sizePx / 2);
+  });
+
+  it('picks the side that keeps the ship inside the frame', () => {
+    const pts = [{ x: 100, y: 0 }, { x: 100, y: 60 }];
+    const rects = [{ id: 0, cx: 100, cy: 5, w: 40, h: 50 }, { id: 1, cx: 100, cy: 65, w: 40, h: 50 }];
+    // +offset is the left normal here (x decreases); the frame stops just left of the rects.
+    const park = parkShip(pts, 1, rects, { x: 75, y: -40, w: 200, h: 160 });
+    expect(park.offset).toBeLessThan(0);
   });
 });

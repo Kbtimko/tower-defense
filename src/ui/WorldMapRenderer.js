@@ -67,7 +67,7 @@ export class WorldMapRenderer {
     if (state.frontR > 0 && state.frontAlpha > 0) this._drawHaze(ctx, hive, state.frontR, state.frontAlpha);
     this._drawHive(ctx, hive, state.hiveDim);
     this._drawRoute(ctx, points, state.trailT);
-    this._drawShip(ctx, splitRoute(points, state.ship.param));
+    this._drawShip(ctx, splitRoute(points, state.ship.param), state.ship.offset ?? 0);
   }
 
   destroy() {
@@ -191,11 +191,12 @@ export class WorldMapRenderer {
     ctx.restore();
   }
 
-  // A chevron hull pointing along the route, amber engine glow behind it.
-  _drawShip(ctx, { at, angle }) {
+  // A chevron hull pointing along the route, amber engine glow behind it; offset
+  // (px, left normal) is where parkShip moved it off a crowded leg.
+  _drawShip(ctx, { at, angle }, offset) {
     const s = SHIP.sizePx;
     ctx.save();
-    ctx.translate(at.x, at.y);
+    ctx.translate(at.x - Math.sin(angle) * offset, at.y + Math.cos(angle) * offset);
     ctx.rotate(angle);
     const ex = SHIP.engineX * s;
     const er = SHIP.engineR * s;

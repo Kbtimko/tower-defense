@@ -2,6 +2,7 @@
 // route frame, arc-length params for the trail/ship, and the front-line radius.
 import { MAPS } from '../data/maps.js';
 import { pathLength } from './pathGeometry.js';
+import { SHIP } from '../data/worldMap.js';
 
 function toFrame(frame, [nx, ny]) {
   return { x: frame.x + nx * frame.w, y: frame.y + ny * frame.h };
@@ -56,10 +57,34 @@ export function splitRoute(points, t) {
   return { head, tail, at, angle: Math.atan2(b.y - a.y, b.x - a.x) };
 }
 
-// Route param gapPx short of point `index`, so a parked ship sits on the approach
-// to its node instead of under the node's button.
-export function parkParam(points, index, gapPx) {
+function boxHitsRect(x, y, half, r) {
+  return x - half < r.cx + r.w / 2 && r.cx - r.w / 2 < x + half
+    && y - half < r.cy + r.h / 2 && r.cy - r.h / 2 < y + half;
+}
+
+// Where the ship parks for node `index`: { param, offset }, offset in px along the
+// route's left normal (-sin, cos). It backs off the node along the incoming leg
+// until its box (plus clearance) misses every node rect, so it never sits on a
+// label or stars line; on a leg fully covered by rects (short compact legs) it
+// steps sideways, nearest offset first. Always inside the frame.
+export function parkShip(points, index, rects, frame, ship = SHIP) {
   const total = pathLength(points);
-  if (total <= 0) return 0;
-  return Math.max(0, (pathLength(points.slice(0, index + 1)) - gapPx) / total);
+  if (total <= 0 || index <= 0) return { param: 0, offset: 0 };
+  const along = pathLength(points.slice(0, index + 1));
+  const leg = along - pathLength(points.slice(0, index));
+  const { sizePx, clearPx, stepPx, maxOffsetPx } = ship;
+  const half = sizePx / 2;
+  const fits = (x, y) => x - half >= frame.x && x + half <= frame.x + frame.w
+    && y - half >= frame.y && y + half <= frame.y + frame.h
+    && !rects.some(r => boxHitsRect(x, y, half + clearPx, r));
+  for (let off = 0; off <= maxOffsetPx; off += stepPx) {
+    for (const offset of off === 0 ? [0] : [off, -off]) {
+      for (let back = 0; back <= leg; back += stepPx) {
+        const param = (along - back) / total;
+        const { at, angle } = splitRoute(points, param);
+        if (fits(at.x - Math.sin(angle) * offset, at.y + Math.cos(angle) * offset)) return { param, offset };
+      }
+    }
+  }
+  return { param: along / total, offset: 0 };
 }

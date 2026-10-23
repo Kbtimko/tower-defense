@@ -1,14 +1,14 @@
 import Phaser from 'phaser';
 import { MAPS } from '../data/maps.js';
-import { ROUTE, LAYOUT, SHIP, EARTH, NODE_PULSE_MS } from '../data/worldMap.js';
+import { ROUTE, LAYOUT, EARTH, NODE_PULSE_MS } from '../data/worldMap.js';
 import { FULLSCREEN_COPY } from '../data/campaign.js';
 import { SaveManager } from '../systems/SaveManager.js';
 import { starsDisplay } from '../utils/display.js';
 import { classifyOverworld } from '../systems/overworldState.js';
 import { starsArray, frontierIndex, bannerFor } from '../systems/campaignProgress.js';
 import { briefingCardModel } from '../systems/briefingCard.js';
-import { layoutClass, routeFrameFor, cardWidth } from '../systems/worldMapLayout.js';
-import { routePoints, routeParamAt, frontRadius, parkParam } from '../systems/worldRoute.js';
+import { layoutClass, routeFrameFor, cardWidth, nodeRects } from '../systems/worldMapLayout.js';
+import { routePoints, routeParamAt, frontRadius, parkShip } from '../systems/worldRoute.js';
 import { worldBackdropSource } from '../systems/worldBackdrop.js';
 import { WorldMapRenderer } from '../ui/WorldMapRenderer.js';
 import { renderBriefingCard } from '../ui/BriefingCard.js';
@@ -37,6 +37,7 @@ export default class MapSelectScene extends Phaser.Scene {
     this._layout = this._layout.bind(this);
     this._swallow = this._swallow.bind(this);
     this._endInputGuard = this._endInputGuard.bind(this);
+    this._syncQuoteFade = this._syncQuoteFade.bind(this);
   }
 
   create(data = {}) {
@@ -59,6 +60,7 @@ export default class MapSelectScene extends Phaser.Scene {
     // Sanitized once: garbage in the save reads as 0 stars everywhere below.
     this._stars = starsArray(this._saveMgr, MAPS);
     this._frontier = frontierIndex(this._stars);
+    this._totalStars = this._stars.reduce((sum, n) => sum + n, 0);
     this._selectedId = this._defaultSelection(data?.from);
     this._overworld.dataset.frontier = String(this._frontier);
     this._overworld.dataset.arrival = 'none';
@@ -72,6 +74,8 @@ export default class MapSelectScene extends Phaser.Scene {
     });
     this._syncMotion();
 
+    this._quote = document.getElementById('featured-quote');
+    this._quote.addEventListener('scroll', this._syncQuoteFade);
     this._populateOverworld();
     this._renderBanner();
     this._renderFeatured(this._selectedId);
@@ -183,6 +187,7 @@ export default class MapSelectScene extends Phaser.Scene {
     const { origin, box, viewport } = this._measure();
     const cls = layoutClass(viewport);
     this._publishVars(cls, viewport);
+    this._syncQuoteFade();
     // Hidden or not laid out yet (jsdom): nothing to place.
     if (!(viewport.width > 0 && viewport.height > 0)) return;
 
@@ -200,7 +205,7 @@ export default class MapSelectScene extends Phaser.Scene {
     this._placeTags(frame, points, cls);
 
     this._renderer.resize(frame, box);
-    this._renderer.render(this._storyState(points, cls));
+    this._renderer.render(this._storyState(points, nodeRects(frame, ROUTE, cls), frame));
   }
 
   // EARTH sits under the Earth globe; the hive tag sits above node 10, held inside
@@ -222,15 +227,14 @@ export default class MapSelectScene extends Phaser.Scene {
 
   // The static (no-arrival) story state: trail and ship at the frontier, haze edge
   // through it; all cleared -> trail to the hive, no haze, the hive glow dimmed.
-  _storyState(points, cls) {
+  _storyState(points, rects, frame) {
     const idx = Math.min(this._frontier, MAPS.length - 1) + 1;
-    const d = idx === points.length - 1 ? LAYOUT.node[cls].final : LAYOUT.node[cls].d;
     return {
       points,
       trailT: routeParamAt(points, idx),
       frontR: frontRadius(points, this._frontier),
       frontAlpha: 1,
-      ship: { param: parkParam(points, idx, d / 2 + SHIP.sizePx) },
+      ship: parkShip(points, idx, rects, frame),
       hiveDim: this._frontier >= MAPS.length ? 1 : 0,
     };
   }
@@ -300,6 +304,15 @@ export default class MapSelectScene extends Phaser.Scene {
 
   _renderFeatured(mapId) {
     renderBriefingCard(document.getElementById('map-featured'), briefingCardModel(mapId, this._stars));
+    this._quote.scrollTop = 0;
+    this._syncQuoteFade();
+  }
+
+  // The quote is the card's only scrolling region; while more of it sits below
+  // the fold, a bottom fade (.fq-more) says so. Gone once scrolled to the end.
+  _syncQuoteFade() {
+    const q = this._quote;
+    q.classList.toggle('fq-more', q.scrollTop + q.clientHeight < q.scrollHeight - 1);
   }
 
   _bindPlay() {
@@ -318,7 +331,7 @@ export default class MapSelectScene extends Phaser.Scene {
 
   _renderMetaBar() {
     document.getElementById('total-stars').textContent =
-      `★ ${this._saveMgr.getTotalStars()} / 30`;
+      `★ ${this._totalStars} / 30`;
   }
 
   _renderStats() {
@@ -331,7 +344,7 @@ export default class MapSelectScene extends Phaser.Scene {
       ['Victories',   s.victories],
       ['Defeats',     s.defeats],
       ['Best Wave',   s.bestWave],
-      ['Total Stars', this._saveMgr.getTotalStars()],
+      ['Total Stars', this._totalStars],
     ];
     for (const [label, value] of chips) {
       const chip = document.createElement('div');
@@ -462,6 +475,7 @@ export default class MapSelectScene extends Phaser.Scene {
     this._stopInputGuard();
     this._renderer?.destroy();
     this._renderer = null;
+    this._quote?.removeEventListener('scroll', this._syncQuoteFade);
     document.removeEventListener('fullscreenchange', this._onFullscreenChange);
     document.removeEventListener('webkitfullscreenchange', this._onFullscreenChange);
     // Call close() on overlays so their event listeners are torn down before the

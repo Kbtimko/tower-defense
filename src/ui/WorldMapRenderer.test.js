@@ -16,6 +16,7 @@ function recordingCtx(log) {
     lineTo(x, y) { path.push({ x, y }); },
     arc(x, y, r) { log.push({ op: 'arc', x, y, r, style: target.strokeStyle }); },
     stroke() { log.push({ op: 'stroke', style: target.strokeStyle, dash, path }); },
+    translate(x, y) { log.push({ op: 'translate', x, y }); },
     createLinearGradient: () => ({ addColorStop() {} }),
     createRadialGradient: () => ({ addColorStop() {} }),
   };
@@ -92,6 +93,18 @@ describe('WorldMapRenderer', () => {
   it('draws no front line once every sector is retaken (frontR 0)', () => {
     make().render(state({ frontR: 0 }));
     expect(log.some(e => e.op === 'arc' && e.style === HAZE.front.color)).toBe(false);
+  });
+
+  it('draws the ship at its route param, shifted by ship.offset along the left normal (0 when omitted)', () => {
+    const r = make();
+    const { at, angle } = splitRoute(points, 0.3);
+    r.render(state());
+    expect(log.find(e => e.op === 'translate')).toEqual({ op: 'translate', x: at.x, y: at.y });
+    log.length = 0;
+    r.render(state({ ship: { param: 0.3, offset: 10 } }));
+    const t = log.find(e => e.op === 'translate');
+    expect(t.x).toBeCloseTo(at.x - Math.sin(angle) * 10);
+    expect(t.y).toBeCloseTo(at.y + Math.cos(angle) * 10);
   });
 
   it('runs one backdrop rAF loop, and destroy() leaves none live', () => {

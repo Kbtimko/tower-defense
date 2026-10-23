@@ -110,18 +110,15 @@ describe('MapSelectScene world map', () => {
       expect(n0.querySelector('.ow-node-stars').textContent).toBe('★★★');
     });
 
-    it('locked nodes are disabled; Enter, Space or a click on one selects nothing', () => {
+    it('locked nodes are :disabled buttons (no click from mouse, Enter or Space), and a click selects nothing', () => {
       seedSave(PARTIAL);
       enter();
       passGuard();
       const locked = $('.ow-node[data-map-id="5"]');
-      expect(locked.disabled).toBe(true);
-      expect($('.ow-node[data-map-id="3"]').disabled).toBe(false);
-      locked.focus();
-      for (const key of ['Enter', ' ']) {
-        locked.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
-        locked.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
-      }
+      // Browsers synthesize a click from Enter/Space only on enabled buttons, so
+      // :disabled is what keeps the keyboard out (jsdom can't synthesize it).
+      expect(locked.matches(':disabled')).toBe(true);
+      expect($('.ow-node[data-map-id="3"]').matches(':disabled')).toBe(false);
       locked.click();
       expect(locked.classList.contains('active')).toBe(false);
       expect($('.ow-node.active').dataset.mapId).toBe('3');
@@ -143,6 +140,10 @@ describe('MapSelectScene world map', () => {
       enter();
       expect($('.ow-node[data-map-id="2"]').disabled).toBe(true);
       expect($('#map-overworld').dataset.frontier).toBe('1');
+      // Totals sum the sanitized stars, never string-concatenate the raw save.
+      expect($('#total-stars').textContent).toBe('★ 6 / 30');
+      const chip = [...document.querySelectorAll('.stat-chip')].find(c => c.querySelector('.stat-chip-lbl').textContent === 'Total Stars');
+      expect(chip.querySelector('.stat-chip-val').textContent).toBe('6');
     });
   });
 
@@ -226,6 +227,41 @@ describe('MapSelectScene world map', () => {
       $('#featured-play').click();
       expect(scene.scene.start).toHaveBeenCalledTimes(1);
       expect(scene.scene.start).toHaveBeenCalledWith('GameScene', { mapId: 3, heroId: 'rael' });
+    });
+  });
+
+  describe('quote scroll affordance (V3)', () => {
+    // jsdom has no layout: give #featured-quote a fixed box and a content height.
+    function sizeQuote(content, box = 100) {
+      const q = $('#featured-quote');
+      Object.defineProperty(q, 'clientHeight', { configurable: true, get: () => box });
+      Object.defineProperty(q, 'scrollHeight', { configurable: true, get: () => content });
+      return q;
+    }
+
+    it('fades the quote bottom only while it overflows, and drops the fade once scrolled to the end', () => {
+      seedSave(PARTIAL);
+      enter();
+      passGuard();
+      const q = sizeQuote(180);
+      $('.ow-node[data-map-id="1"]').click();
+      expect(q.classList.contains('fq-more')).toBe(true);
+      q.scrollTop = 80;
+      q.dispatchEvent(new Event('scroll'));
+      expect(q.classList.contains('fq-more')).toBe(false);
+      sizeQuote(90);
+      q.scrollTop = 0;
+      $('.ow-node[data-map-id="2"]').click();
+      expect(q.classList.contains('fq-more')).toBe(false);
+    });
+
+    it('re-measures on layout (resize)', () => {
+      seedSave(PARTIAL);
+      enter();
+      const q = sizeQuote(180);
+      expect(q.classList.contains('fq-more')).toBe(false);
+      window.dispatchEvent(new Event('resize'));
+      expect(q.classList.contains('fq-more')).toBe(true);
     });
   });
 
@@ -336,7 +372,7 @@ describe('MapSelectScene world map', () => {
 
   describe('lifecycle (Review Focus 5)', () => {
     it('enter -> shutdown x3 with every meta-bar overlay opened and closed leaves no live listeners or rAF', () => {
-      const live = trackLive(window, document);
+      const live = trackLive(window, document, $('#featured-quote'));
       const raf = new Set();
       let next = 1;
       vi.stubGlobal('requestAnimationFrame', () => { const id = next++; raf.add(id); return id; });

@@ -413,7 +413,10 @@
     .ow-node.locked .ow-node-art { filter:grayscale(1) brightness(0.4); }
     .ow-node.locked .ow-node-art, .ow-node.locked.ow-node-fallback .ow-node-num { border-style:dashed; border-color:var(--ui-panel-edge); }
     .ow-node.next .ow-node-art, .ow-node.next.ow-node-fallback .ow-node-num { border-color:var(--ui-accent);
-      box-shadow:0 0 calc(12 * var(--ui-u)) var(--ui-accent); animation:wm-pulse var(--wm-pulse, 1800ms) ease-in-out infinite; }
+      box-shadow:0 0 calc(12 * var(--ui-u)) var(--ui-accent); }
+    /* Not on the selected node: the keyframe would overwrite .active's gold glow. */
+    .ow-node.next:not(.active) .ow-node-art, .ow-node.next:not(.active).ow-node-fallback .ow-node-num {
+      animation:wm-pulse var(--wm-pulse, 1800ms) ease-in-out infinite; }
     @keyframes wm-pulse { 50% { box-shadow:0 0 calc(4 * var(--ui-u)) var(--ui-accent); } }
     #map-select.motion-off .ow-node.next .ow-node-art,
     #map-select.motion-off .ow-node.next.ow-node-fallback .ow-node-num { animation:none; }
@@ -425,6 +428,12 @@
     /* Fixed width (LAYOUT.labelW) so the fit rule's rect is the box that paints. */
     .ow-node-label { max-width:var(--wm-label-w, 132px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
                      font-size:var(--ui-fs-xs); color:var(--ui-text); line-height:1.2; }
+    /* A translucent panel pill under the label and stars, so a route line drawn
+       through them on the canvas can't strike the text out. Horizontal padding
+       only: the pill stays inside LAYOUT.labelPx / labelW (border-box). */
+    .ow-node-label, .ow-node-stars { background-color:color-mix(in srgb, var(--ui-panel) 80%, transparent);
+                     padding:0 calc(4 * var(--ui-u)); border-radius:calc(4 * var(--ui-u)); }
+    .ow-node-stars:empty { background-color:transparent; }
     .ow-node.locked .ow-node-label { color:var(--ui-text-dim); }
     .ow-node-stars { font-size:var(--ui-fs-sm); color:var(--ui-currency); min-height:calc(13 * var(--ui-u)); line-height:1; }
     /* Top band: act banner left, meta bar right; both shrink before they collide. */
@@ -451,6 +460,10 @@
     #featured-quote { flex:0 1 auto; min-height:0; overflow-y:auto; padding-left:calc(12 * var(--ui-u));
                       border-left:calc(3 * var(--ui-u)) solid var(--ui-accent); font-size:var(--ui-fs-lg);
                       line-height:1.45; color:var(--ui-text); }
+    /* More quote below the fold: fade the bottom edge (MapSelectScene toggles
+       .fq-more while scrollHeight exceeds the visible box). */
+    #featured-quote.fq-more { -webkit-mask-image:linear-gradient(to bottom, var(--ui-panel) calc(100% - 1.6em), transparent);
+                              mask-image:linear-gradient(to bottom, var(--ui-panel) calc(100% - 1.6em), transparent); }
     #featured-quote .fq-by { display:block; font-family:var(--ui-font-heading); font-size:var(--ui-fs-xs);
                              letter-spacing:.3em; color:var(--ui-accent); margin-bottom:calc(4 * var(--ui-u)); }
     #featured-threats, #featured-tier { font-size:var(--ui-fs-md); color:var(--ui-text-muted); }
@@ -780,7 +793,7 @@
          the quote is the only region that shrinks and scrolls. */
       #featured-name, #featured-threats { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto; }
       #featured-name { font-size: var(--ui-fs-lg); }
-      #featured-quote { font-size: var(--ui-fs-md); line-height: 1.35; }
+      #featured-quote { font-size: var(--ui-fs-sm); line-height: 1.35; }
       #featured-threats, #featured-tier { font-size: var(--ui-fs-sm); }
       #featured-stars { font-size: var(--ui-fs-md); }
       #featured-play { min-height: 44px; padding: calc(6 * var(--ui-u)); font-size: var(--ui-fs-md); }
