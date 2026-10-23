@@ -24,6 +24,20 @@ const ARMED_CAPTION = 'Tap again';
 const MAP_BOUNDS = { left: 0, top: 0, width: WORLD_WIDTH, height: WORLD_HEIGHT };
 
 const isTouchLike = (t) => t === 'touch' || t === 'pen';
+// Everything a preview or peek renders from; a refresh that changes none of it is silent.
+const sameItem = (a, b) => a === b || (!!a && !!b && a.id === b.id && a.label === b.label && a.cost === b.cost && a.state === b.state);
+
+// Writes only on change: refresh runs on every gold tick, and a churned node
+// under a press in progress would swallow its click.
+function setAttr(el, name, value) {
+  if (value === null) { if (el.hasAttribute(name)) el.removeAttribute(name); }
+  else if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+}
+function setText(el, text) {
+  if (el.textContent === text) return false;
+  el.textContent = text;
+  return true;
+}
 
 /**
  * Presenter over the static #radial markup (6 .radial-item buttons + #radial-hub).
@@ -59,7 +73,11 @@ export class RadialMenu {
     this._armed = null;
     this._confirmTimer = null;
     this._previewing = false;
+    this._previewBtn = null;
+    this._previewItem = null;
     this._peeking = false;
+    this._peekBtn = null;
+    this._peekItem = null;
     this._wire();
   }
 
@@ -96,6 +114,23 @@ export class RadialMenu {
     }
     this._render(items, hub);
     if (focusedId) this._restoreFocus(focusedId);
+    this._resync();
+  }
+
+  // A hovered or focused slot can hold a different item after a re-render
+  // (upgrade -> branch A) or the same item in a new state (affordable now), so
+  // a stale preview or peek must not linger.
+  _resync() {
+    if (this._previewing) {
+      const item = this._itemFor(this._previewBtn);
+      if (!item) this._clearPreview();
+      else if (!sameItem(item, this._previewItem)) this._preview(this._previewBtn);
+    }
+    if (this._peeking && this._peekBtn) {
+      const item = this._itemFor(this._peekBtn);
+      if (!item) this._hidePeek();
+      else if (!sameItem(item, this._peekItem)) this._showPeek(this._peekBtn);
+    }
   }
 
   close() {
@@ -188,6 +223,7 @@ export class RadialMenu {
     this._armed = item.id;
     this._paintItem(btn, item);
     this._paintHub();
+    clearTimeout(this._confirmTimer);
     this._confirmTimer = setTimeout(() => this._disarm(), CONFIRM_WINDOW_MS);
     this._showPeek(btn);
   }
@@ -241,12 +277,16 @@ export class RadialMenu {
     const item = this._itemFor(btn);
     if (!item || item === HUB_ITEM) return;
     this._previewing = true;
+    this._previewBtn = btn;
+    this._previewItem = item;
     this._cb.onPreview(item);
   }
 
   _clearPreview() {
     if (!this._previewing) return;
     this._previewing = false;
+    this._previewBtn = null;
+    this._previewItem = null;
     this._cb.onPreview(null);
   }
 
@@ -254,12 +294,16 @@ export class RadialMenu {
     const item = this._itemFor(btn);
     if (!item) return;
     this._peeking = true;
+    this._peekBtn = btn;
+    this._peekItem = item;
     this._cb.onPeek(item, this._footprintRect());
   }
 
   _hidePeek() {
     if (!this._peeking) return;
     this._peeking = false;
+    this._peekBtn = null;
+    this._peekItem = null;
     this._cb.onPeek(null);
   }
 
@@ -305,35 +349,36 @@ export class RadialMenu {
 
   _paintItem(btn, item) {
     const armed = this._armed === item.id;
-    btn.className = [ITEM_CLASS, VARIANT_CLASS[item.variant], STATE_CLASS[item.state], armed && 'confirming']
-      .filter(Boolean).join(' ');
-    btn.dataset.id = item.id;
-    btn.dataset.state = item.state;
-    btn.setAttribute('aria-label', item.ariaLabel);
-    if (item.state === 'ready') btn.removeAttribute('aria-disabled');
-    else btn.setAttribute('aria-disabled', 'true');
-    const parts = [];
-    if (item.icon) parts.push(this._span('radial-icon', item.icon));
-    const label = this._span('radial-label', armed ? ARMED_CAPTION : item.label);
-    parts.push(label);
-    btn.replaceChildren(...parts);
-    fitLabels([label]);
+    setAttr(btn, 'class', [ITEM_CLASS, VARIANT_CLASS[item.variant], STATE_CLASS[item.state], armed && 'confirming']
+      .filter(Boolean).join(' '));
+    setAttr(btn, 'data-id', item.id);
+    setAttr(btn, 'data-state', item.state);
+    setAttr(btn, 'aria-label', item.ariaLabel);
+    setAttr(btn, 'aria-disabled', item.state === 'ready' ? null : 'true');
+    let icon = btn.querySelector('.radial-icon');
+    if (item.icon) {
+      if (!icon) icon = btn.insertBefore(this._span('radial-icon'), btn.firstChild);
+      setText(icon, item.icon);
+    } else icon?.remove();
+    const label = btn.querySelector('.radial-label') ?? btn.appendChild(this._span('radial-label'));
+    if (setText(label, armed ? ARMED_CAPTION : item.label)) fitLabels([label]);
   }
 
   // While a confirm is armed the hub spells out what the second tap will do.
   _paintHub() {
     const armedItem = this._armed && this._items.find((i) => i?.id === this._armed);
     const lines = armedItem ? [`${ARMED_CAPTION}: ${armedItem.label}`] : this._hubLines;
-    const spans = lines.map((t) => this._span('radial-hub-line', t));
-    this._hub.replaceChildren(...spans);
-    this._hub.setAttribute('aria-label', lines.join(', '));
-    fitLabels(spans);
+    const spans = [...this._hub.querySelectorAll('.radial-hub-line')];
+    while (spans.length > lines.length) spans.pop().remove();
+    while (spans.length < lines.length) spans.push(this._hub.appendChild(this._span('radial-hub-line')));
+    const changed = spans.filter((span, i) => setText(span, lines[i]));
+    setAttr(this._hub, 'aria-label', lines.join(', '));
+    if (changed.length) fitLabels(changed);
   }
 
-  _span(cls, text) {
+  _span(cls) {
     const s = this._doc.createElement('span');
     s.className = cls;
-    s.textContent = text;
     return s;
   }
 

@@ -243,6 +243,15 @@ describe('RadialMenu', () => {
       expect($item('upgrade').classList.contains('confirming')).toBe(true);
     });
 
+    it('re-arming never stacks a second revert timer', () => {
+      press($item('upgrade'), 'touch');
+      // The wall clock passes the window before the revert timer has run.
+      vi.setSystemTime(Date.now() + CONFIRM_WINDOW_MS + 1);
+      press($item('upgrade'), 'touch');
+      expect(cb.onActivate).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(1);
+    });
+
     it('pressing the other item disarms the first and arms the second', () => {
       press($item('upgrade'), 'touch');
       press($item('sell'), 'touch');
@@ -339,6 +348,63 @@ describe('RadialMenu', () => {
       expect(document.activeElement).toBe($hub());
     });
 
+    // refresh runs on every gold change and from onPreview on pointerdown: a
+    // label span detached between mousedown and mouseup would kill the click.
+    it('reuses the label and hub spans, so a press in progress survives a refresh', () => {
+      openRing();
+      const span = $item('upgrade').querySelector('.radial-label');
+      const hubLine = $hub().querySelector('.radial-hub-line');
+      span.dispatchEvent(ptr('pointerdown', 'mouse'));
+      menu.refresh(ring(), HUB);
+      expect(span.isConnected).toBe(true);
+      expect(hubLine.isConnected).toBe(true);
+      span.dispatchEvent(ptr('pointerup', 'mouse'));
+      span.dispatchEvent(click());
+      expect(cb.onActivate).toHaveBeenCalledWith(expect.objectContaining({ id: 'upgrade' }));
+      menu.refresh(ring({ upgrade: { label: '⬆ Ranger', cost: 200 } }), ['T2', 'DMG 15', 'RNG 135']);
+      expect($item('upgrade').querySelector('.radial-label')).toBe(span);
+      expect(span.textContent).toBe('⬆ Ranger');
+      expect($hub().querySelector('.radial-hub-line')).toBe(hubLine);
+      expect(hubText()).toEqual(['T2', 'DMG 15', 'RNG 135']);
+    });
+
+    it('build items keep their icon span across refreshes; a hub that shrinks drops spare lines', () => {
+      menu.open({ kind: 'build', anchor: { x: 640, y: 360 }, items: buildItems({ towerDefs: TOWER_DEFS, gold: 0 }), hub: ['Build'] });
+      const icon = $item('build:archer').querySelector('.radial-icon');
+      menu.refresh(buildItems({ towerDefs: TOWER_DEFS, gold: 999 }), ['Archer', 'RNG 120']);
+      expect($item('build:archer').querySelector('.radial-icon')).toBe(icon);
+      expect($item('build:archer').classList.contains('is-disabled')).toBe(false);
+      expect(hubText()).toEqual(['Archer', 'RNG 120']);
+      menu.refresh(buildItems({ towerDefs: TOWER_DEFS, gold: 999 }), ['Build']);
+      expect(hubText()).toEqual(['Build']);
+    });
+
+    it('a hovered slot that now holds another item re-emits its preview and peek', () => {
+      openRing();
+      $item('upgrade').dispatchEvent(ptr('pointerenter', 'mouse'));   // slot 0
+      menu.refresh([item('branchA', { label: 'Frost', range: 150 }), item('branchB'), item('sell')], HUB);
+      expect(cb.onPreview).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'branchA' }));
+      expect(cb.onPeek).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'branchA' }), expect.any(Object));
+    });
+
+    it('a previewed item whose state flips re-emits (unaffordable preview turns gold)', () => {
+      openRing(ring({ upgrade: { state: 'disabled' } }));
+      $item('upgrade').dispatchEvent(ptr('pointerenter', 'mouse'));
+      const n = cb.onPreview.mock.calls.length;
+      menu.refresh(ring({ upgrade: { state: 'disabled' } }), HUB);        // unchanged: silent
+      expect(cb.onPreview.mock.calls.length).toBe(n);
+      menu.refresh(ring(), HUB);
+      expect(cb.onPreview).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'upgrade', state: 'ready' }));
+    });
+
+    it('a previewed slot that disappears clears the preview and peek', () => {
+      openRing([item('reposition'), ...ring()]);
+      $item('sell').dispatchEvent(ptr('pointerenter', 'mouse'));          // slot 2
+      menu.refresh(ring(), HUB);                                          // only 2 items now
+      expect(cb.onPreview).toHaveBeenLastCalledWith(null);
+      expect(cb.onPeek).toHaveBeenLastCalledWith(null);
+    });
+
     it('refresh while closed is a no-op', () => {
       menu.refresh(ring(), HUB);
       expect(root.hidden).toBe(true);
@@ -417,6 +483,16 @@ describe('RadialMenu', () => {
       expect(cb.onActivate).not.toHaveBeenCalled();
       expect($item('sell').classList.contains('confirming')).toBe(false);
       expect(menu.isOpen).toBe(true);
+    });
+
+    it('touch long-press on an aria-disabled item peeks and never activates', () => {
+      openRing(ring({ upgrade: { label: '🔒 Map 3', state: 'locked' } }));
+      $item('upgrade').dispatchEvent(ptr('pointerdown', 'touch'));
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+      expect(cb.onPeek).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'upgrade', state: 'locked' }), expect.any(Object));
+      $item('upgrade').dispatchEvent(ptr('pointerup', 'touch'));
+      $item('upgrade').dispatchEvent(click());
+      expect(cb.onActivate).not.toHaveBeenCalled();
     });
 
     it('touch long-press on the hub peeks the hub without a hub activation', () => {
