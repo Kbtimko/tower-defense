@@ -283,6 +283,8 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
     - (d) On covered legs `parkShip(to)` sits slightly behind `exitParam(from)`, so the ship drifts ≤8 px backward on capture devices (about 6% of the route at 568×320).
     - (e) `#featured-name`/`#featured-threats` truncate to one line on compact; the threat list for mission 1 shows "Veth Drone, Veth Skitter, Ve…".
     - (f) A reduced-motion title repaints static stars at the frame cap rather than drawing once.
+    - (g) After a `resize()` that leaves the canvas size unchanged (fonts `loadingdone`, art `onload`, an early iOS `orientationchange`), the backdrop takes up to ~143 ms to repaint because of the 7-fps idle cap. Fix: force `SpaceCanvas.redraw()`.
+    - (h) During the arrival, a Ctrl/Alt/Cmd-click on a node, LAUNCH or the meta bar is not swallowed as a skip, because the shortcut exemption also covers pointer events. Limit `isBrowserShortcut` to key events in `_skipArrival`.
 
 ## Completed
 <!-- Tags below are retrospective/illustrative — runner skips done items regardless. -->
