@@ -9,6 +9,9 @@ export const RADIAL_GAP_SCALE = 0.1;
 // Game px kept clear between the ring and the map edge when the centre is clamped.
 export const RADIAL_MARGIN = 8;
 
+// Text must stay inside this fraction of a round face's radius, clear of the kit's edge ring.
+export const RADIAL_TEXT_INSET = 0.9;
+
 export const BUILD_START_ANGLE = -90;
 
 // Fixed per-slot angles keep muscle memory: a slot never moves with pad position.

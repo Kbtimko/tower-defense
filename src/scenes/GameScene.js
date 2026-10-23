@@ -31,7 +31,7 @@ import {
   PANEL_EDGE_MARGIN, TAP_TOWER_RADIUS, TAP_SLOT_RADIUS, TAP_PATH_RADIUS, REPOSITION_SNAP_RADIUS, PEEK_GAP_PX,
 } from '../data/input.js';
 import { pulseClass } from '../ui/pulse.js';
-import { railAnchorRect } from '../ui/hudLayer.js';
+import { railAnchorRect, mapRectPage } from '../ui/hudLayer.js';
 import { WaveBanner } from '../ui/WaveBanner.js';
 import { bossWarning, padGlowAlpha } from '../systems/juiceMath.js';
 import { PAD_BEACON } from '../data/ambient.js';
@@ -1386,7 +1386,7 @@ export default class GameScene extends Phaser.Scene {
     const type = btn.dataset.type;
     const def  = TOWER_DEFS[type];
     if (!def) return;
-    const tt = this._fillTowerTooltip(type, def.cost);
+    const tt = this._fillTowerTooltip(type, this._towerCost(type));
     // Shown before measuring: display:none has no size. The tower buttons sit
     // in the right HUD rail, so the tooltip opens to their left, over the map.
     tt.style.display = 'block';
@@ -1482,6 +1482,12 @@ export default class GameScene extends Phaser.Scene {
     this.inspector?.hidePeek();
     this._previewGfx?.clear();
     this._syncCancelButton();
+  }
+
+  // What placeTower charges (its meta discount included), so the rail, the pad
+  // highlight and the build radial never disagree about a price.
+  _towerCost(type) {
+    return Math.round(TOWER_DEFS[type].cost * (this._towerCostMult ?? 1));
   }
 
   _buildItems() {
@@ -1584,7 +1590,7 @@ export default class GameScene extends Phaser.Scene {
     const { left, top } = placeBeside(
       rect,
       { width: tt.offsetWidth, height: tt.offsetHeight },
-      { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight },
+      mapRectPage(document),
       PEEK_GAP_PX,
       PANEL_EDGE_MARGIN,
     );
@@ -1704,7 +1710,7 @@ export default class GameScene extends Phaser.Scene {
     // Runs on every economy:update, so the dimming tracks gold as it moves.
     const gold = this.economy.gold;
     document.querySelectorAll('.tower-btn').forEach(btn => {
-      const cost = TOWER_DEFS[btn.dataset.type]?.cost ?? Infinity;
+      const cost = TOWER_DEFS[btn.dataset.type] ? this._towerCost(btn.dataset.type) : Infinity;
       btn.style.opacity = gold >= cost ? '1' : '0.4';
     });
     this._refreshRadial();
@@ -1917,7 +1923,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _drawZones() {
-    const canAfford = this.selectedType && this.economy.gold >= (TOWER_DEFS[this.selectedType]?.cost ?? Infinity);
+    const canAfford = this.selectedType && this.economy.gold >= this._towerCost(this.selectedType);
     const zones = this.placementManager.getZones();
     const glow = this._padGlow;
     glow.clear();

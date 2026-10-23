@@ -76,9 +76,12 @@ describe('ringItems', () => {
             if (allowed) {
               expect(up.state).toBe(expected);
               expect(up.label).toBe(`⬆ ${def[`tier${next}`].label}`);
+              // Spec "Items per ring": label + cost, so the price is visible before a tap.
+              expect(up.costLabel).toBe(`${cost}g`);
             } else {
               expect(up.state).toBe('locked');
               expect(up.label).toBe(`🔒 Map ${unlockMapNumber(next, MAPS)}`);
+              expect(up.costLabel).toBeUndefined();
             }
           }
         });
@@ -93,10 +96,12 @@ describe('ringItems', () => {
             if (cap >= 4) {
               expect(it4.state).toBe(expected);
               expect(it4.label).toBe(def[`tier4${b}`].label);
+              expect(it4.costLabel).toBe(`${def[`tier4${b}`].cost}g`);
               expect(it4.slot).toBe(RING_ANGLES[`branch${b}`]);
             } else {
               expect(it4.state).toBe('locked');
               expect(it4.label).toBe(`🔒 Map ${unlockMapNumber(4, MAPS)}`);
+              expect(it4.costLabel).toBeUndefined();
             }
           }
         }

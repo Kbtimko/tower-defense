@@ -3,7 +3,7 @@ import { shortEnemyName } from '../systems/entityDescriptors.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { HEROES } from '../data/heroes.js';
 import { worldToPageCss, clampPanelWithin, placeBeside } from '../systems/viewport.js';
-import { mapRectIn } from '../ui/hudLayer.js';
+import { mapRectPage } from '../ui/hudLayer.js';
 import { PANEL_EDGE_MARGIN, PEEK_GAP_PX, TAP_TOWER_RADIUS } from '../data/input.js';
 import { heroAttackDamage } from '../systems/heroLeveling.js';
 import { describeTowerDetail } from '../systems/towerDetail.js';
@@ -384,28 +384,13 @@ export class InspectController {
     // Measured once populated and displayed: display:none reports 0.
     el.style.display = 'block';
     const size = { width: el.offsetWidth || 220, height: el.offsetHeight || 100 };
-    const spot = placeBeside(anchorRect, size, this._mapBoundsPage(), PEEK_GAP_PX, PANEL_EDGE_MARGIN);
+    const spot = placeBeside(anchorRect, size, mapRectPage(document), PEEK_GAP_PX, PANEL_EDGE_MARGIN);
     el.style.left = `${spot.left}px`;
     el.style.top  = `${spot.top}px`;
   }
 
-  // Page-coordinate bounds a floating card may occupy: the MAP, so a card pinned
-  // near the right edge never covers a rail button (it is body-level, z40, and
-  // would swallow the tap). No #game (bare DOM) falls back to the window.
-  _mapBoundsPage() {
-    const gameEl = document.getElementById('game');
-    if (!gameEl) {
-      return { left: 0, top: 0,
-        width: window.innerWidth || 1024, height: window.innerHeight || 768 };
-    }
-    const gameRect = gameEl.getBoundingClientRect();
-    const canvas = document.querySelector('#game canvas');
-    const map = mapRectIn({ gameRect, canvasRect: canvas?.getBoundingClientRect() ?? null });
-    return { ...map, left: map.left + gameRect.left, top: map.top + gameRect.top };
-  }
-
   _positionPanel(el, targetX, targetY) {
-    const map = this._mapBoundsPage();
+    const map = mapRectPage(document);
     const size = { width: el.offsetWidth || 220, height: el.offsetHeight || 100 };
     let left = targetX + 24;
     // Prefer opening to the target's left over sliding on top of it.

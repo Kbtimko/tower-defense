@@ -305,6 +305,9 @@
     .radial-item { width: var(--radial-item); height: var(--radial-item); }
     .radial-item[hidden] { display: none; }
     .radial-item .radial-icon { font-size: calc(28px * var(--hud-k)); line-height: 0.9; }
+    /* A long tier name ("Rapid Response") breaks between words rather than
+       shrinking to one tiny line; RadialMenu then fits the lines to the circle. */
+    .radial-item .radial-label { white-space: normal; text-wrap: balance; }
     #radial-hub { width: var(--radial-hub); height: var(--radial-hub); }
     #radial-hub .radial-hub-line:first-child { font-weight: bold; }
     /* Long-press targets: stop the iOS callout and text selection that would

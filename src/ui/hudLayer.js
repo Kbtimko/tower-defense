@@ -26,8 +26,22 @@ export function mapRectIn({ gameRect, canvasRect }) {
   };
 }
 
+// Page-coordinate bounds a floating body-level card may occupy: the MAP, so a
+// card near the right edge never covers a rail button (it is z40+ and would
+// swallow the tap). No #game (bare DOM) falls back to the window.
+export function mapRectPage(doc) {
+  const gameEl = doc.getElementById('game');
+  if (!gameEl) {
+    return { left: 0, top: 0, width: window.innerWidth || 1024, height: window.innerHeight || 768 };
+  }
+  const gameRect = gameEl.getBoundingClientRect();
+  const canvas = doc.querySelector('#game canvas');
+  const map = mapRectIn({ gameRect, canvasRect: canvas?.getBoundingClientRect() ?? null });
+  return { ...map, left: map.left + gameRect.left, top: map.top + gameRect.top };
+}
+
 // Also publishes the map rect on #game, so DOM anchored to #game (toast,
-// banners, tower panel) can sit over the map instead of the rails/letterbox.
+// banners) can sit over the map instead of the rails/letterbox.
 export function fitHudLayer(doc, game) {
   const layer = doc.getElementById('hud-layer');
   const gameEl = doc.getElementById('game');

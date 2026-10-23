@@ -1,10 +1,9 @@
-import { radialMetrics, layoutRadial } from '../systems/radialLayout.js';
+import { radialMetrics, layoutRadial, circleFitScale } from '../systems/radialLayout.js';
 import { createConfirmGate } from '../systems/confirmGate.js';
 import { attachLongPress } from './longPress.js';
 import { isKeyboardFocus } from './keyboardFocus.js';
-import { fitLabels } from './fitLabels.js';
 import { RAIL_WIDTH, HUD_CELL, WORLD_WIDTH, WORLD_HEIGHT } from '../data/layout.js';
-import { RADIAL_MARGIN } from '../data/radial.js';
+import { RADIAL_MARGIN, RADIAL_TEXT_INSET } from '../data/radial.js';
 import { CONFIRM_WINDOW_MS } from '../data/input.js';
 
 // The hub is reported to the callbacks as this pseudo-item, so the owner
@@ -19,6 +18,8 @@ const STATE_CLASS = { ready: null, disabled: 'is-disabled', locked: 'is-disabled
 const ITEM_CLASS = 'ui-btn radial-item';
 const HUB_CLASS = 'ui-btn';
 const ARMED_CAPTION = 'Tap again';
+// Shrinking is near-linear (emoji, hinting, rewraps), so a pass can land a hair wide.
+const FIT_PASSES = 4;
 // The map in world px: the radial is clamped to it, then shifted by the left
 // rail because #hud-layer is laid out over the whole canvas in game px.
 const MAP_BOUNDS = { left: 0, top: 0, width: WORLD_WIDTH, height: WORLD_HEIGHT };
@@ -97,6 +98,8 @@ export class RadialMenu {
     this._root.dataset.kind = kind;
     this._render(items, hub);
     this._root.hidden = false;
+    // Measured only now: a hidden face has no size, so a fit during _render is a no-op.
+    for (const btn of this._visibleFaces()) this._fitFace(btn);
   }
 
   // Gold changed or the tower was upgraded. A confirm survives only when the
@@ -361,7 +364,13 @@ export class RadialMenu {
       setText(icon, item.icon);
     } else icon?.remove();
     const label = btn.querySelector('.radial-label') ?? btn.appendChild(this._span('radial-label'));
-    if (setText(label, armed ? ARMED_CAPTION : item.label)) fitLabels([label]);
+    let changed = setText(label, armed ? ARMED_CAPTION : item.label);
+    let cost = btn.querySelector('.radial-cost');
+    if (item.costLabel) {
+      if (!cost) { cost = btn.appendChild(this._span('radial-cost')); changed = true; }
+      changed = setText(cost, item.costLabel) || changed;
+    } else if (cost) { cost.remove(); changed = true; }
+    if (changed) this._fitFace(btn);
   }
 
   // While a confirm is armed the hub spells out what the second tap will do.
@@ -373,7 +382,36 @@ export class RadialMenu {
     while (spans.length < lines.length) spans.push(this._hub.appendChild(this._span('radial-hub-line')));
     const changed = spans.filter((span, i) => setText(span, lines[i]));
     setAttr(this._hub, 'aria-label', lines.join(', '));
-    if (changed.length) fitLabels(changed);
+    if (changed.length) this._fitFace(this._hub);
+  }
+
+  _visibleFaces() {
+    return [...this._buttons.filter((b) => !b.hidden), this._hub];
+  }
+
+  // Shrinks every text line of a round face, together, until each line box
+  // lies inside the circle: a label that fits the square box can still clip
+  // past the curve near the top or bottom. Shrinking moves lines inward and
+  // can rewrap them, so a few passes re-measure.
+  _fitFace(btn) {
+    const spans = [...btn.children];
+    for (const s of spans) s.style.removeProperty('font-size');
+    for (let pass = 0; pass < FIT_PASSES; pass++) {
+      const box = btn.getBoundingClientRect();
+      if (!box.width) return;
+      const circle = { cx: box.left + box.width / 2, cy: box.top + box.height / 2, r: (box.width / 2) * RADIAL_TEXT_INSET };
+      const lines = spans.flatMap((s) => {
+        const range = this._doc.createRange();
+        range.selectNodeContents(s);
+        return [...range.getClientRects()];
+      });
+      const k = circleFitScale(circle, lines);
+      if (k >= 1) return;
+      for (const s of spans) {
+        const px = parseFloat(getComputedStyle(s).fontSize);
+        if (px) s.style.fontSize = `${Math.floor(px * k * 4) / 4}px`;
+      }
+    }
   }
 
   _span(cls) {

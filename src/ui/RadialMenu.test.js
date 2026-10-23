@@ -506,6 +506,38 @@ describe('RadialMenu', () => {
     });
   });
 
+  describe('cost line and round-face fit', () => {
+    it('an upgrade or branch item shows its cost on its own line; items without one show none', () => {
+      openRing([item('upgrade', { label: '⬆ Eagle Eye', cost: 50, costLabel: '50g' }), item('sell', { label: '💰 +36g' })]);
+      expect($item('upgrade').querySelector('.radial-cost').textContent).toBe('50g');
+      expect($item('sell').querySelector('.radial-cost')).toBeNull();
+      menu.refresh([item('upgrade', { label: '🔒 Map 3', state: 'locked', cost: 80 }), item('sell')], HUB);
+      expect($item('upgrade').querySelector('.radial-cost')).toBeNull();
+    });
+
+    // jsdom has no layout, so the geometry is stubbed: a face measures 0 while
+    // #radial is hidden (as in a browser) and 88 px once shown, and every text
+    // line is a box far wider than the circle.
+    it('fits labels after the radial is shown, not while it is still hidden', () => {
+      const rect = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function () {
+        const shown = !document.getElementById('radial').hidden;
+        return { left: 0, top: 0, width: shown ? 88 : 0, height: shown ? 88 : 0, right: shown ? 88 : 0, bottom: shown ? 88 : 0 };
+      });
+      const range = vi.spyOn(document, 'createRange').mockImplementation(() => ({
+        selectNodeContents() {}, getClientRects: () => [{ left: -20, right: 108, top: 38, bottom: 50 }],
+      }));
+      const style = vi.spyOn(window, 'getComputedStyle').mockImplementation((el) => ({ fontSize: el.style.fontSize || '22px' }));
+      try {
+        openRing([item('upgrade', { label: '⬆ Eagle Eye', cost: 50, costLabel: '50g' }), item('sell')]);
+        const px = parseFloat($item('upgrade').querySelector('.radial-label').style.fontSize);
+        expect(px).toBeLessThan(22);
+        expect(parseFloat($item('upgrade').querySelector('.radial-cost').style.fontSize)).toBe(px);
+      } finally {
+        rect.mockRestore(); range.mockRestore(); style.mockRestore();
+      }
+    });
+  });
+
   describe('lifecycle', () => {
     it('destroy restores the shipped markup exactly', () => {
       const before = root.outerHTML;

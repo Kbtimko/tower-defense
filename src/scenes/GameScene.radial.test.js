@@ -17,6 +17,7 @@ import { TowerPlacementManager, sellRefund } from '../systems/TowerPlacementMana
 import { previewRange } from '../systems/rangePreview.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { MAPS } from '../data/maps.js';
+import { CANVAS_WIDTH, RAIL_WIDTH, WORLD_WIDTH, WORLD_HEIGHT } from '../data/layout.js';
 
 const html = readFileSync(join(__dirname, '..', '..', 'index.html'), 'utf8');
 const shipped = new DOMParser().parseFromString(html, 'text/html').getElementById('radial');
@@ -152,7 +153,7 @@ function buildAt(scene, i, type) {
 
 describe('GameScene radial wiring', () => {
   beforeEach(() => { vi.useFakeTimers(); setupDOM(); });
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
   describe('build radial', () => {
     it('a tap on a free pad with nothing armed opens the build radial there', () => {
@@ -184,6 +185,18 @@ describe('GameScene radial wiring', () => {
       expect($item('build:archer').textContent).toContain(`${price}g`);
       clickItem($item('build:archer'));
       expect(s.economy.gold).toBe(500 - price);
+    });
+
+    // The rail and the radial must never disagree about a price.
+    it('the rail tooltip and its affordability dimming use the discounted price too', () => {
+      const price = Math.round(TOWER_DEFS.archer.cost * 0.9);
+      const s = makeScene({ gold: price, mods: { towerCostMult: 0.9 } });
+      const btn = document.querySelector('.tower-btn[data-type="archer"]');
+      s._showTowerTooltip(btn);
+      expect(document.getElementById('tower-tooltip').textContent).toContain(`${price}g`);
+      expect(document.getElementById('tower-tooltip').textContent).not.toContain(`${TOWER_DEFS.archer.cost}g`);
+      s._updateHUD();
+      expect(btn.style.opacity).toBe('1');
     });
 
     it('a barracks built from the radial spawns its soldiers', () => {
@@ -260,6 +273,8 @@ describe('GameScene radial wiring', () => {
       expect(s.selectedTower).toBe(t);
       expect(t.showRange).toHaveBeenCalled();
       expect(hubText()).toContain('T1');
+      expect($item('upgrade').textContent).toContain(TOWER_DEFS.archer.tier2.label);
+      expect($item('upgrade').querySelector('.radial-cost').textContent).toBe(`${TOWER_DEFS.archer.tier2.cost}g`);
       expect($item('sell').textContent).toContain(`+${sellRefund(t.totalCost)}g`);
     });
 
@@ -325,6 +340,8 @@ describe('GameScene radial wiring', () => {
       expect($item('upgrade')).toBeNull();
       expect($item('branchA').textContent).toContain(TOWER_DEFS.barracks.tier4A.label);
       expect($item('branchB').textContent).toContain(TOWER_DEFS.barracks.tier4B.label);
+      expect($item('branchA').textContent).toContain(`${TOWER_DEFS.barracks.tier4A.cost}g`);
+      expect($item('branchB').textContent).toContain(`${TOWER_DEFS.barracks.tier4B.cost}g`);
       expect($item('sell')).not.toBeNull();
       expect($item('reposition')).not.toBeNull();
       clickItem($item('branchA'));
@@ -460,7 +477,9 @@ describe('GameScene radial wiring', () => {
     });
 
     it('a branch peeks label, effect and armour with the tower damage multiplier', () => {
-      const s = makeScene({ gold: 2000, mapId: TIER4_MAP });
+      // 28 × 1.06 rounds to 30: colossus armour 15 then absorbs exactly half
+      // (it would read 54% if the multiplier were dropped).
+      const s = makeScene({ gold: 2000, mapId: TIER4_MAP, mods: { towerDamageMult: 1.06 } });
       const t = buildAt(s, 0, 'ice');
       t.level = 3;
       s._onTap(t.x, t.y);
@@ -468,6 +487,40 @@ describe('GameScene radial wiring', () => {
       expect(tip().textContent).toContain(TOWER_DEFS.ice.tier4A.label);
       expect(tip().textContent).toContain(TOWER_DEFS.ice.tier4A.passiveEffect);
       expect(tip().textContent).toContain('🛡');
+      expect(tip().textContent).toContain('Colossus 50%');
+    });
+
+    it('peeking a branch then sell leaves no armour rows behind', () => {
+      const s = makeScene({ gold: 2000, mapId: TIER4_MAP });
+      const t = buildAt(s, 0, 'ice');
+      t.level = 3;
+      s._onTap(t.x, t.y);
+      s._onRadialPeek(s.radial._items.find(i => i.id === 'branchA'), rect);
+      expect(tip().querySelector('.ar-heavy, .ar-floor')).not.toBeNull();
+      s._onRadialPeek(s.radial._items.find(i => i.id === 'sell'), rect);
+      expect(tip().querySelector('.ar-heavy, .ar-floor')).toBeNull();
+      expect(tip().textContent).not.toContain('🛡');
+    });
+
+    // Body-level and z50: over a rail it would hide the controls under it.
+    it('the peek is clamped to the map rect, never over a rail', () => {
+      const s = makeScene();
+      const game = document.getElementById('game');
+      const canvas = game.appendChild(document.createElement('canvas'));
+      game.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1440, height: 900 });
+      canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: CANVAS_WIDTH, height: WORLD_HEIGHT });
+      Object.defineProperty(tip(), 'offsetWidth', { configurable: true, get: () => 200 });
+      Object.defineProperty(tip(), 'offsetHeight', { configurable: true, get: () => 80 });
+      // A window wider than the map, so only a map clamp keeps the card off the right rail.
+      vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(CANVAS_WIDTH + 400);
+      vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(WORLD_HEIGHT + 200);
+      tapZone(s, 0);
+      // A radial footprint hard against the map's right edge.
+      const nearRight = { left: RAIL_WIDTH + WORLD_WIDTH - 150, top: 300, width: 150, height: 150 };
+      s._onRadialPeek(s.radial._items[0], nearRight);
+      const left = parseFloat(tip().style.left);
+      expect(left).toBeGreaterThanOrEqual(RAIL_WIDTH);
+      expect(left + 200).toBeLessThanOrEqual(RAIL_WIDTH + WORLD_WIDTH);
     });
 
     it('sell peeks the refund', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { radialMetrics, layoutRadial } from './radialLayout.js';
+import { radialMetrics, layoutRadial, circleFitScale } from './radialLayout.js';
 import { TOUCH_HUD_CELL, FINE_HUD_CELL } from '../data/layout.js';
 import { BUILD_ANGLES_COUNT, buildAngles, RING_ANGLES, RADIAL_MARGIN } from '../data/radial.js';
 
@@ -92,5 +92,32 @@ describe('layoutRadial', () => {
       expect(c.x - c.r).toBeGreaterThanOrEqual(108 - 1e-9);
       expect(c.y - c.r).toBeGreaterThanOrEqual(58 - 1e-9);
     }
+  });
+});
+
+// Round faces: a label that fits the button's square box can still poke out
+// past the circle near the top or bottom, which is what clipped "Eagle Eye".
+describe('circleFitScale', () => {
+  const circle = { cx: 50, cy: 50, r: 40 };
+  const box = (left, top, right, bottom) => ({ left, top, right, bottom });
+
+  it('is 1 when every text box already lies inside the circle', () => {
+    expect(circleFitScale(circle, [box(30, 40, 70, 60)])).toBe(1);
+    expect(circleFitScale(circle, [])).toBe(1);
+  });
+
+  it('is the shrink about the centre that pulls the farthest corner onto the circle', () => {
+    // Corner (90, 60) is hypot(40, 10) from the centre.
+    expect(circleFitScale(circle, [box(10, 40, 90, 60)])).toBeCloseTo(40 / Math.hypot(40, 10), 6);
+  });
+
+  it('a box that fits the square but not the round face still shrinks', () => {
+    // Inside the 80x80 square, but its corners are outside the 40-px radius.
+    expect(circleFitScale(circle, [box(15, 15, 85, 30)])).toBeLessThan(1);
+  });
+
+  it('takes the worst of several line boxes', () => {
+    const wide = box(5, 45, 95, 55);
+    expect(circleFitScale(circle, [box(40, 40, 60, 60), wide])).toBeCloseTo(circleFitScale(circle, [wide]), 6);
   });
 });

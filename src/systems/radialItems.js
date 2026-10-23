@@ -9,6 +9,7 @@ import { sellRefund } from './TowerPlacementManager.js';
  * @property {string} id         'build:<type>' | 'upgrade' | 'branchA' | 'branchB' | 'sell' | 'reposition'
  * @property {number} slot       Angle in degrees (0 = east, clockwise on screen), fed to layoutRadial.
  * @property {string} label      Caption, e.g. '60g', '⬆ Eagle Eye', '🔒 Map 3', 'MAX', '💰 +36g', '↻ Move'.
+ * @property {string} [costLabel] Second line with the price, e.g. '50g'; buyable (ready/disabled) upgrades and branches only.
  * @property {number|null} cost  Gold needed to activate; null for MAX, Sell and Reposition.
  * @property {'currency'|'danger'|'primary'|'neutral'} variant  .ui-btn modifier.
  * @property {'ready'|'disabled'|'locked'|'maxed'} state
@@ -56,7 +57,7 @@ function purchaseItem({ id, def, tierDef, tier, branch, label, gold, maps, allow
   }
   const state = affordState(gold, tierDef.cost);
   return {
-    ...base, label, state,
+    ...base, label, state, costLabel: `${tierDef.cost}g`,
     ariaLabel: `${what}, ${tierDef.cost} gold${state === 'disabled' ? ', not enough gold' : ''}`,
   };
 }

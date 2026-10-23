@@ -34,3 +34,17 @@ export function layoutRadial({ anchor, angles, metrics, bounds, margin }) {
     shifted: centre.x !== anchor.x || centre.y !== anchor.y,
   };
 }
+
+// How far text must shrink, about the face's centre, for every line box to
+// sit inside a round button. Shrinking the font scales the centred text block
+// about that centre, so the farthest corner decides. 1 means it already fits.
+export function circleFitScale({ cx, cy, r }, boxes) {
+  let scale = 1;
+  for (const b of boxes) {
+    const dx = Math.max(Math.abs(b.left - cx), Math.abs(b.right - cx));
+    const dy = Math.max(Math.abs(b.top - cy), Math.abs(b.bottom - cy));
+    const d = Math.hypot(dx, dy);
+    if (d > r) scale = Math.min(scale, r / d);
+  }
+  return scale;
+}
