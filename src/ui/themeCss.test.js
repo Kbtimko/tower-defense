@@ -82,9 +82,11 @@ describe('fonts', () => {
     expect(families.filter((f) => !allowed.test(f))).toEqual([]);
   });
 
-  it('--hud-label-font leads with Rajdhani', () => {
+  // One source for the body stack: the rail label font is the theme's body
+  // font, so a token change can't leave the rails on a stale copy.
+  it('--hud-label-font is the theme body font', () => {
     const value = css.match(/--hud-label-font\s*:\s*([^;]+)/)[1].trim();
-    expect(value.startsWith('"Rajdhani"')).toBe(true);
+    expect(value).toBe('var(--ui-font-body)');
   });
 
   it('button-like controls inherit the family only (never the font shorthand)', () => {
@@ -123,6 +125,25 @@ describe('ui kit css', () => {
     ]));
     const pressed = kitRules.find((r) => sel(r).includes('.ui-btn:active'));
     expect(kitRules.indexOf(selected)).toBeGreaterThan(kitRules.indexOf(pressed));
+  });
+
+  it('hover lifts the ring: each variant names its hover edge and the hover rule applies it', () => {
+    const find = (s) => kitRules.find((r) => r.selector.split(',').map((x) => x.trim()).includes(s));
+    expect(decls(find('.ui-btn:hover').body)).toContainEqual(['--btn-edge', 'var(--btn-edge-hover)']);
+    for (const [sel, v] of [['.ui-btn', 'neutral'], ['.ui-btn--primary', 'primary'], ['.ui-btn--danger', 'danger'], ['.ui-btn--currency', 'currency']]) {
+      expect(decls(find(sel).body)).toContainEqual(['--btn-edge-hover', `var(--ui-edge-hover-${v})`]);
+    }
+  });
+
+  // The drop shadow is the one layer that paints OUTSIDE the box, so surfaces
+  // flush with the map (rails) or parked off-screen (story banner) need it off.
+  it('panel drop shadow is a var the rails and the story banner switch off', () => {
+    const panel = rules.find((r) => r.selector === '.ui-panel');
+    expect(decls(panel.body).find(([p]) => p === '--panel-drop')).toBeDefined();
+    expect(decls(panel.body).find(([p]) => p === 'box-shadow')[1]).toMatch(/var\(--panel-drop\)$/);
+    for (const sel of ['.hud-rail', '.story-banner']) {
+      expect(decls(rules.find((r) => r.selector === sel).body)).toContainEqual(['--panel-drop', '0 0 0 transparent']);
+    }
   });
 
   // Functional colours would smuggle hues past the hex guard. Only the

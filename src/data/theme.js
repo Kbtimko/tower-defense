@@ -25,6 +25,7 @@ export const MIX = Object.freeze({
   faceTint: 0.06, // panel -> variant hue
   faceDisabled: 0.12, // panel -> panelEdge
   hover: 0.04, // face -> edge, one step lighter
+  edgeHover: 0.35, // edge -> text: the ring carries hover (neutral's face step is 1/255)
   press: 0.5, // face -> panel, one step darker
   glow: 0.45, // face -> edge
   bevelHi: 0.4, // panelEdge -> text

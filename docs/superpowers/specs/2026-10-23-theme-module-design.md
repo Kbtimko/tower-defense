@@ -63,12 +63,12 @@ Layers, from back to front:
    - the first-listed shadow paints frontmost, so the ring covers the outer 1u of each bevel; the 2u offset leaves a visible 1u bevel band just inside the ring (a 1u offset would sit entirely under the ring)
    - inner glow `inset 0 0 6u var(--btn-glow)`
 
-Panels use the same stack with `--panel-*` vars plus an outer drop shadow (`0 3u 14u rgba(0,0,0,.5)`). The kit never uses `background` shorthand: the rail's transparent border is the touch-target gutter and relies on `background-clip: padding-box`. It never uses `border` for looks either; the ring is a box-shadow.
+Panels use the same stack with `--panel-*` vars plus an outer drop shadow (`0 3u 14u rgba(0,0,0,.5)`) held in `--panel-drop`, which `.hud-rail` and `.story-banner` set to `0 0 0 transparent` (flush with the map / parked above it, where the drop would darken the map). The kit never uses `background` shorthand: the rail's transparent border is the touch-target gutter and relies on `background-clip: padding-box`. It never uses `border` for looks either; the ring is a box-shadow.
 
 | State | Selector(s) | Change |
 |---|---|---|
 | normal | `.ui-btn` | variant face/edge/ink, glow at rest alpha |
-| hover | `:hover` (fine pointers via `@media (hover:hover)`) | glow alpha up, face +1 mix step |
+| hover | `:hover` (fine pointers via `@media (hover:hover)`) | glow alpha up, face +1 mix step, ring lifted to edge-hover (mix(edge, text, 0.35)): the face step alone is 1/255 on neutral |
 | pressed | `:active`, `.is-pressed` | bevel hi/lo swapped, face −1 step, glow off |
 | selected | existing `.selected` `.active` | as pressed, plus accent ring and accent glow at hover strength (a resting state that must stand out from identical neighbours) |
 | armed (two-step confirm) | `.is-armed`; `#tower-panel button.confirming` rule sets the same vars | currency edge, strong currency glow |

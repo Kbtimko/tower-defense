@@ -43,6 +43,9 @@
       --panel-edge: var(--ui-panel-edge);
       --panel-glow: var(--ui-glow-neutral);
       --panel-glow-a: var(--ui-glow-rest);
+      /* The only layer painted outside the box; flush or parked surfaces set
+         it to `0 0 0 transparent` (a valid no-op inside the shadow list). */
+      --panel-drop: 0 calc(3 * var(--ui-u)) calc(14 * var(--ui-u)) rgba(0,0,0,0.5);
       background-color: var(--panel-face);
       background-image:
         linear-gradient(to bottom, rgba(255,255,255,var(--ui-sheen-alpha)), transparent),
@@ -52,7 +55,7 @@
         inset calc(2 * var(--ui-u)) calc(2 * var(--ui-u)) 0 var(--ui-bevel-hi),
         inset calc(-2 * var(--ui-u)) calc(-2 * var(--ui-u)) 0 var(--ui-bevel-lo),
         inset 0 0 calc(6 * var(--ui-u)) color-mix(in srgb, var(--panel-glow) var(--panel-glow-a), transparent),
-        0 calc(3 * var(--ui-u)) calc(14 * var(--ui-u)) rgba(0,0,0,0.5);
+        var(--panel-drop);
       color: var(--ui-text);
     }
     .ui-panel--primary { --panel-edge: var(--ui-edge-primary); --panel-glow: var(--ui-glow-primary); }
@@ -65,6 +68,7 @@
       --btn-face-hover: var(--ui-face-hover-neutral);
       --btn-face-pressed: var(--ui-face-pressed-neutral);
       --btn-edge: var(--ui-edge-neutral);
+      --btn-edge-hover: var(--ui-edge-hover-neutral);
       --btn-glow: var(--ui-glow-neutral);
       --btn-ink: var(--ui-ink-neutral);
       --btn-glow-a: var(--ui-glow-rest);
@@ -86,20 +90,24 @@
     .ui-btn--primary {
       --btn-face: var(--ui-face-primary); --btn-face-hover: var(--ui-face-hover-primary);
       --btn-face-pressed: var(--ui-face-pressed-primary); --btn-edge: var(--ui-edge-primary);
+      --btn-edge-hover: var(--ui-edge-hover-primary);
       --btn-glow: var(--ui-glow-primary); --btn-ink: var(--ui-ink-primary); }
     .ui-btn--danger {
       --btn-face: var(--ui-face-danger); --btn-face-hover: var(--ui-face-hover-danger);
       --btn-face-pressed: var(--ui-face-pressed-danger); --btn-edge: var(--ui-edge-danger);
+      --btn-edge-hover: var(--ui-edge-hover-danger);
       --btn-glow: var(--ui-glow-danger); --btn-ink: var(--ui-ink-danger); }
     .ui-btn--currency {
       --btn-face: var(--ui-face-currency); --btn-face-hover: var(--ui-face-hover-currency);
       --btn-face-pressed: var(--ui-face-pressed-currency); --btn-edge: var(--ui-edge-currency);
+      --btn-edge-hover: var(--ui-edge-hover-currency);
       --btn-glow: var(--ui-glow-currency); --btn-ink: var(--ui-ink-currency); }
     /* State rules follow in cascade order: on equal specificity the later one
        wins, so disabled beats armed beats selected beats pressed beats hover. Hover is fine
        pointers only, or a tap would leave it stuck on. */
     @media (hover: hover) {
-      .ui-btn:hover { background-color: var(--btn-face-hover); --btn-glow-a: var(--ui-glow-hover); }
+      /* The ring carries hover: neutral's face step alone is 1/255. */
+      .ui-btn:hover { background-color: var(--btn-face-hover); --btn-edge: var(--btn-edge-hover); --btn-glow-a: var(--ui-glow-hover); }
     }
     .ui-btn:active, .ui-btn.is-pressed {
       background-color: var(--btn-face-pressed);
@@ -129,13 +137,11 @@
        below is calc(Npx * var(--hud-k)): k is 1 on touch and 52/88 on a mouse,
        so content shrinks with its cell (src/ui/railCss.test.js enforces it).
        Text is >= 24 game px on touch (11 CSS px at the 0.46 iPhone scale). */
-    /* Condensed faces so 24-px labels fit an 82-px button face: macOS/iOS ship
-       Avenir Next Condensed, Office installs Arial Narrow, Android maps
-       sans-serif-condensed to Roboto Condensed, Windows 10+ has Bahnschrift.
-       Anything wider is shrunk to fit by src/ui/fitLabels.js. */
+    /* The theme body stack (FONTS.body: Rajdhani, then condensed system faces)
+       so 24-px labels fit an 82-px button face; one source, so the rails can't
+       drift from the theme. Anything wider is shrunk by src/ui/fitLabels.js. */
     #hud-layer { --hud-label-inset: calc(4px * var(--hud-k)); /* label clearance from the button ring; fitLabels reads the real padding */
-                 --hud-label-font: "Rajdhani", "Avenir Next Condensed", "Arial Narrow", "Roboto Condensed",
-                   sans-serif-condensed, "Bahnschrift SemiCondensed", "Helvetica Neue", Arial, sans-serif;
+                 --hud-label-font: var(--ui-font-body);
                  display: none; position: absolute; left: 0; top: 0; z-index: 6;
                  width: var(--canvas-w); height: var(--world-h);
                  transform-origin: 0 0; pointer-events: none; }
@@ -143,6 +149,8 @@
                 pointer-events: auto;
                 /* The kit's 1u ring equals the 2px rail ring at both k values. */
                 --ui-u: calc(2px * var(--hud-k));
+                /* Flush with the map: a drop shadow would darken its outer columns. */
+                --panel-drop: 0 0 0 transparent;
                 display: flex; flex-direction: column; align-items: center; }
     #rail-left { left: 0; justify-content: space-evenly; }
     #rail-right { right: 0; justify-content: center; gap: calc(28px * var(--hud-k)); }
@@ -283,8 +291,8 @@
     #tower-panel .panel-armour .ar-head  { display: block; color: #aaa; }
     #tower-panel .panel-armour .ar-heavy { color: #fc6; }
     #tower-panel .panel-armour .ar-floor { color: #f66; font-weight: bold; }
-    .branch-card .branch-matchup { color: #ffcc66; font-size: 10px; margin-bottom: 3px; }
-    .branch-card .branch-armour { color: #aaa; font-size: 10px; margin-bottom: 3px; }
+    .branch-card .branch-matchup { color: #ffcc66; font-size: var(--ui-fs-xs); margin-bottom: 3px; }
+    .branch-card .branch-armour { color: #aaa; font-size: var(--ui-fs-xs); margin-bottom: 3px; }
     .branch-card .branch-armour .ar-heavy { color: #fc6; }
     .branch-card .branch-armour .ar-floor { color: #f66; font-weight: bold; }
     #wave-btn { font-size: calc(26px * var(--hud-k)); font-weight: bold; }
@@ -321,7 +329,7 @@
     .branch-card:not(.locked) { border-color: #f0a500; background: #1a1400; }
     .branch-card.locked { opacity: 0.45; }
     .branch-label { font-weight: bold; margin-bottom: 3px; }
-    .branch-effect { color: #888; margin-bottom: 4px; font-size: 10px; }
+    .branch-effect { color: #888; margin-bottom: 4px; font-size: var(--ui-fs-xs); }
     .branch-cost { color: #f0a500; font-weight: bold; margin-bottom: 5px; }
     .reposition-btn { width: 100%; padding: 5px; border-radius: 4px;
                       font-size: 11px; margin-top: 3px; }
@@ -340,7 +348,9 @@
                     transform:translateY(calc(-100% - var(--map-top, 0px) - 20px));
                     border-radius:8px; padding:12px 16px; z-index:25;
                     display:flex; align-items:flex-start; gap:12px;
-                    transition:transform 0.35s ease; pointer-events:none; }
+                    transition:transform 0.35s ease; pointer-events:none;
+                    /* Parked just above #game while hidden: a drop would leak below it. */
+                    --panel-drop: 0 0 0 transparent; }
     .story-banner.visible { transform:none; pointer-events:auto; }
     .game-toast { position: absolute; z-index: 30; pointer-events: none;
                   top: calc(var(--map-top, 0px) + 16px);

@@ -58,6 +58,7 @@ export function deriveShades(palette, mix) {
     shades[`faceHover_${v}`] = mixHex(face, hues[v], mix.hover);
     shades[`facePressed_${v}`] = mixHex(face, palette.panel, mix.press);
     shades[`edge_${v}`] = hues[v];
+    shades[`edgeHover_${v}`] = mixHex(hues[v], palette.text, mix.edgeHover);
     shades[`glow_${v}`] = mixHex(face, hues[v], mix.glow);
     shades[`ink_${v}`] = inks[v];
   }

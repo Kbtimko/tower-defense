@@ -107,6 +107,7 @@ ratio changes, regenerate the hexes here from `deriveShades`.
 | face-pressed-* | mix(face, panel, 0.5) | neutral `#131a2a`, primary `#111a2b`, danger `#161727`, currency `#161a23` |
 | glow-* | mix(face, hue, 0.45) | neutral `#202b3b`, primary `#2e698a`, danger `#7c454d`, currency `#837213` |
 | edge-* | the variant hue | neutral = panel-edge, primary = accent, danger = danger, currency = currency |
+| edge-hover-* | mix(edge, text, 0.35) | neutral `#6d7479`, primary `#85cde9`, danger `#ed9e98`, currency `#f7da49` |
 | ink-* | the variant ink | neutral = text, primary = accent, danger = danger, currency = currency |
 
 Hue per variant: neutral = panel-edge, primary = accent, danger = danger,
@@ -122,12 +123,14 @@ Surface recipe: a face colour under two background images (a vertical sheen
 above a soft scanline, period 3u), then box-shadows listed front to back (the
 first-listed shadow paints frontmost): inset 1u edge ring → upper-left bevel
 highlight and lower-right shade (the §1 key light), each offset 2u so a 1u band
-shows just inside the ring → 6u inner glow. Panels add an outer drop shadow.
+shows just inside the ring → 6u inner glow. Panels add an outer drop shadow via
+`--panel-drop`; surfaces flush with the map (rails) or parked off-screen (story
+banner) set it to `0 0 0 transparent`, since it is the one layer painted outside the box.
 
 | State | Selectors | Neutral | Primary | Danger | Currency |
 |---|---|---|---|---|---|
 | normal | `.ui-btn` | panel-edge ring, text ink | accent ring and ink | danger ring and ink | gold ring and ink |
-| hover (fine pointers) | `:hover` under `@media (hover: hover)` | face-hover, glow 80 % | same | same | same |
+| hover (fine pointers) | `:hover` under `@media (hover: hover)` | face-hover, ring lifted to edge-hover, glow 80 % | same | same | same |
 | pressed | `:active`, `.is-pressed` | face-pressed, bevel swapped, glow off | same | same | same |
 | selected | `.selected`, `.active` | face-pressed, bevel swapped, accent ring, accent glow 80 % | same | same | same |
 | armed (two-step confirm) | `.is-armed`, `.confirming` | gold ring, gold glow 90 % | same | same | same |

@@ -86,6 +86,21 @@ describe('contrast', () => {
   });
 });
 
+// Neutral's face-hover is 1/255 off its face, so the ring has to carry hover
+// for every variant. RGB distance, because a bright hue (gold) lifts mostly
+// in one channel.
+describe('hover ring', () => {
+  const s = deriveShades(PALETTE, MIX);
+  const dist = (a, b) => {
+    const ch = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+    const [x, y] = [ch(a), ch(b)];
+    return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]);
+  };
+  it.each(['neutral', 'primary', 'danger', 'currency'])('%s ring moves >= 40 RGB on hover', (v) => {
+    expect(dist(s[`edge_${v}`], s[`edgeHover_${v}`])).toBeGreaterThanOrEqual(40);
+  });
+});
+
 describe('sync guards', () => {
   it('PALETTE UI tokens equal the art-bible §2 UI table', () => {
     const md = readFileSync(resolve(process.cwd(), 'docs/art-bible.md'), 'utf8');
