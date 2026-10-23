@@ -89,7 +89,12 @@ Failing tests after two attempts at the same fix; any change that would alter ba
 ### Phase 3 — UI kit & screens
 - [x] **3.1 [AUTO] Theme module.** `src/ui/theme.js`: palette, spacing, bundled OFL fonts (e.g. Orbitron for headings, Rajdhani/Exo 2 for body via `@fontsource`), procedural 9-slice panels and buttons (bevel, inner glow, scanline) with normal/pressed/disabled states; document in `docs/art-bible.md`. *Done 2026-10-23: spec `2026-10-23-theme-module-design.md`. Tokens are in `src/data/theme.js` and published as `--ui-*` by `src/ui/theme.js`. Fonts: Orbitron 700 + Rajdhani 500/700, latin subset (user pick); Georgia removed. Palette: strict art bible (user pick). The kit is CSS `.ui-panel`/`.ui-btn` with variants and states, adopted by the HUD and in-level overlays; map select and the hero/upgrade overlays got the font only (3.4). Native `title=` tooltips (#42a) were re-targeted to 3.3.*
 - [ ] **3.2 [LOCAL→G2] Icon set.** Generate icons (6 towers, 6 enemies, gold/lives/wave/speed/pause/abilities, 12 hero abilities) via the art pipeline (Section 5), cutout, 128 px. Emoji remain the fallback until the files exist.
-- [ ] **3.3 [AUTO] Radial build/upgrade menus.** Replace the tower panel with a radial picker (cost, affordability, range preview) and an upgrade ring that previews the next tier and both branches. Touch-first.
+- [x] **3.3 [AUTO] Radial build/upgrade menus.** Replace the tower panel with a radial picker (cost, affordability, range preview) and an upgrade ring that previews the next tier and both branches. Touch-first. *Done 2026-10-23: spec `2026-10-23-radial-menus-design.md`.*
+  - *Build: tap a free pad for a 6-tower radial; rail arm-then-tap still works (user).*
+  - *Ring: glyph + cost faces; hub shows tier and stats; names and deltas in the item peek.*
+  - *Removed: `#tower-panel`. Detail moved to a long-press tower inspector (user).*
+  - *Removed: native `title=`, replaced by HintPeek (#42a).*
+  - *Test: `npm run matrix` drives the radial; `radialProblems` audit.*
 - [ ] **3.4 [AUTO] Title & map select.** Animated starfield + parallax, typographic logo with glow (code, not generated — FLUX renders text badly), overworld nodes with state (locked/open/cleared + stars), polished transitions.
 - [ ] **3.5 [AUTO] Story dialogs.** Portrait frames, typewriter text, skip/advance on tap.
 - [ ] **3.6 [AUTO] Results screen + stars.** Victory/defeat screens with stats, 3-star rating (lives remaining thresholds in `src/data/`), `SaveManager` extended + tests.
