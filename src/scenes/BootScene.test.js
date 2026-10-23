@@ -126,6 +126,14 @@ describe('BootScene portrait registration', () => {
     expect([...REGISTERED_PORTRAITS]).toEqual(['portrait-rael']);
   });
 
+  it("hands off to TitleScene with an object (never bare: Phaser would keep stale data)", () => {
+    const scene = makeScene([]);
+    const start = vi.fn();
+    scene.scene = { start };
+    scene.create();
+    expect(start).toHaveBeenCalledWith('TitleScene', {});
+  });
+
   it('registers every portrait once all the art exists', () => {
     const all = Object.values(STORY_SPEAKERS).map(sp => sp.portraitKey);
     makeScene(all).create();

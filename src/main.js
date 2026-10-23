@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import BootScene from './scenes/BootScene.js';
-import MenuScene from './scenes/MenuScene.js';
+import TitleScene from './scenes/TitleScene.js';
 import MapSelectScene from './scenes/MapSelectScene.js';
 import GameScene from './scenes/GameScene.js';
 import UIScene from './scenes/UIScene.js';
@@ -24,7 +24,7 @@ const config = {
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
   backgroundColor: '#1a1a2e',
-  scene: [BootScene, MenuScene, MapSelectScene, GameScene, UIScene, MapEditorScene],
+  scene: [BootScene, TitleScene, MapSelectScene, GameScene, UIScene, MapEditorScene],
 };
 
 applyHudLayerSize(document);

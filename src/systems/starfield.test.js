@@ -38,6 +38,14 @@ describe('advanceStars', () => {
     expect(stars[0].x).toBeCloseTo(W - 5);
   });
 
+  it('leaves stars untouched before layout (w <= 0 would make x % w NaN forever)', () => {
+    for (const w of [0, -10, NaN]) {
+      const stars = [{ x: 50, y: 10, layer: 0, phase: 0 }];
+      expect(advanceStars(stars, 100, w, layers)).toBe(stars);
+      expect(stars[0].x).toBe(50);
+    }
+  });
+
   it('stays in bounds after 10 000 steps', () => {
     const stars = makeStars(11, STARS_TITLE.layers, W, H);
     const ys = stars.map(s => s.y);

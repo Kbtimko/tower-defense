@@ -15,6 +15,8 @@ export function makeStars(seed, layers, w, h) {
 // Drifts left at each layer's px/s; modulo (not a single += w) keeps a long
 // frame (tab refocus, big dt) inside [0, w).
 export function advanceStars(stars, dtMs, w, layers) {
+  // A canvas ticked before layout has w 0; x % 0 is NaN and never recovers.
+  if (!(w > 0)) return stars;
   for (const s of stars) {
     const x = (s.x - layers[s.layer].speed * dtMs / 1000) % w;
     const wrapped = x < 0 ? x + w : x;
