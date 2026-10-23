@@ -68,14 +68,17 @@ const HOLD_MS = 1200;
 const REDUCED_MOTION_DEVICES = new Set(['desktop1440', 'iphone']);
 // Node 4's art: blocked in one run to exercise the numbered-circle fallback.
 const BLOCKED_ART = 'overworld_3_orbital_station.png';
+const BLOCKED_ART_URL = new RegExp(`/${BLOCKED_ART.replace(/\./g, '\\.')}$`);
+const WEBFONT_URL = /\.woff2?(\?.*)?$/;
 const BLOCKED_ART_MAP = MAPS.findIndex(m => m.overworldArt === BLOCKED_ART);
 // Node 4 is the frontier on this save, so its fallback carries next + active.
 const BLOCKED_ART_SAVE = {
   version: 4, maps: MAPS.map((_, i) => Math.max(0, BLOCKED_ART_MAP - i)),
   seenStoryBeats: { campaign_intro: true },
 };
-// What a blocked request logs; expected in the runs that block one on purpose.
-const BLOCKED_LOAD = /^error: Failed to load resource/;
+// A skip must end the arrival at once; the natural end (ARRIVAL.totalMs) and the
+// cardAtMs re-select would otherwise satisfy the end-state checks on their own.
+const SKIP_DONE_MS = 300;
 const IN_GAME_TARGETS = ['#pause-btn', '#speed-btn', '#open-codex', '.tower-btn', '#exit-btn', '#wave-btn', '.ability-btn-wrap'];
 // DOM overlays opened from map select. Their controls are in CSS px (not the scaled canvas), so
 // touch devices hold them to the full 44 px. Labels, not checkboxes: the label row is the target.
@@ -127,12 +130,15 @@ function captureUrl(mapId, opts) {
   return { wave, path: `/?${params}` };
 }
 
-function watchProblems(page) {
+// `blockedUrl`: a run that aborts those requests on purpose expects their load
+// errors, and only theirs.
+function watchProblems(page, { blockedUrl = null } = {}) {
   const problems = [];
   page.on('pageerror', e => problems.push(`pageerror: ${e.message}`));
   page.on('console', m => {
     // Headless GPU chatter (ReadPixels stalls from the screenshot itself).
     if (m.text().includes('GL Driver Message')) return;
+    if (blockedUrl && m.text().startsWith('Failed to load resource') && blockedUrl.test(m.location().url)) return;
     if (m.type() === 'error' || m.type() === 'warning') problems.push(`${m.type()}: ${m.text()}`);
   });
   return problems;
@@ -199,21 +205,20 @@ async function tapCentre(page, deviceName) {
   await tapPoint(page, deviceName, { x: width / 2, y: height / 2 });
 }
 
-// A real press held for `ms`. Playwright's touchscreen only taps, so touch goes
-// through CDP, which is what touchscreen.tap itself sends.
-async function holdPoint(page, deviceName, { x, y }, ms) {
+// A real press; resolves to its release. Playwright's touchscreen only taps, so
+// touch goes through CDP, which is what touchscreen.tap itself sends.
+async function pressPoint(page, deviceName, { x, y }) {
   if (!DEVICES[deviceName].hasTouch) {
     await page.mouse.move(x, y);
     await page.mouse.down();
-    await page.waitForTimeout(ms);
-    await page.mouse.up();
-    return;
+    return () => page.mouse.up();
   }
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
-  await page.waitForTimeout(ms);
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  await cdp.detach();
+  return async () => {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await cdp.detach();
+  };
 }
 
 // Centre of a node's round face (art, or the fallback circle): the finger's target.
@@ -313,6 +318,7 @@ async function worldMapAudit(page, pointerFine) {
       nodes,
     };
   });
+  if (m.nodes.length !== MAPS.length) return [`world map: ${m.nodes.length} .ow-node, expected ${MAPS.length}`];
   const f = routeFrameFor(m.content, layoutClass(m.content));
   const frame = { ...f, x: f.x + m.origin.x, y: f.y + m.origin.y };
   return worldMapProblems({ nodes: m.nodes, frame, viewport: m.viewport, coarse: !pointerFine, minTouchPx: MIN_TOUCH_PX })
@@ -544,20 +550,21 @@ async function captureRotation(browser, base, deviceName, levelPath, dir) {
 
 // One fresh context for one extra --screens run. A thrown step becomes a layout
 // problem under `label` (so it fails the run) instead of ending every device.
-// `blocked` runs abort a request on purpose, so its load error is expected.
-async function screensRun(browser, deviceName, label, { contextOptions: extra = {}, blocked = false }, body) {
+// `blockedUrl` runs abort those requests (and expect only their load errors).
+async function screensRun(browser, deviceName, label, { contextOptions: extra = {}, blockedUrl = null }, body) {
   const context = await browser.newContext({ ...contextOptions(DEVICES[deviceName]), ...extra });
   const out = { files: [], layout: [], problems: [] };
   try {
+    if (blockedUrl) await context.route(blockedUrl, r => r.abort());
     const page = await context.newPage();
-    const seen = watchProblems(page);
+    const seen = watchProblems(page, { blockedUrl });
     try {
-      await body(page, out, context);
+      await body(page, out);
     } catch (err) {
       out.layout.push({ device: deviceName, label, problems: [err.message.split('\n')[0]] });
       await shoot(page, join(OUT_DIR, deviceName, 'screens', `${label}-FAILED.png`)).catch(() => null);
     }
-    out.problems.push(...seen.filter(p => !(blocked && BLOCKED_LOAD.test(p))));
+    out.problems.push(...seen);
   } finally {
     await context.close();
   }
@@ -638,12 +645,15 @@ function capturePostWin(browser, base, deviceName, dir, opts) {
     out.files.push(await shoot(page, join(dir, '07-victory.png')));
     await returnToMap(page, deviceName);
     await expectAttr(page, '#map-overworld', 'arrival', 'playing');
+    const playingAt = Date.now();
     await page.waitForTimeout(ARRIVAL_MID_MS);
     // CSS-px shot: a DPR-3 full-resolution capture eats a large share of the flight.
     out.files.push(await shoot(page, join(dir, '07b-arrival-mid.png'), { scale: 'css' }));
-    const state = await attr(page, '#map-overworld', 'arrival');
-    if (state !== 'playing') throw new Error(`arrival "${state}" before the skip tap; the harness was too slow to test the skip`);
+    // Margin for the late 'playing' read: the natural end must stay out of the skip window.
+    const leftMs = ARRIVAL.totalMs - (Date.now() - playingAt);
+    if (leftMs < 2 * SKIP_DONE_MS) throw new Error(`only ${leftMs} ms of arrival left before the skip tap; the harness was too slow to test the skip`);
     await tapPoint(page, deviceName, await nodeFace(page, 0));
+    await expectAttr(page, '#map-overworld', 'arrival', 'done', SKIP_DONE_MS);
     await expectArrivalDone(page);
     await page.waitForTimeout(500);
     out.files.push(await shoot(page, join(dir, '07c-arrival-done.png')));
@@ -658,7 +668,13 @@ function captureHeldSkip(browser, base, deviceName, opts) {
     await winMapZero(page, base, opts, null);
     await returnToMap(page, deviceName);
     await expectAttr(page, '#map-overworld', 'arrival', 'playing');
-    await holdPoint(page, deviceName, await nodeFace(page, 0), HOLD_MS);
+    const release = await pressPoint(page, deviceName, await nodeFace(page, 0));
+    // Read while still held: the press itself must skip, long before the natural end.
+    await page.waitForTimeout(SKIP_DONE_MS);
+    const held = await attr(page, '#map-overworld', 'arrival');
+    await page.waitForTimeout(HOLD_MS - SKIP_DONE_MS);
+    await release();
+    if (held !== 'done') throw new Error(`arrival "${held}" ${SKIP_DONE_MS} ms into a held press, expected "done"`);
     await expectArrivalDone(page);
     await tapPoint(page, deviceName, await nodeFace(page, 0));
     await expectText(page, '#featured-name', MAPS[0].name);
@@ -688,10 +704,11 @@ function captureReducedMotion(browser, base, deviceName, dir, opts) {
 // Both webfont formats blocked (a .woff fallback would otherwise load): the title
 // still reaches lit on the fallback face, and the title and map audits stay clean.
 function captureNoFonts(browser, base, deviceName, dir) {
-  return screensRun(browser, deviceName, 'no-fonts', { blocked: true }, async (page, out, context) => {
-    await context.route(/\.woff2?(\?.*)?$/, r => r.abort());
+  return screensRun(browser, deviceName, 'no-fonts', { blockedUrl: WEBFONT_URL }, async (page, out) => {
     await page.goto(base + '/');
     await page.locator('#title-screen').waitFor({ state: 'visible', timeout: 30_000 });
+    // It still sweeps (on the fallback face), not just lands lit.
+    await titlePhase(page, 'sweep');
     await titlePhase(page, 'lit');
     // Sentinel: prove the block held, or this run tests the real fonts.
     const faces = await page.evaluate(() => [...document.fonts].map(f => `${f.family} ${f.status}`));
@@ -713,8 +730,7 @@ function captureNoFonts(browser, base, deviceName, dir) {
 // One node's art 404s: that node shows the numbered circle with its state
 // classes (the seeded save makes it the frontier: next + active).
 function captureMissingArt(browser, base, deviceName, dir) {
-  return screensRun(browser, deviceName, 'missing-art', { blocked: true }, async (page, out, context) => {
-    await context.route(`**/${BLOCKED_ART}`, r => r.abort());
+  return screensRun(browser, deviceName, 'missing-art', { blockedUrl: BLOCKED_ART_URL }, async (page, out) => {
     await page.addInitScript(save => localStorage.setItem('lastlight_save', JSON.stringify(save)), BLOCKED_ART_SAVE);
     await page.goto(base + '/');
     await page.locator('#title-screen').waitFor({ state: 'visible', timeout: 30_000 });

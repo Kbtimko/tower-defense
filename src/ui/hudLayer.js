@@ -35,7 +35,8 @@ export function mapRectPage(doc) {
     return { left: 0, top: 0, width: window.innerWidth || 1024, height: window.innerHeight || 768 };
   }
   const gameRect = gameEl.getBoundingClientRect();
-  const canvas = doc.querySelector('#game canvas');
+  // Direct child only: #map-select inside #game holds the world map's own canvases.
+  const canvas = doc.querySelector('#game > canvas');
   const map = mapRectIn({ gameRect, canvasRect: canvas?.getBoundingClientRect() ?? null });
   return { ...map, left: map.left + gameRect.left, top: map.top + gameRect.top };
 }

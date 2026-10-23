@@ -170,6 +170,25 @@ describe('mapRectPage', () => {
     expect(mapRectPage(document)).toEqual({ ...local, left: local.left + 47, top: local.top + 9 });
   });
 
+  it("measures Phaser's canvas, not the world map's canvases nested earlier in #game", () => {
+    document.body.replaceChildren();
+    const game = document.body.appendChild(document.createElement('div'));
+    game.id = 'game';
+    // Same order as index.html: #map-select (hidden in-game, zero rect) before Phaser's canvas.
+    const mapSelect = game.appendChild(document.createElement('div'));
+    mapSelect.id = 'map-select';
+    const backdrop = mapSelect.appendChild(document.createElement('canvas'));
+    backdrop.id = 'wm-backdrop';
+    backdrop.getBoundingClientRect = () => ({ left: 0, top: 0, width: 0, height: 0 });
+    const canvas = game.appendChild(document.createElement('canvas'));
+    const gameRect = { left: 0, top: 0, width: 1280, height: 720 };
+    const canvasRect = fitCanvas(gameRect);
+    game.getBoundingClientRect = () => gameRect;
+    canvas.getBoundingClientRect = () => canvasRect;
+    expect(mapRectPage(document)).toEqual(mapRectIn({ gameRect, canvasRect }));
+    expect(mapRectPage(document).width).toBeGreaterThan(0);
+  });
+
   it('falls back to the window without #game', () => {
     document.body.replaceChildren();
     expect(mapRectPage(document)).toEqual({ left: 0, top: 0, width: window.innerWidth, height: window.innerHeight });
