@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('phaser', () => ({
   default: {
@@ -28,12 +28,33 @@ function setupMinimalDOM() {
   }
 }
 
-function makeUIScene() {
+// UIScene is launched once and never stopped, so its key handler outlives the
+// level; GameScene's status is what scopes it to gameplay.
+// Every scene made here, so afterEach can unbind its document listener: a leaked
+// running-scene handler would preventDefault a later test's Space.
+let made = [];
+afterEach(() => {
+  for (const s of made) if (s._onKeyDown) document.removeEventListener('keydown', s._onKeyDown);
+  made = [];
+});
+
+function makeUIScene(gameScene = 'running') {
   const scene = Object.create(UIScene.prototype);
+  made.push(scene);
   const emit = vi.fn();
   scene.game = { events: { emit, on(){}, off(){} } };
+  scene.scene = {
+    isActive: (key) => key === 'GameScene' && gameScene === 'running',
+    isPaused: (key) => key === 'GameScene' && gameScene === 'paused',
+  };
   return { scene, emit };
 }
+
+const press = (key) => {
+  const e = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+  document.dispatchEvent(e);
+  return e;
+};
 
 describe('UIScene Space key', () => {
   beforeEach(setupMinimalDOM);
@@ -94,6 +115,55 @@ describe('UIScene Escape key', () => {
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
     expect(emit).not.toHaveBeenCalledWith('ui:cancel');
+    document.removeEventListener('keydown', scene._onKeyDown);
+  });
+});
+
+describe('UIScene keys outside gameplay (world map after a level)', () => {
+  beforeEach(setupMinimalDOM);
+
+  it('GameScene shut down: Space is not prevented and nothing emits', () => {
+    const { scene, emit } = makeUIScene('shutdown');
+    scene._bindDOMEvents();
+
+    const e = press(' ');
+
+    expect(e.defaultPrevented).toBe(false);
+    expect(emit).not.toHaveBeenCalled();
+    document.removeEventListener('keydown', scene._onKeyDown);
+  });
+
+  it('GameScene shut down: Escape and Q/W/E emit nothing', () => {
+    const { scene, emit } = makeUIScene('shutdown');
+    scene._bindDOMEvents();
+
+    for (const k of ['Escape', 'q', 'w', 'e']) press(k);
+
+    expect(emit).not.toHaveBeenCalled();
+    document.removeEventListener('keydown', scene._onKeyDown);
+  });
+
+  it('GameScene running: Space is prevented and toggles pause', () => {
+    const { scene, emit } = makeUIScene('running');
+    scene._bindDOMEvents();
+
+    const e = press(' ');
+
+    expect(e.defaultPrevented).toBe(true);
+    expect(emit).toHaveBeenCalledWith('ui:pause-toggle');
+    document.removeEventListener('keydown', scene._onKeyDown);
+  });
+
+  // The user pause is a Phaser scene.pause(), which makes isActive false: Space
+  // must still reach GameScene or a paused game could not be resumed by key.
+  it('GameScene paused: Space still toggles pause', () => {
+    const { scene, emit } = makeUIScene('paused');
+    scene._bindDOMEvents();
+
+    const e = press(' ');
+
+    expect(e.defaultPrevented).toBe(true);
+    expect(emit).toHaveBeenCalledWith('ui:pause-toggle');
     document.removeEventListener('keydown', scene._onKeyDown);
   });
 });
