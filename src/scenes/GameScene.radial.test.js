@@ -18,6 +18,7 @@ import { previewRange } from '../systems/rangePreview.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { MAPS } from '../data/maps.js';
 import { CANVAS_WIDTH, RAIL_WIDTH, WORLD_WIDTH, WORLD_HEIGHT } from '../data/layout.js';
+import { CONFIRM_WINDOW_MS, PEEK_LINGER_MS } from '../data/input.js';
 
 const html = readFileSync(join(__dirname, '..', '..', 'index.html'), 'utf8');
 const shipped = new DOMParser().parseFromString(html, 'text/html').getElementById('radial');
@@ -278,17 +279,59 @@ describe('GameScene radial wiring', () => {
       expect($item('upgrade').getAttribute('aria-label')).toContain(TOWER_DEFS.archer.tier2.label);
     });
 
-    it('previewing an upgrade names it and its stat change in the hub; releasing restores the tower stats', () => {
+    // A phone has no hover and the hub is too small for a name, so a touch
+    // press opens the item peek (CSS px) with the name; the two-tap confirm
+    // still runs underneath, and its prompt rides in the peek.
+    it('a touch press peeks the upgrade name and stat change; first tap arms with "Tap again" in the peek; second buys', () => {
+      const s = makeScene({ gold: 500 });
+      const t = buildAt(s, 0, 'archer');
+      s._onTap(t.x, t.y);
+      const gold = s.economy.gold;
+      const tip = document.getElementById('tower-tooltip');
+      const up = $item('upgrade');
+      up.dispatchEvent(ptr('pointerdown', 'touch'));
+      expect(tip.style.display).toBe('block');
+      expect(tip.textContent).toContain(TOWER_DEFS.archer.tier2.label);
+      expect(tip.textContent).toContain(`DMG ${t.damage} → ${TOWER_DEFS.archer.tier2.damage}`);
+      // The hub stays the tower's own tier and stats.
+      expect(hubText()).toContain('T1');
+      expect(hubText()).not.toContain(TOWER_DEFS.archer.tier2.label);
+      up.dispatchEvent(ptr('pointerup', 'touch'));
+      up.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+      expect(s.economy.gold).toBe(gold);
+      expect(tip.style.display).toBe('block');
+      expect(tip.textContent).toContain('Tap again');
+      expect(hubText()).toContain('T1');
+      up.dispatchEvent(ptr('pointerdown', 'touch'));
+      up.dispatchEvent(ptr('pointerup', 'touch'));
+      up.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+      expect(t.level).toBe(2);
+      expect(s.economy.gold).toBe(gold - TOWER_DEFS.archer.tier2.cost);
+    });
+
+    it('the confirm window lapsing drops the "Tap again" peek at once, not after a linger', () => {
+      const s = makeScene({ gold: 500 });
+      const t = buildAt(s, 0, 'archer');
+      s._onTap(t.x, t.y);
+      const up = $item('upgrade');
+      up.dispatchEvent(ptr('pointerdown', 'touch'));
+      up.dispatchEvent(ptr('pointerup', 'touch'));
+      up.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+      vi.advanceTimersByTime(CONFIRM_WINDOW_MS);
+      expect(document.getElementById('tower-tooltip').style.display).toBe('none');
+    });
+
+    it('a released touch press lingers the peek for PEEK_LINGER_MS', () => {
       const s = makeScene();
       const t = buildAt(s, 0, 'archer');
       s._onTap(t.x, t.y);
-      $item('upgrade').focus();
-      expect(hubText()).toContain(TOWER_DEFS.archer.tier2.label);
-      expect(hubText()).toContain(`DMG ${t.damage}→${TOWER_DEFS.archer.tier2.damage}`);
-      $item('upgrade').blur();
-      expect(hubText()).toContain('T1');
-      expect(hubText()).not.toContain(TOWER_DEFS.archer.tier2.label);
-      expect($item('sell').textContent).toContain(`+${sellRefund(t.totalCost)}g`);
+      const sell = $item('sell');
+      sell.dispatchEvent(ptr('pointerdown', 'touch'));
+      sell.dispatchEvent(ptr('pointerup', 'touch'));
+      const tip = document.getElementById('tower-tooltip');
+      expect(tip.style.display).toBe('block');
+      vi.advanceTimersByTime(PEEK_LINGER_MS);
+      expect(tip.style.display).toBe('none');
     });
 
     it('upgrade re-renders the ring in place', () => {
@@ -353,9 +396,10 @@ describe('GameScene radial wiring', () => {
       expect($item('upgrade')).toBeNull();
       expect($item('branchA').textContent).toBe(`A${TOWER_DEFS.barracks.tier4A.cost}g`);
       expect($item('branchB').textContent).toBe(`B${TOWER_DEFS.barracks.tier4B.cost}g`);
-      $item('branchB').focus();
-      expect(hubText()).toContain(TOWER_DEFS.barracks.tier4B.label);
-      $item('branchB').blur();
+      $item('branchB').dispatchEvent(ptr('pointerdown', 'touch'));
+      expect(document.getElementById('tower-tooltip').textContent).toContain(TOWER_DEFS.barracks.tier4B.label);
+      expect(hubText()).toContain('T3');
+      $item('branchB').dispatchEvent(ptr('pointerup', 'touch'));
       expect($item('sell')).not.toBeNull();
       expect($item('reposition')).not.toBeNull();
       clickItem($item('branchA'));
@@ -449,7 +493,8 @@ describe('GameScene radial wiring', () => {
       expect(g.lineStyle.mock.calls.at(-1)[1]).toBe(0xffd700);
       $item('build:sniper').focus();
       expect(g.lineStyle.mock.calls.at(-1)[1]).toBe(0x884444);
-      expect(hubText()).toContain(TOWER_DEFS.sniper.name);
+      // Names at 11 CSS px do not fit the hub on a phone; the item peek has them.
+      expect(hubText()).toBe('Build');
     });
 
     it('closing clears the preview', () => {

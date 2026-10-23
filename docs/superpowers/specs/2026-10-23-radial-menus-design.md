@@ -36,7 +36,7 @@ New `resolveTap` order: aim → reposition → **radial open** (retarget/close) 
 | Touch long-press on a free pad | Not an inspect gesture (2.1 rule). Opens the build radial on release. |
 | Touch long-press on a radial item or the hub | Item peek (`#tower-tooltip`) or tower inspector. `attachLongPress` swallows the click, so nothing builds, arms or closes. |
 | Touch long-press on rail controls | Pause, Codex and the hero card get `HintPeek`. Tower buttons and Q/W/E keep their existing peeks. |
-| Ring Upgrade, Branch A/B or Sell on touch/pen | Two-tap confirm (2.1 semantics via `createConfirmGate`). The first tap adds `.confirming`, the item caption reads "Tap again", the hub caption shows the full prompt (e.g. "Tap again: Sell +36g"), and the item peek opens. Mouse clicks and keyboard (`detail 0`) run at once. The confirm disarms on timeout, on another item, on close, retarget or re-render, and when the item turns unaffordable. |
+| Ring Upgrade, Branch A/B or Sell on touch/pen | Two-tap confirm (2.1 semantics via `createConfirmGate`). The first tap adds `.confirming`, the item caption reads "Tap again", and the item peek opens with a bold "Tap again to confirm" line above the item's details. The hub never shows the prompt; on a phone it is too small. The peek drops the prompt at once when the confirm lapses or is spent. Mouse clicks and keyboard (`detail 0`) run at once. The confirm disarms on timeout, on another item, on close, retarget or re-render, and when the item turns unaffordable. |
 | Build item, any pointer | One tap builds (decision 1, no confirm). The radial closes and the build pop plays. |
 | Gold changes while open | `economy:update` → `_updateHUD` → `radial.refresh()`. Item states re-derive in place. Focus and the confirm stay unless the item itself became unaffordable. |
 | Upgrade bought (any input) | The ring re-renders in place, still anchored. Focus stays on the same slot, or moves to branch A at T3→4, or to the hub if the slot is gone. |
@@ -57,10 +57,10 @@ Order is clockwise, 0° = east, in screen coordinates. Angles live in `src/data/
 
 - **Build radial:** 6 items in `Object.keys(TOWER_DEFS)` order, derived rather than hard-coded, starting at -90° every 60°.
   - Item content: icon + `${cost}g`, plus `aria-label` "Build Archer, 60 gold". `.ui-btn--currency` when ready, `+ .is-disabled` when `gold < cost`.
-  - The hub (neutral `.ui-btn`) reads "Build", or the previewed item's name + range. A hub tap closes the radial.
+  - The hub (neutral `.ui-btn`) always reads "Build". "Name + range" on preview was measured at 10.3–10.9 CSS px on iPhone 14 (below the 11-px floor), so the item peek carries the name instead. A hub tap closes the radial.
 - **Upgrade ring:** slots are `upgrade` -90°, `branchA` -120°, `branchB` -60°, `reposition` 180°, `sell` 90°. Pairwise no-overlap at both cell sizes is enforced by test (60° ⇒ chord 108 ≥ 97).
 
-Every ring face is a short **glyph over a caption**, the same pattern as build items (icon + cost). Tier and branch names were unreadable at the size that fits a round face on a phone (about 6.7 CSS px on iPhone 14), so the name is moved to the hub on preview. The name also stays in the item peek and in `aria-label`.
+Every ring face is a short **glyph over a caption**, the same pattern as build items (icon + cost). Tier and branch names were unreadable at the size that fits a round face on a phone (about 6.7 CSS px on iPhone 14), so the name lives in the **item peek** (CSS px, not scaled by the HUD FIT) and in `aria-label`.
 
 | Tower state | Face: glyph / caption (variant · state) |
 |---|---|
@@ -71,15 +71,13 @@ Every ring face is a short **glyph over a caption**, the same pattern as build i
 | always | `sell` "💰" / "+{refund}g" · danger. `refund = sellRefund(totalCost)` is shared with `sellTower`. |
 | barracks | `reposition` "↻" / "Move" · primary. It closes the ring and enters today's reposition mode. |
 
-Upgrade and branch items carry `name` (the tier label); sell and reposition carry "Sell" / "Move". While a touch confirm is armed, the hub prompt uses the name: "Tap again:" / name / caption.
+Upgrade and branch items carry `name` (the tier label), which the peek header uses.
 
 **Face size:** item text is 24 game px (glyph and caption alike). RadialMenu fits every line inside the circle (`circleFitScale`, inset 0.9) after the radial is shown. On iPhone 14 landscape no face renders below 11 CSS px. This is measured on the production build; see the task-4 report.
 
-**Hub (ring):** short lines fitted to the hub circle.
-- Nothing previewed: line 1 is the tier (`T2` or branch label); lines 2–3 are damage and range for firing towers, or soldier count×HP and damage for barracks.
-- Upgrade or branch previewed (hover, focus or touch press): the tier name plus its headline stat change, e.g. "Eagle Eye" / "DMG 15→25". The change is the first stat the tier actually changes (`describeUpgradeDelta`), e.g. "Soldiers 3→4" for Rapid Response. Range is shown by the preview ring instead.
+**Hub (ring):** always the tower's own lines, fitted to the hub circle and never replaced by item text. Line 1 is the tier (`T2` or branch label). Lines 2–3 are damage and range for firing towers, or soldier count×HP and damage for barracks.
 
-**Item peek** (`#tower-tooltip`, placed beside the radial footprint):
+**Item peek** (`#tower-tooltip`, 11 CSS px text, clamped to the map rect beside the radial footprint). It opens on mouse hover, keyboard focus, and a **touch press**: it shows on `pointerdown` and lingers `PEEK_LINGER_MS` after release. A touch press does not block the click, so a build item still builds and a confirmable item still arms (and re-shows the peek with the prompt). A long-press peeks with the click swallowed, as before.
 - Upgrade: name, cost and the stats it changes, e.g. "DMG 15 → 25 · RNG 120 → 135". Unchanged stats are omitted.
 - Branch: label, `passiveEffect`, matchup headline, armour rows using the tower's `_damageMult`, and the lock reason.
 - Sell: refund. Reposition: one line. Build item: today's name/cost/effective/weak text.

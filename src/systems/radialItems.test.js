@@ -113,9 +113,9 @@ describe('ringItems', () => {
     it(`${type}: sell refund is the shared sellRefund, reposition only for barracks`, () => {
       const t = tower(type, 2, null, 137);
       const items = ring(t, 0, 4);
-      expect(byId(items, 'sell')).toMatchObject({ variant: 'danger', state: 'ready', icon: '💰', label: `+${sellRefund(137)}g`, name: 'Sell', slot: RING_ANGLES.sell });
+      expect(byId(items, 'sell')).toMatchObject({ variant: 'danger', state: 'ready', icon: '💰', label: `+${sellRefund(137)}g`, slot: RING_ANGLES.sell });
       const rep = byId(items, 'reposition');
-      if (type === 'barracks') expect(rep).toMatchObject({ variant: 'primary', state: 'ready', icon: '↻', label: 'Move', name: 'Move', slot: RING_ANGLES.reposition });
+      if (type === 'barracks') expect(rep).toMatchObject({ variant: 'primary', state: 'ready', icon: '↻', label: 'Move', slot: RING_ANGLES.reposition });
       else expect(rep).toBeUndefined();
     });
   }

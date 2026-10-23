@@ -85,6 +85,8 @@ export class RadialMenu {
   get isOpen() { return this._kind !== null; }
   get kind() { return this._kind; }
   get target() { return this._target; }
+  // The item waiting for its confirming second tap, so the owner's peek can say so.
+  get armedId() { return this._armed; }
 
   open({ kind, anchor, items, hub, target = null }) {
     this._disarm();
@@ -175,9 +177,9 @@ export class RadialMenu {
       this._listeners.push(
         [btn, 'pointerenter', (e) => this._onEnter(btn, e)],
         [btn, 'pointerleave', (e) => this._onLeave(e)],
-        [btn, 'pointerdown', () => this._preview(btn)],
-        [btn, 'pointerup', () => this._clearPreview()],
-        [btn, 'pointercancel', () => this._clearPreview()],
+        [btn, 'pointerdown', (e) => this._onPress(btn, e)],
+        [btn, 'pointerup', (e) => this._onRelease(e)],
+        [btn, 'pointercancel', (e) => this._onRelease(e)],
         [btn, 'focus', (e) => this._onFocus(btn, e)],
         [btn, 'blur', () => { this._clearPreview(); this._hidePeek(); }],
       );
@@ -225,7 +227,6 @@ export class RadialMenu {
   _arm(item, btn) {
     this._armed = item.id;
     this._paintItem(btn, item);
-    this._paintHub();
     clearTimeout(this._confirmTimer);
     this._confirmTimer = setTimeout(() => this._disarm(), CONFIRM_WINDOW_MS);
     this._showPeek(btn);
@@ -240,7 +241,6 @@ export class RadialMenu {
     this._armed = null;
     const i = this._items.findIndex((it) => it?.id === id);
     if (i !== -1) this._paintItem(this._buttons[i], this._items[i]);
-    this._paintHub();
     this._hidePeek();
   }
 
@@ -254,6 +254,20 @@ export class RadialMenu {
     const at = order.indexOf(this._doc.activeElement);
     const next = at === -1 ? 0 : (at + step + order.length) % order.length;
     order[next].focus();
+  }
+
+  // A phone has no hover, so a touch press is how an item is read: the peek
+  // shows on press and the owner lingers it after release. The click that
+  // follows still activates or arms (and an arm re-shows the peek).
+  _onPress(btn, e) {
+    this._preview(btn);
+    if (isTouchLike(e.pointerType)) this._showPeek(btn);
+  }
+
+  // A mouse release must not drop the hover peek it is still over.
+  _onRelease(e) {
+    this._clearPreview();
+    if (isTouchLike(e.pointerType)) this._hidePeek();
   }
 
   // A touch pointerenter fires on every tap; only a mouse hovers.
@@ -368,12 +382,8 @@ export class RadialMenu {
     if (setText(label, armed ? ARMED_CAPTION : item.label) || iconChanged) this._fitFace(btn);
   }
 
-  // While a confirm is armed the hub spells out what the second tap will do.
   _paintHub() {
-    const armedItem = this._armed && this._items.find((i) => i?.id === this._armed);
-    // A face is only glyph + caption, so the prompt names the purchase in words.
-    const armedLines = (i) => (i.name ? [`${ARMED_CAPTION}:`, i.name, i.label] : [`${ARMED_CAPTION}: ${i.label}`]);
-    const lines = armedItem ? armedLines(armedItem) : this._hubLines;
+    const lines = this._hubLines;
     const spans = [...this._hub.querySelectorAll('.radial-hub-line')];
     while (spans.length > lines.length) spans.pop().remove();
     while (spans.length < lines.length) spans.push(this._hub.appendChild(this._span('radial-hub-line')));

@@ -15,7 +15,7 @@ import { sellRefund } from './TowerPlacementManager.js';
  *           ready: activatable. disabled: costs more than gold. locked: the map caps the tier. maxed: level 4.
  * @property {string} ariaLabel  Full spoken text including cost and why it is not usable.
  * @property {string} [icon]     Glyph above the caption: tower icon (build), '⬆' (upgrade), 'A'/'B' (branch), '🔒' (locked), '💰' (sell), '↻' (reposition).
- * @property {string} [name]     What the item does in words: the tier name (hub on preview) or 'Sell'/'Move' (the armed-confirm hub prompt).
+ * @property {string} [name]     Upgrade/branch items: the full tier name, which the item peek shows.
  * @property {string} [towerType] Build items only.
  * @property {number} [tier]     Upgrade/branch items: the tier bought (2, 3 or 4).
  * @property {'A'|'B'} [branch]  Branch items only.
@@ -48,7 +48,7 @@ export function buildItems({ towerDefs, gold, costMult = 1 }) {
 }
 
 // The face shows only a glyph + cost: a tier name at a size that fits the
-// round face was unreadable on phones, so the name moves to the hub on preview.
+// round face was unreadable on phones, so the name lives in the item peek.
 function purchaseItem({ id, def, tierDef, tier, branch, icon, gold, maps, allowed }) {
   const base = { id, slot: RING_ANGLES[id], cost: tierDef.cost, variant: 'currency', tier, range: tierDef.range, name: tierDef.label };
   if (branch) base.branch = branch;
@@ -70,7 +70,7 @@ export function ringItems({ tower, towerDefs, map, maps, gold }) {
   const items = [];
 
   if (tower.type === 'barracks') {
-    items.push({ id: 'reposition', slot: RING_ANGLES.reposition, icon: '↻', label: 'Move', name: 'Move', cost: null, variant: 'primary', state: 'ready', ariaLabel: `Move ${def.name}` });
+    items.push({ id: 'reposition', slot: RING_ANGLES.reposition, icon: '↻', label: 'Move', cost: null, variant: 'primary', state: 'ready', ariaLabel: `Move ${def.name}` });
   }
 
   if (tower.level === 3 && !tower.branch) {
@@ -87,7 +87,7 @@ export function ringItems({ tower, towerDefs, map, maps, gold }) {
   }
 
   items.push({
-    id: 'sell', slot: RING_ANGLES.sell, icon: '💰', label: `+${sellRefund(tower.totalCost)}g`, name: 'Sell', cost: null,
+    id: 'sell', slot: RING_ANGLES.sell, icon: '💰', label: `+${sellRefund(tower.totalCost)}g`, cost: null,
     variant: 'danger', state: 'ready', ariaLabel: `Sell ${def.name}, refund ${sellRefund(tower.totalCost)} gold`,
   });
   return items;

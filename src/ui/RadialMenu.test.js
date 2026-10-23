@@ -199,24 +199,20 @@ describe('RadialMenu', () => {
   describe('touch two-step confirm', () => {
     beforeEach(() => openRing());
 
-    it('touch: first press arms ("Tap again" + hub prompt + peek), second executes', () => {
+    it('touch: first press arms ("Tap again" caption + peek, armedId set; hub untouched), second executes', () => {
       press($item('upgrade'), 'touch');
       expect(cb.onActivate).not.toHaveBeenCalled();
       expect($item('upgrade').classList.contains('confirming')).toBe(true);
       expect(caption($item('upgrade'))).toBe('Tap again');
-      expect(hubText()).toEqual(['Tap again: ⬆ Longbow']);
+      expect(menu.armedId).toBe('upgrade');
+      // The hub is too small on a phone for a prompt; the peek carries it.
+      expect(hubText()).toEqual(HUB);
       expect(cb.onPeek).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'upgrade' }), expect.any(Object));
       press($item('upgrade'), 'touch');
       expect(cb.onActivate).toHaveBeenCalledTimes(1);
       expect($item('upgrade').classList.contains('confirming')).toBe(false);
       expect(caption($item('upgrade'))).toBe('⬆ Longbow');
       expect(hubText()).toEqual(HUB);
-    });
-
-    it('a named item spells out the purchase in the armed hub prompt', () => {
-      openRing(ring({ upgrade: { icon: '⬆', label: '120g', name: 'Longbow' } }));
-      press($item('upgrade'), 'touch');
-      expect(hubText()).toEqual(['Tap again:', 'Longbow', '120g']);
     });
 
     it('pen behaves like touch', () => {
@@ -317,7 +313,8 @@ describe('RadialMenu', () => {
       expect(document.activeElement).toBe($item('sell'));
       expect($item('sell').classList.contains('confirming')).toBe(true);
       expect(caption($item('sell'))).toBe('Tap again');
-      expect(hubText()).toEqual(['Tap again: 💰 +36g']);
+      expect(hubText()).toEqual(HUB);
+      expect(menu.armedId).toBe('sell');
       press($item('sell'), 'touch');
       expect(cb.onActivate).toHaveBeenCalledWith(expect.objectContaining({ id: 'sell' }));
     });
@@ -454,14 +451,31 @@ describe('RadialMenu', () => {
       expect(cb.onPeek).toHaveBeenLastCalledWith(null);
     });
 
-    it('a touch pointerenter does not peek; a touch press previews until release', () => {
+    it('a touch pointerenter does not peek; a short touch press previews and peeks until release', () => {
       openRing();
       $item('upgrade').dispatchEvent(ptr('pointerenter', 'touch'));
       expect(cb.onPeek).not.toHaveBeenCalled();
       $item('upgrade').dispatchEvent(ptr('pointerdown', 'touch'));
       expect(cb.onPreview).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'upgrade' }));
+      // A phone has no hover: the press itself is how a player reads the item.
+      expect(cb.onPeek).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'upgrade' }), expect.any(Object));
       $item('upgrade').dispatchEvent(ptr('pointerup', 'touch'));
       expect(cb.onPreview).toHaveBeenLastCalledWith(null);
+      expect(cb.onPeek).toHaveBeenLastCalledWith(null);
+    });
+
+    it('a short touch press on a build item still builds on its click', () => {
+      menu.open({ kind: 'build', anchor: { x: 640, y: 360 }, items: buildItems({ towerDefs: TOWER_DEFS, gold: 1000 }), hub: ['Build'] });
+      press($item('build:archer'), 'touch');
+      expect(cb.onActivate).toHaveBeenCalledWith(expect.objectContaining({ id: 'build:archer' }));
+    });
+
+    it('a mouse press does not hide the hover peek', () => {
+      openRing();
+      $item('upgrade').dispatchEvent(ptr('pointerenter', 'mouse'));
+      $item('upgrade').dispatchEvent(ptr('pointerdown', 'mouse'));
+      $item('upgrade').dispatchEvent(ptr('pointerup', 'mouse'));
+      expect(cb.onPeek).not.toHaveBeenLastCalledWith(null);
     });
 
     it('focus previews and blur clears', () => {

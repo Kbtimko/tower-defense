@@ -211,7 +211,6 @@ export default class GameScene extends Phaser.Scene {
     this.won         = false;
     this.selectedType   = null;
     this.selectedTower  = null;   // the tower whose ring is open
-    this._previewItem   = null;   // the radial item under hover/focus/press, named in the hub
     this._buildSlot     = null;   // the pad the build radial is open on
 
     // Latest pointer world position, used to draw the build-time range ring.
@@ -1475,11 +1474,11 @@ export default class GameScene extends Phaser.Scene {
     // Cleared before close(): its preview-clear callback must not re-render a build hub.
     this._buildSlot = null;
     this.radial.close();
-    this._previewItem = null;
     // close() reports the peek ended, which would start a linger; a closed
     // radial leaves nothing floating.
     this._clearTooltipLinger();
     this._hideTowerTooltip();
+    this._peekConfirming = false;
     this.inspector?.hidePeek();
     this._previewGfx?.clear();
     this._syncCancelButton();
@@ -1512,21 +1511,10 @@ export default class GameScene extends Phaser.Scene {
     this.radial.refresh(this._ringItems(tower), this._hubLines());
   }
 
-  // A face only has room for a glyph + cost, so the hub names whatever is
-  // previewed; otherwise it shows the build prompt or the tower's own stats.
+  // The hub never carries item text: at 11 CSS px a name does not fit it on a
+  // phone, so names, deltas and the confirm prompt live in the item peek.
   _hubLines() {
-    const item = this._previewItem;
-    if (this._buildSlot) {
-      return item
-        ? [TOWER_DEFS[item.towerType].name, `RNG ${previewRange(item.range, this._towerRangeMult)}`]
-        : [BUILD_HUB];
-    }
-    const tower = this.selectedTower;
-    if (!item?.tier) return ringHub(tower);
-    // Name + the headline stat only: every extra line or character in one
-    // round face costs font size. Range is already drawn by the preview ring.
-    const [headline] = describeUpgradeDelta(tower, item.tier, item.branch).split(' · ');
-    return headline ? [item.name, headline.replace(/ → /g, '→')] : [item.name];
+    return this._buildSlot ? [BUILD_HUB] : ringHub(this.selectedTower);
   }
 
   _onRadialActivate(item) {
@@ -1558,9 +1546,6 @@ export default class GameScene extends Phaser.Scene {
   _onRadialPreview(item) {
     const g = this._previewGfx;
     g?.clear();
-    this._previewItem = item;
-    // Skipped while closing: _closeRadial clears the target before close() reports this.
-    if (this._buildSlot || this.selectedTower) this._refreshRadial();
     const at = this._buildSlot ?? this.selectedTower;
     if (!item || !g || !at) return;
     const radius = this._buildSlot
@@ -1580,12 +1565,19 @@ export default class GameScene extends Phaser.Scene {
   _onRadialPeek(item, rect) {
     this._clearTooltipLinger();
     if (!item) {
+      // A lapsed or spent confirm must not keep saying "Tap again".
+      if (this._peekConfirming) {
+        this._peekConfirming = false;
+        this._hideTowerTooltip();
+        return;
+      }
       this._tooltipLinger = setTimeout(() => {
         this._hideTowerTooltip();
         this.inspector?.hidePeek();
       }, PEEK_LINGER_MS);
       return;
     }
+    this._peekConfirming = false;
     if (item.id === RADIAL_HUB) {
       // A build radial's hub has no tower to describe.
       if (!this.selectedTower) return;
@@ -1595,6 +1587,9 @@ export default class GameScene extends Phaser.Scene {
     }
     this.inspector?.hidePeek();
     const tt = item.towerType ? this._fillTowerTooltip(item.towerType, item.cost) : this._fillRingPeek(item);
+    // The touch two-tap confirm prompt: the hub is too small for it on a phone.
+    this._peekConfirming = this.radial?.armedId === item.id;
+    if (this._peekConfirming) tt.prepend(this._tooltipLine(tt, 'Tap again to confirm', 'tt-line-confirm'));
     // Shown before measuring: display:none has no size.
     tt.style.display = 'block';
     const { left, top } = placeBeside(
@@ -1616,7 +1611,7 @@ export default class GameScene extends Phaser.Scene {
     switch (item.id) {
       case 'upgrade':
         if (item.state === 'maxed') { this._tooltipHeader(tt, `${def.name}: maximum level`); break; }
-        this._tooltipHeader(tt, `⬆ ${def['tier' + item.tier].label} — ${item.cost}g`);
+        this._tooltipHeader(tt, `⬆ ${item.name} — ${item.cost}g`);
         this._tooltipLine(tt, describeUpgradeDelta(tower, item.tier));
         if (item.state === 'locked') this._tooltipLine(tt, `🔒 Unlocked on Map ${unlockMapNumber(item.tier, MAPS)}`, 'tt-line-bad');
         break;
