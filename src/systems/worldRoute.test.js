@@ -3,7 +3,7 @@ import { DEVICES } from '../../scripts/captureDevices.mjs';
 import { ROUTE, LAYOUT } from '../data/worldMap.js';
 import { MAPS } from '../data/maps.js';
 import { layoutClass, routeFrameFor } from './worldMapLayout.js';
-import { routePoints, routeParamAt, frontRadius } from './worldRoute.js';
+import { routePoints, routeParamAt, frontRadius, splitRoute, parkParam } from './worldRoute.js';
 
 const frame = { x: 10, y: 20, w: 800, h: 500 };
 
@@ -72,5 +72,54 @@ describe('ROUTE data', () => {
     expect(LAYOUT.node).toEqual({ tall: { d: 56, final: 64 }, compact: { d: 44, final: 50 } });
     expect(LAYOUT.inputGuardMs).toBe(250);
     expect(LAYOUT.maxCanvasDpr).toBe(2);
+  });
+});
+
+describe('splitRoute', () => {
+  // An L: 30 px right, then 10 px down (total 40).
+  const L = [{ x: 0, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 10 }];
+
+  it('splits by arc length: head ends where tail starts, at the interpolated point', () => {
+    const { head, tail, at } = splitRoute(L, 0.5);
+    expect(at).toEqual({ x: 20, y: 0 });
+    expect(head).toEqual([{ x: 0, y: 0 }, { x: 20, y: 0 }]);
+    expect(tail).toEqual([{ x: 20, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 10 }]);
+  });
+
+  it('crosses a vertex: the head keeps every vertex before the split', () => {
+    const { head, tail, angle } = splitRoute(L, 0.875);
+    expect(head).toEqual([{ x: 0, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 5 }]);
+    expect(tail).toEqual([{ x: 30, y: 5 }, { x: 30, y: 10 }]);
+    expect(angle).toBeCloseTo(Math.PI / 2);
+  });
+
+  it('t = 0 is all tail and faces the first leg; t = 1 is all head and faces the last leg', () => {
+    const start = splitRoute(L, 0);
+    expect(start.head).toEqual([{ x: 0, y: 0 }]);
+    expect(start.tail).toEqual(L);
+    expect(start.angle).toBeCloseTo(0);
+    const end = splitRoute(L, 1);
+    expect(end.head).toEqual(L);
+    expect(end.tail).toEqual([{ x: 30, y: 10 }]);
+    expect(end.angle).toBeCloseTo(Math.PI / 2);
+  });
+
+  it('clamps out-of-range and NaN params instead of drawing garbage', () => {
+    expect(splitRoute(L, 2).at).toEqual({ x: 30, y: 10 });
+    expect(splitRoute(L, -1).at).toEqual({ x: 0, y: 0 });
+    expect(splitRoute(L, NaN).at).toEqual({ x: 0, y: 0 });
+  });
+});
+
+describe('parkParam', () => {
+  const line = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 200, y: 0 }];
+
+  it('stops gapPx short of the point along the route, so the ship is not under the node', () => {
+    expect(parkParam(line, 2, 20)).toBeCloseTo(180 / 200);
+    expect(parkParam(line, 1, 20)).toBeCloseTo(80 / 200);
+  });
+
+  it('never goes behind Earth', () => {
+    expect(parkParam(line, 1, 500)).toBe(0);
   });
 });

@@ -390,18 +390,20 @@
     #map-overworld { position:absolute; inset:0; overflow:hidden;
       background:linear-gradient(110deg, #0b1d3a 0%, #0a0f24 50%, #1d0f33 100%); }
     #map-overworld canvas { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
-    /* Legacy SVG route: MapSelectScene still draws it until the story canvas replaces it. */
-    #map-overworld .ow-connectors { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
-    #map-overworld .ow-path-dim { fill:none; stroke:#2f2f50; stroke-width:0.8; vector-effect:non-scaling-stroke; }
-    #map-overworld .ow-path-lit { stroke:#8b6914; stroke-width:1.2; vector-effect:non-scaling-stroke; }
+    /* Node layer: same box as the canvases, so route px are node px. */
+    #wm-nodes { position:absolute; inset:0; }
     .wm-tag { position:absolute; transform:translate(-50%, 0); pointer-events:none; white-space:nowrap;
               font-family:var(--ui-font-heading); font-size:var(--ui-fs-xs); letter-spacing:.3em;
               text-transform:uppercase; color:var(--ui-accent); }
-    #wm-hive-tag { color:var(--ui-text-muted); }
-    /* Centred on the node+label rect (nodeRects' cx/cy), so the label hangs below. */
-    .ow-node { position:absolute; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center;
+    /* Above node 10 (MapSelectScene._placeTags anchors its bottom edge). */
+    #wm-hive-tag { color:var(--ui-text-muted); transform:translate(-50%, -100%); }
+    /* left/top is the route point; shifting up by half the node puts the node's
+       centre on it, and the label hangs below (nodeRects measures that box). */
+    .ow-node { position:absolute; transform:translate(-50%, calc(var(--wm-node, 56px) / -2)); display:flex; flex-direction:column; align-items:center;
                gap:calc(2 * var(--ui-u)); padding:0; border:0; background-color:transparent; color:inherit; font:inherit; }
+    .ow-node.final { transform:translate(-50%, calc(var(--wm-node-final, 64px) / -2)); }
     .ow-node.unlocked, .ow-node.next, .ow-node.completed { cursor:pointer; }
+    .ow-node:disabled { cursor:default; }
     .ow-node-art, .ow-node.ow-node-fallback .ow-node-num { width:var(--wm-node, 56px); height:var(--wm-node, 56px);
       border-radius:50%; border:calc(2 * var(--ui-u)) solid var(--ui-currency); background-color:var(--ui-panel); }
     .ow-node-art { object-fit:cover; }
@@ -411,10 +413,14 @@
     .ow-node.locked .ow-node-art { filter:grayscale(1) brightness(0.4); }
     .ow-node.locked .ow-node-art, .ow-node.locked.ow-node-fallback .ow-node-num { border-style:dashed; border-color:var(--ui-panel-edge); }
     .ow-node.next .ow-node-art, .ow-node.next.ow-node-fallback .ow-node-num { border-color:var(--ui-accent);
-      box-shadow:0 0 calc(12 * var(--ui-u)) var(--ui-accent); }
+      box-shadow:0 0 calc(12 * var(--ui-u)) var(--ui-accent); animation:wm-pulse var(--wm-pulse, 1800ms) ease-in-out infinite; }
+    @keyframes wm-pulse { 50% { box-shadow:0 0 calc(4 * var(--ui-u)) var(--ui-accent); } }
+    #map-select.motion-off .ow-node.next .ow-node-art,
+    #map-select.motion-off .ow-node.next.ow-node-fallback .ow-node-num { animation:none; }
     .ow-node.active .ow-node-art, .ow-node.active.ow-node-fallback .ow-node-num { border-color:var(--ui-currency);
       box-shadow:0 0 calc(10 * var(--ui-u)) var(--ui-currency); }
-    .ow-node-num { font-size:var(--ui-fs-sm); font-weight:bold; color:var(--ui-currency); line-height:1; }
+    /* The number shows inside the fallback circle (tall labels carry it otherwise). */
+    .ow-node-num { display:none; font-size:var(--ui-fs-sm); font-weight:bold; color:var(--ui-currency); line-height:1; }
     .ow-node.locked .ow-node-num { color:var(--ui-text-dim); }
     /* Fixed width (LAYOUT.labelW) so the fit rule's rect is the box that paints. */
     .ow-node-label { max-width:var(--wm-label-w, 132px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
@@ -450,8 +456,6 @@
     #featured-threats, #featured-tier { font-size:var(--ui-fs-md); color:var(--ui-text-muted); }
     #featured-threats strong { color:var(--ui-danger); }
     #featured-stars { font-size:var(--ui-fs-lg); color:var(--ui-currency); }
-    /* Legacy: MapSelectScene still writes it; the Command quote replaces it. */
-    #featured-blurb { display:none; }
     #featured-play { margin-top:auto; flex:0 0 auto; width:100%; min-height:48px; padding:calc(10 * var(--ui-u));
                      border-radius:calc(8 * var(--ui-u)); font-family:var(--ui-font-heading); font-size:var(--ui-fs-lg);
                      font-weight:bold; letter-spacing:.2em; cursor:pointer; }
@@ -551,11 +555,10 @@
       #rotate-prompt-glyph { font-size:72px; color:#4fc3f7; }
     }
     /* Bottom strip under the route frame (LAYOUT.statsStrip), left of the card. */
+    /* One row, never wrapped: a wrapped chip would be clipped by the fixed strip. */
     #lifetime-stats { position:absolute; left:var(--wm-gutter, 12px); bottom:0; height:var(--wm-stats, 64px);
                       right:calc(var(--wm-card-w, clamp(280px, 26vw, 360px)) + 2 * var(--wm-gutter, 12px));
                       display:flex; justify-content:center; align-items:center; gap:10px; overflow:hidden; }
-    #lifetime-stats { display:flex; justify-content:center; gap:10px; margin-top:14px;
-                      flex-wrap:wrap; }
     .stat-chip { background:#0f0f2e; border:1px solid #2a3442; border-radius:6px;
                  padding:5px 12px; text-align:center; min-width:64px; }
     .stat-chip-val { display:block; font-size:16px; color:#ffd700; font-weight:bold; }
@@ -773,6 +776,9 @@
       #map-meta-bar .mb-label { display: none; }
       #map-featured { top: calc(var(--wm-top, 52px) + var(--wm-gutter, 12px)); width: var(--wm-card-w, clamp(220px, 32vw, 300px));
                       padding: calc(10 * var(--ui-u)); gap: calc(6 * var(--ui-u)); }
+      /* One line each, so LAUNCH can't be pushed past the card bottom at 750x340;
+         the quote is the only region that shrinks and scrolls. */
+      #featured-name, #featured-threats { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto; }
       #featured-name { font-size: var(--ui-fs-lg); }
       #featured-quote { font-size: var(--ui-fs-md); line-height: 1.35; }
       #featured-threats, #featured-tier { font-size: var(--ui-fs-sm); }
@@ -781,8 +787,13 @@
       .ow-node-art, .ow-node.ow-node-fallback .ow-node-num { width: var(--wm-node, 44px); height: var(--wm-node, 44px); }
       .ow-node.final .ow-node-art, .ow-node.final.ow-node-fallback .ow-node-num {
         width: var(--wm-node-final, 50px); height: var(--wm-node-final, 50px); }
-      /* Compact label is the stars line only; the name is on the card. */
+      /* Compact label is the stars line only; the name is on the card and the
+         number sits inside the node, over its art. */
       .ow-node-label { display: none; }
+      .ow-node:not(.ow-node-fallback) .ow-node-num { display: flex; position: absolute; left: 50%; top: 0;
+        transform: translateX(-50%); width: var(--wm-node, 44px); height: var(--wm-node, 44px);
+        align-items: center; justify-content: center; text-shadow: 0 0 calc(4 * var(--ui-u)) var(--ui-panel); }
+      .ow-node.final:not(.ow-node-fallback) .ow-node-num { width: var(--wm-node-final, 50px); height: var(--wm-node-final, 50px); }
       #lifetime-stats { display: none; }
     }
 
@@ -943,6 +954,7 @@
         <canvas id="wm-story"></canvas>
         <div id="wm-earth-tag" class="wm-tag">EARTH</div>
         <div id="wm-hive-tag" class="wm-tag">LAST LIGHT · HIVE CORE</div>
+        <div id="wm-nodes"></div>
       </div>
       <div id="wm-topbar">
         <div id="wm-banner">
@@ -964,7 +976,6 @@
         <div id="featured-mission"></div>
         <div id="featured-name"></div>
         <div id="featured-quote"></div>
-        <div id="featured-blurb"></div>
         <div id="featured-threats"></div>
         <div id="featured-tier"></div>
         <div id="featured-stars"></div>

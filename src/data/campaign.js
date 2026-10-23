@@ -20,3 +20,17 @@ export const OBJECTIVES = {
 };
 
 export const CAMPAIGN_COMPLETE = { act: 'CAMPAIGN COMPLETE', objective: 'The war is won' };
+
+// Briefing-card copy (spec 2.2). The quote itself comes verbatim from story.js.
+export const CARD_COPY = {
+  missionPrefix: 'MISSION ',
+  attribution: 'SOL COMMAND',
+  threatPrefix: 'New threat: ',
+  tierPrefix: 'Towers upgrade to Tier ',
+  launch: '▶ LAUNCH',
+  noStars: '☆☆☆',
+};
+
+// Meta-bar fullscreen toggle: only the .mb-label text and aria-label change, so
+// the icon span survives (and the compact icon-only bar keeps its glyph).
+export const FULLSCREEN_COPY = { enter: 'Fullscreen', exit: 'Exit fullscreen' };

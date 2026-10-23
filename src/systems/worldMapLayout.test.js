@@ -53,6 +53,12 @@ describe('nodeRects', () => {
     expect(rects[0].w).toBe(Math.max(LAYOUT.node.tall.d, LAYOUT.labelW.tall));
   });
 
+  it('carries the node diameter d, so the touch rule measures the button, not the label box', () => {
+    const rects = nodeRects({ x: 0, y: 0, w: 1000, h: 500 }, ROUTE, 'compact', LAYOUT);
+    expect(rects[0].d).toBe(LAYOUT.node.compact.d);
+    expect(rects[rects.length - 1].d).toBe(LAYOUT.node.compact.final);
+  });
+
   it('compact rects carry only the stars line below the node', () => {
     const frame = { x: 0, y: 0, w: 500, h: 260 };
     const rects = nodeRects(frame, ROUTE, 'compact', LAYOUT);
@@ -107,6 +113,12 @@ describe('worldMapProblems', () => {
     const big = { x: 0, y: 0, w: 1000, h: 1000 };
     const out = { id: 6, cx: 600, cy: 100, w: 50, h: 50 };
     expect(worldMapProblems({ nodes: [out], frame: big, viewport, coarse: false })).toEqual([expect.stringMatching(/viewport/)]);
+  });
+
+  it('flags a 30-px node inside a 48x44 rect on a coarse pointer (the node, not its label box)', () => {
+    const node = { id: 4, cx: 250, cy: 200, w: 48, h: 44, d: 30 };
+    expect(worldMapProblems({ nodes: [node], frame, viewport, coarse: true }))
+      .toEqual([expect.stringMatching(/node 4 touch target 30 < 44/)]);
   });
 
   it('skips the touch check for locked nodes and fine pointers', () => {

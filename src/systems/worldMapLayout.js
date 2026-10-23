@@ -29,7 +29,8 @@ export function routeFrameFor(viewport, cls, L = LAYOUT) {
 }
 
 // One rect per map, centred on the node+label box (the label hangs below the node),
-// so cx/cy is the rect centre, not the node centre.
+// so cx/cy is the rect centre, not the node centre. d is the round button itself,
+// which is what a finger has to hit.
 export function nodeRects(frame, route, cls, L = LAYOUT) {
   const size = L.node[cls];
   const lastId = MAPS[MAPS.length - 1].id;
@@ -39,6 +40,7 @@ export function nodeRects(frame, route, cls, L = LAYOUT) {
     const [nx, ny] = route.nodes[m.id];
     return {
       id: m.id,
+      d,
       cx: frame.x + nx * frame.w,
       cy: frame.y + ny * frame.h + label / 2,
       w: Math.max(d, L.labelW[cls]),
@@ -79,8 +81,10 @@ export function worldMapProblems({ nodes, frame, viewport, coarse, minTouchPx = 
   for (const n of nodes) {
     if (!insideFrame(n, frame)) problems.push(`node ${n.id} outside the route frame (${FRAME_MARGIN_PX}-px margin)`);
     if (!insideViewport(n, viewport)) problems.push(`node ${n.id} outside the viewport`);
-    if (coarse && !n.locked && Math.min(n.w, n.h) < minTouchPx) {
-      problems.push(`node ${n.id} touch target ${Math.min(n.w, n.h)} < ${minTouchPx} px`);
+    // The label box is not a hit target: a small node under a wide label still fails.
+    const touch = Math.min(n.d ?? n.w, n.h);
+    if (coarse && !n.locked && touch < minTouchPx) {
+      problems.push(`node ${n.id} touch target ${touch} < ${minTouchPx} px`);
     }
   }
   return problems;

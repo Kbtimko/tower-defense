@@ -6,6 +6,7 @@ import { SPRITE_MANIFEST } from '../data/sprites.js';
 import { spriteTextureKey } from '../systems/spriteKeys.js';
 import { backgroundUrl } from '../systems/backgroundAsset.js';
 import { BACKGROUND_VARIANTS } from '../data/backgroundAssets.js';
+import { BACKDROP_ART } from '../data/worldMap.js';
 
 vi.mock('phaser', () => ({
   default: { Scene: class { constructor() {} } },
@@ -138,5 +139,35 @@ describe('BootScene portrait registration', () => {
     const all = Object.values(STORY_SPEAKERS).map(sp => sp.portraitKey);
     makeScene(all).create();
     expect(new Set(REGISTERED_PORTRAITS)).toEqual(new Set(all));
+  });
+});
+
+describe('BootScene world-map backdrop probe (deferred asset, spec 4.4)', () => {
+  function run(existingTextures) {
+    const scene = new BootScene();
+    const set = new Map();
+    const loaded = [];
+    scene.game = { registry: { set: (k, v) => set.set(k, v) }, events: { on() {} } };
+    scene.load = { image: (key, path) => loaded.push({ key, path }), spritesheet() {} };
+    scene.textures = { exists: key => existingTextures.includes(key) };
+    scene.scene = { start() {} };
+    scene.preload();
+    scene.create();
+    return { set, loaded };
+  }
+
+  it('probes BACKDROP_ART in preload', () => {
+    const { loaded } = run([]);
+    expect(loaded.some(l => l.path === BACKDROP_ART)).toBe(true);
+  });
+
+  it('registers false when the art 404s (today), so the vista stays procedural', () => {
+    expect(run([]).set.get('worldBackdrop')).toBe(false);
+  });
+
+  it('registers the URL once the art loads', () => {
+    const { loaded } = run([]);
+    const key = loaded.find(l => l.path === BACKDROP_ART).key;
+    expect(run([key]).set.get('worldBackdrop')).toBe(BACKDROP_ART);
   });
 });

@@ -15,6 +15,10 @@ import { MAP_WAVES } from '../data/waves.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { HERO_ORDER } from '../data/heroes.js';
 import { generateFxTextures } from '../systems/fxTextures.js';
+import { BACKDROP_ART } from '../data/worldMap.js';
+
+// Existence probe only: the world map draws the art on its own 2D canvas.
+const WORLD_BACKDROP_KEY = 'wm_backdrop';
 
 // Distinct portrait keys across all story speakers (deduped: two speakers may
 // legitimately share a portrait).
@@ -63,6 +67,10 @@ export default class BootScene extends Phaser.Scene {
       this.load.image(key, portraitPath(key));
     }
 
+    // World-map vista art (deferred asset, spec 4.4). Absent today: the 404 is
+    // tolerated and the map draws its far layer procedurally.
+    this.load.image(WORLD_BACKDROP_KEY, BACKDROP_ART);
+
     // Preload entity sprite art declared in the manifest. Missing files log a
     // 404 but don't crash (same as map backdrops). Keys whose PNG is absent
     // simply never register, so the entity keeps its Graphics fallback.
@@ -97,6 +105,7 @@ export default class BootScene extends Phaser.Scene {
     // Same idea for portraits, but the consumer is a DOM <img> rather than a
     // Phaser texture, so the load above is purely an existence probe.
     registerPortraits(PORTRAIT_KEYS.filter(key => this.textures.exists(key)));
+    this.game.registry.set('worldBackdrop', this.textures.exists(WORLD_BACKDROP_KEY) ? BACKDROP_ART : false);
 
     const params = new URLSearchParams(window.location.search);
     if (params.get('edit') === '1') {

@@ -53,6 +53,8 @@ export const LAYOUT = {
   },
   statsStrip: { tall: 64, compact: 0 },
   gutter: 12,
+  // Space between the Earth/hive tags and the body they name.
+  tagGap: 4,
   inputGuardMs: 250,
   maxCanvasDpr: 2,
 };
@@ -72,6 +74,50 @@ export const PLANETS = [
     bands: [[-0.5, 0.12, 'rgba(255,120,220,.35)'], [0, 0.1, 'rgba(255,120,220,.3)'], [0.45, 0.12, 'rgba(255,120,220,.35)']] },
 ];
 
+// Base wash from bottom-left (Sol) to top-right (Veth): blue -> navy -> violet,
+// the vista mockup's stops. [offset, colour].
+export const SPACE_GRADIENT = [
+  [0, '#0a1530'],
+  [0.45, '#090d1c'],
+  [1, '#14082a'],
+];
+
+// The fixed star field painted into the far layer (mockup: 260 stars). It never
+// moves, so it may be brighter than the drift layers' 20% ambient-motion cap.
+export const STARS_STATIC = { seed: 3, count: 260, alpha: [0.15, 0.75], sizePx: [0.6, 2], color: '#e8e0d0' };
+
+// How every PLANETS entry is shaded (mockup planet()): r-relative geometry, the
+// lit-side highlight offset, the night-side shade and the crack count.
+export const PLANET_STYLE = {
+  highlight: 0.35,
+  core: 0.1,
+  glow: [0.8, 2.4],
+  ring: { rx: 2, ry: 0.5, tilt: -0.35, width: 0.18 },
+  cracks: { count: 6, seed: 5, width: 0.05, from: 0.2, to: 0.9, sweep: 0.4 },
+  night: { from: 0.45, color: 'rgba(0,0,0,.65)' },
+};
+
+// Earth at the route start (Sol side). r is a fraction of the frame's short side.
+export const EARTH = {
+  r: 0.06,
+  stops: [[0, '#9fe0ff'], [0.45, '#2a7ac0'], [0.75, '#0b2a55']],
+  glow: 'rgba(79,195,247,.55)',
+};
+
+// The hive core under node 10. Drawn on the story layer because it dims to
+// dimAlpha when the campaign is won (spec 2.3, hiveDim).
+export const HIVE_CORE = {
+  r: 0.13,
+  stops: [[0, '#e8c8ff'], [0.35, 'rgba(155,77,255,.85)'], [0.7, 'rgba(58,10,106,.5)'], [1, 'rgba(58,10,106,0)']],
+  dimAlpha: 0.25,
+};
+
+// Gradient end stop for every glow and wash (canvas has no 'fade to nothing' colour).
+export const TRANSPARENT = 'rgba(0,0,0,0)';
+
+// Slow cyan pulse on the `next` node; .motion-off stops it.
+export const NODE_PULSE_MS = 1800;
+
 // Far-layer washes in viewport fractions (r of viewport width): this is the layer
 // BACKDROP_ART replaces, and art covers the viewport, not the frame.
 export const NEBULAE = [
@@ -82,6 +128,7 @@ export const NEBULAE = [
 
 // Route-frame band endpoints; it crosses near the Asteroid Belt node (map 4).
 export const BELT = {
+  seed: 9,
   from: [0.40, 0.95],
   to: [0.66, 0.40],
   jitter: 0.04,
@@ -108,7 +155,18 @@ export const TRAIL = {
 };
 
 // Amber engine is the art-bible human accent.
-export const SHIP = { sizePx: 16, hull: '#d8e2ee', engine: '#ffb000' };
+// Parked gapPx short of its node along the route (worldRoute.parkParam), so the
+// node's button doesn't hide it; the gap is half the node plus one ship length.
+// shape is the chevron hull in sizePx units, nose along +x; the engine glow sits
+// at engineX with radius engineR (also sizePx units).
+export const SHIP = {
+  sizePx: 16,
+  hull: '#d8e2ee',
+  engine: '#ffb000',
+  shape: [[0.6, 0], [-0.4, 0.45], [-0.15, 0], [-0.4, -0.45]],
+  engineX: -0.35,
+  engineR: 0.7,
+};
 
 // Ambient drift stays under 20% opacity (art bible 8). speed is CSS px/s.
 export const STARS_MAP = {
