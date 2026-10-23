@@ -499,7 +499,7 @@ describe('GameScene radial wiring', () => {
     it('victory closes it', () => {
       const s = makeScene();
       s.economy.lives = 20;
-      s.saveMgr = { setStars: vi.fn(), hasSeenBeat: () => true, markBeatSeen: vi.fn() };
+      s.saveMgr = { getStars: () => 0, setStars: vi.fn(), hasSeenBeat: () => true, markBeatSeen: vi.fn() };
       tapZone(s, 0);
       s._onVictory();
       expect(isOpen()).toBe(false);

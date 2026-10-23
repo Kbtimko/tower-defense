@@ -274,7 +274,7 @@ describe('Cancel button at level end', () => {
       won: false, mapId: 0, kills: 0,
       game: { events: { emit: vi.fn() }, registry: { get: () => null } },
       economy: { lives: 20 },
-      saveMgr: { setStars: vi.fn(), hasSeenBeat: () => true, markBeatSeen: vi.fn() },
+      saveMgr: { getStars: () => 0, setStars: vi.fn(), hasSeenBeat: () => true, markBeatSeen: vi.fn() },
       _commitStats: vi.fn(),
     });
     s._selectTowerType('archer', btn('archer'));
