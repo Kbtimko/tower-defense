@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   raelOvercharge, raelAirstrike, raelEmp,
   engRepair, engDeployTurret, engPowerSurge,
-  scoutMark, scoutVolley, scoutPhase,
+  scoutMark, scoutVolley, scoutPhase, MARK_PICK_RADIUS,
   pyroFlameWave, pyroImmolate, pyroFirefield, pyroBurnOnHit,
 } from './heroAbilities.js';
 
@@ -73,16 +73,39 @@ describe('engineer abilities', () => {
 });
 
 describe('scout abilities', () => {
-  it('scoutMark returns kind:mark with multiplier 2.0 and duration 6 for the aimed enemy', () => {
-    const target = { id: 'e1' };
-    const r = scoutMark({ dead: false }, {}, target);
+  // Hero.fireAbility hands aimed abilities the click POINT, not an enemy (#52).
+  const enemyAt = (x, y, extra = {}) => ({ x, y, dead: false, applyStatus: vi.fn(), ...extra });
+
+  it('scoutMark resolves the click point to the enemy under it', () => {
+    const target = enemyAt(100, 100);
+    const r = scoutMark({ dead: false }, { enemies: [target] }, { x: 105, y: 98 });
     expect(r).toEqual({ kind:'mark', target, multiplier:2.0, duration:6 });
+    expect(typeof r.target.applyStatus).toBe('function');
   });
-  it('scoutMark returns null when target is missing', () => {
-    expect(scoutMark({ dead: false }, {}, null)).toBeNull();
+  it('scoutMark picks the enemy nearest the click', () => {
+    const far = enemyAt(100, 100), near = enemyAt(130, 100);
+    const r = scoutMark({ dead: false }, { enemies: [far, near] }, { x: 125, y: 100 });
+    expect(r.target).toBe(near);
+  });
+  it('scoutMark accepts an enemy exactly MARK_PICK_RADIUS away and rejects one just beyond', () => {
+    const e = enemyAt(0, 0);
+    expect(scoutMark({ dead: false }, { enemies: [e] }, { x: MARK_PICK_RADIUS, y: 0 })?.target).toBe(e);
+    expect(scoutMark({ dead: false }, { enemies: [e] }, { x: MARK_PICK_RADIUS + 1, y: 0 })).toBeNull();
+  });
+  it('scoutMark skips dead enemies', () => {
+    const corpse = enemyAt(100, 100, { dead: true }), live = enemyAt(120, 100);
+    expect(scoutMark({ dead: false }, { enemies: [corpse, live] }, { x: 100, y: 100 }).target).toBe(live);
+    expect(scoutMark({ dead: false }, { enemies: [corpse] }, { x: 100, y: 100 })).toBeNull();
+  });
+  it('scoutMark returns null when the scene has no enemies', () => {
+    expect(scoutMark({ dead: false }, { enemies: [] }, { x: 0, y: 0 })).toBeNull();
+    expect(scoutMark({ dead: false }, {}, { x: 0, y: 0 })).toBeNull();
+  });
+  it('scoutMark returns null when the aim point is missing', () => {
+    expect(scoutMark({ dead: false }, { enemies: [enemyAt(0, 0)] }, null)).toBeNull();
   });
   it('scoutMark returns null when dead', () => {
-    expect(scoutMark({ dead: true }, {}, { id:'e' })).toBeNull();
+    expect(scoutMark({ dead: true }, { enemies: [enemyAt(0, 0)] }, { x: 0, y: 0 })).toBeNull();
   });
 
   it('scoutVolley returns kind:volley with damage 25, range 180, maxTargets 8', () => {
