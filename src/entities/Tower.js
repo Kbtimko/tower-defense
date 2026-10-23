@@ -4,6 +4,7 @@ import { EntitySprite } from '../systems/EntitySprite.js';
 import { unitDepth } from '../systems/grounding.js';
 import { setBaseFireRate } from '../systems/fireRateMods.js';
 import { popScale } from '../systems/juiceMath.js';
+import { FONTS } from '../data/theme.js';
 
 export class Tower extends Phaser.GameObjects.Container {
   constructor(scene, { type, x, y, def, zoneIndex, modifiers = {} }) {
@@ -27,7 +28,7 @@ export class Tower extends Phaser.GameObjects.Container {
     this._popT        = 0;
 
     this._bg        = scene.add.graphics();
-    this._icon      = scene.add.text(0, 0, def.icon, { fontSize: '16px', fontFamily: 'Georgia' }).setOrigin(0.5);
+    this._icon      = scene.add.text(0, 0, def.icon, { fontSize: '16px', fontFamily: FONTS.body }).setOrigin(0.5);
     this._rangeRing = scene.add.graphics();
 
     this.add([this._bg, this._rangeRing, this._icon]);

@@ -1,4 +1,5 @@
 import { DEATH_CLASS } from './fx.js';
+import { FONTS } from './theme.js';
 
 // Economy & feedback juice tunables (visual only; never gameplay values).
 // Colours: numbers for canvas, strings for CSS-facing values.
@@ -22,6 +23,7 @@ export const GOLD_POP = {
   rise: 24,          // px
   duration: 0.9,     // s
   maxLive: 12,
+  fontFamily: FONTS.body,
   fontSize: '18px',
   fontStyle: 'bold',
   color: '#ffd700',

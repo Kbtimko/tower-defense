@@ -43,15 +43,6 @@ const rules = parseRules(css);
 const kitRules = rules.filter((r) => r.selector.includes('.ui-'));
 const vars = themeCssVars();
 
-// Task 5 of the 3.1 plan moves these Phaser text styles onto FONTS.body; until
-// then each file may keep exactly this many Georgia literals and no more. Task 5
-// empties this map.
-const PENDING_PHASER_GEORGIA = {
-  'src/ui/loadingBar.js': 1,
-  'src/scenes/GameScene.js': 2,
-  'src/entities/Tower.js': 1,
-};
-
 function sourceFiles() {
   const root = new URL('../../', import.meta.url);
   return readdirSync(new URL('src/', root), { recursive: true })
@@ -65,13 +56,22 @@ describe('fonts', () => {
     expect(html.match(/Georgia|Courier New/g)).toBeNull();
   });
 
-  it('non-test src JS names no Courier New, and Georgia only where Task 5 is pending', () => {
+  it('non-test src JS names no Courier New or Georgia', () => {
     const bad = [];
     for (const { path, text } of sourceFiles()) {
       if (/Courier New/.test(text)) bad.push(`${path}: Courier New`);
       const georgia = (text.match(/Georgia/g) ?? []).length;
-      if (georgia !== (PENDING_PHASER_GEORGIA[path] ?? 0)) bad.push(`${path}: ${georgia} Georgia`);
+      if (georgia) bad.push(`${path}: ${georgia} Georgia`);
     }
+    expect(bad).toEqual([]);
+  });
+
+  // MapEditorScene is a dev tool that deliberately uses monospace.
+  it('no Phaser text style hardcodes a fontFamily string literal', () => {
+    const bad = sourceFiles()
+      .filter(({ path }) => path !== 'src/scenes/MapEditorScene.js')
+      .filter(({ text }) => /fontFamily\s*:\s*['"`]/.test(text))
+      .map(({ path }) => path);
     expect(bad).toEqual([]);
   });
 

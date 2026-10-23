@@ -35,6 +35,7 @@ import { railAnchorRect, mapRectIn } from '../ui/hudLayer.js';
 import { WaveBanner } from '../ui/WaveBanner.js';
 import { bossWarning, padGlowAlpha } from '../systems/juiceMath.js';
 import { PAD_BEACON } from '../data/ambient.js';
+import { FONTS } from '../data/theme.js';
 import { beaconAlpha, beaconLevel } from '../systems/padBeacon.js';
 import { STORY_PANELS, briefKey, victorySequenceId, STORY_SEQUENCES } from '../data/story.js';
 import { starsDisplay }    from '../utils/display.js';
@@ -1919,8 +1920,8 @@ export default class GameScene extends Phaser.Scene {
   _setupRoad(map) {
     const p = this.pathMgr.path;
     if (roadRendererFor(map) === 'legacy') {
-      this.add.text(p[0].x, p[0].y, 'IN',  { fontSize: '10px', color: '#fff', fontFamily: 'Georgia', fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
-      this.add.text(p[p.length-1].x, p[p.length-1].y, 'OUT', { fontSize: '10px', color: '#fff', fontFamily: 'Georgia', fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
+      this.add.text(p[0].x, p[0].y, 'IN',  { fontSize: '10px', color: '#fff', fontFamily: FONTS.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
+      this.add.text(p[p.length-1].x, p[p.length-1].y, 'OUT', { fontSize: '10px', color: '#fff', fontFamily: FONTS.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
       return;
     }
     const key = bakeRoad(this, {
