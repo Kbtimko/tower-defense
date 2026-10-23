@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { layoutProblems, railProblems, minTouchFor, targetSizeProblems, overlayProblems } from './layoutAudit.js';
+import { layoutProblems, railProblems, minTouchFor, targetSizeProblems, overlayProblems, railGeometryProblems } from './layoutAudit.js';
 
 const rect = (left, top, right, bottom) => ({ left, top, right, bottom, width: right - left, height: bottom - top });
 
@@ -168,5 +168,37 @@ describe('overlayProblems', () => {
   });
   it('applies no size rule without touch', () => {
     expect(overlayProblems({ device: { hasTouch: false }, targets: small })).toEqual([]);
+  });
+});
+
+describe('railGeometryProblems', () => {
+  const phone = { name: 'pixel', hasTouch: true };
+  const desktop = { name: 'desktop', hasTouch: false };
+  const fineCanvas = { width: 1440, height: 1440 * 720 / 1488 };
+  const fineRails = w => [{ id: 'left', width: w }, { id: 'right', width: w }];
+
+  it('flags a touch device that reports pointer: fine', () => {
+    const out = railGeometryProblems({ device: phone, pointerFine: true, canvasRect: fineCanvas, rails: fineRails(104 * 1440 / 1488) });
+    expect(out.some(p => p.includes('touch device reports pointer: fine') && p.startsWith('pixel'))).toBe(true);
+  });
+  it('accepts fine geometry', () => {
+    expect(railGeometryProblems({ device: desktop, pointerFine: true, canvasRect: fineCanvas, rails: fineRails(104 * 1440 / 1488) })).toEqual([]);
+  });
+  it('accepts coarse geometry', () => {
+    const canvasRect = { width: 844, height: 844 * 720 / 1632 };
+    expect(railGeometryProblems({ device: phone, pointerFine: false, canvasRect, rails: fineRails(176 * 844 / 1632) })).toEqual([]);
+  });
+  it('flags a rail 3px too wide, naming it', () => {
+    const rails = [{ id: 'left', width: 104 * 1440 / 1488 }, { id: 'right', width: 104 * 1440 / 1488 + 3 }];
+    const out = railGeometryProblems({ device: desktop, pointerFine: true, canvasRect: fineCanvas, rails });
+    expect(out).toHaveLength(1);
+    expect(out[0]).toContain('right');
+    expect(out[0].startsWith('desktop')).toBe(true);
+  });
+  it('flags a canvas with the wrong aspect', () => {
+    const canvasRect = { width: 1440, height: 1440 * 720 / 1632 };
+    const out = railGeometryProblems({ device: desktop, pointerFine: true, canvasRect, rails: fineRails(104 * 1440 / 1488) });
+    expect(out).toHaveLength(1);
+    expect(out[0]).toContain('aspect');
   });
 });

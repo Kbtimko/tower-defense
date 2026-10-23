@@ -96,6 +96,11 @@ describe('applyHudLayerSize', () => {
     expect(s.getPropertyValue('--hud-cell')).toBe(`${HUD_CELL}px`);
     expect(s.getPropertyValue('--peek-gap')).toBe(`${PEEK_GAP_PX}px`);
   });
+
+  it('publishes the unitless rail scale --hud-k (1 on touch)', () => {
+    applyHudLayerSize(document);
+    expect(document.documentElement.style.getPropertyValue('--hud-k')).toBe('1');
+  });
 });
 
 // A peek card opens beside the whole rail, not just the control: from a
