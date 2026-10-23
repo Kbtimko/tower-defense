@@ -8,6 +8,7 @@ import MapEditorScene from './scenes/MapEditorScene.js';
 import { resumeAudio } from './systems/shellLifecycle.js';
 import { CANVAS_WIDTH, WORLD_HEIGHT } from './data/layout.js';
 import { applyHudLayerSize, fitHudLayer } from './ui/hudLayer.js';
+import { applyTheme, loadThemeFonts } from './ui/theme.js';
 import { watchRailLabels } from './ui/fitLabels.js';
 import { coalesceFrame } from './utils/coalesceFrame.js';
 
@@ -27,6 +28,9 @@ const config = {
 };
 
 applyHudLayerSize(document);
+applyTheme(document);
+// Deliberately not awaited: boot must not wait on fonts; the fallback stack covers the gap.
+loadThemeFonts(document);
 const game = new Phaser.Game(config);
 
 // The HUD rails are DOM pinned over the canvas, so they refit on every Phaser
