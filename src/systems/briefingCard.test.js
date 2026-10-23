@@ -64,10 +64,12 @@ describe('briefingCard', () => {
         quote: commandQuote(m.storyKey),
         threats: expectedThreats(m.id),
         maxTier: m.maxTierAllowed,
-        stars,
+        stars: stars[m.id],
         launchable: m.id === 0 || stars[m.id - 1] > 0,
       });
     }
+    const s = MAPS.map((_, i) => Math.max(0, 3 - i));
+    expect(briefingCardModel(1, s).stars).toBe(2);
     expect(briefingCardModel(0, MAPS.map(() => 0)).launchable).toBe(true);
     expect(briefingCardModel(1, MAPS.map(() => 0)).launchable).toBe(false);
   });

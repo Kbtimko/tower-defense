@@ -34,7 +34,7 @@ export function briefingCardModel(mapId, stars) {
     quote: commandQuote(map.storyKey),
     threats: newThreats(mapId),
     maxTier: map.maxTierAllowed,
-    stars,
+    stars: stars[mapId],
     launchable: mapId === 0 || stars[mapId - 1] > 0,
   };
 }
