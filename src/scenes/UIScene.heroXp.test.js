@@ -156,8 +156,7 @@ function setupCreateDOM() {
   }
   document.body.appendChild(section);
   const btnIds = [
-    'wave-btn', 'speed-btn', 'panel-upgrade-btn', 'panel-sell-btn', 'msg-btn',
-    'panel-reposition-btn', 'ability-q', 'ability-w', 'ability-e',
+    'wave-btn', 'speed-btn', 'msg-btn', 'ability-q', 'ability-w', 'ability-e',
   ];
   for (const id of btnIds) {
     const b = document.createElement('button');

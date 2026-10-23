@@ -63,8 +63,7 @@ function setupHeroDOM() {
   card.id = 'ability-card';
   document.body.appendChild(card);
 
-  for (const id of ['wave-btn', 'speed-btn', 'panel-upgrade-btn', 'panel-sell-btn',
-                     'msg-btn', 'panel-reposition-btn']) {
+  for (const id of ['wave-btn', 'speed-btn', 'msg-btn']) {
     const b = document.createElement('button');
     b.id = id;
     document.body.appendChild(b);

@@ -39,6 +39,24 @@ export function describeBranchPreview({ towerType, branch, damageMult = 1, locke
   };
 }
 
+// One line for the ring's upgrade/branch peek. Mirrors Tower.upgrade (table
+// value × the tower's meta multiplier, rounded) and Barracks.upgrade (soldier
+// stats by tier key), so the preview is what the purchase actually lands.
+export function describeUpgradeDelta(tower, tier, branch = null) {
+  const key = tier === 4 && branch ? `tier4${branch}` : `tier${tier}`;
+  const arrow = (name, from, to) => `${name} ${from} → ${to}`;
+  if (tower.type === 'barracks') {
+    const now = tower.soldierStats;
+    const next = TOWER_DEFS.barracks.soldierStats[key] ?? now;
+    return [arrow('HP', now.hp, next.hp), arrow('DMG', now.damage, next.damage)].join(' · ');
+  }
+  const tierDef = TOWER_DEFS[tower.type][key];
+  const parts = [];
+  if (tierDef.damage !== undefined) parts.push(arrow('DMG', tower.damage, Math.round(tierDef.damage * (tower._damageMult ?? 1))));
+  if (tierDef.range !== undefined) parts.push(arrow('RNG', tower.range, Math.round(tierDef.range * (tower._rangeMult ?? 1))));
+  return parts.join(' · ');
+}
+
 function firingLines(tower) {
   return [
     `Damage: ${tower.damage}`,

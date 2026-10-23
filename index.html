@@ -284,17 +284,11 @@
     #tower-tooltip strong { display: block; margin-bottom: 3px; color: #ffd700; }
     #tower-tooltip .tt-line-good { display: block; color: #6f6; }
     #tower-tooltip .tt-line-bad  { display: block; color: #f88; }
-    #tower-panel .panel-matchups { font-size: var(--ui-fs-xs); margin: 4px 0; line-height: 1.4; }
-    #tower-panel .panel-matchups .mu-good { display: block; color: #6f6; }
-    #tower-panel .panel-matchups .mu-bad  { display: block; color: #f88; }
-    #tower-panel .panel-armour { font-size: var(--ui-fs-xs); margin: 4px 0; line-height: 1.4; }
-    #tower-panel .panel-armour .ar-head  { display: block; color: #aaa; }
-    #tower-panel .panel-armour .ar-heavy { color: #fc6; }
-    #tower-panel .panel-armour .ar-floor { color: #f66; font-weight: bold; }
-    .branch-card .branch-matchup { color: #ffcc66; font-size: var(--ui-fs-xs); margin-bottom: 3px; }
-    .branch-card .branch-armour { color: #aaa; font-size: var(--ui-fs-xs); margin-bottom: 3px; }
-    .branch-card .branch-armour .ar-heavy { color: #fc6; }
-    .branch-card .branch-armour .ar-floor { color: #f66; font-weight: bold; }
+    /* Radial item peeks (upgrade deltas, branch armour) reuse the tooltip. */
+    #tower-tooltip .tt-line, #tower-tooltip .tt-line-armour { display: block; }
+    #tower-tooltip .tt-line-armour { color: #aaa; }
+    #tower-tooltip .ar-heavy { color: #fc6; }
+    #tower-tooltip .ar-floor { color: #f66; font-weight: bold; }
     #wave-btn { font-size: calc(26px * var(--hud-k)); font-weight: bold; }
     /* Radial menu (roadmap 3.3): geometry only, the kit paints. It covers the
        whole layer in game px; RadialMenu.js sets each button's centre as left/top,
@@ -313,24 +307,9 @@
     .radial-item .radial-icon { font-size: calc(28px * var(--hud-k)); line-height: 0.9; }
     #radial-hub { width: var(--radial-hub); height: var(--radial-hub); }
     #radial-hub .radial-hub-line:first-child { font-weight: bold; }
-    /* GameScene clamps the panel to the map with PANEL_EDGE_MARGIN (6) each
-       side; a panel (with branch picker) taller than a phone's map scrolls
-       instead of hiding Sell. */
-    #tower-panel { max-height: calc(var(--map-height, 100%) - 12px); overflow-y: auto; }
-    #tower-panel { position: absolute;
-                   border-radius: 8px; padding: 11px; width: 170px; z-index: 10; display: none; }
-    #tower-panel .panel-name { font-size: 13px; font-weight: bold; color: #ffd700; margin-bottom: 5px; }
-    #tower-panel .panel-stat { font-size: 11px; color: #aaa; margin: 2px 0; }
-    #tower-panel .upgrade-btn { width: 100%; padding: 5px; border-radius: 4px;
-                                 font-size: 11px; margin-top: 4px; }
-    #tower-panel .sell-btn { width: 100%; padding: 5px; border-radius: 4px;
-                              font-size: 11px; margin-top: 3px; }
-    /* Touch/pen first press of a two-step confirm (upgrade / sell / branch);
-       the kit's .confirming state paints the gold ring and glow. */
-    #tower-panel button.confirming { font-weight: bold; }
     /* Long-press targets: stop the iOS callout and text selection that would
        otherwise open over the peek card. */
-    .tower-btn, .ability-btn-wrap, #wave-btn, #tower-panel button, #radial-hub, .radial-item {
+    .tower-btn, .ability-btn-wrap, #wave-btn, #radial-hub, .radial-item {
       -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
     /* Chrome/Safari fire no pointer events on a disabled control, so a press on
        one never reaches its hover/long-press wrapper. pointer-events:none lets
@@ -339,17 +318,6 @@
     #wave-btn:disabled, .ability-btn:disabled { pointer-events: none; }
     #wave-btn-wrap:has(> #wave-btn:disabled),
     .ability-btn-wrap:has(> .ability-btn:disabled) { cursor: not-allowed; }
-    .branch-header { font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
-                     color: #f0a500; margin-bottom: 7px; }
-    .branch-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 8px; }
-    .branch-card { border: 1px solid #555; border-radius: 5px; padding: 7px; font-size: 11px; }
-    .branch-card:not(.locked) { border-color: #f0a500; background: #1a1400; }
-    .branch-card.locked { opacity: 0.45; }
-    .branch-label { font-weight: bold; margin-bottom: 3px; }
-    .branch-effect { color: #888; margin-bottom: 4px; font-size: var(--ui-fs-xs); }
-    .branch-cost { color: #f0a500; font-weight: bold; margin-bottom: 5px; }
-    .reposition-btn { width: 100%; padding: 5px; border-radius: 4px;
-                      font-size: 11px; margin-top: 3px; }
     #game-msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
                 border-radius: 12px;
                 padding: 28px 38px; text-align: center; display: none; z-index: 20; }
@@ -723,9 +691,7 @@
     @media (pointer: coarse) {
       .codex-tab, #codex-close, .codex-entry, #settings-close, .story-dialog-actions button,
       #story-dismiss, .story-log-entry, #story-log-close, #hero-mgmt-close, .ho-ability,
-      #upgrade-close, .upgrade-node-refund, #game-msg button, #map-meta-bar button,
-      #tower-panel .upgrade-btn, #tower-panel .sell-btn, #tower-panel .reposition-btn,
-      #tower-panel .branch-choose-btn { min-height: 44px; min-width: 44px; }
+      #upgrade-close, .upgrade-node-refund, #game-msg button, #map-meta-bar button { min-height: 44px; min-width: 44px; }
       /* The glyph stays small; the button grows around it, bleeding into the header's
          padding rather than stretching the panel. */
       .inspector-close { min-width: 44px; min-height: 44px; margin: -8px -4px -8px 0; }
@@ -892,28 +858,6 @@
         </div>
       </div>
       <div id="lifetime-stats"></div>
-    </div>
-    <div id="tower-panel" class="ui-panel">
-      <div class="panel-name" id="panel-name">Tower</div>
-      <div id="panel-std-stats">
-        <div class="panel-stat" id="panel-dmg">Damage: -</div>
-        <div class="panel-stat" id="panel-rng">Range: -</div>
-        <div class="panel-stat" id="panel-spd">Fire rate: -</div>
-      </div>
-      <div id="panel-barracks-stats" style="display:none">
-        <div class="panel-stat" id="panel-soldier-count">Soldiers: -</div>
-        <div class="panel-stat" id="panel-soldier-hp">HP: -</div>
-        <div class="panel-stat" id="panel-soldier-dmg">DMG: -</div>
-        <div class="panel-stat" id="panel-soldier-respawn">Respawn: -</div>
-        <div class="panel-stat" id="panel-soldier-blocks">Blocks: -</div>
-      </div>
-      <div class="panel-stat" id="panel-lvl">Level: -</div>
-      <div class="panel-matchups" id="panel-matchups"></div>
-      <div class="panel-armour" id="panel-armour"></div>
-      <div id="panel-branch-picker" style="display:none"></div>
-      <button class="ui-btn ui-btn--currency upgrade-btn" id="panel-upgrade-btn">Upgrade</button>
-      <button class="ui-btn ui-btn--primary reposition-btn" id="panel-reposition-btn" style="display:none">&#8635; Reposition Soldiers</button>
-      <button class="ui-btn ui-btn--danger sell-btn" id="panel-sell-btn">&#128176; Sell</button>
     </div>
     <div id="game-msg" class="ui-panel">
       <h2 id="msg-title">Victory!</h2>

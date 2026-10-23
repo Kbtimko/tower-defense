@@ -2,7 +2,7 @@
 // the same cases, now against the pure description the tower inspector peek and
 // the ring's branch peek render from.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { describeTowerDetail, describeBranchPreview } from './towerDetail.js';
+import { describeTowerDetail, describeBranchPreview, describeUpgradeDelta } from './towerDetail.js';
 import { appendArmourRows } from '../ui/armourRows.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { MAPS } from '../data/maps.js';
@@ -172,5 +172,26 @@ describe('appendArmourRows', () => {
     const empty = document.createElement('div');
     appendArmourRows(empty, []);
     expect(empty.childNodes.length).toBe(0);
+  });
+});
+
+// The ring's upgrade peek: what the next tier changes, mirroring Tower.upgrade.
+describe('describeUpgradeDelta', () => {
+  it('gives damage and range deltas for a firing tower', () => {
+    const t = tower({ type: 'archer', damage: 15, range: 120, _damageMult: 1, _rangeMult: 1 });
+    expect(describeUpgradeDelta(t, 2)).toBe('DMG 15 → 25 · RNG 120 → 135');
+  });
+  it('applies the meta multipliers the upgraded tower will land with', () => {
+    const t = tower({ type: 'archer', damage: 17, range: 132, _damageMult: 1.1, _rangeMult: 1.1 });
+    expect(describeUpgradeDelta(t, 2)).toBe(`DMG 17 → ${Math.round(25 * 1.1)} · RNG 132 → ${Math.round(135 * 1.1)}`);
+  });
+  it('omits a stat the tier leaves alone', () => {
+    // Volley (archer 4A) sets damage only.
+    const t = tower({ type: 'archer', level: 3, damage: 40, range: 150, _damageMult: 1, _rangeMult: 1 });
+    expect(describeUpgradeDelta(t, 4, 'A')).toBe('DMG 40 → 60');
+  });
+  it('gives soldier HP and damage deltas for a barracks', () => {
+    const t = tower({ type: 'barracks', soldierStats: TOWER_DEFS.barracks.soldierStats.tier1 });
+    expect(describeUpgradeDelta(t, 2)).toBe('HP 15 → 25 · DMG 20 → 35');
   });
 });

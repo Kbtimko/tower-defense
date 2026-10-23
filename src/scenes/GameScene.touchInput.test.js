@@ -1,6 +1,7 @@
-// Roadmap 2.1 task 4: DOM long-press tooltips and the touch two-step confirm,
-// run through the REAL _bindDOMEvents / _bindConfirmable / _closeTowerPanel
-// against one shared DOM, as hudButtons.test.js does.
+// Roadmap 2.1 task 4: DOM long-press tooltips on the tower buttons, run through
+// the REAL _bindDOMEvents against one shared DOM, as hudButtons.test.js does.
+// The touch two-step confirm moved with the tower panel into the radial
+// (roadmap 3.3): see src/ui/RadialMenu.test.js.
 
 vi.mock('phaser', () => ({
   default: {
@@ -12,20 +13,12 @@ vi.mock('phaser', () => ({
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import GameScene from './GameScene.js';
 import { TOWER_DEFS } from '../data/towers.js';
-import { LONG_PRESS_MS, PEEK_LINGER_MS, CONFIRM_WINDOW_MS, PANEL_EDGE_MARGIN } from '../data/input.js';
-import { CANVAS_WIDTH, WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH } from '../data/layout.js';
+import { LONG_PRESS_MS, PEEK_LINGER_MS } from '../data/input.js';
 
 const BUTTON_IDS = [
-  'wave-btn', 'speed-btn', 'pause-btn', 'panel-upgrade-btn', 'panel-sell-btn',
-  'panel-reposition-btn', 'msg-btn', 'msg-cancel-btn', 'exit-btn', 'cancel-btn',
+  'wave-btn', 'speed-btn', 'pause-btn', 'msg-btn', 'msg-cancel-btn', 'exit-btn', 'cancel-btn',
 ];
-const PANEL_IDS = [
-  'game', 'panel-name', 'panel-lvl', 'panel-dmg', 'panel-rng', 'panel-spd',
-  'panel-matchups', 'panel-armour',
-];
-const DIV_IDS = [
-  'hud-layer', 'game-msg', 'paused-overlay', 'tower-tooltip', 'tower-panel', 'panel-branch-picker', 'panel-std-stats', 'panel-barracks-stats',
-];
+const DIV_IDS = ['game', 'hud-layer', 'game-msg', 'paused-overlay', 'tower-tooltip'];
 
 function setupDOM() {
   document.body.replaceChildren();
@@ -35,16 +28,11 @@ function setupDOM() {
   for (const id of DIV_IDS) {
     const d = document.createElement('div'); d.id = id; document.body.appendChild(d);
   }
-  for (const id of PANEL_IDS) {
-    const d = document.createElement('div'); d.id = id; document.body.appendChild(d);
-  }
   for (const type of Object.keys(TOWER_DEFS)) {
     const b = document.createElement('button');
     b.className = 'tower-btn'; b.dataset.type = type;
     document.body.appendChild(b);
   }
-  document.getElementById('panel-upgrade-btn').textContent = 'Upgrade 💰120: Longbow';
-  document.getElementById('panel-sell-btn').textContent    = '💰 Sell (72g)';
 }
 
 function makeScene() {
@@ -54,8 +42,6 @@ function makeScene() {
   gs.events = { once() {}, off() {} };
   gs._sentries = [];
   gs._unwireSceneEvents = () => {};
-  gs._upgradeSelectedTower = vi.fn();
-  gs._sellSelectedTower    = vi.fn();
   gs._syncCancelButton     = () => {};
   gs._bindDOMEvents();
   return gs;
@@ -123,148 +109,6 @@ describe('tower button tooltip on touch', () => {
   });
 });
 
-describe('touch two-step confirm', () => {
-  let gs;
-  beforeEach(() => { vi.useFakeTimers(); setupDOM(); gs = makeScene(); });
-  afterEach(() => vi.useRealTimers());
-  const up = () => $('panel-upgrade-btn');
-  const sell = () => $('panel-sell-btn');
-
-  it('touch: first press arms with the cost kept in the label, second executes', () => {
-    press(up(), 'touch');
-    expect(gs._upgradeSelectedTower).not.toHaveBeenCalled();
-    expect(up().classList.contains('confirming')).toBe(true);
-    expect(up().textContent).toBe('Tap again: Upgrade 💰120: Longbow');
-    press(up(), 'touch');
-    expect(gs._upgradeSelectedTower).toHaveBeenCalledTimes(1);
-    expect(up().classList.contains('confirming')).toBe(false);
-    expect(up().textContent).toBe('Upgrade 💰120: Longbow');
-  });
-
-  it('pen behaves like touch', () => {
-    press(sell(), 'pen');
-    expect(gs._sellSelectedTower).not.toHaveBeenCalled();
-    expect(sell().textContent).toBe('Tap again: 💰 Sell (72g)');
-  });
-
-  it('mouse executes on the first click and never arms', () => {
-    press(up(), 'mouse');
-    expect(gs._upgradeSelectedTower).toHaveBeenCalledTimes(1);
-    expect(up().classList.contains('confirming')).toBe(false);
-  });
-
-  it('a keyboard activation (click with detail 0) executes at once', () => {
-    up().dispatchEvent(ptr('pointerdown', 'touch'));   // stale touch pointerType
-    up().dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 }));
-    expect(gs._upgradeSelectedTower).toHaveBeenCalledTimes(1);
-  });
-
-  it('reverts label and class after CONFIRM_WINDOW_MS, and a later press re-arms', () => {
-    press(up(), 'touch');
-    vi.advanceTimersByTime(CONFIRM_WINDOW_MS);
-    expect(up().classList.contains('confirming')).toBe(false);
-    expect(up().textContent).toBe('Upgrade 💰120: Longbow');
-    press(up(), 'touch');
-    expect(gs._upgradeSelectedTower).not.toHaveBeenCalled();
-    expect(up().classList.contains('confirming')).toBe(true);
-  });
-
-  it('pressing the other button disarms the first and arms the second', () => {
-    press(up(), 'touch');
-    press(sell(), 'touch');
-    expect(up().classList.contains('confirming')).toBe(false);
-    expect(up().textContent).toBe('Upgrade 💰120: Longbow');
-    expect(sell().classList.contains('confirming')).toBe(true);
-    press(up(), 'touch');                       // up must re-arm, not confirm
-    expect(gs._upgradeSelectedTower).not.toHaveBeenCalled();
-    expect(gs._sellSelectedTower).not.toHaveBeenCalled();
-  });
-
-  it('closing the panel disarms: the next press arms again instead of executing', () => {
-    press(up(), 'touch');
-    gs._closeTowerPanel();
-    expect(up().classList.contains('confirming')).toBe(false);
-    expect(up().textContent).toBe('Upgrade 💰120: Longbow');
-    press(up(), 'touch');
-    expect(gs._upgradeSelectedTower).not.toHaveBeenCalled();
-  });
-
-  it('opening another tower disarms: tower B does not upgrade on one tap with A\'s armed gate', () => {
-    gs.mapId = 0;
-    gs.placementManager = {};
-    const towerB = { id: 2, type: 'archer', level: 1, branch: null, damage: 10, range: 100,
-                     fireRate: 1, totalCost: 60 };
-    press(up(), 'touch');                        // armed on tower A
-    expect(up().classList.contains('confirming')).toBe(true);
-    GameScene.prototype._openTowerPanel.call(gs, towerB, 10, 10);   // REAL panel open
-    expect(up().classList.contains('confirming')).toBe(false);
-    expect(up().textContent).toMatch(/^Upgrade/);
-    press(up(), 'touch');                        // first press on B must arm, not execute
-    expect(gs._upgradeSelectedTower).not.toHaveBeenCalled();
-    expect(up().classList.contains('confirming')).toBe(true);
-  });
-
-  it('a re-render of the label (post-upgrade cost change) is not clobbered by a stale revert', () => {
-    press(up(), 'touch');
-    // _openTowerPanel starts with _resetConfirm, then writes the new label.
-    gs._resetConfirm();
-    up().textContent = 'Upgrade 💰300: Sniper';
-    vi.advanceTimersByTime(CONFIRM_WINDOW_MS);
-    expect(up().textContent).toBe('Upgrade 💰300: Sniper');
-  });
-
-  it('branch Choose buttons use the same gate, keyed per branch', () => {
-    const picker = $('panel-branch-picker');
-    gs.selectedTower = { _damageMult: 1 };
-    GameScene.prototype._renderBranchPicker.call(gs, picker, TOWER_DEFS.ice, { maxTierAllowed: 4 });
-    const [a, b] = picker.querySelectorAll('.branch-choose-btn');
-    press(a, 'touch');
-    expect(gs._upgradeSelectedTower).not.toHaveBeenCalled();
-    expect(a.textContent).toBe('Tap again: Choose');
-    press(b, 'touch');                          // other branch: re-arm, not confirm
-    expect(gs._upgradeSelectedTower).not.toHaveBeenCalled();
-    expect(a.textContent).toBe('Choose');
-    press(b, 'touch');
-    expect(gs._upgradeSelectedTower).toHaveBeenCalledWith('B');
-  });
-
-  it('shutdown clears an armed button before the clone and cancels the timer', () => {
-    press(up(), 'touch');
-    gs.shutdown();
-    expect(up().classList.contains('confirming')).toBe(false);
-    expect(up().textContent).toBe('Upgrade 💰120: Longbow');
-    expect(vi.getTimerCount()).toBe(0);
-  });
-});
-
-// The panel opens over the MAP: clamped off the rails and the letterbox, not
-// just to #game (phone844: canvas 844x372 at y 8, rails 91 CSS px each).
-describe('tower panel clamp to the map', () => {
-  beforeEach(() => { setupDOM(); });
-
-  it('keeps the panel inside the map rect next to a right-edge tower', () => {
-    const gs = Object.create(GameScene.prototype);
-    gs.mapId = 0;
-    gs._syncCancelButton = () => {};
-    const tower = { id: 1, type: 'archer', level: 1, branch: null, damage: 10, range: 100, fireRate: 1, totalCost: 60 };
-    const canvas = document.createElement('canvas');
-    $('game').appendChild(canvas);
-    $('game').getBoundingClientRect = () => ({ left: 0, top: 0, width: 844, height: 390 });
-    canvas.getBoundingClientRect = () => ({ left: 0, top: 8, width: 844, height: 372 });
-    const panel = $('tower-panel');
-    Object.defineProperty(panel, 'offsetWidth', { configurable: true, get: () => 170 });
-    Object.defineProperty(panel, 'offsetHeight', { configurable: true, get: () => 200 });
-    const scale = 844 / CANVAS_WIDTH;
-    const map = { left: RAIL_WIDTH * scale, top: 8, width: WORLD_WIDTH * scale, height: WORLD_HEIGHT * scale };
-    GameScene.prototype._openTowerPanel.call(gs, tower, 740, 370);
-    expect(parseFloat(panel.style.left)).toBeCloseTo(map.left + map.width - 170 - PANEL_EDGE_MARGIN, 6);
-    expect(parseFloat(panel.style.top)).toBeCloseTo(map.top + map.height - 200 - PANEL_EDGE_MARGIN, 6);
-    GameScene.prototype._openTowerPanel.call(gs, tower, 0, 0);
-    expect(parseFloat(panel.style.left)).toBeCloseTo(map.left + PANEL_EDGE_MARGIN, 6);
-    expect(parseFloat(panel.style.top)).toBeCloseTo(map.top + PANEL_EDGE_MARGIN, 6);
-  });
-});
-
 describe('toast', () => {
   beforeEach(() => { setupDOM(); vi.useFakeTimers(); });
   afterEach(() => vi.useRealTimers());
@@ -275,35 +119,5 @@ describe('toast', () => {
     expect(el?.textContent).toBe('No build slot there');
     vi.advanceTimersByTime(1500);
     expect($('game').querySelector('.game-toast')).toBeNull();
-  });
-});
-
-describe('tower panel position across upgrades', () => {
-  beforeEach(() => { setupDOM(); });
-
-  it('two consecutive upgrades reopen the panel at the same left/top', () => {
-    const gs = Object.create(GameScene.prototype);
-    gs.mapId = 0;
-    gs.selectedType = null;
-    gs._toast = vi.fn();
-    gs._playTowerPop = vi.fn();
-    gs._syncCancelButton = () => {};
-    const tower = { id: 1, type: 'archer', level: 1, branch: null, damage: 10, range: 100,
-                    fireRate: 1, totalCost: 60 };
-    gs.placementManager = { upgradeTower: vi.fn((t, lvl) => { t.level = lvl; return true; }) };
-    // Real layout is absent in jsdom, so give the clamp a roomy game area.
-    $('game').getBoundingClientRect = () => ({ left: 0, top: 0, width: 1000, height: 800 });
-    GameScene.prototype._openTowerPanel.call(gs, tower, 200, 300);
-    const panel = $('tower-panel');
-    const opened = { left: panel.style.left, top: panel.style.top };
-    expect(opened).toEqual({ left: '210px', top: '290px' });
-    gs.selectedTower = tower;
-    // maxTierAllowed on map 0 is 2, so keep the tower below it for both calls.
-    gs._upgradeSelectedTower();
-    expect({ left: panel.style.left, top: panel.style.top }).toEqual(opened);
-    tower.level = 1;
-    gs._upgradeSelectedTower();
-    expect({ left: panel.style.left, top: panel.style.top }).toEqual(opened);
-    expect(gs.placementManager.upgradeTower).toHaveBeenCalledTimes(2);
   });
 });

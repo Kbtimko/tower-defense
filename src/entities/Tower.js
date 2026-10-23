@@ -4,6 +4,7 @@ import { EntitySprite } from '../systems/EntitySprite.js';
 import { unitDepth } from '../systems/grounding.js';
 import { setBaseFireRate } from '../systems/fireRateMods.js';
 import { popScale } from '../systems/juiceMath.js';
+import { sellRefund } from '../systems/TowerPlacementManager.js';
 import { FONTS } from '../data/theme.js';
 
 export class Tower extends Phaser.GameObjects.Container {
@@ -100,7 +101,7 @@ export class Tower extends Phaser.GameObjects.Container {
   }
 
   sell() {
-    const refund = Math.floor(this.totalCost * 0.6);
+    const refund = sellRefund(this.totalCost);
     this.destroy();
     return refund;
   }

@@ -19,8 +19,7 @@ import UIScene from './UIScene.js';
 function setupMinimalDOM() {
   document.body.textContent = '';
   const ids = [
-    'wave-btn','speed-btn','panel-upgrade-btn','panel-sell-btn','msg-btn',
-    'panel-reposition-btn','ability-q','ability-w','ability-e',
+    'wave-btn','speed-btn','msg-btn','ability-q','ability-w','ability-e',
   ];
   for (const id of ids) {
     const b = document.createElement('button');
