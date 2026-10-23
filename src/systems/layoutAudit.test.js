@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { layoutProblems, railProblems, minTouchFor, targetSizeProblems, overlayProblems, railGeometryProblems } from './layoutAudit.js';
+import { layoutProblems, railProblems, minTouchFor, targetSizeProblems, overlayProblems, railGeometryProblems, radialProblems } from './layoutAudit.js';
 
 const rect = (left, top, right, bottom) => ({ left, top, right, bottom, width: right - left, height: bottom - top });
 
@@ -200,5 +200,93 @@ describe('railGeometryProblems', () => {
     const out = railGeometryProblems({ device: desktop, pointerFine: true, canvasRect, rails: fineRails(104 * 1440 / 1488) });
     expect(out).toHaveLength(1);
     expect(out[0]).toContain('aspect');
+  });
+});
+
+describe('radialProblems', () => {
+  // A 1000x400 page: 100-px rails either side of an 800x400 map.
+  const rails = { left: rect(0, 0, 100, 400), right: rect(900, 0, 1000, 400) };
+  const mapRect = rect(100, 0, 900, 400);
+  const face = (name, cx, cy, d) => ({ name, rect: rect(cx - d / 2, cy - d / 2, cx + d / 2, cy + d / 2), visible: true });
+  // Hub 60 at (500,200), items 50 on a radius-70 ring: round faces clear by 15 px,
+  // though the hub's bounding square overlaps the diagonal items' squares.
+  const ring = () => [-90, -30, 30, 90, 150, 210].map((a, i) => {
+    const t = (a * Math.PI) / 180;
+    return face(`item[${i}]`, 500 + 70 * Math.cos(t), 200 + 70 * Math.sin(t), 50);
+  });
+  const healthyRadial = (o = {}) => ({ items: ring(), hub: face('#radial-hub', 500, 200, 60), mapRect, rails, minTouchPx: 44, ...o });
+
+  it('is empty for a ring centred on the map', () => {
+    expect(radialProblems(healthyRadial())).toEqual([]);
+  });
+
+  it('reports an item outside the map rect', () => {
+    const items = ring();
+    items[0] = face('item[0]', 500, 10, 50);
+    expect(radialProblems(healthyRadial({ items }))).toEqual(['item[0] outside map [475,-15,525,35]']);
+  });
+
+  it('reports the hub outside the map rect', () => {
+    const out = radialProblems(healthyRadial({ hub: face('#radial-hub', 500, 390, 60) }));
+    expect(out).toContain('#radial-hub outside map [470,360,530,420]');
+  });
+
+  it('reports an item intersecting a rail', () => {
+    const items = ring();
+    items[4] = face('item[4]', 110, 200, 50);
+    expect(radialProblems(healthyRadial({ items }))).toEqual(expect.arrayContaining(['item[4] intersects rail-left']));
+  });
+
+  it('reports an item intersecting the right rail', () => {
+    const items = ring();
+    items[1] = face('item[1]', 890, 200, 50);
+    expect(radialProblems(healthyRadial({ items }))).toEqual(expect.arrayContaining(['item[1] intersects rail-right']));
+  });
+
+  it('allows an item that only touches a rail edge', () => {
+    const items = ring();
+    items[4] = face('item[4]', 125, 200, 50);
+    expect(radialProblems(healthyRadial({ items }))).toEqual([]);
+  });
+
+  it('reports an item below the touch floor', () => {
+    const items = ring();
+    items[2] = face('item[2]', 560, 235, 40);
+    expect(radialProblems(healthyRadial({ items }))).toEqual(['item[2] too small 40x40']);
+  });
+
+  it('holds the hub to the touch floor too', () => {
+    expect(radialProblems(healthyRadial({ hub: face('#radial-hub', 500, 200, 30) }))).toEqual(['#radial-hub too small 30x30']);
+  });
+
+  it('skips the size rule when minTouchPx is 0 (fine pointer)', () => {
+    const items = ring().map((f) => face(f.name, (f.rect.left + f.rect.right) / 2, (f.rect.top + f.rect.bottom) / 2, 30));
+    expect(radialProblems(healthyRadial({ items, minTouchPx: 0 }))).toEqual([]);
+  });
+
+  it('reports two overlapping faces', () => {
+    const items = ring();
+    items[1] = face('item[1]', 520, 140, 50);
+    expect(radialProblems(healthyRadial({ items }))).toEqual(['item[0] overlaps item[1]']);
+  });
+
+  it('reports an item overlapping the hub', () => {
+    const items = ring();
+    items[3] = face('item[3]', 500, 245, 50);
+    expect(radialProblems(healthyRadial({ items }))).toEqual(['item[3] overlaps #radial-hub']);
+  });
+
+  it('ignores hidden items (unused ring slots)', () => {
+    const items = ring();
+    items[5] = { ...face('item[5]', 0, 0, 50), visible: false };
+    expect(radialProblems(healthyRadial({ items }))).toEqual([]);
+  });
+
+  it('reports a missing or hidden hub', () => {
+    expect(radialProblems(healthyRadial({ hub: { name: '#radial-hub', rect: null, visible: false } }))).toEqual(['#radial-hub hidden']);
+  });
+
+  it('reports a radial with no visible items', () => {
+    expect(radialProblems(healthyRadial({ items: [] }))).toEqual(['radial has no visible items']);
   });
 });
