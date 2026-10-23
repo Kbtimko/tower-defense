@@ -296,6 +296,23 @@
     .branch-card .branch-armour .ar-heavy { color: #fc6; }
     .branch-card .branch-armour .ar-floor { color: #f66; font-weight: bold; }
     #wave-btn { font-size: calc(26px * var(--hud-k)); font-weight: bold; }
+    /* Radial menu (roadmap 3.3): geometry only, the kit paints. It covers the
+       whole layer in game px; RadialMenu.js sets each button's centre as left/top,
+       so the translate puts the circle on that point. Sizes are published by
+       src/ui/hudLayer.js from radialMetrics(HUD_CELL), so they track the rails. */
+    #radial { position: absolute; inset: 0; pointer-events: none; z-index: 1;
+              --ui-u: calc(2px * var(--hud-k)); }
+    #radial-hub, .radial-item { position: absolute; pointer-events: auto; margin: 0;
+      transform: translate(-50%, -50%); border-radius: 50%;
+      padding: 0 calc(10px * var(--hud-k));
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: calc(2px * var(--hud-k)); line-height: 1.05; text-align: center; white-space: nowrap;
+      font-family: var(--hud-label-font); font-stretch: condensed; font-size: calc(22px * var(--hud-k)); }
+    .radial-item { width: var(--radial-item); height: var(--radial-item); }
+    .radial-item[hidden] { display: none; }
+    .radial-item .radial-icon { font-size: calc(28px * var(--hud-k)); line-height: 0.9; }
+    #radial-hub { width: var(--radial-hub); height: var(--radial-hub); }
+    #radial-hub .radial-hub-line:first-child { font-weight: bold; }
     /* GameScene clamps the panel to the map with PANEL_EDGE_MARGIN (6) each
        side; a panel (with branch picker) taller than a phone's map scrolls
        instead of hiding Sell. */
@@ -313,7 +330,7 @@
     #tower-panel button.confirming { font-weight: bold; }
     /* Long-press targets: stop the iOS callout and text selection that would
        otherwise open over the peek card. */
-    .tower-btn, .ability-btn-wrap, #wave-btn, #tower-panel button {
+    .tower-btn, .ability-btn-wrap, #wave-btn, #tower-panel button, #radial-hub, .radial-item {
       -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
     /* Chrome/Safari fire no pointer events on a disabled control, so a press on
        one never reaches its hover/long-press wrapper. pointer-events:none lets
@@ -809,6 +826,17 @@
           <button id="wave-btn" class="ui-btn ui-btn--danger">▶ Send Wave 1</button>
           <div id="wave-preview" class="wave-preview ui-panel ui-panel--primary" role="tooltip" aria-hidden="true"></div>
         </span>
+      </div>
+      <!-- Radial build/upgrade menu (roadmap 3.3), driven by src/ui/RadialMenu.js.
+           Items come before the hub: DOM order is slot order, so Tab matches the arrows. -->
+      <div id="radial" hidden>
+        <button class="ui-btn radial-item" type="button"></button>
+        <button class="ui-btn radial-item" type="button"></button>
+        <button class="ui-btn radial-item" type="button"></button>
+        <button class="ui-btn radial-item" type="button"></button>
+        <button class="ui-btn radial-item" type="button"></button>
+        <button class="ui-btn radial-item" type="button"></button>
+        <button id="radial-hub" class="ui-btn" type="button"></button>
       </div>
     </div>
     <div id="paused-overlay">PAUSED</div>

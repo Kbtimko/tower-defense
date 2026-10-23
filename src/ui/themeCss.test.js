@@ -191,6 +191,15 @@ describe('--ui-u scoping', () => {
     expect(Object.entries(vars).filter(([, v]) => v.includes('var(--ui-u'))).toEqual([]);
   });
 
+  // The radial is kit buttons over the map: geometry only, tokens for any colour.
+  it('radial rules exist and hold no hex or colour-function literal', () => {
+    const radial = rules.filter((r) => /#radial|\.radial-/.test(r.selector));
+    expect(radial.length).toBeGreaterThanOrEqual(3);
+    const bad = radial.filter(({ body }) => /#[0-9a-f]{3,8}\b/i.test(body) || /\b(rgba?|hsla?)\(/i.test(body))
+      .map((r) => r.selector);
+    expect(bad).toEqual([]);
+  });
+
   it('.wave-preview runs the kit in unscaled game px', () => {
     const rule = rules.find((r) => r.selector === '.wave-preview');
     expect(decls(rule.body)).toContainEqual(['--ui-u', '2px']);

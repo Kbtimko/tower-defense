@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { hudLayerTransform, fitHudLayer, applyHudLayerSize, railAnchorRect, mapRectIn } from './hudLayer.js';
 import { CANVAS_WIDTH, WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH, HUD_CELL } from '../data/layout.js';
 import { PEEK_GAP_PX } from '../data/input.js';
+import { radialMetrics } from '../systems/radialLayout.js';
 
 // FIT keeps the canvas aspect; these build the canvas rect Phaser would produce.
 const fitCanvas = (game) => {
@@ -95,6 +96,14 @@ describe('applyHudLayerSize', () => {
     expect(s.getPropertyValue('--rail-w')).toBe(`${RAIL_WIDTH}px`);
     expect(s.getPropertyValue('--hud-cell')).toBe(`${HUD_CELL}px`);
     expect(s.getPropertyValue('--peek-gap')).toBe(`${PEEK_GAP_PX}px`);
+  });
+
+  it('publishes the radial sizes from radialMetrics(HUD_CELL)', () => {
+    applyHudLayerSize(document);
+    const s = document.documentElement.style;
+    const m = radialMetrics(HUD_CELL);
+    expect(s.getPropertyValue('--radial-item')).toBe(`${m.item}px`);
+    expect(s.getPropertyValue('--radial-hub')).toBe(`${m.hub}px`);
   });
 
   it('publishes the unitless rail scale --hud-k (1 on touch)', () => {

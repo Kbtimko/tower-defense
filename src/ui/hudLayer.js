@@ -1,5 +1,6 @@
 import { CANVAS_WIDTH, WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH, HUD_CELL, HUD_K } from '../data/layout.js';
 import { PEEK_GAP_PX } from '../data/input.js';
+import { radialMetrics } from '../systems/radialLayout.js';
 
 // The HUD is DOM laid out in game px (CANVAS_WIDTH x WORLD_HEIGHT) and pinned
 // over the canvas with the same FIT factor, so one transform keeps every rail
@@ -51,6 +52,9 @@ export function applyHudLayerSize(doc) {
   s.setProperty('--hud-cell', `${HUD_CELL}px`);
   s.setProperty('--hud-k', String(HUD_K));
   s.setProperty('--peek-gap', `${PEEK_GAP_PX}px`);
+  const radial = radialMetrics(HUD_CELL);
+  s.setProperty('--radial-item', `${radial.item}px`);
+  s.setProperty('--radial-hub', `${radial.hub}px`);
 }
 
 // Where a peek card should anchor for a rail control: the control's rows, the

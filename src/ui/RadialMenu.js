@@ -1,0 +1,352 @@
+import { radialMetrics, layoutRadial } from '../systems/radialLayout.js';
+import { createConfirmGate } from '../systems/confirmGate.js';
+import { attachLongPress } from './longPress.js';
+import { isKeyboardFocus } from './keyboardFocus.js';
+import { fitLabels } from './fitLabels.js';
+import { RAIL_WIDTH, HUD_CELL, WORLD_WIDTH, WORLD_HEIGHT } from '../data/layout.js';
+import { RADIAL_MARGIN } from '../data/radial.js';
+import { CONFIRM_WINDOW_MS } from '../data/input.js';
+
+// The hub is reported to the callbacks as this pseudo-item, so the owner
+// decides what a hub tap or hub peek means (close / tower inspector).
+export const RADIAL_HUB = 'hub';
+const HUB_ITEM = Object.freeze({ id: RADIAL_HUB });
+
+// A fat-fingered tap on these costs gold or a tower, so touch/pen needs two.
+const CONFIRMABLE = new Set(['upgrade', 'branchA', 'branchB', 'sell']);
+const VARIANT_CLASS = { currency: 'ui-btn--currency', danger: 'ui-btn--danger', primary: 'ui-btn--primary', neutral: null };
+const STATE_CLASS = { ready: null, disabled: 'is-disabled', locked: 'is-disabled', maxed: 'maxed' };
+const ITEM_CLASS = 'ui-btn radial-item';
+const HUB_CLASS = 'ui-btn';
+const ARMED_CAPTION = 'Tap again';
+// The map in world px: the radial is clamped to it, then shifted by the left
+// rail because #hud-layer is laid out over the whole canvas in game px.
+const MAP_BOUNDS = { left: 0, top: 0, width: WORLD_WIDTH, height: WORLD_HEIGHT };
+
+const isTouchLike = (t) => t === 'touch' || t === 'pen';
+
+/**
+ * Presenter over the static #radial markup (6 .radial-item buttons + #radial-hub).
+ *
+ * Callbacks:
+ * - onActivate(item): a ready item (after the touch confirm where it applies),
+ *   a not-ready item (so the owner can toast "Not enough gold!" or the lock text;
+ *   it never arms), or `{ id: RADIAL_HUB }` for a hub tap.
+ * - onPreview(item | null): draw / clear the range preview (hover, focus, press).
+ * - onPeek(item | null, anchorRect): show the item peek (or, for the hub item,
+ *   the tower inspector) beside `anchorRect`, the radial footprint in page px.
+ *   null means the peek gesture ended; the owner applies its own linger.
+ *
+ * Escape is deliberately not handled here: GameScene's global Escape already
+ * closes any mode, and handling it twice would double-close.
+ */
+export class RadialMenu {
+  constructor(doc, { onActivate, onPreview, onPeek }) {
+    this._doc = doc;
+    this._root = doc.getElementById('radial');
+    this._buttons = [...this._root.querySelectorAll('.radial-item')];
+    this._hub = doc.getElementById('radial-hub');
+    this._cb = { onActivate, onPreview, onPeek };
+    this._metrics = radialMetrics(HUD_CELL);
+    this._gate = createConfirmGate();
+    this._items = [];
+    this._hubLines = [];
+    this._kind = null;
+    this._target = null;
+    this._anchor = null;
+    this._pointerType = 'mouse';
+    this._pressedInside = false;
+    this._armed = null;
+    this._confirmTimer = null;
+    this._previewing = false;
+    this._peeking = false;
+    this._wire();
+  }
+
+  get isOpen() { return this._kind !== null; }
+  get kind() { return this._kind; }
+  get target() { return this._target; }
+
+  open({ kind, anchor, items, hub, target = null }) {
+    this._disarm();
+    this._hidePeek();
+    this._clearPreview();
+    this._kind = kind;
+    this._target = target;
+    this._anchor = anchor;
+    // A retarget is a fresh radial: the press that caused it must not count.
+    this._pressedInside = false;
+    this._root.dataset.kind = kind;
+    this._render(items, hub);
+    this._root.hidden = false;
+  }
+
+  // Gold changed or the tower was upgraded. A confirm survives only when the
+  // armed item is unchanged and still ready: a new label or cost is a different
+  // purchase, and an unaffordable one must not run on the next tap.
+  refresh(items, hub) {
+    if (!this.isOpen) return;
+    const active = this._doc.activeElement;
+    const focusedId = this._root.contains(active) ? this._idOf(active) : null;
+    if (this._armed) {
+      const before = this._items.find((i) => i?.id === this._armed);
+      const after = items.find((i) => i.id === this._armed);
+      const same = after && after.state === 'ready' && after.label === before?.label && after.cost === before?.cost;
+      if (!same) this._disarm();
+    }
+    this._render(items, hub);
+    if (focusedId) this._restoreFocus(focusedId);
+  }
+
+  close() {
+    if (!this.isOpen) return;
+    this._disarm();
+    this._hidePeek();
+    const active = this._doc.activeElement;
+    if (this._root.contains(active)) active.blur();
+    this._clearPreview();
+    this._root.hidden = true;
+    this._root.removeAttribute('data-kind');
+    this._kind = null;
+    this._target = null;
+    this._anchor = null;
+  }
+
+  // Shutdown: every listener off as a pair, timers cleared, markup back to
+  // exactly what index.html ships, so the next scene's menu starts clean.
+  destroy() {
+    this.close();
+    for (const [el, evt, fn] of this._listeners) el.removeEventListener(evt, fn);
+    for (const detach of this._detachers) detach();
+    this._listeners = [];
+    this._detachers = [];
+    clearTimeout(this._confirmTimer);
+    this._confirmTimer = null;
+    for (const btn of this._buttons) this._resetItem(btn);
+    this._resetHub();
+  }
+
+  _wire() {
+    this._listeners = [
+      [this._root, 'pointerdown', (e) => { this._pointerType = e.pointerType; this._pressedInside = true; }],
+      [this._root, 'click', (e) => this._onClick(e)],
+      [this._root, 'keydown', (e) => this._onKeyDown(e)],
+    ];
+    this._detachers = [];
+    for (const btn of [...this._buttons, this._hub]) {
+      this._listeners.push(
+        [btn, 'pointerenter', (e) => this._onEnter(btn, e)],
+        [btn, 'pointerleave', (e) => this._onLeave(e)],
+        [btn, 'pointerdown', () => this._preview(btn)],
+        [btn, 'pointerup', () => this._clearPreview()],
+        [btn, 'pointercancel', () => this._clearPreview()],
+        [btn, 'focus', (e) => this._onFocus(btn, e)],
+        [btn, 'blur', () => { this._clearPreview(); this._hidePeek(); }],
+      );
+      // The swallowed click means a long-press never builds, arms or closes.
+      this._detachers.push(attachLongPress(btn, {
+        onLongPress: () => this._showPeek(btn),
+        onEnd: () => this._hidePeek(),
+      }));
+    }
+    for (const [el, evt, fn] of this._listeners) el.addEventListener(evt, fn);
+  }
+
+  _itemFor(btn) {
+    if (btn === this._hub) return HUB_ITEM;
+    return this._items[this._buttons.indexOf(btn)] ?? null;
+  }
+
+  _idOf(el) { return el === this._hub ? RADIAL_HUB : el.dataset?.id ?? null; }
+
+  _onClick(e) {
+    const btn = e.target.closest?.('button');
+    if (!btn || !this._root.contains(btn)) return;
+    const keyboard = e.detail === 0;
+    // The release (or compat click) of the tap that OPENED the radial lands on
+    // whatever item now sits under the finger; only a press that began on the
+    // radial after it appeared may activate.
+    if (!keyboard && !this._pressedInside) return;
+    const item = this._itemFor(btn);
+    if (!item) return;
+    const touchLike = !keyboard && isTouchLike(this._pointerType);
+    if (item === HUB_ITEM || item.state !== 'ready' || !CONFIRMABLE.has(item.id) || !touchLike) {
+      this._disarm();
+      this._cb.onActivate(item);
+      return;
+    }
+    if (this._armed && this._armed !== item.id) this._disarm();
+    if (this._gate.press(item.id, Date.now()) === 'confirmed') {
+      this._disarm();
+      this._cb.onActivate(item);
+      return;
+    }
+    this._arm(item, btn);
+  }
+
+  _arm(item, btn) {
+    this._armed = item.id;
+    this._paintItem(btn, item);
+    this._paintHub();
+    this._confirmTimer = setTimeout(() => this._disarm(), CONFIRM_WINDOW_MS);
+    this._showPeek(btn);
+  }
+
+  _disarm() {
+    clearTimeout(this._confirmTimer);
+    this._confirmTimer = null;
+    this._gate.reset();
+    if (!this._armed) return;
+    const id = this._armed;
+    this._armed = null;
+    const i = this._items.findIndex((it) => it?.id === id);
+    if (i !== -1) this._paintItem(this._buttons[i], this._items[i]);
+    this._paintHub();
+    this._hidePeek();
+  }
+
+  // Items then the hub, in DOM order (= slot order), skipping unused slots.
+  // Not-ready items stay in the cycle: they are aria-disabled, not disabled.
+  _onKeyDown(e) {
+    const step = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    const order = [...this._buttons.filter((b) => !b.hidden), this._hub];
+    const at = order.indexOf(this._doc.activeElement);
+    const next = at === -1 ? 0 : (at + step + order.length) % order.length;
+    order[next].focus();
+  }
+
+  // A touch pointerenter fires on every tap; only a mouse hovers.
+  _onEnter(btn, e) {
+    if (e.pointerType !== 'mouse') return;
+    this._preview(btn);
+    this._showPeek(btn);
+  }
+
+  // Touch fires pointerleave after release and before click, which would hide
+  // the peek a confirm arm is about to open.
+  _onLeave(e) {
+    if (e.pointerType !== 'mouse') return;
+    this._clearPreview();
+    this._hidePeek();
+  }
+
+  _onFocus(btn, e) {
+    this._preview(btn);
+    if (isKeyboardFocus(e)) this._showPeek(btn);
+  }
+
+  _preview(btn) {
+    const item = this._itemFor(btn);
+    if (!item || item === HUB_ITEM) return;
+    this._previewing = true;
+    this._cb.onPreview(item);
+  }
+
+  _clearPreview() {
+    if (!this._previewing) return;
+    this._previewing = false;
+    this._cb.onPreview(null);
+  }
+
+  _showPeek(btn) {
+    const item = this._itemFor(btn);
+    if (!item) return;
+    this._peeking = true;
+    this._cb.onPeek(item, this._footprintRect());
+  }
+
+  _hidePeek() {
+    if (!this._peeking) return;
+    this._peeking = false;
+    this._cb.onPeek(null);
+  }
+
+  // Peeks sit beside the whole radial so they never cover another item.
+  _footprintRect() {
+    const rects = [...this._buttons.filter((b) => !b.hidden), this._hub].map((b) => b.getBoundingClientRect());
+    const left = Math.min(...rects.map((r) => r.left));
+    const top = Math.min(...rects.map((r) => r.top));
+    const right = Math.max(...rects.map((r) => r.right));
+    const bottom = Math.max(...rects.map((r) => r.bottom));
+    return { left, top, width: right - left, height: bottom - top };
+  }
+
+  _restoreFocus(id) {
+    if (id === RADIAL_HUB) return;
+    const find = (want) => this._buttons.find((b) => !b.hidden && b.dataset.id === want);
+    // Buying T3 turns the upgrade slot into the two branches: land on the first.
+    const el = find(id) ?? (id === 'upgrade' ? find('branchA') : null) ?? this._hub;
+    if (this._doc.activeElement !== el) el.focus();
+  }
+
+  _render(items, hubLines) {
+    this._items = items;
+    this._hubLines = hubLines;
+    const { centre, items: points } = layoutRadial({
+      anchor: this._anchor, angles: items.map((i) => i.slot), metrics: this._metrics,
+      bounds: MAP_BOUNDS, margin: RADIAL_MARGIN,
+    });
+    this._buttons.forEach((btn, i) => {
+      if (i >= items.length) { this._resetItem(btn); btn.hidden = true; return; }
+      btn.hidden = false;
+      this._place(btn, points[i]);
+      this._paintItem(btn, items[i]);
+    });
+    this._place(this._hub, centre);
+    this._paintHub();
+  }
+
+  _place(el, { x, y }) {
+    el.style.left = `${RAIL_WIDTH + x}px`;
+    el.style.top = `${y}px`;
+  }
+
+  _paintItem(btn, item) {
+    const armed = this._armed === item.id;
+    btn.className = [ITEM_CLASS, VARIANT_CLASS[item.variant], STATE_CLASS[item.state], armed && 'confirming']
+      .filter(Boolean).join(' ');
+    btn.dataset.id = item.id;
+    btn.dataset.state = item.state;
+    btn.setAttribute('aria-label', item.ariaLabel);
+    if (item.state === 'ready') btn.removeAttribute('aria-disabled');
+    else btn.setAttribute('aria-disabled', 'true');
+    const parts = [];
+    if (item.icon) parts.push(this._span('radial-icon', item.icon));
+    const label = this._span('radial-label', armed ? ARMED_CAPTION : item.label);
+    parts.push(label);
+    btn.replaceChildren(...parts);
+    fitLabels([label]);
+  }
+
+  // While a confirm is armed the hub spells out what the second tap will do.
+  _paintHub() {
+    const armedItem = this._armed && this._items.find((i) => i?.id === this._armed);
+    const lines = armedItem ? [`${ARMED_CAPTION}: ${armedItem.label}`] : this._hubLines;
+    const spans = lines.map((t) => this._span('radial-hub-line', t));
+    this._hub.replaceChildren(...spans);
+    this._hub.setAttribute('aria-label', lines.join(', '));
+    fitLabels(spans);
+  }
+
+  _span(cls, text) {
+    const s = this._doc.createElement('span');
+    s.className = cls;
+    s.textContent = text;
+    return s;
+  }
+
+  _resetItem(btn) {
+    btn.className = ITEM_CLASS;
+    btn.hidden = false;
+    for (const a of ['style', 'data-id', 'data-state', 'aria-label', 'aria-disabled']) btn.removeAttribute(a);
+    btn.replaceChildren();
+  }
+
+  _resetHub() {
+    this._hub.className = HUB_CLASS;
+    for (const a of ['style', 'aria-label']) this._hub.removeAttribute(a);
+    this._hub.replaceChildren();
+  }
+}

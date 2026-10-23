@@ -73,6 +73,8 @@ const SURFACES = {
   '#panel-upgrade-btn': ['ui-btn', 'ui-btn--currency'],
   '#panel-sell-btn': ['ui-btn', 'ui-btn--danger'],
   '#panel-reposition-btn': ['ui-btn', 'ui-btn--primary'],
+  '#radial-hub': ['ui-btn'],
+  '.radial-item': ['ui-btn'],
   '#tower-tooltip': ['ui-panel'],
   '#inspect-peek': ['ui-panel'],
   '.inspector-panel': ['ui-panel'],
