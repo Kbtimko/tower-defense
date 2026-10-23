@@ -625,6 +625,11 @@
       max-width: 280px; border-radius: 6px; padding: 9px 11px; text-align: left;
       pointer-events: none; }
     .ability-card.shown { display: block; }
+    /* One-line hint for rail controls (replaces native title=). */
+    #hint-peek { display: none; position: absolute; z-index: 21; max-width: 260px;
+      border-radius: 6px; padding: 6px 10px; font-size: var(--ui-fs-xs); text-align: left;
+      pointer-events: none; }
+    #hint-peek.shown { display: block; }
     .ac-head { display: flex; gap: 7px; align-items: baseline; margin-bottom: 5px; }
     .ac-icon { font-size: 16px; }
     .ac-label { font-size: 13px; color: #ffd700; font-weight: bold; flex: 1; }
@@ -739,7 +744,7 @@
           <div class="hud-stat"><span class="hud-ico">🌊</span><span class="hud-val" id="stat-wave">0/10</span><span class="hud-lbl">Wave</span></div>
           <div class="hud-stat"><span class="hud-ico">💀</span><span class="hud-val" id="stat-kills">0</span><span class="hud-lbl">Kills</span></div>
         </div>
-        <div id="hero-section">
+        <div id="hero-section" tabindex="0">
           <div id="hero-portrait">R</div>
           <div id="hero-info">
             <div id="hero-level">Rael L1</div>
@@ -749,26 +754,26 @@
         </div>
         <div class="rail-grid">
           <span class="ability-btn-wrap" id="ability-q-wrap" tabindex="0">
-            <button class="ui-btn ui-btn--primary ability-btn" id="ability-q" disabled title="Overcharge — +50% tower fire rate 6s">
+            <button class="ui-btn ui-btn--primary ability-btn" id="ability-q" disabled>
               <span class="ability-key">Q</span><span class="ability-name">⚡</span><span class="ability-cd"></span>
             </button>
           </span>
           <span class="ability-btn-wrap" id="ability-w-wrap" tabindex="0">
-            <button class="ui-btn ui-btn--primary ability-btn locked" id="ability-w" disabled title="Airstrike — AoE damage on target area">
+            <button class="ui-btn ui-btn--primary ability-btn locked" id="ability-w" disabled>
               <span class="ability-key">W</span><span class="ability-name">🎯</span><span class="ability-cd"></span>
             </button>
           </span>
           <span class="ability-btn-wrap" id="ability-e-wrap" tabindex="0">
-            <button class="ui-btn ui-btn--primary ability-btn locked" id="ability-e" disabled title="EMP Pulse — stuns all aliens 3s">
+            <button class="ui-btn ui-btn--primary ability-btn locked" id="ability-e" disabled>
               <span class="ability-key">E</span><span class="ability-name">💥</span><span class="ability-cd"></span>
             </button>
           </span>
           <button id="cancel-btn" class="ui-btn ui-btn--danger" type="button" hidden>✕ Cancel</button>
         </div>
         <div class="rail-grid">
-          <button id="pause-btn" class="ui-btn ui-btn--currency" title="Pause the level (Spacebar)">⏸ Pause</button>
+          <button id="pause-btn" class="ui-btn ui-btn--currency">⏸ Pause</button>
           <button id="speed-btn" class="ui-btn">⏩ 2x</button>
-          <button id="open-codex" class="ui-btn ui-btn--primary" title="Codex (towers, heroes, enemies)">📚 Codex</button>
+          <button id="open-codex" class="ui-btn ui-btn--primary">📚 Codex</button>
           <button id="exit-btn" class="ui-btn ui-btn--danger">⏻ Exit</button>
         </div>
       </div>
@@ -846,11 +851,11 @@
       <div id="map-meta-bar">
         <div id="total-stars">★ 0 / 30</div>
         <button id="open-upgrades">⚙ Upgrades</button>
-        <button id="open-heroes" title="Hero command">🦸 Heroes</button>
-        <button id="open-settings" title="Audio settings">♪ Audio</button>
-        <button id="open-story-log" title="Story log">📖 Story</button>
-        <button id="open-codex-ms" title="Codex">📚 Codex</button>
-        <button id="fullscreen-btn" title="Toggle fullscreen">⛶ Fullscreen</button>
+        <button id="open-heroes">🦸 Heroes</button>
+        <button id="open-settings">♪ Audio</button>
+        <button id="open-story-log">📖 Story</button>
+        <button id="open-codex-ms">📚 Codex</button>
+        <button id="fullscreen-btn">⛶ Fullscreen</button>
       </div>
       <div id="map-select-layout">
         <div id="map-overworld"></div>
@@ -983,6 +988,7 @@
 
   <div id="inspect-peek" class="ui-panel" style="display:none"></div>
   <div id="ability-card" class="ability-card ui-panel ui-panel--primary" role="tooltip" aria-hidden="true"></div>
+  <div id="hint-peek" class="ui-panel" role="tooltip" aria-hidden="true"></div>
   <script type="module" src="/src/main.js"></script>
   <div id="rotate-prompt"><div id="rotate-prompt-glyph">&#10227;</div><div>Rotate your device to landscape</div></div>
 </body>

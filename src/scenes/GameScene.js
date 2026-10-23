@@ -26,6 +26,8 @@ import { BUILD_POP, UPGRADE_POP, SELL_FX, SELECTION_RING, PAD_GLOW, RETICLE } fr
 import { deathClass, isHeavyHit, canHitStop } from '../systems/hitFx.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
 import { placeLeftOf, placeBeside } from '../systems/viewport.js';
+import { attachHint } from '../ui/HintPeek.js';
+import { HINTS } from '../data/hints.js';
 import { WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH } from '../data/layout.js';
 import {
   PANEL_EDGE_MARGIN, TAP_TOWER_RADIUS, TAP_SLOT_RADIUS, TAP_PATH_RADIUS, REPOSITION_SNAP_RADIUS, PEEK_GAP_PX,
@@ -380,6 +382,10 @@ export default class GameScene extends Phaser.Scene {
     });
     document.getElementById('pause-btn').addEventListener('click', () => this._onPauseToggle());
     document.getElementById('open-codex')?.addEventListener('click', () => this._openCodex());
+    this._hintDetachers = [
+      attachHint(document.getElementById('pause-btn'), () => HINTS.pause),
+      attachHint(document.getElementById('open-codex'), () => HINTS.codex),
+    ];
     this._bindCancelButton();
     this._wireShellListeners();
   }
@@ -562,6 +568,9 @@ export default class GameScene extends Phaser.Scene {
     this._hideTowerTooltip();
     this._longPressDetachers?.forEach(detach => detach());
     this._longPressDetachers = [];
+    // Before the clone below replaces the anchors, so detach hides a shown hint.
+    this._hintDetachers?.forEach(detach => detach());
+    this._hintDetachers = [];
     if (import.meta.env.DEV) window.__game = null;
     this.game.events.off('ui:ability', this._onAbility, this);
     this.game.events.off('ui:pause-toggle', this._onPauseToggle, this);
