@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Last Light — title screen options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root { --panel:#0f1424; --edge:#2a3a4a; --accent:#4fc3f7; --gold:#ffd700; --text:#e8e0d0; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#070a14; color:var(--text); font-family:Rajdhani, sans-serif; padding:24px 16px 48px; }
+  h1 { font-family:Orbitron, sans-serif; font-size:20px; letter-spacing:2px; margin:0 0 6px; color:var(--accent); }
+  .sub { color:#a8a294; font-size:17px; margin:0 0 20px; max-width:900px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(380px, 1fr)); gap:20px; }
+  .opt { background:var(--panel); border:2px solid var(--edge); border-radius:10px; padding:10px; cursor:pointer; transition:border-color .2s; }
+  .opt:hover { border-color:#4a6a8a; }
+  .opt.selected { border-color:var(--gold); box-shadow:0 0 0 1px var(--gold); }
+  .stage { position:relative; aspect-ratio:16/9; border-radius:6px; overflow:hidden; background:radial-gradient(ellipse at 50% 60%, #101a33 0%, #05070f 70%); container-type:inline-size; }
+  .stage canvas { position:absolute; inset:0; width:100%; height:100%; }
+  .logo { position:absolute; left:0; right:0; top:38%; text-align:center; font-family:Orbitron, sans-serif; font-weight:700;
+          font-size:7cqw; letter-spacing:.12em; color:var(--gold); white-space:nowrap; }
+  .tap { position:absolute; left:0; right:0; bottom:16%; text-align:center; font-family:Orbitron, sans-serif; font-size:12px;
+         letter-spacing:.35em; color:var(--accent); animation:tap 2.2s ease-in-out infinite; animation-delay:2.4s; opacity:0; }
+  @keyframes tap { 0%,100% { opacity:.25 } 50% { opacity:1 } }
+  .meta { padding:10px 4px 2px; }
+  .meta h3 { font-family:Orbitron, sans-serif; font-size:14px; letter-spacing:1px; margin:0 0 4px; color:var(--text); }
+  .meta h3 b { color:var(--gold); margin-right:6px; }
+  .meta p { margin:0; color:#a8a294; font-size:16px; line-height:1.35; }
+  .replay { margin-top:20px; background:#16324a; border:1px solid #2a5a7a; color:#cfe; font-family:Orbitron, sans-serif;
+            font-size:12px; letter-spacing:1px; padding:10px 16px; border-radius:6px; cursor:pointer; }
+
+  /* A: beam sweep — logo sits dim, a band of light passes across it, then it holds lit */
+  .a .logo { color:#3a3420; background:linear-gradient(100deg, #3a3420 0%, #3a3420 40%, #fff7c2 50%, #3a3420 60%, #3a3420 100%);
+             background-size:300% 100%; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+             animation:sweep 1.6s ease-in-out .3s forwards, lit .6s ease-out 1.8s forwards; }
+  @keyframes sweep { from { background-position:100% 0 } to { background-position:0 0 } }
+  @keyframes lit { to { -webkit-text-fill-color:var(--gold); text-shadow:0 0 18px rgba(255,215,0,.55), 0 0 42px rgba(255,215,0,.25); } }
+
+  /* B: flicker-on — letters stutter on one by one like an emergency lamp, then hold with a slow pulse */
+  .b .logo span { opacity:0; animation:flick .9s steps(1) forwards, glow 3s ease-in-out infinite; }
+  @keyframes flick { 0% {opacity:0} 10% {opacity:1} 20% {opacity:.1} 35% {opacity:1} 45% {opacity:.2} 60%,100% {opacity:1} }
+  @keyframes glow { 0%,100% { text-shadow:0 0 10px rgba(255,215,0,.35) } 50% { text-shadow:0 0 24px rgba(255,215,0,.7), 0 0 50px rgba(255,215,0,.25) } }
+
+  /* C: comet streak — a streak of light crosses the screen and the title is left lit in its wake */
+  .c .streak { position:absolute; top:calc(38% + .55em); height:3px; width:38%; left:-40%; font-size:7cqw;
+               background:linear-gradient(90deg, transparent, rgba(255,247,194,.9) 85%, #fff); border-radius:3px;
+               box-shadow:0 0 14px #fff7c2, 0 0 30px rgba(255,215,0,.6); animation:streak 1.1s cubic-bezier(.5,0,.3,1) .3s forwards; }
+  @keyframes streak { to { left:110% } }
+  .c .logo { clip-path:inset(0 100% 0 0); animation:reveal 1.1s cubic-bezier(.5,0,.3,1) .3s forwards, flash .7s ease-out 1.3s forwards; }
+  @keyframes reveal { to { clip-path:inset(0 0 0 0) } }
+  @keyframes flash { 0% { text-shadow:0 0 40px #fff, 0 0 80px var(--gold); color:#fff7c2 } 100% { text-shadow:0 0 16px rgba(255,215,0,.5); color:var(--gold) } }
+</style>
+</head>
+<body>
+  <h1>THE TITLE SCREEN: HOW SHOULD "LAST LIGHT" FLASH?</h1>
+  <p class="sub">All three sit on a drifting starfield with a "tap to start" prompt. They differ only in how the title arrives. These are rough motion sketches: real fonts and colours, not final polish. Click the one that feels right (or tell me what to mix), and use Replay to watch them again.</p>
+
+  <div class="grid">
+    <div class="opt a" data-choice="a-beam-sweep" onclick="toggleSelect(this)">
+      <div class="stage"><canvas></canvas><div class="logo">LAST LIGHT</div><div class="tap">TAP TO START</div></div>
+      <div class="meta"><h3><b>A</b>Beam sweep</h3><p>The title waits in shadow. A band of light passes across it like a searchlight, then it stays lit. Calm and cinematic.</p></div>
+    </div>
+    <div class="opt b" data-choice="b-flicker-on" onclick="toggleSelect(this)">
+      <div class="stage"><canvas></canvas><div class="logo"></div><div class="tap">TAP TO START</div></div>
+      <div class="meta"><h3><b>B</b>Flicker on</h3><p>Letters stutter on one at a time like an emergency lamp coming back to life, then hold with a slow pulse. Tense, on theme.</p></div>
+    </div>
+    <div class="opt c" data-choice="c-comet-streak" onclick="toggleSelect(this)">
+      <div class="stage"><canvas></canvas><div class="streak"></div><div class="logo">LAST LIGHT</div><div class="tap">TAP TO START</div></div>
+      <div class="meta"><h3><b>C</b>Comet streak</h3><p>A streak of light flies across the screen, revealing the title behind it with a bright flash. The most literal "flashing across".</p></div>
+    </div>
+  </div>
+  <button class="replay" onclick="replay()">↻ REPLAY</button>
+
+<script>
+  // B: one span per letter, staggered.
+  const b = document.querySelector('.b .logo');
+  [...'LAST LIGHT'].forEach((ch, i) => {
+    const s = document.createElement('span');
+    s.textContent = ch === ' ' ? ' ' : ch;
+    s.style.animationDelay = `${0.3 + i * 0.13}s, ${1.8 + i * 0.13}s`;
+    b.appendChild(s);
+  });
+
+  // Three-layer parallax starfield per stage.
+  function starfield(canvas) {
+    const ctx = canvas.getContext('2d');
+    let w, h, stars;
+    const fit = () => {
+      w = canvas.width = canvas.clientWidth * devicePixelRatio;
+      h = canvas.height = canvas.clientHeight * devicePixelRatio;
+      stars = Array.from({ length: 160 }, () => ({ x: Math.random() * w, y: Math.random() * h, z: [0.15, 0.4, 1][Math.floor(Math.random() * 3)], t: Math.random() * 6 }));
+    };
+    fit(); addEventListener('resize', fit);
+    let last = performance.now();
+    const tick = now => {
+      const dt = (now - last) / 1000; last = now;
+      ctx.clearRect(0, 0, w, h);
+      for (const s of stars) {
+        s.x -= s.z * 14 * dt * devicePixelRatio; if (s.x < 0) s.x += w;
+        s.t += dt;
+        const a = (0.35 + 0.65 * s.z) * (0.75 + 0.25 * Math.sin(s.t * 2));
+        ctx.fillStyle = `rgba(232,224,208,${a})`;
+        const r = (0.5 + s.z * 1.1) * devicePixelRatio;
+        ctx.fillRect(s.x, s.y, r, r);
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+  document.querySelectorAll('.stage canvas').forEach(starfield);
+
+  function replay() {
+    document.querySelectorAll('.logo, .logo span, .streak, .tap').forEach(el => {
+      el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '';
+    });
+  }
+</script>
+</body>
+</html>
