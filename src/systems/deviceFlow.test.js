@@ -3,14 +3,16 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('phaser', () => ({ default: {} }));
 
 import {
-  FLOW_STEPS, stepsFor, shotName, pickPad, pickPads, freePad, buildStates, padWorldPoint,
+  FLOW_STEPS, stepsFor, shotName, pickPad, pickPads, padClearOfRing, freePad, buildStates, padWorldPoint,
   worldToPagePoint, flowExpectations, summarizeFlow,
 } from './deviceFlow.js';
 import { PathManager } from './PathManager.js';
 import { MAPS } from '../data/maps.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { STORY_SEQUENCES, briefKey } from '../data/story.js';
-import { WORLD_WIDTH, WORLD_HEIGHT } from '../data/layout.js';
+import { WORLD_WIDTH, WORLD_HEIGHT, TOUCH_HUD_CELL, FINE_HUD_CELL } from '../data/layout.js';
+import { RING_ANGLES, RADIAL_MARGIN } from '../data/radial.js';
+import { radialMetrics, layoutRadial } from './radialLayout.js';
 import { sellRefund } from './TowerPlacementManager.js';
 import { unlockMapNumber } from './radialItems.js';
 import { defaultCaptureBuild } from './debugCapture.js';
@@ -37,7 +39,7 @@ describe('flowExpectations', () => {
     expect(() => flowExpectations({ map: { ...map, maxTierAllowed: 1 }, towerType: 'archer' })).toThrow(/tier/);
   });
   it('derives the radial expectations from the data tables', () => {
-    expect(e.pad2).toEqual(padWorldPoint(map, pickPads(map, 2)[1]));
+    expect(e.pad2).toEqual(padWorldPoint(map, padClearOfRing(map, pickPad(map))));
     expect(e.buildStatesStart).toEqual(buildStates(map.startGold));
     expect(e.allUnaffordableAfterUpgrade).toBe(true);
     expect(e.sellLabelAfterBuild).toBe(`+${sellRefund(TOWER_DEFS.archer.cost)}g`);
@@ -54,8 +56,9 @@ describe('flowExpectations', () => {
   it('throws when something is still affordable after the upgrade', () => {
     expect(() => flowExpectations({ map: { ...map, startGold: 200 }, towerType: 'archer' })).toThrow(/unaffordable/);
   });
-  it('throws when the map has fewer than two pads', () => {
-    expect(() => flowExpectations({ map: { ...map, towerSlots: [[0.5, 0.5]] }, towerType: 'archer' })).toThrow(/pads/);
+  it('throws when no pad clears the open ring', () => {
+    expect(() => flowExpectations({ map: { ...map, towerSlots: [[0.5, 0.5]] }, towerType: 'archer' })).toThrow(/clear/);
+    expect(() => flowExpectations({ map: { ...map, towerSlots: [[0.5, 0.5], [0.52, 0.5]] }, towerType: 'archer' })).toThrow(/clear/);
   });
 });
 
@@ -118,6 +121,32 @@ describe('pickPads', () => {
     const [a, b] = pickPads(MAPS[0], 2);
     expect(a).not.toBe(b);
     expect(b).toBeLessThan(MAPS[0].towerSlots.length);
+  });
+});
+
+describe('padClearOfRing', () => {
+  const COARSE = radialMetrics(TOUCH_HUD_CELL);
+  const ringCentre = (m, i) => layoutRadial({
+    anchor: padWorldPoint(m, i), angles: [RING_ANGLES.upgrade, RING_ANGLES.sell], metrics: COARSE,
+    bounds: { left: 0, top: 0, width: WORLD_WIDTH, height: WORLD_HEIGHT }, margin: RADIAL_MARGIN,
+  }).centre;
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  it('skips central pads under the coarse ring footprint', () => {
+    // 0 is the ring pad; 1 is next-most central but 64 px away (inside the 152-px footprint).
+    const m = { towerSlots: [[0.5, 0.5], [0.55, 0.5], [0.9, 0.9], [0.7, 0.5]] };
+    expect(padClearOfRing(m, 0)).toBe(3);
+  });
+  it('returns null when every other pad is under the ring', () => {
+    expect(padClearOfRing({ towerSlots: [[0.5, 0.5], [0.52, 0.5]] }, 0)).toBeNull();
+  });
+  it('picks a pad outside the coarse footprint, measured from the clamped ring centre, on map 0', () => {
+    const m = MAPS[0];
+    const ring = pickPad(m);
+    const i = padClearOfRing(m, ring);
+    expect(i).not.toBe(ring);
+    expect(dist(padWorldPoint(m, i), ringCentre(m, ring))).toBeGreaterThan(COARSE.footprint);
+    // The coarse ring is the larger one, so it also clears the fine ring.
+    expect(COARSE.footprint).toBeGreaterThan(radialMetrics(FINE_HUD_CELL).footprint);
   });
 });
 

@@ -1,9 +1,11 @@
-import { railMetricsFor, WORLD_WIDTH, WORLD_HEIGHT } from '../data/layout.js';
+import { railMetricsFor, WORLD_WIDTH, WORLD_HEIGHT, TOUCH_HUD_CELL } from '../data/layout.js';
+import { RING_ANGLES, RADIAL_MARGIN } from '../data/radial.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { STORY_SEQUENCES, briefKey } from '../data/story.js';
 import { MAPS } from '../data/maps.js';
 import { sellRefund } from './TowerPlacementManager.js';
 import { unlockMapNumber } from './radialItems.js';
+import { radialMetrics, layoutRadial } from './radialLayout.js';
 
 // Pure logic for the Playwright device-matrix harness (scripts/capture.mjs).
 // Kept free of Playwright/Phaser so expectations derive from the data tables
@@ -63,6 +65,25 @@ export function pickPad(map) {
   return pickPads(map, 1)[0];
 }
 
+// The coarse cell gives the larger ring, so a pad clear of it is clear on every device.
+const COARSE_RING = radialMetrics(TOUCH_HUD_CELL);
+const MAP_BOUNDS = { left: 0, top: 0, width: WORLD_WIDTH, height: WORLD_HEIGHT };
+
+// Most central pad entirely outside the tower ring open on `ringPad` (its
+// clamped centre + footprint radius), so a tap there reaches the canvas instead
+// of a ring face, whatever the face shape's hit area. Null when none clears.
+export function padClearOfRing(map, ringPad) {
+  const { centre } = layoutRadial({
+    anchor: padWorldPoint(map, ringPad), angles: [RING_ANGLES.upgrade, RING_ANGLES.sell],
+    metrics: COARSE_RING, bounds: MAP_BOUNDS, margin: RADIAL_MARGIN,
+  });
+  const clear = (i) => {
+    const p = padWorldPoint(map, i);
+    return Math.hypot(p.x - centre.x, p.y - centre.y) > COARSE_RING.footprint;
+  };
+  return padsByCentrality(map).find((i) => i !== ringPad && clear(i)) ?? null;
+}
+
 // Towers are placed on the pad's exact world point (window.__capture.towers),
 // so a sub-pixel match means occupied.
 const PAD_MATCH_PX = 1;
@@ -101,9 +122,10 @@ export function flowExpectations({ map, towerType }) {
   const minCost = Math.min(...Object.values(TOWER_DEFS).map((d) => d.cost));
   const allUnaffordableAfterUpgrade = goldAfterUpgrade < minCost;
   if (!allUnaffordableAfterUpgrade) throw new Error(`${map.name}: ${goldAfterUpgrade}g after the upgrade leaves a tower affordable; step 14 needs every build item unaffordable`);
-  // Step 14 retargets the open ring onto a second pad.
-  if (map.towerSlots.length < 2) throw new Error(`${map.name}: needs two pads, has ${map.towerSlots.length}`);
-  const [pad, pad2] = pickPads(map, 2);
+  // Step 14 retargets the open ring onto a second pad that no ring face covers.
+  const pad = pickPad(map);
+  const pad2 = padClearOfRing(map, pad);
+  if (pad2 === null) throw new Error(`${map.name}: no pad clear of the ring on pad ${pad}`);
   return {
     startGold,
     goldAfterBuild,

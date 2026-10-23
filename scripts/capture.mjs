@@ -35,7 +35,7 @@ import { layoutProblems, railProblems, railGeometryProblems, overlayProblems, mi
 import { POINTER_FINE_QUERY } from '../src/data/mobile.js';
 import { CONFIRM_WINDOW_MS } from '../src/data/input.js';
 import { WORLD_WIDTH, WORLD_HEIGHT } from '../src/data/layout.js';
-import { stepsFor, shotName, worldToPagePoint, flowExpectations, summarizeFlow, freePad, padWorldPoint } from '../src/systems/deviceFlow.js';
+import { stepsFor, shotName, worldToPagePoint, flowExpectations, summarizeFlow, freePad, padWorldPoint, buildStates } from '../src/systems/deviceFlow.js';
 
 const OUT_DIR   = '.art-cache/captures';
 const DIST_DIR  = '.art-cache/capture-dist';
@@ -274,8 +274,9 @@ async function radialAudit(page, deviceName, label) {
     };
   });
   const viewport = page.viewportSize();
-  // Same rule as railProblems: the touch floor only binds touch devices.
-  const minTouchPx = DEVICES[deviceName].hasTouch ? minTouchFor({ vw: viewport.width, vh: viewport.height }) : 0;
+  // The touch floor binds the coarse pointer class only (as in railProblems), read
+  // from the page like the map rect so the two cannot disagree.
+  const minTouchPx = pointerFine ? 0 : minTouchFor({ vw: viewport.width, vh: viewport.height });
   const mapRect = { left: a.x, top: a.y, right: b.x, bottom: b.y, width: b.x - a.x, height: b.y - a.y };
   return { device: deviceName, label, problems: radialProblems({ ...m, mapRect, minTouchPx }) };
 }
@@ -616,6 +617,8 @@ const FLOW_ACTIONS = {
     if (up.state !== 'ready' || up.ariaDisabled) throw new Error(`upgrade ${up.state}${up.ariaDisabled ? ' aria-disabled' : ''}, expected ready`);
     const sell = radialItem(r, 'sell');
     if (sell.label !== exp.sellLabelAfterBuild) throw new Error(`sell caption "${sell.label}", expected "${exp.sellLabelAfterBuild}"`);
+    const { problems } = await radialAudit(page, deviceName, 'flow-tower-ring');
+    if (problems.length) throw new Error(problems.join('; '));
   },
   async 'upgrade-arm'(ctx, step, dir) {
     const { page, deviceName, exp } = ctx;
@@ -657,8 +660,12 @@ const FLOW_ACTIONS = {
     // An open ring eats this tap and retargets to the free pad's build radial.
     await tapGamePoint(page, deviceName, exp.pad2.x, exp.pad2.y);
     const r = await expectRadial(page, 'build');
+    const want = buildStates(exp.goldAfterUpgrade);
+    // A short or empty radial would make the per-item checks below pass vacuously.
+    if (r.items.length !== Object.keys(want).length) throw new Error(`${r.items.length} build items, expected ${Object.keys(want).length}`);
     const ready = r.items.filter(i => !i.ariaDisabled).map(i => i.id);
     if (ready.length) throw new Error(`not aria-disabled at ${exp.goldAfterUpgrade}g: ${ready.join(', ')}`);
+    expectStates(r, want);
     await expectText(page, '#stat-gold', exp.goldAfterUpgrade);
   },
   async 'close-radial'({ page, deviceName }) {
