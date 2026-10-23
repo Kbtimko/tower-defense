@@ -37,4 +37,10 @@ describe('world map CSS', () => {
     expect(bodiesFor('#featured-quote.fq-more')).toMatch(/-webkit-mask-image\s*:\s*linear-gradient/);
     expect(bodiesFor('#featured-quote')).not.toMatch(/mask-image/);
   });
+
+  // GameScene rewrites the label per result, but this is what shows before it does.
+  it('the results button starts labelled with the verbatim "↩ World Map" copy', () => {
+    const btn = html.match(/<button id="msg-btn"[^>]*>([^<]*)<\/button>/);
+    expect(btn[1].replace('&#8617;', '↩')).toBe('↩ World Map');
+  });
 });

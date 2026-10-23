@@ -46,18 +46,17 @@ export function arrivalFrame(plan, tMs, A = ARRIVAL) {
   const stampsEnd = A.stampStartMs + toShow * A.stampEachMs;
 
   if (plan.kind === 'none') {
-    return { focus: 1, stamped: plan.prevStars, shipT: 0, trailT: 0, frontT: 0, nextLit: false, cardOpen: true, done: true };
+    return { focus: 1, stamped: plan.prevStars, shipT: 0, frontT: 0, nextLit: false, cardOpen: true, done: true };
   }
   if (plan.kind === 'stamp') {
     const done = t >= stampsEnd;
-    return { focus, stamped, shipT: 0, trailT: 0, frontT: 0, nextLit: false, cardOpen: done, done };
+    return { focus, stamped, shipT: 0, frontT: 0, nextLit: false, cardOpen: done, done };
   }
   const shipT = span(t, A.flyStartMs, A.flyMs);
   return {
     focus,
     stamped,
     shipT,
-    trailT: shipT,
     frontT: span(t, A.frontStartMs, A.frontMs),
     nextLit: plan.kind === 'advance' && t >= A.lightStartMs,
     cardOpen: t >= A.cardAtMs,

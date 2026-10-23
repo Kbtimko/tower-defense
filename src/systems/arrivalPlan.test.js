@@ -55,8 +55,21 @@ describe('arrivalFrame', () => {
 
   it('end state at Infinity', () => {
     expect(arrivalFrame(adv, Infinity)).toMatchObject({
-      done: true, shipT: 1, trailT: 1, frontT: 1, stamped: 2, nextLit: true, cardOpen: true,
+      done: true, shipT: 1, frontT: 1, stamped: 2, nextLit: true, cardOpen: true,
     });
+  });
+  // worldRoute's flight() owns the trail; a frame copy of it would only drift.
+  it('carries no trail field for any plan kind', () => {
+    const last = MAPS.length - 1;
+    const plans = [
+      adv,
+      planArrival({ from: win(0, 1, 3), stars: withStars({ 0: 3 }) }),
+      planArrival({ from: undefined, stars: zeros() }),
+      planArrival({ from: win(last, 0, 3), stars: MAPS.map(() => 3) }),
+    ];
+    for (const p of plans) {
+      for (const t of [0, 1000, Infinity]) expect(arrivalFrame(p, t)).not.toHaveProperty('trailT');
+    }
   });
   it('is monotonic', () => {
     for (const plan of [adv, planArrival({ from: win(0, 1, 3), stars: withStars({ 0: 3 }) })]) {
@@ -89,7 +102,7 @@ describe('arrivalFrame', () => {
     expect(arrivalFrame(p, 0).stamped).toBe(1);
     expect(arrivalFrame(p, 300).stamped).toBe(2);
     expect(arrivalFrame(p, 599).done).toBe(false);
-    expect(arrivalFrame(p, 600)).toMatchObject({ done: true, stamped: 3, shipT: 0, trailT: 0, frontT: 0 });
+    expect(arrivalFrame(p, 600)).toMatchObject({ done: true, stamped: 3, shipT: 0, frontT: 0 });
     expect(arrivalFrame(p, Infinity)).toMatchObject({ shipT: 0, done: true });
     expect(arrivalFrame(p, Infinity).stamped).toBe(p.newStars);
   });
@@ -99,7 +112,7 @@ describe('arrivalFrame', () => {
   it('complete: trail to core, haze fades, next never lit', () => {
     const last = MAPS.length - 1;
     const p = planArrival({ from: win(last, 0, 3), stars: MAPS.map(() => 3) });
-    expect(arrivalFrame(p, Infinity)).toMatchObject({ trailT: 1, frontT: 1, nextLit: false, cardOpen: true, done: true });
+    expect(arrivalFrame(p, Infinity)).toMatchObject({ shipT: 1, frontT: 1, nextLit: false, cardOpen: true, done: true });
   });
   it('easeInOut is a clamped cubic', () => {
     expect(easeInOut(-1)).toBe(0);
