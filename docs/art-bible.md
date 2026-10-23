@@ -118,9 +118,11 @@ scanline and sheen are composited, and text-dim at ≥ 3:1 on face-disabled.
 #### Components
 `.ui-panel` (optionally `.ui-panel--primary`) and `.ui-btn` with a variant
 class (`.ui-btn--primary`, `--danger`, `--currency`; neutral is the default).
-Surface recipe, back to front: face colour → soft scanline (period 3u) → vertical
-sheen → inset 1u edge ring → 1u upper-left bevel highlight / lower-right shade
-(the §1 key light) → 6u inner glow. Panels add an outer drop shadow.
+Surface recipe: a face colour under two background images (a vertical sheen
+above a soft scanline, period 3u), then box-shadows listed front to back (the
+first-listed shadow paints frontmost): inset 1u edge ring → upper-left bevel
+highlight and lower-right shade (the §1 key light), each offset 2u so a 1u band
+shows just inside the ring → 6u inner glow. Panels add an outer drop shadow.
 
 | State | Selectors | Neutral | Primary | Danger | Currency |
 |---|---|---|---|---|---|

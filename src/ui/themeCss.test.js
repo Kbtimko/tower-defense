@@ -107,8 +107,22 @@ describe('ui kit css', () => {
   });
 
   it('kit rules hold no px and no hex literal', () => {
-    const bad = kitRules.filter(({ body }) => /\d+(\.\d+)?px/.test(body) || /#[0-9a-f]{3,6}\b/i.test(body))
+    const bad = kitRules.filter(({ body }) => /\d+(\.\d+)?px/.test(body) || /#[0-9a-f]{3,8}\b/i.test(body))
       .map((r) => r.selector);
+    expect(bad).toEqual([]);
+  });
+
+  // Functional colours would smuggle hues past the hex guard. Only the
+  // spec's white scanline/sheen (alpha from a theme var) and black drop shadow
+  // are allowed; every other colour must come from a --ui-* var.
+  it('kit rules use no colour functions beyond the white and black overlays', () => {
+    const allowed = /^rgba\(255,\s*255,\s*255,\s*var\(--ui-[a-z0-9-]+\)\)$|^rgba\(0,\s*0,\s*0,\s*\d*\.?\d+\)$/;
+    const bad = [];
+    for (const { selector, body } of kitRules) {
+      for (const [fn] of body.matchAll(/\b(rgba?|hsla?)\([^()]*(\([^()]*\)[^()]*)*\)/gi)) {
+        if (!allowed.test(fn)) bad.push(`${selector} → ${fn}`);
+      }
+    }
     expect(bad).toEqual([]);
   });
 

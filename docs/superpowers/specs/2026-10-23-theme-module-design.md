@@ -58,8 +58,9 @@ Layers, from back to front:
 2. `background-image`: a soft-profile scanline `repeating-linear-gradient` (period 3u, white at `--ui-scanline-alpha` ≤ 0.04, transparent → line → transparent with no hard stops), then a vertical sheen (`linear-gradient`, white 0.05 → 0).
 3. `box-shadow`, in order:
    - ring `inset 0 0 0 1u var(--btn-edge)`
-   - bevel highlight `inset 1u 1u 0 var(--ui-bevel-hi)` (upper-left key light per bible §1)
-   - bevel shade `inset -1u -1u 0 var(--ui-bevel-lo)`
+   - bevel highlight `inset 2u 2u 0 var(--ui-bevel-hi)` (upper-left key light per bible §1)
+   - bevel shade `inset -2u -2u 0 var(--ui-bevel-lo)`
+   - the first-listed shadow paints frontmost, so the ring covers the outer 1u of each bevel; the 2u offset leaves a visible 1u bevel band just inside the ring (a 1u offset would sit entirely under the ring)
    - inner glow `inset 0 0 6u var(--btn-glow)`
 
 Panels use the same stack with `--panel-*` vars plus an outer drop shadow (`0 3u 14u rgba(0,0,0,.5)`). The kit never uses `background` shorthand: the rail's transparent border is the touch-target gutter and relies on `background-clip: padding-box`. It never uses `border` for looks either; the ring is a box-shadow.

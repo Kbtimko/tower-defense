@@ -30,7 +30,9 @@
        the look by setting --btn-* / --panel-* rather than repainting.
        - Never `background` shorthand: it resets background-clip, and the rail
          buttons' transparent border is their touch gutter.
-       - The ring is a box-shadow, never a border.
+       - The ring is a box-shadow, never a border. The first-listed shadow paints
+         frontmost, so the bevels are offset 2u: the 1u ring covers the outer
+         band and a 1u bevel shows just inside it.
        - Every length is calc(N * var(--ui-u)): 1px at :root, 2px*k on the rails,
          2px in the wave preview. Lengths built on --ui-u live in these rules,
          never in a :root custom property, which would freeze the 1px unit.
@@ -47,8 +49,8 @@
         repeating-linear-gradient(to bottom, transparent 0, rgba(255,255,255,var(--ui-scanline-alpha)) calc(1.5 * var(--ui-u)), transparent calc(3 * var(--ui-u)));
       box-shadow:
         inset 0 0 0 calc(1 * var(--ui-u)) var(--panel-edge),
-        inset calc(1 * var(--ui-u)) calc(1 * var(--ui-u)) 0 var(--ui-bevel-hi),
-        inset calc(-1 * var(--ui-u)) calc(-1 * var(--ui-u)) 0 var(--ui-bevel-lo),
+        inset calc(2 * var(--ui-u)) calc(2 * var(--ui-u)) 0 var(--ui-bevel-hi),
+        inset calc(-2 * var(--ui-u)) calc(-2 * var(--ui-u)) 0 var(--ui-bevel-lo),
         inset 0 0 calc(6 * var(--ui-u)) color-mix(in srgb, var(--panel-glow) var(--panel-glow-a), transparent),
         0 calc(3 * var(--ui-u)) calc(14 * var(--ui-u)) rgba(0,0,0,0.5);
       color: var(--ui-text);
@@ -74,8 +76,8 @@
         repeating-linear-gradient(to bottom, transparent 0, rgba(255,255,255,var(--ui-scanline-alpha)) calc(1.5 * var(--ui-u)), transparent calc(3 * var(--ui-u)));
       box-shadow:
         inset 0 0 0 calc(1 * var(--ui-u)) var(--btn-edge),
-        inset calc(1 * var(--ui-u)) calc(1 * var(--ui-u)) 0 var(--btn-bevel-hi),
-        inset calc(-1 * var(--ui-u)) calc(-1 * var(--ui-u)) 0 var(--btn-bevel-lo),
+        inset calc(2 * var(--ui-u)) calc(2 * var(--ui-u)) 0 var(--btn-bevel-hi),
+        inset calc(-2 * var(--ui-u)) calc(-2 * var(--ui-u)) 0 var(--btn-bevel-lo),
         inset 0 0 calc(6 * var(--ui-u)) color-mix(in srgb, var(--btn-glow) var(--btn-glow-a), transparent);
       color: var(--btn-ink);
       cursor: pointer;
@@ -146,6 +148,7 @@
       border: calc(3px * var(--hud-k)) solid transparent; background-clip: padding-box; border-radius: calc(12px * var(--hud-k));
       box-shadow: inset 0 0 0 calc(2px * var(--hud-k)) var(--edge, #444);
       display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(2px * var(--hud-k));
+      /* Must stay after the global `button { font-family: inherit }` rule: both are (0,0,1), so order decides. */
       font-family: var(--hud-label-font); font-stretch: condensed;
       font-size: calc(24px * var(--hud-k)); line-height: 1.05; text-align: center;
       color: #e8e0d0; background-color: #1a1a3a; cursor: pointer;
