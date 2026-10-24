@@ -1233,10 +1233,14 @@ const FLOW_ACTIONS = {
     await expectVisible(page, '#story-dialog');
   },
   async 'skip-story'({ page, deviceName }) {
+    // The map's entry guard eats taps until it ends, so this wait must come first.
     await page.locator(MAP_READY).waitFor({ timeout: STEP_TIMEOUT });
     // Spec 8.2: a tap finishes the line, a tap past the guard advances, then Skip.
-    await expectAttr(page, '#story-dialog', 'index', '0', 0);
+    // The finishing tap is the first action: the line is typing while anything runs.
     await finishLine(page, deviceName);
+    await expectAttr(page, '#story-dialog', 'index', '0', 0);
+    // Measured at rest: the tap now lands during the slam, which moves the caption.
+    await storySettled(page);
     const layout = [await audit(page, deviceName, 'flow-story', STORY_TARGETS), await storyDialogAudit(page, deviceName, 'flow-story-layout')];
     const problems = layout.flatMap(l => l.problems);
     if (problems.length) throw new Error(problems.join('; '));
@@ -1259,6 +1263,10 @@ const FLOW_ACTIONS = {
     await page.locator(MAP_READY).waitFor({ timeout: STEP_TIMEOUT });
     await tap(page, deviceName, '#featured-play');
     await expectVisible(page, '#hud-layer');
+    // The briefing types from the same create() that shows #hud-layer: its
+    // finishing tap goes first, before the stat reads and this step's shot use up
+    // the line. Step 06 then checks the briefing was expected and shoots it.
+    if (await visible(page, '#story-dialog')) await finishLine(page, deviceName);
     await expectText(page, '#stat-gold', exp.startGold);
     await expectText(page, '#stat-wave', exp.waveBefore);
     await expectText(page, '#wave-btn', '▶ Send Wave 1');
@@ -1269,8 +1277,8 @@ const FLOW_ACTIONS = {
     const shown = await visible(page, '#story-dialog');
     if (shown !== exp.expectBriefing) throw new Error(`briefing ${shown ? 'shown' : 'missing'}, expected ${exp.expectBriefing ? 'shown' : 'none'}`);
     if (!shown) return { file: null };
-    // Tap-to-finish on every device, and a fully typed shot.
-    await finishLine(page, deviceName);
+    // Tap-to-finish already ran in step 05, as its first action after LAUNCH.
+    await expectAttr(page, '#story-dialog', 'phase', 'complete', 0);
     await storySettled(page);
     const file = await shoot(page, join(dir, shotName(step)));
     await tap(page, deviceName, '#story-dialog-skip');
