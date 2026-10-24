@@ -540,6 +540,7 @@ async function captureScreens(browser, base, deviceName, opts) {
     () => captureNoFonts(browser, base, deviceName, dir),
     () => captureMissingArt(browser, base, deviceName, dir),
     () => captureStoryGallery(browser, base, deviceName, dir),
+    () => captureDoubleTapClose(browser, base, deviceName),
   ];
   if (deviceName === 'desktop') runs.push(() => captureZoomedStory(browser, base, deviceName, dir));
   if (REDUCED_MOTION_DEVICES.has(deviceName)) runs.push(() => captureReducedMotion(browser, base, deviceName, dir, opts));
@@ -750,9 +751,14 @@ async function playToPanel(page, deviceName, sequenceId, index) {
   await storySettled(page);
 }
 
+// A tap inside the advance guard after a tap closed the dialog is swallowed as a
+// double tap's second (final review I5), so the next deliberate tap waits it out.
+const pastCloseGuard = page => page.waitForTimeout(STORY_DIALOG.advanceGuardMs);
+
 async function skipStory(page, deviceName) {
   await tap(page, deviceName, '#story-dialog-skip');
   await expectVisible(page, '#story-dialog', false);
+  await pastCloseGuard(page);
 }
 
 // The derived longest line, shot and judged, then skipped.
@@ -809,6 +815,7 @@ async function returnToMap(page, deviceName, onStory = async () => {}) {
   await page.locator(MAP_READY).waitFor({ timeout: 5_000 });
   await tap(page, deviceName, '#story-dialog-skip');
   await expectVisible(page, '#story-dialog', false);
+  await pastCloseGuard(page);
 }
 
 const arrivals = page => page.evaluate(() => window.__arrivals);
@@ -996,6 +1003,67 @@ function captureMissingArt(browser, base, deviceName, dir) {
 // Story Log replays on a save with every beat seen (spec 8.3): the Finale's
 // multi-speaker run with real taps (rael right, command left), the derived longest
 // line, and the Veth's jagged, glitching panel.
+// The map under the dialog as a leaked tap would change it: the level started,
+// another card featured, another node selected.
+const mapState = page => page.evaluate(() => ({
+  map: !!document.querySelector('#map-select')?.checkVisibility(),
+  hud: !!document.querySelector('#hud-layer')?.checkVisibility(),
+  featured: document.querySelector('#featured-name')?.textContent ?? null,
+  active: [...document.querySelectorAll('.ow-node.active')].map(n => n.dataset.mapId).join(','),
+}));
+
+// Continue's rect against LAUNCH's and the featured card's, and the point to tap:
+// inside Continue and over LAUNCH (else the card) where they overlap.
+const continueOverlap = page => page.evaluate(() => {
+  const r = sel => document.querySelector(sel).getBoundingClientRect();
+  const meet = (a, b) => {
+    const x0 = Math.max(a.left, b.left), x1 = Math.min(a.right, b.right);
+    const y0 = Math.max(a.top, b.top), y1 = Math.min(a.bottom, b.bottom);
+    return x1 - x0 >= 4 && y1 - y0 >= 4 ? { x: (x0 + x1) / 2, y: (y0 + y1) / 2 } : null;
+  };
+  const next = r('#story-dialog-next');
+  const over = [['#featured-play', meet(next, r('#featured-play'))], ['#map-featured', meet(next, r('#map-featured'))]]
+    .find(([, pt]) => pt);
+  const point = over ? over[1] : { x: next.left + next.width / 2, y: next.top + next.height / 2 };
+  const hit = document.elementFromPoint(point.x, point.y);
+  return { under: over ? over[0] : null, point, onContinue: !!hit?.closest('#story-dialog-next') };
+});
+
+// Final review I5: a fast double tap on the closing Continue. The first tap hides
+// the overlay, so the second lands beneath it. On iPhone landscape Continue sits
+// over the featured card just above LAUNCH; a leaked tap there starts Mission 1.
+const OVERLAP_DEVICES = new Set(['iphone']);
+function captureDoubleTapClose(browser, base, deviceName) {
+  return screensRun(browser, deviceName, 'double-tap-close', {}, async page => {
+    await page.goto(base + '/');
+    await page.locator('#title-screen').waitFor({ state: 'visible', timeout: 30_000 });
+    await tapCentre(page, deviceName);
+    await page.locator(MAP_READY).waitFor({ timeout: 10_000 });
+    await expectVisible(page, '#story-dialog');
+    const last = STORY_SEQUENCES.campaign_intro.panels.length - 1;
+    await playToPanel(page, deviceName, 'campaign_intro', last);
+    await expectText(page, '#story-dialog-next', 'Continue ▸', 1_000);
+    await page.waitForTimeout(STORY_DIALOG.advanceGuardMs + 100);
+    const before = await mapState(page);
+    const geo = await continueOverlap(page);
+    if (!geo.onContinue) throw new Error(`the tap point (${geo.point.x}, ${geo.point.y}) is not on Continue`);
+    if (OVERLAP_DEVICES.has(deviceName) && !geo.under) throw new Error('Continue overlaps neither LAUNCH nor the featured card; the double tap proves nothing here');
+    const startedAt = Date.now();
+    await tapPoint(page, deviceName, geo.point);
+    await tapPoint(page, deviceName, geo.point);
+    // Measured from before the first tap, so the real gap between them is shorter.
+    const gapMs = Date.now() - startedAt;
+    if (gapMs >= STORY_DIALOG.advanceGuardMs) throw new Error(`the two taps took ${gapMs} ms; the harness was too slow to land the second inside the guard`);
+    await expectVisible(page, '#story-dialog', false);
+    // Long enough for a leaked LAUNCH to have started the level.
+    await page.waitForTimeout(1_000);
+    const after = await mapState(page);
+    if (JSON.stringify(after) !== JSON.stringify(before)) {
+      throw new Error(`the double tap's second tap (over ${geo.under ?? 'Continue only'}) leaked: ${JSON.stringify(before)} -> ${JSON.stringify(after)}`);
+    }
+  });
+}
+
 function captureStoryGallery(browser, base, deviceName, dir) {
   return screensRun(browser, deviceName, 'story-gallery', {}, async (page, out) => {
     await seedSave(page, GALLERY_SAVE);
@@ -1025,6 +1093,7 @@ function captureStoryGallery(browser, base, deviceName, dir) {
     await page.waitForTimeout(STORY_DIALOG.advanceGuardMs + 100);
     await tap(page, deviceName, STORY_CAPTION);
     await expectVisible(page, '#story-dialog', false);
+    await pastCloseGuard(page);
 
     const longest = await longestLine(page, deviceName, 'story-longest', join(dir, '10c-story-longest.png'));
     out.files.push(...longest.files);
@@ -1175,6 +1244,7 @@ const FLOW_ACTIONS = {
     await tap(page, deviceName, '#story-dialog-skip');
     await expectVisible(page, '#story-dialog', false);
     await expectVisible(page, '#map-select');
+    await pastCloseGuard(page);
   },
   async 'select-map'({ page, deviceName }) {
     const node = '.ow-node[data-map-id="0"]';
@@ -1210,6 +1280,7 @@ const FLOW_ACTIONS = {
     // The closing tap leaked nothing into the level: no wave sent, no pause.
     await expectText(page, '#wave-btn', '▶ Send Wave 1');
     if (await hasClass(page, '#paused-overlay', 'shown') || await visible(page, '#paused-overlay')) throw new Error('#paused-overlay shown after the briefing closed');
+    await pastCloseGuard(page);
     return { file };
   },
   async 'level-ready'({ page, deviceName }) {
