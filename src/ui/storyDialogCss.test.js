@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { STORY_DIALOG } from '../data/storyDialog.js';
 
 // Story dialog comic paint (roadmap 3.5, spec §4.1 paint rules, §3.4, §6).
 // Speaker colours arrive as --sd-frame/--sd-caption and everything else is a
@@ -48,6 +49,30 @@ const usedKeyframes = [...new Set(dialogRules.flatMap(({ body }) => decls(body)
   .filter(([p]) => p === 'animation' || p === 'animation-name')
   .flatMap(([, v]) => v.split(/[\s,]+/).filter((t) => t in keyframes))))];
 const sdKeyframes = Object.keys(keyframes).filter((k) => k.startsWith('sd-'));
+const U = /calc\(\s*-?\d*\.?\d+\s*\*\s*var\(--ui-u\)\s*\)/g;
+
+// CSS named colours (CSS Color 4); transparent/currentcolor are deliberately absent.
+const NAMED_COLOURS = new Set(('aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue '
+  + 'blueviolet brown burlywood cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue '
+  + 'darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid '
+  + 'darkred darksalmon darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink '
+  + 'deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold '
+  + 'goldenrod gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki lavender lavenderblush '
+  + 'lawngreen lemonchiffon lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey '
+  + 'lightpink lightsalmon lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime '
+  + 'limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen '
+  + 'mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin '
+  + 'navajowhite navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen paleturquoise '
+  + 'palevioletred papayawhip peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown royalblue '
+  + 'saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow '
+  + 'springgreen steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen').split(' '));
+
+// Every declaration the dialog paints with: its rules plus its sd- keyframes.
+const keyframeDecls = (body) => [...body.matchAll(/([^{}]+)\{([^{}]*)\}/g)].flatMap(([, , b]) => decls(b));
+const dialogDecls = [
+  ...dialogRules.flatMap((r) => decls(r.body).map(([p, v]) => [r.selector, p, v])),
+  ...sdKeyframes.flatMap((k) => keyframeDecls(keyframes[k]).map(([p, v]) => [`@keyframes ${k}`, p, v])),
+];
 
 describe('story dialog CSS', () => {
   it('finds the dialog rules (guards against a vacuous filter)', () => {
@@ -79,7 +104,7 @@ describe('story dialog CSS', () => {
       for (const [p, v] of decls(body)) {
         if (!prop.test(p)) continue;
         checked.push(p);
-        const rest = v.replace(/calc\(\s*-?\d*\.?\d+\s*\*\s*var\(--ui-u\)\s*\)/g, 'U');
+        const rest = v.replace(U, 'U');
         if (/\d*\.?\d+(px|em|rem|vw|vh|dvh|svh|lvh|vmin|vmax|cqw|cqh|%)/.test(rest)) bad.push(`${selector} → ${p}: ${v}`);
       }
     }
@@ -139,5 +164,61 @@ describe('story dialog CSS', () => {
     const h3 = rules.filter((r) => selectorsOf(r).includes('#story-log-inner h3')).map((r) => r.body).join(';');
     expect(decls(h3)).toContainEqual(['color', 'var(--ui-accent)']);
     expect(h3).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+  });
+
+  it('holds no CSS named colour (only tokens, transparent and black rgba)', () => {
+    const bad = dialogDecls
+      .filter(([, , v]) => v.replace(/var\(\s*--[a-z0-9-]+/gi, '').toLowerCase().match(/[a-z]+/g)?.some((w) => NAMED_COLOURS.has(w)))
+      .map(([sel, p, v]) => `${sel} → ${p}: ${v}`);
+    expect(dialogDecls.length).toBeGreaterThan(50);
+    expect(bad).toEqual([]);
+  });
+
+  // The kit lengths live in --sd-* vars on the stage, so the vars themselves are checked.
+  it('--sd-* length vars are built on var(--ui-u); border/outline/drop/dot vars are exactly calc(N * var(--ui-u))', () => {
+    const vars = dialogRules.flatMap((r) => decls(r.body).filter(([p]) => p.startsWith('--sd-')).map(([p, v]) => [r.selector, p, v]));
+    const strict = vars.filter(([, p]) => /(border|outline|drop|dot)/.test(p));
+    expect(strict.length).toBeGreaterThanOrEqual(6);
+    const bad = [
+      ...strict.filter(([, , v]) => v.replace(U, '') !== '').map(([sel, p, v]) => `${sel} → ${p}: ${v}`),
+      ...vars.filter(([, , v]) => /\d*\.?\d+(px|em|rem)\b/.test(v.replace(U, ''))).map(([sel, p, v]) => `${sel} → ${p}: ${v}`),
+    ];
+    expect(bad).toEqual([]);
+  });
+
+  // Keyframe offsets can't read a var, so the glitch window is pinned to the data here.
+  it('the glitch blip starts at 1 - glitchMs / glitchPeriodMs and nothing glitches before it', () => {
+    const start = Math.round((1 - STORY_DIALOG.glitchMs / STORY_DIALOG.glitchPeriodMs) * 1000) / 10;
+    const frames = [...keyframes['sd-glitch'].matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .flatMap(([, sel, body]) => sel.split(',').map((o) => [parseFloat(o.trim()), body]));
+    const blips = frames.filter(([, body]) => /hue-rotate/.test(body)).map(([o]) => o);
+    expect(blips.length).toBeGreaterThan(0);
+    expect(Math.min(...blips)).toBe(start);
+    expect(frames.filter(([o]) => o > 0 && o < start)).toEqual([]);
+  });
+
+  // Skip and Next must never sit inside an animated subtree (spec §3.4).
+  it('nothing animates the overlay, the stage, the action row or its buttons', () => {
+    const animated = dialogRules.filter(({ body }) => decls(body)
+      .some(([p, v]) => (p === 'animation' || p === 'animation-name') && !/^none\b/.test(v)))
+      .flatMap(selectorsOf);
+    expect(animated.length).toBeGreaterThanOrEqual(4);
+    const bad = animated.filter((sel) => {
+      const last = sel.split(/\s+|>|~|\+/).filter(Boolean).pop();
+      return /\.sd-stage|\.sd-actions|#story-dialog-(next|skip)/.test(sel) || /^#story-dialog(?![-\w])/.test(last);
+    });
+    expect(bad).toEqual([]);
+  });
+
+  // Spec §7: compact is >= 44x44 for every pointer, not only coarse (a 200%-zoomed laptop is compact and fine).
+  it('the compact layout sizes Skip and Next to at least 44 x 44', () => {
+    const compact = [];
+    for (const m of css.matchAll(/@media\s*\(max-height:\s*500px\)\s*\{/g)) {
+      compact.push(...parse(block(css, m.index + m[0].length - 1)[0]).rules);
+    }
+    const btn = decls(compact.filter((r) => selectorsOf(r).includes('.sd-actions button')).map((r) => r.body).join(';'));
+    expect(btn).toEqual(expect.arrayContaining([['min-height', '44px'], ['min-width', '44px']]));
+    expect(decls(compact.filter((r) => selectorsOf(r).includes('.sd-actions')).map((r) => r.body).join(';')))
+      .toContainEqual(['min-height', '44px']);
   });
 });

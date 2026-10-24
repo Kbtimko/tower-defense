@@ -463,9 +463,11 @@
     @keyframes sd-slam-in { from { translate:var(--sd-slam-from) 0; scale:1.08; opacity:0; } to { translate:0 0; scale:1; opacity:1; } }
     @keyframes sd-pop-in { 0% { scale:.6; opacity:0; } 70% { scale:1.04; opacity:1; } 100% { scale:1; opacity:1; } }
     @keyframes sd-punch { from { scale:.96; } to { scale:1; } }
-    /* The blip is the last 5% of the period: glitchMs 120 / glitchPeriodMs 2400. */
-    @keyframes sd-glitch { 0%, 95%, 100% { translate:0 0; filter:none; }
-      96% { translate:-0.6% 0; filter:hue-rotate(40deg); } 98% { translate:0.5% 0; filter:hue-rotate(40deg); } }
+    /* Played with steps(1), so each offset holds until the next: the blip runs from 95%
+       to the end, the last glitchMs 120 of glitchPeriodMs 2400 (1 - 120/2400 = 95%).
+       Keyframe offsets can't read a var; storyDialogCss.test.js pins 95% to the data. */
+    @keyframes sd-glitch { 0%, 100% { translate:0 0; filter:none; }
+      95% { translate:-0.6% 0; filter:hue-rotate(40deg); } 97.5% { translate:0.5% 0; filter:hue-rotate(40deg); } }
     @keyframes sd-blink { from { opacity:1; } to { opacity:0; } }
     /* Reduced motion (spec §6) is the saved setting, so a class rather than a media query. */
     #story-dialog.motion-off, #story-dialog.motion-off *,
@@ -473,7 +475,7 @@
     /* Compact (COMPACT_QUERY, landscape phones): smaller frame and kit lengths, and
        the name drops to Rajdhani, the art bible's "Orbitron at 16 px and up only". */
     @media (max-height: 500px) {
-      .sd-stage { --sd-portrait-h: min(48dvh, 160px);
+      .sd-stage { --sd-portrait-h: min(48dvh, calc(160 * var(--ui-u)));
         --sd-frame-border: calc(4 * var(--ui-u)); --sd-frame-outline: calc(2 * var(--ui-u));
         --sd-frame-drop: calc(8 * var(--ui-u)); --sd-box-border: calc(3 * var(--ui-u));
         --sd-box-drop: calc(5 * var(--ui-u)); --sd-dot: calc(6 * var(--ui-u));
@@ -486,8 +488,9 @@
       .sd-caption { padding:calc(8 * var(--ui-u)) calc(30 * var(--ui-u)) calc(10 * var(--ui-u)) calc(14 * var(--ui-u)); }
       .sd-text { font-size:var(--ui-fs-md); }
       .sd-done-mark { right:calc(10 * var(--ui-u)); bottom:calc(6 * var(--ui-u)); font-size:var(--ui-fs-md); }
-      .sd-actions { min-height:36px; }
-      .sd-actions button { min-height:36px; padding:calc(6 * var(--ui-u)) calc(14 * var(--ui-u)); }
+      /* Spec §7: >= 44x44 in compact for any pointer (a 200%-zoomed laptop is compact and fine). */
+      .sd-actions { min-height:44px; }
+      .sd-actions button { min-height:44px; min-width:44px; padding:calc(6 * var(--ui-u)) calc(14 * var(--ui-u)); }
       #story-dialog-next { min-width:calc(110 * var(--ui-u)); }
     }
     .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
