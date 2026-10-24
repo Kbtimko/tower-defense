@@ -169,6 +169,8 @@
   - `img` `error` → fallback
   - `motion()` read at `play` and at each panel change
   - animation replay guarded for jsdom
+  - remove today's inline `style.color` / `style.background` writes and the `'#fff'` fallback; colour comes only from `--sd-frame` / `--sd-caption` and the CSS (#50b, spec §5.3)
+  - the portrait `img` has `alt=""` (spec §9)
 - [ ] **Step 4: Run** the overlay tests, then the full `npm test` (the existing MapSelectScene/GameScene/story tests must stay green), then `npm run build`.
 - [ ] **Step 5: Commit** `feat(story): dialog input model, typewriter loop and a11y (same API)`.
 
