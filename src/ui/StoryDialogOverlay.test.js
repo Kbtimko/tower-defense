@@ -138,9 +138,30 @@ describe('StoryDialogOverlay', () => {
       expect(done).not.toHaveBeenCalled();
       expect(dialog().style.display).toBe('none');
     });
+    it('play() interrupting a sequence whose onComplete chains another renders the new sequence', () => {
+      const chained = vi.fn();
+      const ov = make();
+      ov.play('campaign_intro', () => ov.play('campaign_ending', chained));
+      ov.play('epilogue_outpost_sigma', () => {});
+      const first = STORY_SEQUENCES.epilogue_outpost_sigma.panels[0].text;
+      expect(STORY_SEQUENCES.campaign_ending.panels[0].text).not.toBe(first);
+      expect(chained).toHaveBeenCalledTimes(1); // the chained beat completed too
+      expect(dialog().dataset.index).toBe('0');
+      expect($('#story-dialog-text').textContent).toBe(first);
+    });
   });
 
   describe('typing and Primary', () => {
+    it('data-phase is written only when the phase changes, not every frame', () => {
+      make().play('campaign_intro', () => {});
+      const obs = new MutationObserver(() => {});
+      obs.observe(dialog(), { attributes: true, attributeFilter: ['data-phase'] });
+      for (let i = 0; i < 10; i += 1) clock.frame(16);
+      expect(dialog().dataset.phase).toBe('typing');
+      expect(obs.takeRecords()).toEqual([]);
+      obs.disconnect();
+    });
+
     it('Next during typing finishes the line; a second Next after the guard advances', () => {
       const line = STORY_SEQUENCES.campaign_intro.panels[0].text;
       make().play('campaign_intro', () => {});
@@ -242,6 +263,7 @@ describe('StoryDialogOverlay', () => {
         expect(typed()).toBe('<b>&amp;');
         expect($('#story-dialog-text').textContent).toBe('<b>&amp;');
         expect($('#story-dialog-text b')).toBeNull();
+        clock.frame(); // the first panel's live line lands a frame after the dialog shows
         expect($('#story-dialog-live').textContent).toBe('Sol Command: <b>&amp;');
       } finally {
         delete STORY_SEQUENCES.__literal;
@@ -434,10 +456,71 @@ describe('StoryDialogOverlay', () => {
       expect(document.querySelector('#story-dialog [title]')).toBeNull();
     });
 
+    it('the portrait frame (img or fallback initial) is hidden from screen readers', () => {
+      expect($('#story-dialog-portrait').getAttribute('aria-hidden')).toBe('true');
+    });
+
+    // A live region that enters the accessibility tree already filled is often
+    // never announced, so the first line waits a frame after the dialog shows.
+    it.each([true, false])('motion %s: the first panel is announced on the next frame, not in play()', (motion) => {
+      motionOn = motion;
+      const live = $('#story-dialog-live');
+      live.textContent = 'stale';
+      make().play('campaign_intro', () => {});
+      expect(live.textContent).toBe('');
+      clock.frame();
+      expect(live.textContent).toBe(`${STORY_SPEAKERS.command.name}: ${STORY_SEQUENCES.campaign_intro.panels[0].text}`);
+    });
+
+    it('close() before that frame cancels the write', () => {
+      const ov = make();
+      ov.play('campaign_intro', () => {});
+      ov.close();
+      clock.frame();
+      expect($('#story-dialog-live').textContent).toBe('');
+    });
+
+    it('a stale first-line frame that fires after close writes nothing', () => {
+      const cbs = [];
+      const ov = new StoryDialogOverlay({ motion: () => false, now: clock.now, raf: (cb) => { cbs.push(cb); return cbs.length; }, caf: () => {} });
+      made.push(ov);
+      ov.play('campaign_intro', () => {});
+      ov.close();
+      for (const cb of cbs) cb(clock.t);
+      expect($('#story-dialog-live').textContent).toBe('');
+    });
+
+    it('close() empties the live region, and replaying the same entry announces it again', () => {
+      const line = `${STORY_SPEAKERS.command.name}: ${STORY_SEQUENCES.campaign_intro.panels[0].text}`;
+      const ov = make();
+      ov.play('campaign_intro', () => {});
+      clock.frame();
+      expect($('#story-dialog-live').textContent).toBe(line);
+      ov.close();
+      expect($('#story-dialog-live').textContent).toBe('');
+      ov.play('campaign_intro', () => {});
+      expect($('#story-dialog-live').textContent).toBe('');
+      clock.frame();
+      expect($('#story-dialog-live').textContent).toBe(line);
+    });
+
+    it('a later panel is announced at once, and a first-line frame still queued never overwrites it', () => {
+      const panels = STORY_SEQUENCES.campaign_intro.panels;
+      const second = `${STORY_SPEAKERS[panels[1].speaker].name}: ${panels[1].text}`;
+      make().play('campaign_intro', () => {});
+      clock.t += LONG; // no frame has run: panel 0's live write is still queued
+      $('#story-dialog-next').click();
+      expect(dialog().dataset.index).toBe('1');
+      expect($('#story-dialog-live').textContent).toBe(second);
+      clock.frame();
+      expect($('#story-dialog-live').textContent).toBe(second);
+    });
+
     it('the live region holds "Name: line" once per panel', () => {
       const panels = STORY_SEQUENCES.campaign_intro.panels;
       make().play('campaign_intro', () => {});
       const live = $('#story-dialog-live');
+      clock.frame();
       const obs = new MutationObserver(() => {});
       obs.observe(live, { childList: true, characterData: true, subtree: true });
       expect(live.textContent).toBe(`${STORY_SPEAKERS.command.name}: ${panels[0].text}`);
@@ -491,6 +574,7 @@ describe('StoryDialogOverlay', () => {
       expect(typed()).toBe(line);
       expect(dialog().classList.contains('sd-slam')).toBe(false);
       expect(dialog().classList.contains('sd-swap')).toBe(false);
+      clock.frame(); // only the one-off live write was queued: no typing loop
       expect(clock.pending()).toBe(0);
     });
 
@@ -593,6 +677,7 @@ describe('StoryDialogOverlay', () => {
         expect(dialog().style.getPropertyValue('--sd-caption')).toBe('');
         expect($('#story-dialog-name').textContent).toBe('');
         expect($('#story-dialog-portrait').textContent).toBe('?');
+        clock.frame();
         expect($('#story-dialog-live').textContent).toBe('Hello.');
       } finally {
         delete STORY_SEQUENCES.__ghost;
@@ -634,6 +719,88 @@ describe('StoryDialogOverlay', () => {
       expect($('#story-dialog-portrait .sd-initial').textContent).toBe('C');
       stale.dispatchEvent(new Event('error'));
       expect($('#story-dialog-portrait .sd-initial').textContent).toBe('C');
+    });
+  });
+
+  // The overlay hides on the closing click, so the second tap of a double tap
+  // would land on whatever lies beneath (LAUNCH, a pad).
+  describe('pointer close guard', () => {
+    let under;
+    let underSpy;
+    const TYPES = ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'click'];
+    const hit = (type, target = under) => {
+      const e = new Event(type, { bubbles: true, cancelable: true });
+      target.dispatchEvent(e);
+      return e;
+    };
+    beforeEach(() => {
+      under = document.createElement('button');
+      under.id = 'under';
+      document.body.appendChild(under);
+      underSpy = vi.fn();
+      for (const type of TYPES) under.addEventListener(type, underSpy);
+    });
+
+    it.each(['#story-dialog-skip', '#story-dialog-next'])('after a closing %s click, a tap underneath inside the guard is swallowed', (sel) => {
+      STORY_SEQUENCES.__one = { panels: [{ speaker: 'command', text: 'Go.' }] };
+      try {
+        const done = vi.fn();
+        make().play('__one', done);
+        clock.t += LONG;
+        $(sel).click();
+        expect(done).toHaveBeenCalledTimes(1);
+        clock.t += GUARD - 1;
+        for (const type of TYPES) expect(hit(type).defaultPrevented).toBe(true);
+        expect(underSpy).not.toHaveBeenCalled();
+      } finally {
+        delete STORY_SEQUENCES.__one;
+      }
+    });
+
+    it('the first event past the guard passes through, and so does the rest', () => {
+      make().play('campaign_intro', () => {});
+      $('#story-dialog-skip').click();
+      clock.t += GUARD;
+      expect(hit('pointerdown').defaultPrevented).toBe(false);
+      clock.t -= GUARD; // the swallow is gone, not merely timed out
+      expect(hit('click').defaultPrevented).toBe(false);
+      expect(underSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('a key close arms no tap swallow', () => {
+      make().play('campaign_intro', () => {});
+      key('Escape');
+      hit('click');
+      expect(underSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('close() ends the tap swallow', () => {
+      const ov = make();
+      ov.play('campaign_intro', () => {});
+      $('#story-dialog-skip').click();
+      ov.close();
+      hit('click');
+      expect(underSpy).toHaveBeenCalledTimes(1);
+    });
+
+    // The reopened dialog covers the screen and judges its own taps (its Primary
+    // finishes the line); a swallow left on would eat them before the overlay.
+    it('an onComplete that plays again hands the next tap to the new dialog', () => {
+      const ov = make();
+      ov.play('epilogue_outpost_sigma', () => ov.play('campaign_intro', () => {}));
+      $('#story-dialog-skip').click();
+      expect(dialog().dataset.phase).toBe('typing');
+      clock.t += 10;
+      $('#story-dialog-next').click();
+      expect(dialog().dataset.phase).toBe('complete');
+    });
+
+    it('an onComplete whose chained sequence is missing keeps the swallow (nothing reopened)', () => {
+      const ov = make();
+      ov.play('campaign_intro', () => ov.play('does_not_exist', () => {}));
+      $('#story-dialog-skip').click();
+      expect(hit('click').defaultPrevented).toBe(true);
+      expect(underSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -686,12 +853,58 @@ describe('StoryDialogOverlay', () => {
       ov.play('epilogue_outpost_sigma', () => ov.play('campaign_intro', () => {}));
       $('#story-dialog-skip').click();
       expect(new Set(live)).toEqual(single);
+      clock.frame(0); // drains the one-off live write; a stacked loop would re-queue twice
       expect(clock.pending()).toBe(1);
       expect(dialog().style.display).toBe('flex');
       expect(dialog().dataset.index).toBe('0');
       expect(dialog().classList.contains('sd-slam')).toBe(true);
       clock.frame(LONG);
       expect(clock.pending()).toBe(0);
+      ov.close();
+      expect([...live]).toEqual([]);
+    });
+
+    it('a key-closed dialog whose onComplete plays again keeps one listener set plus the keyup tail, which eats the next keyup', () => {
+      const live = trackLive(document, dialog());
+      const ov = make();
+      ov.play('campaign_intro', () => {});
+      const single = new Set(live);
+      key('Escape');
+      const tail = new Set(live);
+      ov.close();
+      expect([...live]).toEqual([]);
+      ov.play('epilogue_outpost_sigma', () => ov.play('campaign_intro', () => {}));
+      key('Escape');
+      expect(dialog().style.display).toBe('flex');
+      expect(new Set(live)).toEqual(new Set([...single, ...tail]));
+      const keyupSpy = vi.fn();
+      window.addEventListener('keyup', keyupSpy);
+      try {
+        expect(key('Escape', { type: 'keyup' }).defaultPrevented).toBe(true);
+        expect(keyupSpy).not.toHaveBeenCalled();
+      } finally {
+        window.removeEventListener('keyup', keyupSpy);
+      }
+      expect(new Set(live)).toEqual(single);
+      ov.close();
+      expect([...live]).toEqual([]);
+    });
+
+    it('a pointer-closed dialog leaves only its tap swallow, which the first event past the guard removes', () => {
+      const live = trackLive(document, dialog());
+      make().play('campaign_intro', () => {});
+      $('#story-dialog-skip').click();
+      expect(live.size).toBeGreaterThan(0);
+      clock.t += GUARD;
+      document.body.dispatchEvent(new Event('pointerdown', { bubbles: true, cancelable: true }));
+      expect([...live]).toEqual([]);
+    });
+
+    it('close() removes a pending tap swallow', () => {
+      const live = trackLive(document, dialog());
+      const ov = make();
+      ov.play('campaign_intro', () => {});
+      $('#story-dialog-skip').click();
       ov.close();
       expect([...live]).toEqual([]);
     });

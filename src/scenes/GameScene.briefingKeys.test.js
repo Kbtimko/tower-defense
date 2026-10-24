@@ -70,6 +70,31 @@ describe('GameScene briefing keys', () => {
     expect(ui.emit).not.toHaveBeenCalled();
   });
 
+  // Holding the Space that closed the briefing streams auto-repeat keydowns; they
+  // are still the closing press, not a pause.
+  it('auto-repeats of the Space that closed the briefing do not emit ui:pause-toggle', () => {
+    let t = 1000;
+    const timed = new StoryDialogOverlay({ motion: () => false, now: () => t, raf: () => 1, caf: () => {} });
+    const done = vi.fn();
+    try {
+      timed.play(briefId, done);
+      for (let i = 0; i < 40 && !done.mock.calls.length; i += 1) {
+        t += 60_000;
+        press(' ');
+      }
+      expect(done).toHaveBeenCalledTimes(1);
+      expect(ui.emit).not.toHaveBeenCalled();
+      for (let i = 0; i < 2; i += 1) {
+        const e = new KeyboardEvent('keydown', { key: ' ', repeat: true, bubbles: true, cancelable: true });
+        (document.activeElement || document.body).dispatchEvent(e);
+        expect(e.defaultPrevented).toBe(true); // nor a focused button's native activation
+      }
+      expect(ui.emit).not.toHaveBeenCalledWith('ui:pause-toggle');
+    } finally {
+      timed.close();
+    }
+  });
+
   it('Space toggles pause again once the briefing is closed', () => {
     overlay.play(briefId, () => {});
     overlay.close();

@@ -7,6 +7,11 @@ import { isBrowserShortcut } from './browserShortcut.js';
 
 const ONE_SHOT_CLASSES = ['sd-slam', 'sd-swap'];
 const NO_PORTRAITS = new Set();
+// The second tap of a double tap on the closing control. Touch events too: Phaser
+// reads touchstart/touchend, not pointer events, so a pad would still take it.
+const TAP_EVENTS = ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'click'];
+// Non-passive, or Chrome treats a document touchstart as passive and ignores preventDefault.
+const TAP_SWALLOW_OPTS = { capture: true, passive: false };
 
 // slamMs -> --sd-slam-ms: 450ms. JS stays the single source of the timings the
 // CSS animates with (the --title-* precedent).
@@ -55,6 +60,8 @@ export class StoryDialogOverlay {
     this._onComplete = null;
     this._returnFocus = null;
     this._frame = 0;
+    this._liveFrame = 0;
+    this._closedAt = 0;
     this._panelIndex = -1;
     this._shown = -1;
     this._chars = [];
@@ -63,22 +70,30 @@ export class StoryDialogOverlay {
     this._onFrame = this._onFrame.bind(this);
     this._swallowKeyup = this._swallowKeyup.bind(this);
     this._endKeyupSwallow = this._endKeyupSwallow.bind(this);
+    this._swallowTap = this._swallowTap.bind(this);
     publishTimings(this._overlay, STORY_DIALOG);
   }
 
   play(sequenceId, onComplete) {
     // Interrupting an open sequence: complete the prior beat first so it is still
-    // marked seen (its onComplete runs), then tear down its listeners.
-    if (this._flow) this._finish();
+    // marked seen (its onComplete runs), then tear down its listeners. That
+    // onComplete may chain a play() of its own, which is finished the same way.
+    while (this._flow) this._finish();
     const seq = STORY_SEQUENCES[sequenceId];
     const cb = onComplete || (() => {});
     if (!seq || seq.panels.length === 0) { cb(); return; }
+    // The reopened dialog covers the screen and judges its own taps; left on, the
+    // swallow would eat them before the overlay sees them.
+    this._removeTapSwallow();
     this._onComplete = cb;
     this._returnFocus = document.activeElement;
     this._overlay.addEventListener('click', this._onClick);
     document.addEventListener('keydown', this._onKeyDown, true);
+    this._live.textContent = '';
     this._overlay.style.display = 'flex';
     this._next.focus();
+    this._panelIndex = -1;
+    this._shown = -1;
     this._render(startFlow(seq, this._now(), { motion: this._motion() }));
   }
 
@@ -86,7 +101,10 @@ export class StoryDialogOverlay {
     this._overlay.removeEventListener('click', this._onClick);
     document.removeEventListener('keydown', this._onKeyDown, true);
     this._removeKeyupSwallow();
+    this._removeTapSwallow();
     this._stopFrames();
+    this._cancelLiveFrame();
+    this._live.textContent = '';
     this._overlay.classList.remove(...ONE_SHOT_CLASSES);
     this._overlay.style.display = 'none';
     this._flow = null;
@@ -99,8 +117,8 @@ export class StoryDialogOverlay {
   // Click is the last event of a tap, so closing here leaves nothing of the
   // gesture to land on the map below.
   _onClick(e) {
-    if (e.target.closest('#story-dialog-skip')) this._finish();
-    else this._primary(() => this._finish());
+    if (e.target.closest('#story-dialog-skip')) this._finishFromTap();
+    else this._primary(() => this._finishFromTap());
   }
 
   // Capture phase on document: runs before UIScene's bubble listener, so no
@@ -159,15 +177,46 @@ export class StoryDialogOverlay {
     if (cb) cb();
   }
 
+  // The overlay is gone once a tap closes it, so a double tap's second tap would
+  // land beneath (LAUNCH, a pad). A timestamp, not a timer: taps inside the
+  // advance guard are swallowed; armed before onComplete like the keyup tail.
+  _finishFromTap() {
+    const cb = this._onComplete;
+    this.close();
+    this._closedAt = this._now();
+    for (const type of TAP_EVENTS) document.addEventListener(type, this._swallowTap, TAP_SWALLOW_OPTS);
+    if (cb) cb();
+  }
+
+  // The first event past the guard passes through and ends the swallow.
+  _swallowTap(e) {
+    if (this._now() - this._closedAt >= STORY_DIALOG.advanceGuardMs) {
+      this._removeTapSwallow();
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  _removeTapSwallow() {
+    for (const type of TAP_EVENTS) document.removeEventListener(type, this._swallowTap, TAP_SWALLOW_OPTS);
+  }
+
   _swallowKeyup(e) {
     e.stopPropagation();
     e.preventDefault();
     this._removeKeyupSwallow();
   }
 
-  // A held key's auto-repeat is still the closing gesture.
+  // A held key's auto-repeat is still the closing gesture: swallowed, so it
+  // neither reaches UIScene (pause) nor activates the button focus went back to.
   _endKeyupSwallow(e) {
-    if (!e.repeat) this._removeKeyupSwallow();
+    if (e.repeat) {
+      e.stopPropagation();
+      e.preventDefault();
+      return;
+    }
+    this._removeKeyupSwallow();
   }
 
   _removeKeyupSwallow() {
@@ -185,6 +234,23 @@ export class StoryDialogOverlay {
     this._frame = 0;
   }
 
+  // A live region that enters the accessibility tree already filled is often
+  // never read, so the first line lands a frame after the dialog shows. The id
+  // check keeps a frame that fires after its cancel from writing.
+  _announceNextFrame(line) {
+    const id = this._raf(() => {
+      if (this._liveFrame !== id) return;
+      this._liveFrame = 0;
+      this._live.textContent = line;
+    });
+    this._liveFrame = id;
+  }
+
+  _cancelLiveFrame() {
+    if (this._liveFrame) this._caf(this._liveFrame);
+    this._liveFrame = 0;
+  }
+
   // view() never resolves completion itself, so every render ticks first.
   _render(state) {
     const now = this._now();
@@ -200,7 +266,7 @@ export class StoryDialogOverlay {
       this._enterPanel(v, motion);
     }
     this._flow = flow;
-    this._overlay.dataset.phase = v.phase;
+    if (this._overlay.dataset.phase !== v.phase) this._overlay.dataset.phase = v.phase;
     if (v.shown !== this._shown) this._writeText(v.shown);
     if (v.phase !== 'typing') this._stopFrames();
     else if (!this._frame) this._frame = this._raf(this._onFrame);
@@ -209,6 +275,7 @@ export class StoryDialogOverlay {
   _enterPanel(v, motion) {
     const look = speakerLook(v.panel.speaker);
     const ds = this._overlay.dataset;
+    const first = this._panelIndex === -1;
     this._panelIndex = v.index;
     ds.index = String(v.index);
     ds.speaker = look.frame === null ? 'unknown' : look.id;
@@ -225,7 +292,10 @@ export class StoryDialogOverlay {
     this._renderPortrait(look);
     this._chars = Array.from(v.panel.text);
     this._shown = -1;
-    this._live.textContent = look.name ? `${look.name}: ${v.panel.text}` : v.panel.text;
+    const line = look.name ? `${look.name}: ${v.panel.text}` : v.panel.text;
+    this._cancelLiveFrame();
+    if (first) this._announceNextFrame(line);
+    else this._live.textContent = line;
     // Last panel: relabel Next to a closing verb.
     this._next.textContent = v.isLast ? 'Continue ▸' : 'Next ▸';
     this._next.setAttribute('aria-label', v.isLast ? 'Continue' : 'Next');
