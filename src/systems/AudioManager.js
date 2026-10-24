@@ -122,6 +122,9 @@ export class AudioManager {
       return;
     }
     if (id === 'menu') {
+      // Already the menu track: leave it running rather than restart it from 0.
+      const cur = this._music.ambient;
+      if (cur?.key === 'menu' && cur.isPlaying) return;
       this._stopLayers();
       this._music.combatActive = false;
       this._music.ambient = this._addMusic('menu');

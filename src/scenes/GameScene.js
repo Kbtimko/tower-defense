@@ -379,7 +379,9 @@ export default class GameScene extends Phaser.Scene {
     document.getElementById('speed-btn').addEventListener('click',         () => this._toggleSpeed());
     // Shutdown's clone keeps the old label, but this.speed resets each level.
     this._renderSpeedButton();
-    document.getElementById('msg-btn').addEventListener('click', () => this.scene.start('MapSelectScene'));
+    // The scene instance is reused across levels, so the double-click guard resets per create.
+    this._leftToMap = false;
+    document.getElementById('msg-btn').addEventListener('click', () => this._returnToMap());
     document.getElementById('exit-btn').addEventListener('click', () => this._showConfirmExit());
     document.getElementById('msg-cancel-btn').addEventListener('click', () => {
       document.getElementById('game-msg').style.display = 'none';
@@ -417,6 +419,18 @@ export default class GameScene extends Phaser.Scene {
       over: this.over || this.won,
     });
     if (pause) this._onPauseToggle();
+  }
+
+  // Tells the world map what happened so it can animate a first-clear win.
+  _returnToMap() {
+    if (this._leftToMap) return;
+    this._leftToMap = true;
+    const result = this.won ? 'victory' : this.over ? 'defeat' : 'abandon';
+    const saved  = this.saveMgr.getStars(this.mapId);
+    // Victory's prevStars was captured before setStars, which keeps the max and hides it.
+    const prevStars = result === 'victory' ? this._prevStars : saved;
+    const stars     = result === 'victory' ? this._runStars  : saved;
+    this.scene.start('MapSelectScene', { from: { mapId: this.mapId, result, prevStars, stars } });
   }
 
   _showConfirmExit() {
@@ -1803,6 +1817,8 @@ export default class GameScene extends Phaser.Scene {
     const map   = MAPS[this.mapId];
     const pct   = this.economy.lives / map.startLives;
     const stars = pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : 1;
+    this._prevStars = this.saveMgr.getStars(this.mapId);
+    this._runStars  = stars;
     this.saveMgr.setStars(this.mapId, stars);
     const isFinal = this.mapId === MAPS.length - 1;
     const seqId   = victorySequenceId(map.storyKey, isFinal);
@@ -1820,7 +1836,7 @@ export default class GameScene extends Phaser.Scene {
     document.getElementById('msg-title').textContent = '🏆 Victory!';
     document.getElementById('msg-body').textContent  =
       starsDisplay(stars) + ' — ' + this.kills + ' kills';
-    document.getElementById('msg-btn').textContent          = '↩ Map Select';
+    document.getElementById('msg-btn').textContent          = '↩ World Map';
     document.getElementById('msg-cancel-btn').style.display = 'none';
     document.getElementById('exit-btn').classList.add('disabled');
     document.getElementById('pause-btn').classList.add('disabled');
@@ -1837,7 +1853,7 @@ export default class GameScene extends Phaser.Scene {
     this._commitStats(false);
     document.getElementById('msg-title').textContent = '💀 Defeat';
     document.getElementById('msg-body').textContent  = `The line did not hold. Wave ${this.waveMgr.currentWave}.`;
-    document.getElementById('msg-btn').textContent          = '↩ Map Select';
+    document.getElementById('msg-btn').textContent          = '↩ World Map';
     document.getElementById('msg-cancel-btn').style.display = 'none';
     document.getElementById('exit-btn').classList.add('disabled');
     document.getElementById('pause-btn').classList.add('disabled');

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Last Light — world map options</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root { --panel:#0f1424; --edge:#2a3a4a; --accent:#4fc3f7; --gold:#ffd700; --text:#e8e0d0; --veth:#9b4dff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#070a14; color:var(--text); font-family:Rajdhani, sans-serif; padding:24px 16px 48px; }
+  h1 { font-family:Orbitron, sans-serif; font-size:20px; letter-spacing:2px; margin:0 0 6px; color:var(--accent); }
+  .sub { color:#a8a294; font-size:17px; margin:0 0 20px; max-width:980px; line-height:1.4; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(560px, 1fr)); gap:20px; max-width:1200px; }
+  .opt { background:var(--panel); border:2px solid var(--edge); border-radius:10px; padding:10px; cursor:pointer; }
+  .opt:hover { border-color:#4a6a8a; }
+  .opt.selected { border-color:var(--gold); box-shadow:0 0 0 1px var(--gold); }
+  .meta { padding:10px 4px 2px; }
+  .meta h3 { font-family:Orbitron, sans-serif; font-size:14px; letter-spacing:1px; margin:0 0 4px; }
+  .meta h3 b { color:var(--gold); margin-right:6px; }
+  .meta p { margin:0; color:#a8a294; font-size:16px; line-height:1.35; }
+
+  .screen { position:relative; aspect-ratio:16/9; border-radius:6px; overflow:hidden; container-type:inline-size; }
+  .screen canvas { position:absolute; inset:0; width:100%; height:100%; }
+  /* top banner: where you are in the story */
+  .banner { position:absolute; top:3cqw; left:3cqw; right:30cqw; }
+  .act { font-family:Orbitron, sans-serif; font-size:1.5cqw; letter-spacing:.3em; color:var(--accent); }
+  .objective { font-family:Orbitron, sans-serif; font-size:2.6cqw; color:var(--text); margin-top:.6cqw; }
+  .front { font-size:1.6cqw; color:#a8a294; margin-top:.5cqw; }
+  .front b { color:var(--gold); }
+  /* briefing card for the selected mission */
+  .brief { position:absolute; right:2.5cqw; top:2.5cqw; bottom:2.5cqw; width:26cqw; background:rgba(15,20,36,.88); border:1px solid var(--edge);
+           border-radius:1cqw; padding:1.8cqw; display:flex; flex-direction:column; gap:1cqw; }
+  .brief .n { font-family:Orbitron, sans-serif; font-size:1.3cqw; letter-spacing:.25em; color:var(--accent); }
+  .brief .t { font-family:Orbitron, sans-serif; font-size:2.3cqw; color:var(--gold); }
+  .brief .q { font-size:1.75cqw; line-height:1.35; color:var(--text); border-left:.3cqw solid #4aa3ff; padding-left:1cqw; }
+  .brief .q i { display:block; font-style:normal; font-family:Orbitron, sans-serif; font-size:1.15cqw; letter-spacing:.2em; color:#4aa3ff; margin-bottom:.4cqw; }
+  .brief .threat { font-size:1.5cqw; color:#a8a294; }
+  .brief .threat b { color:var(--danger, #f07a7a); }
+  .brief .play { margin-top:auto; text-align:center; font-family:Orbitron, sans-serif; font-size:1.9cqw; letter-spacing:.15em; color:#07101c;
+                 background:var(--gold); border-radius:.8cqw; padding:1.2cqw; box-shadow:0 0 2cqw rgba(255,215,0,.35); }
+  /* nodes */
+  .node { position:absolute; width:4.6cqw; height:4.6cqw; margin:-2.3cqw 0 0 -2.3cqw; border-radius:50%; border:.25cqw solid; }
+  .node.done { border-color:var(--gold); background:radial-gradient(circle at 35% 35%, #6a7a8a, #1a2230); }
+  .node.next { border-color:var(--accent); background:radial-gradient(circle at 35% 35%, #8ab, #1a2a3a); box-shadow:0 0 0 .6cqw rgba(79,195,247,.25), 0 0 3cqw rgba(79,195,247,.6); animation:pulse 1.8s ease-in-out infinite; }
+  .node.locked { border-color:#4a3a6a; background:radial-gradient(circle at 35% 35%, #3a2a55, #120a1e); opacity:.75; }
+  @keyframes pulse { 50% { box-shadow:0 0 0 1.2cqw rgba(79,195,247,.08), 0 0 4cqw rgba(79,195,247,.8); } }
+  .lbl { position:absolute; transform:translate(-50%, 2.9cqw); text-align:center; white-space:nowrap; font-size:1.35cqw; color:var(--text); }
+  .lbl .s { color:var(--gold); letter-spacing:.1em; }
+  .lbl.locked { color:#7a6a9a; }
+  .earth { position:absolute; width:7cqw; height:7cqw; margin:-3.5cqw 0 0 -3.5cqw; border-radius:50%;
+           background:radial-gradient(circle at 35% 35%, #9fe0ff, #2a7ac0 45%, #0b2a55 75%); box-shadow:0 0 3cqw rgba(79,195,247,.55); }
+  .hive { position:absolute; width:8cqw; height:8cqw; margin:-4cqw 0 0 -4cqw; border-radius:50%;
+          background:radial-gradient(circle at 50% 50%, #e8c8ff, #9b4dff 35%, #3a0a6a 70%, transparent 72%); box-shadow:0 0 5cqw rgba(155,77,255,.7); }
+  .tag { position:absolute; font-family:Orbitron, sans-serif; font-size:1.1cqw; letter-spacing:.25em; transform:translate(-50%, 0); }
+</style>
+</head>
+<body>
+  <h1>WORLD MAP: DEEP-SPACE VISTA, MORE PLANETS</h1>
+  <p class="sub">Both options show the same story layer, using the briefings that already exist in the game:
+    <b>Earth</b> where you start, the <b>Veth hive</b> where it ends, a <b>front line</b> showing how far you've pushed them back (violet haze = still Veth-held), an <b>act banner</b> saying what you're doing and why, and a <b>briefing card</b> quoting Command for the selected mission.
+    They differ only in the backdrop. Click the one that feels right, or tell me what to mix.</p>
+
+  <div class="grid" style="grid-template-columns:1fr">
+    <div class="opt" data-choice="b2-vista-more-planets" onclick="toggleSelect(this)">
+      <div class="screen" data-style="vista"><canvas></canvas></div>
+      <div class="meta"><h3><b>B2</b>Deep-space vista, more planets</h3><p>Sol's planets along the first half of the route (Mars, Jupiter, Saturn by Titan's Reach, Neptune at the edge of the system), then alien worlds in Veth space: a toxic green world, a dark rogue planet at the Void Frontier, and the glowing living homeworld.</p></div>
+    </div>
+  </div>
+<script>
+  // Route: Earth (left) -> hive (right). Progress here: 3 cleared, Orbital Station next.
+  const NODES = [
+    ['Outpost Sigma', .13, .78], ['Lunar Gate', .22, .62], ['The Crater', .30, .80], ['Orbital Station', .39, .60],
+    ['Asteroid Belt', .47, .78], ["Titan's Reach", .52, .48], ['Deep Space Corridor', .44, .33], ['Void Frontier', .56, .22],
+    ['Enemy Homeworld', .66, .36],
+  ];
+  const CLEARED = 3, STARS = ['★★★', '★★☆', '★☆☆'];
+  const FRONT = .38;            // x where Veth-held space begins
+  const LAST = ['Last Light', .70, .14];
+  // Squeeze the route left of the briefing card.
+  const SQ = x => .05 + (x - .05) * .86;
+  NODES.forEach(n => { n[1] = SQ(n[1]); }); LAST[1] = SQ(LAST[1]);
+
+  function overlay(screen) {
+    const add = (html) => screen.insertAdjacentHTML('beforeend', html);
+    add(`<div class="earth" style="left:5%;top:84%"></div><div class="tag" style="left:5%;top:91%;color:#9fe0ff">EARTH</div>`);
+    add(`<div class="hive" style="left:${LAST[1]*100}%;top:${LAST[2]*100}%"></div><div class="tag" style="left:${LAST[1]*100}%;top:${(LAST[2]+.06)*100}%;color:#d9b8ff">LAST LIGHT · HIVE CORE</div>`);
+    NODES.forEach(([name, x, y], i) => {
+      const cls = i < CLEARED ? 'done' : i === CLEARED ? 'next' : 'locked';
+      add(`<div class="node ${cls}" style="left:${x*100}%;top:${y*100}%"></div>`);
+      add(`<div class="lbl ${cls === 'locked' ? 'locked' : ''}" style="left:${x*100}%;top:${y*100}%">${i+1} · ${name}${i < CLEARED ? `<br><span class="s">${STARS[i]}</span>` : ''}</div>`);
+    });
+    add(`<div class="tag" style="left:${FRONT*100}%;top:93%;color:#c9a8ff;transform:translate(-50%,0)">◂ FRONT LINE ▸</div>`);
+    add(`<div class="banner"><div class="act">ACT I · RETAKE SOL</div><div class="objective">Push the Veth off our own guns</div>
+         <div class="front">Front line: <b>3 of 10</b> sectors retaken</div></div>`);
+    add(`<div class="brief"><div class="n">MISSION 4</div><div class="t">Orbital Station</div>
+         <div class="q"><i>SOL COMMAND</i>"The Veth hold Orbital Station, and they're calling in fliers. Expect airborne drones this assault."</div>
+         <div class="threat">New threat: <b>flying drones</b></div><div class="threat">Towers upgrade to Tier 3</div>
+         <div class="play">▶ LAUNCH</div></div>`);
+  }
+
+  function draw(canvas, style) {
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width = canvas.clientWidth * devicePixelRatio, H = canvas.height = canvas.clientHeight * devicePixelRatio;
+    const P = ([, x, y]) => [x * W, y * H];
+    const rnd = (s => () => (s = (s * 16807) % 2147483647) / 2147483647)(7);
+    // base
+    if (style === 'chart') {
+      ctx.fillStyle = '#060b16'; ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = 'rgba(79,195,247,.07)'; ctx.lineWidth = 1;
+      for (let x = 0; x < W; x += W / 32) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+      for (let y = 0; y < H; y += W / 32) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+      ctx.strokeStyle = 'rgba(79,195,247,.12)';
+      for (const r of [.18, .32, .46, .62]) { ctx.beginPath(); ctx.ellipse(.05 * W, .84 * H, r * W, r * W * .62, 0, 0, Math.PI * 2); ctx.stroke(); }
+      for (let i = 0; i < 140; i++) { ctx.fillStyle = `rgba(200,230,255,${.2 + rnd() * .4})`; ctx.fillRect(rnd() * W, rnd() * H, 1.2 * devicePixelRatio, 1.2 * devicePixelRatio); }
+    } else {
+      const g = ctx.createLinearGradient(0, H, W, 0); g.addColorStop(0, '#0a1530'); g.addColorStop(.45, '#090d1c'); g.addColorStop(1, '#14082a');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      const neb = (x, y, r, c) => { const n = ctx.createRadialGradient(x, y, 0, x, y, r); n.addColorStop(0, c); n.addColorStop(1, 'transparent'); ctx.fillStyle = n; ctx.fillRect(0, 0, W, H); };
+      neb(.02 * W, .95 * H, .35 * W, 'rgba(255,214,140,.22)');       // sun glare behind Earth
+      neb(.30 * W, .70 * H, .25 * W, 'rgba(60,120,200,.18)');
+      neb(.62 * W, .25 * H, .30 * W, 'rgba(155,77,255,.22)');
+      neb(.48 * W, .45 * H, .18 * W, 'rgba(200,90,160,.10)');
+      for (let i = 0; i < 260; i++) { const z = rnd(); ctx.fillStyle = `rgba(232,224,208,${.15 + z * .6})`; const s = (.6 + z * 1.4) * devicePixelRatio; ctx.fillRect(rnd() * W, rnd() * H, s, s); }
+      // asteroid belt band
+      ctx.fillStyle = 'rgba(160,150,140,.35)';
+      for (let i = 0; i < 120; i++) { const t = rnd(); ctx.beginPath(); ctx.arc((.40 + t * .16) * W, (.95 - t * .35) * H + (rnd() - .5) * .08 * H, (.6 + rnd() * 1.6) * devicePixelRatio, 0, 7); ctx.fill(); }
+
+      // Planets: Sol's along the first half of the route, alien worlds past the front line.
+      const planet = (x, y, r, c0, c1, opts = {}) => {
+        x *= W; y *= H; r *= W;
+        if (opts.glow) { const g2 = ctx.createRadialGradient(x, y, r * .8, x, y, r * 2.4); g2.addColorStop(0, opts.glow); g2.addColorStop(1, 'transparent'); ctx.fillStyle = g2; ctx.fillRect(x - r * 3, y - r * 3, r * 6, r * 6); }
+        if (opts.ring) { ctx.strokeStyle = opts.ring; ctx.lineWidth = r * .18; ctx.beginPath(); ctx.ellipse(x, y, r * 2, r * .5, -.35, Math.PI, Math.PI * 2); ctx.stroke(); }
+        const b = ctx.createRadialGradient(x - r * .35, y - r * .35, r * .1, x, y, r);
+        b.addColorStop(0, c0); b.addColorStop(1, c1); ctx.fillStyle = b; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+        if (opts.bands) { ctx.save(); ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.clip();
+          opts.bands.forEach(([dy, h, c]) => { ctx.fillStyle = c; ctx.fillRect(x - r, y + dy * r, r * 2, h * r); }); ctx.restore(); }
+        if (opts.cracks) { ctx.strokeStyle = opts.cracks; ctx.lineWidth = Math.max(1, r * .05);
+          for (let i = 0; i < 6; i++) { ctx.beginPath(); const a = rnd() * 7; ctx.moveTo(x + Math.cos(a) * r * .2, y + Math.sin(a) * r * .2); ctx.lineTo(x + Math.cos(a + .4) * r * .9, y + Math.sin(a + .4) * r * .9); ctx.stroke(); } }
+        if (opts.ring) { ctx.strokeStyle = opts.ring; ctx.lineWidth = r * .18; ctx.beginPath(); ctx.ellipse(x, y, r * 2, r * .5, -.35, 0, Math.PI); ctx.stroke(); }
+        // night side
+        const sh = ctx.createLinearGradient(x - r, y - r, x + r, y + r); sh.addColorStop(.45, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,.65)');
+        ctx.fillStyle = sh; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+      };
+      planet(.16, .45, .016, '#e8916a', '#7a2e1a');                                   // Mars
+      planet(.27, .30, .042, '#f0d9b5', '#9a6a3a', { bands: [[-.6,.15,'rgba(150,90,50,.5)'],[-.2,.18,'rgba(190,120,70,.45)'],[.25,.12,'rgba(150,90,50,.5)'],[.1,.1,'rgba(200,80,60,.5)']] }); // Jupiter
+      planet(.48, .60, .02, '#e9cf98', '#8a6a3a', { ring: 'rgba(230,205,160,.7)' });   // Saturn
+      planet(.37, .17, .014, '#9fd8ff', '#1a4a8a');                                   // Neptune
+      planet(.47, .14, .02, '#9dffb0', '#1a5a3a', { glow: 'rgba(93,255,154,.25)', bands: [[-.3,.2,'rgba(30,120,60,.4)'],[.2,.15,'rgba(30,120,60,.4)']] }); // toxic world
+      planet(.55, .30, .026, '#3a3550', '#0a0812', { cracks: 'rgba(190,120,255,.7)', glow: 'rgba(155,77,255,.18)' });  // rogue planet, Void Frontier
+      planet(.63, .45, .05, '#d9a8ff', '#3a0a6a', { glow: 'rgba(155,77,255,.35)', bands: [[-.5,.12,'rgba(255,120,220,.35)'],[0,.1,'rgba(255,120,220,.3)'],[.45,.12,'rgba(255,120,220,.35)']] }); // Veth homeworld
+      // (old saturn sketch)
+      
+      
+    }
+    // Veth-held space: violet haze beyond the front line
+    const v = ctx.createLinearGradient(FRONT * W - .04 * W, 0, FRONT * W + .1 * W, 0);
+    v.addColorStop(0, 'rgba(155,77,255,0)'); v.addColorStop(1, style === 'chart' ? 'rgba(155,77,255,.16)' : 'rgba(110,40,190,.22)');
+    ctx.fillStyle = v; ctx.fillRect(FRONT * W - .04 * W, 0, W, H);
+    ctx.setLineDash([6 * devicePixelRatio, 6 * devicePixelRatio]); ctx.strokeStyle = 'rgba(200,160,255,.55)'; ctx.lineWidth = 1.5 * devicePixelRatio;
+    ctx.beginPath(); ctx.moveTo(FRONT * W, .22 * H); ctx.lineTo(FRONT * W, H); ctx.stroke(); ctx.setLineDash([]);
+    // route: Earth -> nodes -> hive; walked part bright, ahead dim
+    const pts = [[.05 * W, .84 * H], ...NODES.map(P), P(LAST)];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const walked = i < CLEARED + 1;
+      ctx.strokeStyle = walked ? 'rgba(255,215,0,.85)' : 'rgba(180,160,220,.3)';
+      ctx.lineWidth = (walked ? 2.5 : 1.5) * devicePixelRatio;
+      if (!walked) ctx.setLineDash([4 * devicePixelRatio, 5 * devicePixelRatio]);
+      ctx.beginPath(); ctx.moveTo(...pts[i]); ctx.lineTo(...pts[i + 1]); ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
+
+  document.querySelectorAll('.screen').forEach(s => { overlay(s); draw(s.querySelector('canvas'), s.dataset.style); });
+  addEventListener('resize', () => document.querySelectorAll('.screen').forEach(s => draw(s.querySelector('canvas'), s.dataset.style)));
+</script>
+</body>
+</html>

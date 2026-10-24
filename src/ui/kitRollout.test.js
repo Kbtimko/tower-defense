@@ -88,6 +88,10 @@ const SURFACES = {
   '#game-msg': ['ui-panel'],
   '#msg-btn': ['ui-btn', 'ui-btn--primary'],
   '#msg-cancel-btn': ['ui-btn'],
+  // Roadmap 3.4 world map (#41f).
+  '#map-meta-bar button': ['ui-btn'],
+  '#map-featured': ['ui-panel'],
+  '#featured-play': ['ui-btn', 'ui-btn--currency'],
 };
 const VARIANT = /^ui-(btn|panel)--/;
 

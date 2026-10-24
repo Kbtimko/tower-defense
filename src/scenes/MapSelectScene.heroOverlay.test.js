@@ -1,89 +1,40 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 vi.mock('phaser', () => ({
   default: { Scene: class { constructor(){} events = { on(){}, once(){} } } },
 }));
 
 import MapSelectScene from './MapSelectScene.js';
+import { mountMapSelectDom } from './mapSelectDom.testutil.js';
+import { LAYOUT } from '../data/worldMap.js';
 import { SaveManager } from '../systems/SaveManager.js';
 
+// The real index.html markup; jsdom has no canvas, so the world-map renderer
+// no-ops. Fake timers let a test step past the entry input guard.
 function setupDom() {
-  document.body.replaceChildren();
-
-  // #map-select container (so shutdown() does not throw)
-  const root = document.createElement('div');
-  root.id = 'map-select';
-  document.body.appendChild(root);
-
-  // Meta bar + open-heroes button
-  const metaBar = document.createElement('div');
-  metaBar.id = 'map-meta-bar';
-  for (const id of ['total-stars']) {
-    const span = document.createElement('span');
-    span.id = id;
-    metaBar.appendChild(span);
-  }
-  for (const id of ['open-upgrades', 'open-heroes', 'open-settings', 'fullscreen-btn']) {
-    const btn = document.createElement('button');
-    btn.id = id;
-    metaBar.appendChild(btn);
-  }
-  document.body.appendChild(metaBar);
-
-  // Overworld + featured (placeholder structure — _populateOverworld/_renderFeatured need the elements)
-  const overworld = document.createElement('div');
-  overworld.id = 'map-overworld';
-  document.body.appendChild(overworld);
-  for (const id of ['featured-name', 'featured-stars', 'featured-blurb', 'featured-tier', 'featured-play']) {
-    const el = document.createElement(id === 'featured-play' ? 'button' : 'div');
-    el.id = id;
-    document.body.appendChild(el);
-  }
-  const stats = document.createElement('div');
-  stats.id = 'lifetime-stats';
-  document.body.appendChild(stats);
-
-  // Both overlays must exist as DOM so their constructors cache refs
-  for (const ovId of ['upgrade-overlay', 'hero-mgmt-overlay', 'settings-overlay']) {
-    const ov = document.createElement('div');
-    ov.id = ovId;
-    ov.style.display = 'none';
-    document.body.appendChild(ov);
-  }
-
-  // Story dialog elements (needed by StoryDialogOverlay constructor via MapSelectScene.create)
-  const storyDialog = document.createElement('div');
-  storyDialog.id = 'story-dialog';
-  storyDialog.style.display = 'none';
-  for (const [tag, id] of [
-    ['div', 'story-dialog-portrait'], ['div', 'story-dialog-name'],
-    ['div', 'story-dialog-text'], ['button', 'story-dialog-next'], ['button', 'story-dialog-skip'],
-  ]) {
-    const el = document.createElement(tag);
-    el.id = id;
-    storyDialog.appendChild(el);
-  }
-  document.body.appendChild(storyDialog);
-  // Story log overlay elements
-  for (const id of ['story-log-overlay', 'story-log-list']) {
-    const el = document.createElement('div');
-    el.id = id;
-    document.body.appendChild(el);
-  }
-  for (const id of ['open-story-log', 'story-log-close']) {
-    const btn = document.createElement('button');
-    btn.id = id;
-    document.body.appendChild(btn);
-  }
-  for (const id of [
-    'upgrade-tree', 'upgrade-available', 'upgrade-close',
-    'hero-rail', 'hero-tree', 'hero-mgmt-avail', 'hero-mgmt-close',
-  ]) {
-    const el = document.createElement('div');
-    el.id = id;
-    document.body.appendChild(el);
-  }
+  mountMapSelectDom();
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+  vi.useFakeTimers();
 }
+
+function passGuard() {
+  vi.advanceTimersByTime(LAYOUT.inputGuardMs);
+}
+
+// Every scene is shut down after its test, so no entry guard or listener from one
+// test can swallow the next test's clicks.
+let entered = [];
+function makeScene() {
+  const scene = new MapSelectScene();
+  scene.game = { registry: new Map() };
+  entered.push(scene);
+  return scene;
+}
+
+afterEach(() => {
+  for (const sc of entered.splice(0)) sc.shutdown();
+  vi.useRealTimers();
+});
 
 describe('MapSelectScene heroes-overlay integration', () => {
   beforeEach(() => {
@@ -92,25 +43,24 @@ describe('MapSelectScene heroes-overlay integration', () => {
   });
 
   it('does NOT render the old #hero-picker block', () => {
-    const scene = new MapSelectScene();
-    scene.game = { registry: new Map() };
+    const scene = makeScene();
     scene.create();
     expect(document.getElementById('hero-picker')).toBeNull();
     expect(document.querySelectorAll('.hero-card').length).toBe(0);
   });
 
   it('clicking #open-heroes opens the Hero Management overlay', () => {
-    const scene = new MapSelectScene();
-    scene.game = { registry: new Map() };
+    const scene = makeScene();
     scene.create();
+    passGuard();
     document.getElementById('open-heroes').click();
     expect(document.getElementById('hero-mgmt-overlay').style.display).toBe('flex');
   });
 
   it('shutdown() hides #hero-mgmt-overlay along with the others', () => {
-    const scene = new MapSelectScene();
-    scene.game = { registry: new Map() };
+    const scene = makeScene();
     scene.create();
+    passGuard();
     document.getElementById('open-heroes').click();
     scene.shutdown();
     expect(document.getElementById('hero-mgmt-overlay').style.display).toBe('none');
@@ -133,9 +83,9 @@ describe('MapSelectScene heroes-overlay integration', () => {
     closeBtn.removeEventListener = (...a) => { live--; return origRemove(...a); };
 
     for (let i = 0; i < 3; i++) {
-      const scene = new MapSelectScene();
-      scene.game = { registry: new Map() };
+      const scene = makeScene();
       scene.create();
+      passGuard();
       document.getElementById('open-upgrades').click();  // open() -> addEventListener
       scene.shutdown();
     }
@@ -147,11 +97,11 @@ describe('MapSelectScene heroes-overlay integration', () => {
     const save = new SaveManager();
     save.setStars(2, 1);            // unlock Engineer
     save.setSelectedHero('engineer');
-    const scene = new MapSelectScene();
-    scene.game = { registry: new Map() };
+    const scene = makeScene();
     // Stub scene.start to capture launch args
     scene.scene = { start: vi.fn() };
     scene.create();
+    passGuard();
     document.getElementById('featured-play').click();
     expect(scene.scene.start).toHaveBeenCalledWith('GameScene',
       expect.objectContaining({ heroId: 'engineer' }));
@@ -162,8 +112,7 @@ describe('MapSelectScene — overworld rendering', () => {
   beforeEach(setupDom);
 
   it('renders one node per map with correct states on a fresh save', () => {
-    const scene = new MapSelectScene();
-    scene.game = { registry: new Map() };
+    const scene = makeScene();
     scene.create();
 
     const nodes = document.querySelectorAll('#map-overworld .ow-node');

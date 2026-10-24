@@ -88,7 +88,7 @@ describe('GameScene._showVictoryOverlay modal reset', () => {
 
     scene._showVictoryOverlay(3);
 
-    expect(document.getElementById('msg-btn').textContent).toBe('↩ Map Select');
+    expect(document.getElementById('msg-btn').textContent).toBe('↩ World Map');
     expect(document.getElementById('msg-cancel-btn').style.display).toBe('none');
     expect(document.getElementById('game-msg').style.display).toBe('block');
   });
@@ -123,7 +123,7 @@ describe('GameScene._onDefeat modal reset', () => {
 
     scene._onDefeat();
 
-    expect(document.getElementById('msg-btn').textContent).toBe('↩ Map Select');
+    expect(document.getElementById('msg-btn').textContent).toBe('↩ World Map');
     expect(document.getElementById('msg-cancel-btn').style.display).toBe('none');
     expect(document.getElementById('game-msg').style.display).toBe('block');
   });

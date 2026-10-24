@@ -75,6 +75,10 @@ export default class UIScene extends Phaser.Scene {
 
     // Keyboard shortcuts
     this._onKeyDown = (e) => {
+      // UIScene is never stopped, so this listener outlives the level; on the world
+      // map it would eat Space on focused buttons. Paused counts: the user pause is
+      // a scene.pause(), and Space must still resume it.
+      if (!this.scene.isActive('GameScene') && !this.scene.isPaused('GameScene')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       if (e.key === ' ') {
         e.preventDefault();

@@ -19,7 +19,7 @@
        `font` shorthand would also reset the UA control font-size. */
     button, input, select, textarea { font-family: inherit; }
     /* Titles >= 16 px take the display face; smaller names stay Rajdhani 700. */
-    #map-select-title, #game-msg h2, #codex-overlay-title, #settings-overlay-title,
+    #game-msg h2, #codex-overlay-title, #settings-overlay-title,
     #story-log-inner h3, #upgrade-overlay-title, #hero-mgmt-overlay-title,
     #paused-overlay, #wave-banner, #wave-banner-boss, .wp-title { font-family: var(--ui-font-heading); }
 
@@ -379,40 +379,109 @@
       padding:9px 12px; border-radius:6px; margin-bottom:7px; }
     #story-log-empty { color:#789; font-size:13px; }
     #story-log-close { margin-top:8px; padding:6px 14px; border-radius:6px; }
-    #map-select { display:none; position:absolute; inset:0; background:#08081e; z-index:5;
-                  padding:20px; flex-direction:column; }
-    #map-select-title { font-size:34px; color:#ffd700; font-weight:bold; text-align:center;
-                        margin-bottom:18px; letter-spacing:4px; }
-    #map-select-layout { display:flex; gap:16px; flex:1; min-height:0; overflow:hidden; }
-    #map-overworld { flex:1.6; position:relative; min-height:0; border:1px solid #2a2a4a; border-radius:10px; overflow:hidden;
-      background:radial-gradient(ellipse at 30% 20%, #141436 0%, #08081e 60%, #050510 100%); }
-    #map-overworld .ow-connectors { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
-    #map-overworld .ow-path-dim { fill:none; stroke:#2f2f50; stroke-width:0.8; vector-effect:non-scaling-stroke; }
-    #map-overworld .ow-path-lit { stroke:#8b6914; stroke-width:1.2; vector-effect:non-scaling-stroke; }
-    .ow-node { position:absolute; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; gap:2px; }
+    /* ── World map (roadmap 3.4) ─────────────────────────────────────────────
+       Every region is absolute in the #map-select box, the same viewport
+       routeFrameFor measures. The --wm-* vars are LAYOUT (src/data/worldMap.js),
+       set by MapSelectScene per layout class; the fallbacks are the tall values
+       so the pre-JS paint is laid out too. Spec §5. */
+    #map-select { display:none; position:absolute; inset:0; z-index:5; overflow:hidden; background:#08081e; }
+    /* The story canvases are drawn by JS; this gradient is the pre-draw and
+       no-2D-context fallback (Sol blue -> navy -> Veth violet). */
+    #map-overworld { position:absolute; inset:0; overflow:hidden;
+      background:linear-gradient(110deg, #0b1d3a 0%, #0a0f24 50%, #1d0f33 100%); }
+    #map-overworld canvas { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+    /* Node layer: same box as the canvases, so route px are node px. */
+    #wm-nodes { position:absolute; inset:0; }
+    .wm-tag { position:absolute; transform:translate(-50%, 0); pointer-events:none; white-space:nowrap;
+              font-family:var(--ui-font-heading); font-size:var(--ui-fs-xs); letter-spacing:.3em;
+              text-transform:uppercase; color:var(--ui-accent); }
+    /* Above node 10 (MapSelectScene._placeTags anchors its bottom edge). */
+    #wm-hive-tag { color:var(--ui-text-muted); transform:translate(-50%, -100%); }
+    /* left/top is the route point; shifting up by half the node puts the node's
+       centre on it, and the label hangs below (nodeRects measures that box). */
+    .ow-node { position:absolute; transform:translate(-50%, calc(var(--wm-node, 56px) / -2)); display:flex; flex-direction:column; align-items:center;
+               gap:calc(2 * var(--ui-u)); padding:0; border:0; background-color:transparent; color:inherit; font:inherit; }
+    .ow-node.final { transform:translate(-50%, calc(var(--wm-node-final, 64px) / -2)); }
     .ow-node.unlocked, .ow-node.next, .ow-node.completed { cursor:pointer; }
-    .ow-node-art { width:46px; height:46px; border-radius:50%; object-fit:cover; border:2px solid #8b6914; background:#11112a; }
-    .ow-node.locked .ow-node-art { filter:grayscale(1) brightness(0.4); border:2px dashed #444; }
-    .ow-node.active .ow-node-art { border-color:#ffd700; box-shadow:0 0 10px #ffd700; }
-    .ow-node.next .ow-node-art { border-color:#7ab8ff; box-shadow:0 0 12px #7ab8ff; }
-    .ow-node.final .ow-node-art { width:54px; height:54px; border-color:#6a2a3a; }
-    /* numbered-circle fallback (when art img errors out) */
-    .ow-node.ow-node-fallback .ow-node-num { width:46px; height:46px; border-radius:50%; background:#1c2c4c;
-      display:flex; align-items:center; justify-content:center; border:2px solid #8b6914; }
-    .ow-node-num { font-size:13px; font-weight:bold; color:#ffd700; line-height:1; }
-    .ow-node.locked .ow-node-num { color:#666; }
-    .ow-node-stars { font-size:10px; color:#ffd700; min-height:12px; line-height:1; }
-    #map-featured { flex:1; border:2px solid #8b6914; border-radius:10px; background:#0f0f2e;
-                    padding:22px; display:flex; flex-direction:column; min-height:0; }
-    #featured-name { font-size:22px; color:#ffd700; font-weight:bold; margin-bottom:6px; }
-    #featured-stars { font-size:22px; color:#ffd700; margin-bottom:14px; }
-    #featured-blurb { color:#aaa; font-size:14px; line-height:1.6; flex:1; margin-bottom:14px;
-                    min-height:0; overflow-y:auto; }  /* shrinks/scrolls so PLAY keeps its size */
-    #featured-tier { color:#7ab8ff; font-size:13px; margin-bottom:18px; }
-    #featured-play { background:#8b1a1a; border:none; color:#fff; padding:12px 28px;
-                     border-radius:6px; cursor:pointer; font-size:16px; font-weight:bold;
-                     align-self:flex-start; }
-    #featured-play:hover { background:#aa2222; }
+    .ow-node:disabled { cursor:default; }
+    .ow-node-art, .ow-node.ow-node-fallback .ow-node-num { width:var(--wm-node, 56px); height:var(--wm-node, 56px);
+      border-radius:50%; border:calc(2 * var(--ui-u)) solid var(--ui-currency); background-color:var(--ui-panel); }
+    .ow-node-art { object-fit:cover; }
+    .ow-node.ow-node-fallback .ow-node-num { display:flex; align-items:center; justify-content:center; }
+    .ow-node.final .ow-node-art, .ow-node.final.ow-node-fallback .ow-node-num {
+      width:var(--wm-node-final, 64px); height:var(--wm-node-final, 64px); }
+    .ow-node.locked .ow-node-art { filter:grayscale(1) brightness(0.4); }
+    .ow-node.locked .ow-node-art, .ow-node.locked.ow-node-fallback .ow-node-num { border-style:dashed; border-color:var(--ui-panel-edge); }
+    .ow-node.next .ow-node-art, .ow-node.next.ow-node-fallback .ow-node-num { border-color:var(--ui-accent);
+      box-shadow:0 0 calc(12 * var(--ui-u)) var(--ui-accent); }
+    /* Not on the selected node: the keyframe would overwrite .active's gold glow. */
+    .ow-node.next:not(.active) .ow-node-art, .ow-node.next:not(.active).ow-node-fallback .ow-node-num {
+      animation:wm-pulse var(--wm-pulse, 1800ms) ease-in-out infinite; }
+    @keyframes wm-pulse { 50% { box-shadow:0 0 calc(4 * var(--ui-u)) var(--ui-accent); } }
+    #map-select.motion-off .ow-node.next .ow-node-art,
+    #map-select.motion-off .ow-node.next.ow-node-fallback .ow-node-num { animation:none; }
+    .ow-node.active .ow-node-art, .ow-node.active.ow-node-fallback .ow-node-num { border-color:var(--ui-currency);
+      box-shadow:0 0 calc(10 * var(--ui-u)) var(--ui-currency); }
+    /* The number shows inside the fallback circle (tall labels carry it otherwise). */
+    .ow-node-num { display:none; font-size:var(--ui-fs-sm); font-weight:bold; color:var(--ui-currency); line-height:1; }
+    .ow-node.locked .ow-node-num { color:var(--ui-text-dim); }
+    /* Fixed width (LAYOUT.labelW) so the fit rule's rect is the box that paints. */
+    .ow-node-label { max-width:var(--wm-label-w, 132px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+                     font-size:var(--ui-fs-xs); color:var(--ui-text); line-height:1.2; }
+    /* A translucent panel pill under the label and stars, so a route line drawn
+       through them on the canvas can't strike the text out. Horizontal padding
+       only: the pill stays inside LAYOUT.labelPx / labelW (border-box). */
+    .ow-node-label, .ow-node-stars { background-color:color-mix(in srgb, var(--ui-panel) 80%, transparent);
+                     padding:0 calc(4 * var(--ui-u)); border-radius:calc(4 * var(--ui-u)); }
+    .ow-node-stars:empty { background-color:transparent; }
+    .ow-node.locked .ow-node-label { color:var(--ui-text-dim); }
+    .ow-node-stars { font-size:var(--ui-fs-sm); color:var(--ui-currency); min-height:calc(13 * var(--ui-u)); line-height:1; }
+    /* Post-win arrival (spec 2.3): the won node scales up while focused, each earned
+       star stamps in, and changed banner lines cross-fade. Timings from ARRIVAL. */
+    .ow-node-art, .ow-node.ow-node-fallback .ow-node-num { transition:scale var(--wm-focus-ms, 300ms) ease-in-out; }
+    .ow-node.wm-focus .ow-node-art, .ow-node.wm-focus.ow-node-fallback .ow-node-num { scale:var(--wm-focus-scale, 1.12); }
+    .ow-node-stars.wm-stamp { animation:wm-stamp var(--wm-stamp-ms, 150ms) ease-out; }
+    @keyframes wm-stamp { from { scale:var(--wm-stamp-scale, 1.6); filter:brightness(2); } }
+    .wm-fade { animation:wm-fade var(--wm-light-ms, 300ms) ease-in-out; }
+    @keyframes wm-fade { from { opacity:0; } }
+    #map-select.motion-off .wm-stamp, #map-select.motion-off .wm-fade { animation:none; }
+    #map-select.motion-off .ow-node-art, #map-select.motion-off .ow-node.ow-node-fallback .ow-node-num { transition:none; }
+    /* Top band: act banner left, meta bar right; both shrink before they collide. */
+    #wm-topbar { position:absolute; left:0; right:0; top:0; height:var(--wm-top, 112px); display:flex;
+                 align-items:flex-start; justify-content:space-between; gap:var(--wm-gutter, 12px);
+                 padding:var(--wm-gutter, 12px) var(--wm-gutter, 12px) 0; pointer-events:none; }
+    #wm-topbar > * { pointer-events:auto; }
+    #wm-banner { min-width:0; flex:1 1 auto; }
+    #wm-banner > * { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .wm-act { font-family:var(--ui-font-heading); font-size:var(--ui-fs-sm); letter-spacing:.3em; color:var(--ui-accent); }
+    .wm-objective { font-family:var(--ui-font-heading); font-size:var(--ui-fs-xl); color:var(--ui-text); margin-top:calc(4 * var(--ui-u)); }
+    .wm-sectors { font-size:var(--ui-fs-md); color:var(--ui-text-muted); margin-top:calc(2 * var(--ui-u)); }
+    .wm-sectors strong { color:var(--ui-currency); }
+    /* Briefing card: right column from the top band to the bottom inset. LAUNCH
+       is pinned by margin-top:auto; the quote is the one region that shrinks and
+       scrolls, so a long briefing can never push LAUNCH out (the 2.3
+       #featured-blurb lesson). */
+    #map-featured { position:absolute; right:var(--wm-gutter, 12px); top:calc(var(--wm-top, 112px) + var(--wm-gutter, 12px));
+                    bottom:var(--wm-gutter, 12px); width:var(--wm-card-w, clamp(280px, 26vw, 360px));
+                    display:flex; flex-direction:column; gap:calc(10 * var(--ui-u)); min-height:0;
+                    padding:calc(20 * var(--ui-u)); border-radius:calc(10 * var(--ui-u)); }
+    #featured-mission { font-family:var(--ui-font-heading); font-size:var(--ui-fs-sm); letter-spacing:.3em; color:var(--ui-accent); }
+    #featured-name { font-family:var(--ui-font-heading); font-size:var(--ui-fs-xl); color:var(--ui-currency); font-weight:bold; line-height:1.2; }
+    #featured-quote { flex:0 1 auto; min-height:0; overflow-y:auto; padding-left:calc(12 * var(--ui-u));
+                      border-left:calc(3 * var(--ui-u)) solid var(--ui-accent); font-size:var(--ui-fs-lg);
+                      line-height:1.45; color:var(--ui-text); }
+    /* More quote below the fold: fade the bottom edge (MapSelectScene toggles
+       .fq-more while scrollHeight exceeds the visible box). */
+    #featured-quote.fq-more { -webkit-mask-image:linear-gradient(to bottom, var(--ui-panel) calc(100% - 1.6em), transparent);
+                              mask-image:linear-gradient(to bottom, var(--ui-panel) calc(100% - 1.6em), transparent); }
+    #featured-quote .fq-by { display:block; font-family:var(--ui-font-heading); font-size:var(--ui-fs-xs);
+                             letter-spacing:.3em; color:var(--ui-accent); margin-bottom:calc(4 * var(--ui-u)); }
+    #featured-threats, #featured-tier { font-size:var(--ui-fs-md); color:var(--ui-text-muted); }
+    #featured-threats strong { color:var(--ui-danger); }
+    #featured-stars { font-size:var(--ui-fs-lg); color:var(--ui-currency); }
+    #featured-play { margin-top:auto; flex:0 0 auto; width:100%; min-height:48px; padding:calc(10 * var(--ui-u));
+                     border-radius:calc(8 * var(--ui-u)); font-family:var(--ui-font-heading); font-size:var(--ui-fs-lg);
+                     font-weight:bold; letter-spacing:.2em; cursor:pointer; }
     .map-row { border-radius:5px; padding:8px 10px; }
     .map-row.unlocked { background:#1a2e1a; border:1px solid #4a6a4a; color:#ccc; cursor:pointer; }
     .map-row.unlocked:hover { border-color:#ffd700; background:#252515; }
@@ -448,21 +517,57 @@
     .ability-key  { font-size:calc(24px * var(--hud-k)); font-weight:bold; letter-spacing:calc(1px * var(--hud-k)); }
     .ability-name { font-size:calc(28px * var(--hud-k)); }
     .ability-cd   { font-size:calc(24px * var(--hud-k)); color:var(--ui-text-muted); min-height:calc(24px * var(--hud-k)); }
-    #map-meta-bar { display:flex; align-items:center; justify-content:center; gap:18px;
-                    margin-bottom:14px; }
-    #total-stars { font-size:18px; color:#ffd700; font-weight:bold; letter-spacing:1px; }
-    #open-upgrades, #open-story-log, #open-codex-ms { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
-                     padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px; }
-    #open-upgrades:hover, #open-story-log:hover, #open-codex-ms:hover { background:#223344; }
-    #open-heroes { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
-                   padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px; }
-    #open-heroes:hover { background:#223344; }
-    #open-settings { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
-                     padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px; }
-    #open-settings:hover { background:#223344; }
-    #fullscreen-btn { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
-                      padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px; }
-    #fullscreen-btn:hover { background:#223344; }
+    #map-meta-bar { display:flex; flex:0 1 auto; flex-wrap:wrap; align-items:center; justify-content:flex-end;
+                    gap:calc(8 * var(--ui-u)); min-width:0; }
+    #total-stars { font-size:var(--ui-fs-lg); color:var(--ui-currency); font-weight:bold; letter-spacing:calc(1 * var(--ui-u)); white-space:nowrap; }
+    #map-meta-bar button { display:inline-flex; align-items:center; justify-content:center; gap:calc(6 * var(--ui-u));
+                           min-height:36px; padding:calc(6 * var(--ui-u)) calc(12 * var(--ui-u));
+                           border-radius:calc(6 * var(--ui-u)); font-size:var(--ui-fs-sm); white-space:nowrap; cursor:pointer; }
+    /* ── Title screen (roadmap 3.4) ──────────────────────────────────────────
+       Fixed to the viewport, not inside the FIT-letterboxed #game, so the stars
+       reach every edge; under #rotate-prompt (1000), over everything else.
+       Timings are the --title-* vars TitleScreen sets from src/data/title.js. */
+    #title-screen { display:none; position:fixed; inset:0; z-index:60; overflow:hidden; cursor:pointer;
+                    background:radial-gradient(ellipse at 50% 60%, #101a33 0%, #05070f 70%); }
+    #title-screen:focus { outline:none; }
+    #title-screen:focus-visible { outline:calc(2 * var(--ui-u)) solid var(--ui-accent); outline-offset:calc(-4 * var(--ui-u)); }
+    #title-screen canvas { position:absolute; inset:0; width:100%; height:100%; }
+    /* Soft gold nebula behind the logo. */
+    #title-screen::before { content:''; position:absolute; left:15%; right:15%; top:18%; height:40%; pointer-events:none;
+                            background:radial-gradient(ellipse at center, color-mix(in srgb, var(--ui-currency) 9%, transparent) 0%, transparent 70%); }
+    /* The dim "in shadow" logo is also the font-wait state. The beam is a moving
+       gradient clipped to the glyphs; 300% wide so it starts and ends off the text.
+       7vw keeps "LAST LIGHT" near 60% of the width and on one line at 750 px. */
+    #title-screen .title-logo { position:absolute; left:0; right:0; top:38%; transform:translateY(-50%);
+                                text-align:center; white-space:nowrap; text-indent:.12em;
+                                font-family:var(--ui-font-heading); font-weight:700; letter-spacing:.12em;
+                                font-size:clamp(28px, 7vw, 160px);
+                                --title-shade:color-mix(in srgb, var(--ui-currency) 22%, var(--ui-panel));
+                                color:var(--title-shade);
+                                background-image:linear-gradient(100deg, var(--title-shade) 0%, var(--title-shade) 40%,
+                                  #fff7c2 50%, var(--title-shade) 60%, var(--title-shade) 100%);
+                                background-size:300% 100%; background-position:100% 0;
+                                -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+    #title-screen.title-sweep .title-logo {
+      animation:title-beam var(--title-sweep) ease-in-out var(--title-sweep-delay) forwards,
+                title-lit var(--title-settle) ease-out calc(var(--title-sweep-delay) + var(--title-sweep)) forwards; }
+    #title-screen[data-phase="lit"] .title-logo { -webkit-text-fill-color:var(--ui-currency);
+      text-shadow:0 0 18px color-mix(in srgb, var(--ui-currency) 55%, transparent),
+                  0 0 42px color-mix(in srgb, var(--ui-currency) 25%, transparent); }
+    @keyframes title-beam { from { background-position:100% 0; } to { background-position:0 0; } }
+    @keyframes title-lit { to { -webkit-text-fill-color:var(--ui-currency);
+      text-shadow:0 0 18px color-mix(in srgb, var(--ui-currency) 55%, transparent),
+                  0 0 42px color-mix(in srgb, var(--ui-currency) 25%, transparent); } }
+    /* Hidden until the sweep is under way, then pulses (no fill-mode: it stays at
+       opacity 0 through its delay rather than holding the first keyframe). */
+    #title-screen .title-prompt { position:absolute; left:0; right:0; bottom:16%; text-align:center;
+                                  font-family:var(--ui-font-heading); font-size:var(--ui-fs-md);
+                                  letter-spacing:.35em; text-indent:.35em; color:var(--ui-accent); opacity:0; }
+    #title-screen.title-sweep .title-prompt { animation:title-pulse var(--title-pulse) ease-in-out var(--title-prompt-delay) infinite; }
+    @keyframes title-pulse { 0%, 100% { opacity:.25; } 50% { opacity:1; } }
+    /* Reduced motion (registry ambientMotion, applied from JS): lit and static. */
+    #title-screen.motion-off .title-logo, #title-screen.motion-off .title-prompt { animation:none; }
+    #title-screen.motion-off .title-prompt { opacity:1; }
     /* Above every overlay (highest in-page z-index is 50). No scene owns this. */
     #rotate-prompt { display:none; }
     @media (orientation: portrait) and (pointer: coarse) {
@@ -472,12 +577,15 @@
                        padding:24px; }
       #rotate-prompt-glyph { font-size:72px; color:#4fc3f7; }
     }
-    #lifetime-stats { display:flex; justify-content:center; gap:10px; margin-top:14px;
-                      flex-wrap:wrap; }
+    /* Bottom strip under the route frame (LAYOUT.statsStrip), left of the card. */
+    /* One row, never wrapped: a wrapped chip would be clipped by the fixed strip. */
+    #lifetime-stats { position:absolute; left:var(--wm-gutter, 12px); bottom:0; height:var(--wm-stats, 64px);
+                      right:calc(var(--wm-card-w, clamp(280px, 26vw, 360px)) + 2 * var(--wm-gutter, 12px));
+                      display:flex; justify-content:center; align-items:center; gap:10px; overflow:hidden; }
     .stat-chip { background:#0f0f2e; border:1px solid #2a3442; border-radius:6px;
                  padding:5px 12px; text-align:center; min-width:64px; }
     .stat-chip-val { display:block; font-size:16px; color:#ffd700; font-weight:bold; }
-    .stat-chip-lbl { display:block; font-size:9px; color:#888; text-transform:uppercase;
+    .stat-chip-lbl { display:block; font-size:var(--ui-fs-xs); color:#888; text-transform:uppercase;
                      letter-spacing:.5px; }
     #hero-mgmt-overlay { display:none; position:absolute; inset:0; z-index:16;
                          background:rgba(5,10,16,0.85); align-items:center; justify-content:center; padding:24px; }
@@ -504,10 +612,10 @@
                          align-items:center; justify-content:center; font-weight:bold; font-size:13px; }
     .ho-card-meta { display:flex; flex-direction:column; gap:2px; }
     .ho-card-name { font-weight:bold; color:#cfd8e0; }
-    .ho-card-role { font-size:10px; color:#8a99aa; }
-    .ho-card-unlock { font-size:9px; color:#888; margin-top:2px; }
+    .ho-card-role { font-size:var(--ui-fs-xs); color:#8a99aa; }
+    .ho-card-unlock { font-size:var(--ui-fs-xs); color:#888; margin-top:2px; }
     .ho-card-badge { position:absolute; top:-6px; right:-6px; background:#4caf50; color:#0a121b;
-                     font-size:9px; font-weight:bold; padding:2px 6px; border-radius:10px; letter-spacing:0.5px; }
+                     font-size:var(--ui-fs-xs); font-weight:bold; padding:2px 6px; border-radius:10px; letter-spacing:0.5px; }
     #hero-tree { border:1px solid #233044; border-radius:6px; padding:14px; background:#0a121b; overflow-y:auto; }
     .ho-tree-head { display:flex; align-items:baseline; gap:10px; padding-bottom:10px;
                     border-bottom:1px solid #233044; margin-bottom:10px; }
@@ -542,11 +650,11 @@
     .upgrade-node-fx { font-size:11px; color:#aaa; }
     .upgrade-node-cost { position:absolute; top:8px; right:10px; font-size:12px;
                          font-weight:bold; color:#ffd700; }
-    .upgrade-node-gate { font-size:10px; font-weight:bold; color:#ffcf5c;
+    .upgrade-node-gate { font-size:var(--ui-fs-xs); font-weight:bold; color:#ffcf5c;
                          background:#3a2d12; border:1px solid #6b5520; border-radius:4px;
                          padding:1px 6px; display:inline-block; margin-top:4px; }
     .upgrade-node-refund { background:#3a1a1a; border:1px solid #8a3a3a; color:#f07a7a;
-                           font-size:10px; padding:2px 8px; border-radius:4px;
+                           font-size:var(--ui-fs-xs); padding:2px 8px; border-radius:4px;
                            cursor:pointer; margin-top:6px; }
     .upgrade-node.purchased { border-color:#4a8a4a; background:#16261a; }
     .upgrade-node.affordable { border-color:#4fc3f7; cursor:pointer; }
@@ -678,21 +786,38 @@
        ~340 px tall viewport. The in-level HUD needs nothing here: the rails scale
        with the canvas. Desktop (>500 px tall) never matches. */
     @media (max-height: 500px) {
-      #map-select { padding: 8px; }
-      #map-select-title { font-size: 20px; margin-bottom: 6px; letter-spacing: 3px; }
-      #map-meta-bar { gap: 8px; margin-bottom: 6px; }
-      #total-stars { font-size: 14px; }
-      #map-meta-bar button { padding: 4px 8px; font-size: 12px; }
-      #map-select-layout { gap: 10px; }
-      #map-featured { padding: 10px; }
-      #featured-name { font-size: 16px; margin-bottom: 2px; }
-      #featured-stars { font-size: 16px; margin-bottom: 6px; }
-      #featured-blurb { font-size: 12px; line-height: 1.4; margin-bottom: 6px; }
-      #featured-tier { font-size: 12px; margin-bottom: 8px; }
-      #featured-play { padding: 10px 24px; font-size: 15px; }
+      /* World map: one top row (banner + icon-only meta bar), card below it. */
+      #wm-topbar { height: var(--wm-top, 52px); align-items: center; padding: 0 var(--wm-gutter, 12px); }
+      #wm-banner { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 0.5em; align-items: baseline; }
+      .wm-act { font-size: var(--ui-fs-xs); letter-spacing: .2em; }
+      .wm-sectors { grid-row: 1; grid-column: 2; margin-top: 0; font-size: var(--ui-fs-sm); }
+      .wm-sectors:not(:empty)::before { content: '· '; }
+      .wm-objective { grid-column: 1 / -1; margin-top: 0; font-size: var(--ui-fs-md); }
+      #map-meta-bar { flex-wrap: nowrap; gap: calc(4 * var(--ui-u)); }
+      #total-stars { font-size: var(--ui-fs-sm); }
+      #map-meta-bar button { width: 44px; height: 44px; min-height: 44px; padding: 0; overflow: hidden; }
+      #map-meta-bar .mb-label { display: none; }
+      #map-featured { top: calc(var(--wm-top, 52px) + var(--wm-gutter, 12px)); width: var(--wm-card-w, clamp(220px, 32vw, 300px));
+                      padding: calc(10 * var(--ui-u)); gap: calc(6 * var(--ui-u)); }
+      /* One line each, so LAUNCH can't be pushed past the card bottom at 750x340;
+         the quote is the only region that shrinks and scrolls. */
+      #featured-name, #featured-threats { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto; }
+      #featured-name { font-size: var(--ui-fs-lg); }
+      #featured-quote { font-size: var(--ui-fs-sm); line-height: 1.35; }
+      #featured-threats, #featured-tier { font-size: var(--ui-fs-sm); }
+      #featured-stars { font-size: var(--ui-fs-md); }
+      #featured-play { min-height: 44px; padding: calc(6 * var(--ui-u)); font-size: var(--ui-fs-md); }
+      .ow-node-art, .ow-node.ow-node-fallback .ow-node-num { width: var(--wm-node, 44px); height: var(--wm-node, 44px); }
+      .ow-node.final .ow-node-art, .ow-node.final.ow-node-fallback .ow-node-num {
+        width: var(--wm-node-final, 50px); height: var(--wm-node-final, 50px); }
+      /* Compact label is the stars line only; the name is on the card and the
+         number sits inside the node, over its art. */
+      .ow-node-label { display: none; }
+      .ow-node:not(.ow-node-fallback) .ow-node-num { display: flex; position: absolute; left: 50%; top: 0;
+        transform: translateX(-50%); width: var(--wm-node, 44px); height: var(--wm-node, 44px);
+        align-items: center; justify-content: center; text-shadow: 0 0 calc(4 * var(--ui-u)) var(--ui-panel); }
+      .ow-node.final:not(.ow-node-fallback) .ow-node-num { width: var(--wm-node-final, 50px); height: var(--wm-node-final, 50px); }
       #lifetime-stats { display: none; }
-      /* 40 px touch-target floor for the map-select buttons the audit covers. */
-      #featured-play, #map-meta-bar button { min-height: 40px; }
     }
 
     /* Touch-sized DOM overlays (roadmap 2.2). Overlays are real CSS px, not part of the scaled
@@ -847,32 +972,44 @@
       </div>
     </div>
     <div id="map-select">
-      <div id="map-select-title">LAST LIGHT</div>
-      <div id="map-meta-bar">
-        <div id="total-stars">★ 0 / 30</div>
-        <button id="open-upgrades">⚙ Upgrades</button>
-        <button id="open-heroes">🦸 Heroes</button>
-        <button id="open-settings">♪ Audio</button>
-        <button id="open-story-log">📖 Story</button>
-        <button id="open-codex-ms">📚 Codex</button>
-        <button id="fullscreen-btn">⛶ Fullscreen</button>
+      <div id="map-overworld">
+        <canvas id="wm-backdrop"></canvas>
+        <canvas id="wm-story"></canvas>
+        <div id="wm-earth-tag" class="wm-tag">EARTH</div>
+        <div id="wm-hive-tag" class="wm-tag">LAST LIGHT · HIVE CORE</div>
+        <div id="wm-nodes"></div>
       </div>
-      <div id="map-select-layout">
-        <div id="map-overworld"></div>
-        <div id="map-featured">
-          <div id="featured-name"></div>
-          <div id="featured-stars"></div>
-          <div id="featured-blurb"></div>
-          <div id="featured-tier"></div>
-          <button id="featured-play">&#9654; PLAY</button>
+      <div id="wm-topbar">
+        <div id="wm-banner">
+          <div class="wm-act"></div>
+          <div class="wm-objective"></div>
+          <div class="wm-sectors"></div>
         </div>
+        <div id="map-meta-bar">
+          <div id="total-stars">★ 0 / 30</div>
+          <button id="open-upgrades" class="ui-btn" aria-label="Upgrades"><span class="mb-ico" aria-hidden="true">⚙</span><span class="mb-label">Upgrades</span></button>
+          <button id="open-heroes" class="ui-btn" aria-label="Heroes"><span class="mb-ico" aria-hidden="true">🦸</span><span class="mb-label">Heroes</span></button>
+          <button id="open-settings" class="ui-btn" aria-label="Audio"><span class="mb-ico" aria-hidden="true">♪</span><span class="mb-label">Audio</span></button>
+          <button id="open-story-log" class="ui-btn" aria-label="Story"><span class="mb-ico" aria-hidden="true">📖</span><span class="mb-label">Story</span></button>
+          <button id="open-codex-ms" class="ui-btn" aria-label="Codex"><span class="mb-ico" aria-hidden="true">📚</span><span class="mb-label">Codex</span></button>
+          <button id="fullscreen-btn" class="ui-btn" aria-label="Fullscreen"><span class="mb-ico" aria-hidden="true">⛶</span><span class="mb-label">Fullscreen</span></button>
+        </div>
+      </div>
+      <div id="map-featured" class="ui-panel">
+        <div id="featured-mission"></div>
+        <div id="featured-name"></div>
+        <div id="featured-quote"></div>
+        <div id="featured-threats"></div>
+        <div id="featured-tier"></div>
+        <div id="featured-stars"></div>
+        <button id="featured-play" class="ui-btn ui-btn--currency">&#9654; LAUNCH</button>
       </div>
       <div id="lifetime-stats"></div>
     </div>
     <div id="game-msg" class="ui-panel">
       <h2 id="msg-title">Victory!</h2>
       <p id="msg-body">You defended humanity!</p>
-      <button id="msg-btn" class="ui-btn ui-btn--primary">&#8617; Map Select</button>
+      <button id="msg-btn" class="ui-btn ui-btn--primary">&#8617; World Map</button>
       <button id="msg-cancel-btn" class="ui-btn" style="display:none">Cancel</button>
     </div>
     <div id="upgrade-overlay">
@@ -989,6 +1126,12 @@
   <div id="inspect-peek" class="ui-panel" style="display:none"></div>
   <div id="ability-card" class="ability-card ui-panel ui-panel--primary" role="tooltip" aria-hidden="true"></div>
   <div id="hint-peek" class="ui-panel" role="tooltip" aria-hidden="true"></div>
+  <!-- TitleScene's screen: one click, Enter or Space starts. -->
+  <div id="title-screen" role="button" tabindex="0" aria-label="Start game" data-phase="waiting">
+    <canvas aria-hidden="true"></canvas>
+    <div class="title-logo" aria-hidden="true">LAST LIGHT</div>
+    <div class="title-prompt" aria-hidden="true"></div>
+  </div>
   <script type="module" src="/src/main.js"></script>
   <div id="rotate-prompt"><div id="rotate-prompt-glyph">&#10227;</div><div>Rotate your device to landscape</div></div>
 </body>

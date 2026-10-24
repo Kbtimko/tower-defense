@@ -13,23 +13,25 @@ import { radialMetrics, layoutRadial } from './radialLayout.js';
 
 export const FLOW_STEPS = [
   { n: 1, id: 'boot', touchOnly: false },
-  { n: 2, id: 'skip-story', touchOnly: false },
-  { n: 3, id: 'select-map', touchOnly: false },
-  { n: 4, id: 'play', touchOnly: false },
-  { n: 5, id: 'briefing', touchOnly: false },
-  { n: 6, id: 'level-ready', touchOnly: false },
-  { n: 7, id: 'arm-tower', touchOnly: false },
-  { n: 8, id: 'cancel-arm', touchOnly: false },
-  { n: 9, id: 'open-build-radial', touchOnly: false },
-  { n: 10, id: 'radial-build', touchOnly: false },
-  { n: 11, id: 'open-ring', touchOnly: false },
+  // Its own step, not folded into boot, so a failure says which half broke.
+  { n: 2, id: 'title', touchOnly: false },
+  { n: 3, id: 'skip-story', touchOnly: false },
+  { n: 4, id: 'select-map', touchOnly: false },
+  { n: 5, id: 'play', touchOnly: false },
+  { n: 6, id: 'briefing', touchOnly: false },
+  { n: 7, id: 'level-ready', touchOnly: false },
+  { n: 8, id: 'arm-tower', touchOnly: false },
+  { n: 9, id: 'cancel-arm', touchOnly: false },
+  { n: 10, id: 'open-build-radial', touchOnly: false },
+  { n: 11, id: 'radial-build', touchOnly: false },
+  { n: 12, id: 'open-ring', touchOnly: false },
   // Touch needs a separate arm tap before the upgrade; a mouse click doesn't.
-  { n: 12, id: 'upgrade-arm', touchOnly: true },
-  { n: 13, id: 'upgrade', touchOnly: false },
-  { n: 14, id: 'radial-unaffordable', touchOnly: false },
-  { n: 15, id: 'close-radial', touchOnly: false },
-  { n: 16, id: 'send-wave', touchOnly: false },
-  { n: 17, id: 'pause', touchOnly: false },
+  { n: 13, id: 'upgrade-arm', touchOnly: true },
+  { n: 14, id: 'upgrade', touchOnly: false },
+  { n: 15, id: 'radial-unaffordable', touchOnly: false },
+  { n: 16, id: 'close-radial', touchOnly: false },
+  { n: 17, id: 'send-wave', touchOnly: false },
+  { n: 18, id: 'pause', touchOnly: false },
 ];
 
 export function stepsFor({ hasTouch }) {
@@ -118,11 +120,11 @@ export function flowExpectations({ map, towerType }) {
   if (map.maxTierAllowed < 2) throw new Error(`${map.name}: maxTierAllowed ${map.maxTierAllowed} forbids a tier-2 upgrade`);
   const goldAfterUpgrade = goldAfterBuild - def.tier2.cost;
   if (goldAfterUpgrade < 0) throw new Error(`${map.name}: cannot afford ${towerType} tier-2 upgrade (${def.tier2.cost} > ${goldAfterBuild})`);
-  // Step 14 asserts every build item is disabled after the upgrade.
+  // Step 15 asserts every build item is disabled after the upgrade.
   const minCost = Math.min(...Object.values(TOWER_DEFS).map((d) => d.cost));
   const allUnaffordableAfterUpgrade = goldAfterUpgrade < minCost;
-  if (!allUnaffordableAfterUpgrade) throw new Error(`${map.name}: ${goldAfterUpgrade}g after the upgrade leaves a tower affordable; step 14 needs every build item unaffordable`);
-  // Step 14 retargets the open ring onto a second pad that no ring face covers.
+  if (!allUnaffordableAfterUpgrade) throw new Error(`${map.name}: ${goldAfterUpgrade}g after the upgrade leaves a tower affordable; step 15 needs every build item unaffordable`);
+  // Step 15 retargets the open ring onto a second pad that no ring face covers.
   const pad = pickPad(map);
   const pad2 = padClearOfRing(map, pad);
   if (pad2 === null) throw new Error(`${map.name}: no pad clear of the ring on pad ${pad}`);

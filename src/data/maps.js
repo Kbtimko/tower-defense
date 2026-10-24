@@ -7,7 +7,6 @@ export const MAPS = [
     waypoints: [[0,.403],[.05,.42],[.075,.37],[.095,.412],[.181,.42],[.166,.378],[.196,.328],[.246,.319],[.286,.387],[.286,.437],[.342,.471],[.372,.445],[.452,.513],[.462,.63],[.533,.605],[.558,.546],[.588,.563],[.598,.496],[.653,.487],[.704,.756],[.764,.79],[.854,.782],[.92,.613],[1,.63]],
     startGold: 130,
     startLives: 25,
-    overworldPos: [0.092, 0.85],
     overworldArt: 'overworld_0_outpost_sigma.png',
     // 0.35, matching Lunar Gate, is not about the gold -- the trimmed wave
     // table clears this map at 0.30 too. It is about where the calibration
@@ -46,7 +45,6 @@ export const MAPS = [
     waypoints: [[0,.396],[.065,.36],[.106,.252],[.186,.324],[.231,.441],[.302,.514],[.382,.351],[.437,.315],[.487,.36],[.618,.333],[.618,.396],[.643,.441],[.759,.468],[.804,.685],[.965,.73],[1,.667]],
     startGold: 130,
     startLives: 20,
-    overworldPos: [0.233, 0.717],
     overworldArt: 'overworld_1_lunar_gate.png',
     rewardMult: 0.35,
     unlockCost: 0,
@@ -82,7 +80,6 @@ export const MAPS = [
     // Expect to retune after a human plays it.
     startGold: 170,
     startLives: 20,
-    overworldPos: [0.383, 0.85],
     overworldArt: 'overworld_2_the_crater.png',
     rewardMult: 0.40,
     unlockCost: 0,
@@ -117,7 +114,6 @@ export const MAPS = [
     // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
     startGold: 180,
     startLives: 18,
-    overworldPos: [0.533, 0.70],
     overworldArt: 'overworld_3_orbital_station.png',
     rewardMult: 0.40,
     unlockCost: 0,
@@ -152,7 +148,6 @@ export const MAPS = [
     // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
     startGold: 200,
     startLives: 18,
-    overworldPos: [0.683, 0.783],
     overworldArt: 'overworld_4_asteroid_belt.png',
     rewardMult: 0.47,
     unlockCost: 0,
@@ -194,7 +189,6 @@ export const MAPS = [
     //              decline monotonic.
     startGold: 210,
     startLives: 15,
-    overworldPos: [0.85, 0.567],
     overworldArt: 'overworld_5_titans_reach.png',
     rewardMult: 0.51,
     unlockCost: 0,
@@ -231,7 +225,6 @@ export const MAPS = [
     // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
     startGold: 230,
     startLives: 15,
-    overworldPos: [0.675, 0.40],
     overworldArt: 'overworld_6_deep_space_corridor.png',
     rewardMult: 0.49,
     unlockCost: 0,
@@ -267,7 +260,6 @@ export const MAPS = [
     // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
     startGold: 240,
     startLives: 12,
-    overworldPos: [0.50, 0.467],
     overworldArt: 'overworld_7_the_void_frontier.png',
     rewardMult: 0.44,
     unlockCost: 0,
@@ -303,7 +295,6 @@ export const MAPS = [
     // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
     startGold: 270,
     startLives: 12,
-    overworldPos: [0.333, 0.317],
     overworldArt: 'overworld_8_enemy_homeworld.png',
     rewardMult: 0.39,
     unlockCost: 0,
@@ -343,7 +334,6 @@ export const MAPS = [
     //              income; the declining multiplier was never the defect.
     startGold: 300,
     startLives: 10,
-    overworldPos: [0.50, 0.15],
     overworldArt: 'overworld_9_last_light.png',
     rewardMult: 0.31,
     unlockCost: 0,

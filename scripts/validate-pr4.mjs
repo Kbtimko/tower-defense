@@ -63,9 +63,7 @@ async function run() {
 
   // ══ 3. Featured panel populated for Map 1 ═════════════════════════════════
   const featuredName  = await page.evaluate(() => document.getElementById('featured-name')?.textContent?.trim());
-  const featuredBlurb = await page.evaluate(() => document.getElementById('featured-blurb')?.textContent?.trim().slice(0, 60));
   log(featuredName ? PASS : FAIL, 'Featured panel name', featuredName);
-  log(featuredBlurb ? PASS : FAIL, 'Featured panel blurb', featuredBlurb);
 
   // ══ 4. Play → GameScene canvas loads ══════════════════════════════════════
   await page.click('#featured-play');
