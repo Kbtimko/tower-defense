@@ -88,7 +88,7 @@
     - at least one `right` speaker exists
 - [ ] **Step 2: Run** both files. Expect FAIL.
 - [ ] **Step 3: Implement** the rows (spec §4.2 table) and `speakerLook`. Write the art-bible table to match `STORY_SPEAKERS`.
-- [ ] **Step 4: Run.** PASS. Mutation-check: set the Veth back to `0x9b4dff` and the contrast test must stay green, because 4.64 ≥ 4.5; then push it to `0x6a2fbf` and confirm the contrast test fails. Also check the sanitizing tests.
+- [ ] **Step 4: Run.** PASS. Mutation-check: a too-dark speaker colour (e.g. `0x6a2fbf`) must fail the contrast test, and removing the `side` sanitizing must fail its test.
 - [ ] **Step 5: Commit** `feat(story): per-speaker comic look as data`.
 
 ### Task 3: Dialog flow state machine (pure)
@@ -214,6 +214,7 @@
   - **`captureMissingArt`:** block `portrait-veth.png` and shoot `10e`
   - **`captureReducedMotion`:** assert `getAnimations({subtree:true}).length === 0`
   - **`captureNoFonts`:** clean
+  - **`winMapZero`:** wait for `data-phase="complete"` before its story shot
   - **Review Focus 1:** a `--screens` device or extra run at 640×360
 - Test: `src/systems/storyDialogLayout.test.js` (synthetic rects: overflow, out-of-viewport, portrait∩caption with skew bleed, caption∩actions, font < 11, tab overflow (Review Focus 3); each check proven to fail)
 
