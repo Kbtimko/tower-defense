@@ -18,6 +18,7 @@ import { UpgradeTreeOverlay }     from '../ui/UpgradeTreeOverlay.js';
 import { SettingsOverlay }        from '../ui/SettingsOverlay.js';
 import { HeroManagementOverlay }  from '../ui/HeroManagementOverlay.js';
 import { StoryDialogOverlay }     from '../ui/StoryDialogOverlay.js';
+import { isBrowserShortcut }      from '../ui/browserShortcut.js';
 import { storyLogEntries }        from '../data/story.js';
 import { CodexOverlay }           from '../ui/CodexOverlay.js';
 import { buildCatalog, progressFromSave } from '../systems/codexCatalog.js';
@@ -32,12 +33,6 @@ const GESTURE_TAIL = ['pointerup', 'click', 'keyup'];
 // A new gesture starts with one of these; it ends the tail swallow.
 const GESTURE_START = ['pointerdown', 'keydown'];
 const ONE_SHOT_CLASSES = ['wm-stamp', 'wm-fade'];
-
-// Ctrl/Cmd/Alt combos are the browser's (reload, new tab, back); no swallow or
-// skip may eat them.
-function isBrowserShortcut(e) {
-  return e.ctrlKey || e.metaKey || e.altKey;
-}
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
@@ -84,7 +79,7 @@ export default class MapSelectScene extends Phaser.Scene {
     this._upgradeMgr = new UpgradeManager(this._saveMgr);
     this._overlay    = new UpgradeTreeOverlay(this._upgradeMgr);
     this._heroOverlay = new HeroManagementOverlay(this._upgradeMgr, this._saveMgr);
-    this._storyDialog = new StoryDialogOverlay();
+    this._storyDialog = new StoryDialogOverlay({ motion: () => this.game.registry.get('ambientMotion') !== false });
 
     // Sanitized once: garbage in the save reads as 0 stars everywhere below.
     this._stars = starsArray(this._saveMgr, MAPS);

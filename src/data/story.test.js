@@ -5,6 +5,8 @@ import {
 } from './story.js';
 import { MAPS } from './maps.js';
 import { ENEMY_DEFS } from './enemies.js';
+import { PALETTE, MIX } from './theme.js';
+import { contrastRatio, deriveShades } from '../ui/theme.js';
 
 describe('story content integrity', () => {
   it('every speaker has name, color, portraitKey', () => {
@@ -13,6 +15,33 @@ describe('story content integrity', () => {
       expect(typeof s.color).toBe('number');
       expect(typeof s.portraitKey).toBe('string');
     }
+  });
+
+  it('every speaker has a valid side and a numeric caption', () => {
+    for (const s of Object.values(STORY_SPEAKERS)) {
+      expect(['left', 'right']).toContain(s.side);
+      expect(typeof s.caption).toBe('number');
+    }
+  });
+
+  it('shape and glitch are absent or valid', () => {
+    for (const s of Object.values(STORY_SPEAKERS)) {
+      if ('shape' in s) expect(['box', 'jagged']).toContain(s.shape);
+      if ('glitch' in s) expect(typeof s.glitch).toBe('boolean');
+    }
+  });
+
+  it('caption and name colours clear 4.5:1 against the ink', () => {
+    const ink = deriveShades(PALETTE, MIX).bevelLo;
+    const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
+    for (const [id, s] of Object.entries(STORY_SPEAKERS)) {
+      expect(contrastRatio(hex(s.caption), ink), `${id} caption`).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(hex(s.color), ink), `${id} color`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('at least one speaker sits on the right', () => {
+    expect(Object.values(STORY_SPEAKERS).some((s) => s.side === 'right')).toBe(true);
   });
 
   it('campaign_intro and campaign_ending exist with panels', () => {

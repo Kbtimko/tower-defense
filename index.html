@@ -357,24 +357,149 @@
     #story-headline { font-size:var(--ui-fs-xs); color:#5a9a6a; letter-spacing:1px; text-transform:uppercase; margin-bottom:5px; }
     #story-body { font-size:13px; color:#ddd; line-height:1.6; }
     #story-dismiss { padding:4px 10px; border-radius:4px; font-size:12px; flex-shrink:0; }
+    /* Story dialog: action-comic caption boxes (roadmap 3.5, spec §4). No card: a
+       stage over the dim holds a skewed portrait frame, a name tab and a caption,
+       then a fixed action row. Speaker colours arrive as --sd-frame/--sd-caption
+       (unset for an unknown speaker, so the token fallbacks paint it); "ink" is
+       --ui-bevel-lo. Timings are the --sd-*-ms vars StoryDialogOverlay publishes
+       from STORY_DIALOG. The whole overlay is one tap target, so it is a pointer
+       and never selects text. src/ui/storyDialogCss.test.js guards all of this. */
     .story-dialog-overlay { display:none; position:absolute; inset:0; z-index:18;
-      background:rgba(2,4,10,0.78); align-items:center; justify-content:center; }
-    .story-dialog-card { width:90%; max-width:680px;
-      border-radius:10px; padding:22px; display:flex; gap:18px; }
-    .story-dialog-portrait { width:96px; height:96px; flex:0 0 96px; border-radius:8px;
-      display:flex; align-items:center; justify-content:center; font-size:42px; font-weight:bold;
-      color:#0a0a0a; overflow:hidden; }
-    .story-dialog-portrait img { width:100%; height:100%; object-fit:cover; }
-    .story-dialog-body { flex:1; display:flex; flex-direction:column; }
-    .story-dialog-name { font-size:13px; letter-spacing:1px; text-transform:uppercase; margin-bottom:8px; font-weight:bold; }
-    .story-dialog-text { font-size:15px; color:#e6e6e6; line-height:1.6; flex:1; }
-    .story-dialog-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; }
-    .story-dialog-actions button { padding:7px 16px; border-radius:6px; font-size:13px; }
+      background:rgba(0,0,0,0.72); align-items:center; justify-content:center;
+      cursor:pointer; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; touch-action:manipulation; }
+    #story-dialog { --sd-skew: calc(-1 * var(--sd-skew-deg, 6deg)); --sd-slam-from: -14%; }
+    #story-dialog[data-side="right"] { --sd-skew: var(--sd-skew-deg, 6deg); --sd-slam-from: 14%; }
+    .sd-stage { --sd-portrait-h: min(calc(264 * var(--ui-u)), 42dvh);
+      --sd-frame-border: calc(6 * var(--ui-u)); --sd-frame-outline: calc(3 * var(--ui-u));
+      --sd-frame-drop: calc(12 * var(--ui-u)); --sd-box-border: calc(4 * var(--ui-u));
+      --sd-box-drop: calc(7 * var(--ui-u)); --sd-dot: calc(9 * var(--ui-u));
+      width:min(1100px, 92vw); display:flex; flex-direction:column; gap:calc(12 * var(--ui-u)); }
+    /* Fixed height (portrait + outline + drop), so a 1-line or 3-line caption never moves the action row. */
+    .sd-panel-row { display:flex; align-items:flex-start;
+      height:calc(var(--sd-portrait-h) + var(--sd-frame-outline) + var(--sd-frame-drop)); }
+    #story-dialog[data-side="right"] .sd-panel-row { flex-direction:row-reverse; }
+    /* The padding reserves the skew overhang (tan 6° x h/2) plus the outline and drop
+       on both sides, so a mirrored frame neither clips at the edge nor hits the caption.
+       Outer = slam, inner = glitch, frame = skew: each animates its own property. */
+    .sd-frame-outer { flex:none; padding:var(--sd-frame-outline) calc(32 * var(--ui-u)) 0; }
+    .sd-frame { position:relative; height:var(--sd-portrait-h); aspect-ratio:20 / 23; overflow:hidden;
+      transform:skewX(var(--sd-skew));
+      background-color:var(--ui-bevel-lo);
+      border:var(--sd-frame-border) solid var(--ui-bevel-lo);
+      outline:var(--sd-frame-outline) solid var(--sd-frame, var(--ui-panel-edge));
+      box-shadow:var(--sd-frame-drop) var(--sd-frame-drop) 0 var(--ui-bevel-lo); }
+    /* Counter-skewed and scaled 1.12 so the face fills the parallelogram with no wedges. */
+    .sd-frame img, .sd-initial { position:absolute; inset:0; width:100%; height:100%;
+      transform:skewX(calc(var(--sd-skew) * -1)) scale(1.12); }
+    .sd-frame img { object-fit:cover; }
+    .sd-initial { display:flex; align-items:center; justify-content:center;
+      background-color:var(--sd-frame, var(--ui-panel-edge)); color:var(--ui-bevel-lo);
+      font-family:var(--ui-font-heading); font-weight:700; font-size:clamp(var(--ui-fs-title), 9dvh, 96px); }
+    .sd-frame::after { content:''; position:absolute; inset:0; pointer-events:none;
+      background-image:radial-gradient(circle, rgba(0,0,0,0.85) 28%, transparent 30%);
+      background-size:var(--sd-dot) var(--sd-dot); mix-blend-mode:multiply; opacity:.5; }
+    .sd-column { flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-start;
+      gap:calc(12 * var(--ui-u)); padding-top:var(--sd-frame-outline); }
+    #story-dialog[data-side="right"] .sd-column { align-items:flex-end; }
+    .sd-tab { display:flex; max-width:100%; min-width:0; transform-origin:left center; }
+    #story-dialog[data-side="right"] .sd-tab { transform-origin:right center; }
+    .sd-name { min-width:0; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      font-family:var(--ui-font-heading); font-weight:700; font-size:clamp(16px, 1.25vw, var(--ui-fs-lg));
+      letter-spacing:.3em; text-transform:uppercase; line-height:1.2;
+      padding:calc(8 * var(--ui-u)) calc(18 * var(--ui-u));
+      color:var(--sd-frame, var(--ui-panel-edge)); background-color:var(--ui-bevel-lo);
+      border:var(--sd-box-border) solid var(--sd-frame, var(--ui-panel-edge));
+      box-shadow:var(--sd-box-drop) var(--sd-box-drop) 0 var(--ui-bevel-lo); }
+    /* Holds its line so an unnamed speaker's caption sits where every other one does. */
+    .sd-name:empty { visibility:hidden; }
+    /* Capped on tall screens to the mockup's caption measure (~58% of the stage), so a
+       mirrored caption still hugs its portrait; compact uses the whole column. */
+    .sd-caption-outer { width:min(100%, calc(700 * var(--ui-u))); transform-origin:left top; }
+    #story-dialog[data-side="right"] .sd-caption-outer { transform-origin:right top; }
+    /* Padding reserves the bottom-right corner for the ▸ mark, so it never shifts the text. */
+    .sd-caption { position:relative; isolation:isolate;
+      padding:calc(14 * var(--ui-u)) calc(40 * var(--ui-u)) calc(16 * var(--ui-u)) calc(22 * var(--ui-u));
+      background-color:var(--sd-caption, var(--ui-text));
+      border:var(--sd-box-border) solid var(--ui-bevel-lo);
+      box-shadow:var(--sd-box-drop) var(--sd-box-drop) 0 var(--ui-bevel-lo); }
+    /* clip-path would clip a border and a box-shadow, so the jagged caption is layered:
+       an ink polygon, the fill polygon inset by the border width, and the drop shadow as
+       a filter on the unclipped parent so it follows the edge. The transparent border
+       keeps the box model identical, so a Veth line wraps like any other. */
+    #story-dialog[data-shape="jagged"] .sd-caption-outer {
+      filter:drop-shadow(var(--sd-box-drop) var(--sd-box-drop) 0 var(--ui-bevel-lo)); }
+    #story-dialog[data-shape="jagged"] .sd-caption { background-color:transparent; border-color:transparent; box-shadow:none; }
+    #story-dialog[data-shape="jagged"] .sd-caption::before,
+    #story-dialog[data-shape="jagged"] .sd-caption::after { content:''; position:absolute; z-index:-1;
+      clip-path:polygon(0 8%, 3% 0, 97% 0, 100% 10%, 98% 92%, 100% 100%, 4% 100%, 0 88%, 2% 50%); }
+    #story-dialog[data-shape="jagged"] .sd-caption::before { inset:calc(-1 * var(--sd-box-border)); background-color:var(--ui-bevel-lo); }
+    #story-dialog[data-shape="jagged"] .sd-caption::after { inset:0; background-color:var(--sd-caption, var(--ui-text)); }
+    .sd-text { font-family:var(--ui-font-body); font-weight:700; font-size:clamp(var(--ui-fs-lg), 1.7vw, var(--ui-fs-xl));
+      line-height:1.3; color:var(--ui-bevel-lo); }
+    /* Hidden, not removed: the untyped rest keeps the line's wraps fixed while typing. */
+    .sd-rest { visibility:hidden; }
+    .sd-done-mark { visibility:hidden; position:absolute; right:calc(14 * var(--ui-u)); bottom:calc(8 * var(--ui-u));
+      font-size:var(--ui-fs-lg); line-height:1; color:var(--ui-bevel-lo); }
+    #story-dialog[data-phase="complete"] .sd-done-mark { visibility:visible;
+      animation:sd-blink var(--sd-continue-blink-ms) steps(2, jump-none) infinite; }
+    /* Right-aligned for every speaker and outside every animated subtree, so a tap
+       always lands where the button is drawn. */
+    .sd-actions { display:flex; gap:calc(10 * var(--ui-u)); justify-content:flex-end; min-height:40px; }
+    .sd-actions button { min-height:40px; padding:calc(8 * var(--ui-u)) calc(18 * var(--ui-u));
+      border-radius:calc(6 * var(--ui-u)); font-size:var(--ui-fs-md); }
+    /* Wide enough for "Continue ▸", so relabelling the last panel never shifts Skip. */
+    #story-dialog-next { min-width:calc(128 * var(--ui-u)); }
+    /* Motion beats (spec §3.4): individual translate/scale only, never transform,
+       which carries the skew. The overlay replays .sd-slam/.sd-swap per panel. */
+    #story-dialog.sd-slam .sd-frame-outer {
+      animation:sd-slam-in var(--sd-slam-ms) cubic-bezier(.2,.9,.3,1.2) both; }
+    #story-dialog.sd-slam .sd-tab, #story-dialog.sd-slam .sd-caption-outer {
+      animation:sd-pop-in var(--sd-caption-pop-ms) ease-out var(--sd-caption-delay-ms) both; }
+    #story-dialog.sd-swap .sd-caption-outer { animation:sd-punch var(--sd-swap-ms) ease-out both; }
+    /* The caption glitches a beat after the portrait, as in the approved mockup. */
+    #story-dialog[data-glitch="1"] .sd-frame-inner { animation:sd-glitch var(--sd-glitch-period-ms) steps(1) infinite; }
+    #story-dialog[data-glitch="1"] .sd-caption {
+      animation:sd-glitch var(--sd-glitch-period-ms) steps(1) var(--sd-glitch-caption-offset-ms) infinite; }
+    @keyframes sd-slam-in { from { translate:var(--sd-slam-from) 0; scale:1.08; opacity:0; } to { translate:0 0; scale:1; opacity:1; } }
+    @keyframes sd-pop-in { 0% { scale:.6; opacity:0; } 70% { scale:1.04; opacity:1; } 100% { scale:1; opacity:1; } }
+    @keyframes sd-punch { from { scale:.96; } to { scale:1; } }
+    /* Played with steps(1), so each offset holds until the next: the blip runs from 95%
+       to the end, the last glitchMs 120 of glitchPeriodMs 2400 (1 - 120/2400 = 95%).
+       Keyframe offsets can't read a var; storyDialogCss.test.js pins 95% to the data. */
+    @keyframes sd-glitch { 0%, 100% { translate:0 0; filter:none; }
+      95% { translate:-0.6% 0; filter:hue-rotate(40deg); } 97.5% { translate:0.5% 0; filter:hue-rotate(40deg); } }
+    @keyframes sd-blink { from { opacity:1; } to { opacity:0; } }
+    /* Reduced motion (spec §6) is the saved setting, so a class rather than a media query. */
+    #story-dialog.motion-off, #story-dialog.motion-off *,
+    #story-dialog.motion-off *::before, #story-dialog.motion-off *::after { animation:none !important; }
+    /* Compact (COMPACT_QUERY, landscape phones): smaller frame and kit lengths, and
+       the name drops to Rajdhani, the art bible's "Orbitron at 16 px and up only". */
+    @media (max-height: 500px) {
+      .sd-stage { --sd-portrait-h: min(48dvh, calc(160 * var(--ui-u)));
+        --sd-frame-border: calc(4 * var(--ui-u)); --sd-frame-outline: calc(2 * var(--ui-u));
+        --sd-frame-drop: calc(8 * var(--ui-u)); --sd-box-border: calc(3 * var(--ui-u));
+        --sd-box-drop: calc(5 * var(--ui-u)); --sd-dot: calc(6 * var(--ui-u));
+        width:100%; padding:0 var(--ui-sp-sm); gap:calc(8 * var(--ui-u)); }
+      .sd-frame-outer { padding:var(--sd-frame-outline) calc(20 * var(--ui-u)) 0; }
+      .sd-column { gap:calc(6 * var(--ui-u)); }
+      .sd-caption-outer { width:100%; }
+      .sd-name { font-family:var(--ui-font-body); font-size:var(--ui-fs-sm); letter-spacing:.2em;
+        padding:calc(4 * var(--ui-u)) calc(12 * var(--ui-u)); }
+      .sd-caption { padding:calc(8 * var(--ui-u)) calc(30 * var(--ui-u)) calc(10 * var(--ui-u)) calc(14 * var(--ui-u)); }
+      .sd-text { font-size:var(--ui-fs-md); }
+      .sd-done-mark { right:calc(10 * var(--ui-u)); bottom:calc(6 * var(--ui-u)); font-size:var(--ui-fs-md); }
+      /* Spec §7: >= 44x44 in compact for any pointer (a 200%-zoomed laptop is compact and fine). */
+      .sd-actions { min-height:44px; }
+      .sd-actions button { min-height:44px; min-width:44px; padding:calc(6 * var(--ui-u)) calc(14 * var(--ui-u)); }
+      #story-dialog-next { min-width:calc(110 * var(--ui-u)); }
+    }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+      clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0; }
     #story-log-overlay { display:none; position:absolute; inset:0; z-index:17;
       background:rgba(2,4,10,0.85); align-items:center; justify-content:center; }
     #story-log-inner { width:90%; max-width:420px; max-height:70%; overflow:auto;
       border-radius:10px; padding:18px; }
-    #story-log-inner h3 { color:#6bf; margin:0 0 12px; font-size:16px; }
+    #story-log-inner h3 { color:var(--ui-accent); margin:0 0 12px; font-size:16px; }
     .story-log-entry { display:block; width:100%; text-align:left;
       padding:9px 12px; border-radius:6px; margin-bottom:7px; }
     #story-log-empty { color:#789; font-size:13px; }
@@ -824,7 +949,7 @@
        canvas, so every control gets the full 44 px. Kept LAST so it beats the compact block above
        at equal specificity: on a phone coarse must win over the compact shrink. */
     @media (pointer: coarse) {
-      .codex-tab, #codex-close, .codex-entry, #settings-close, .story-dialog-actions button,
+      .codex-tab, #codex-close, .codex-entry, #settings-close, .sd-actions button,
       #story-dismiss, .story-log-entry, #story-log-close, #hero-mgmt-close, .ho-ability,
       #upgrade-close, .upgrade-node-refund, #game-msg button, #map-meta-bar button { min-height: 44px; min-width: 44px; }
       /* The glyph stays small; the button grows around it, bleeding into the header's
@@ -951,18 +1076,30 @@
       </div>
       <button id="story-dismiss" class="ui-btn">&#10005;</button>
     </div>
-    <div id="story-dialog" class="story-dialog-overlay">
-      <div class="story-dialog-card ui-panel">
-        <div id="story-dialog-portrait" class="story-dialog-portrait"></div>
-        <div class="story-dialog-body">
-          <div id="story-dialog-name" class="story-dialog-name"></div>
-          <div id="story-dialog-text" class="story-dialog-text"></div>
-          <div class="story-dialog-actions">
-            <button id="story-dialog-skip" class="ui-btn">Skip</button>
-            <button id="story-dialog-next" class="ui-btn ui-btn--primary">Next ▸</button>
+    <div id="story-dialog" class="story-dialog-overlay" role="dialog" aria-modal="true" aria-label="Story">
+      <div id="story-dialog-stage" class="sd-stage">
+        <div class="sd-panel-row">
+          <div class="sd-frame-outer">
+            <div class="sd-frame-inner">
+              <div id="story-dialog-portrait" class="sd-frame" aria-hidden="true"></div>
+            </div>
+          </div>
+          <div class="sd-column">
+            <div class="sd-tab"><div id="story-dialog-name" class="sd-name" aria-hidden="true"></div></div>
+            <div class="sd-caption-outer">
+              <div class="sd-caption">
+                <div id="story-dialog-text" class="sd-text" aria-hidden="true"><span class="sd-typed"></span><span class="sd-rest"></span></div>
+                <span class="sd-done-mark" aria-hidden="true">▸</span>
+              </div>
+            </div>
           </div>
         </div>
+        <div class="sd-actions">
+          <button id="story-dialog-skip" class="ui-btn" aria-label="Skip story">Skip</button>
+          <button id="story-dialog-next" class="ui-btn ui-btn--primary" aria-label="Next">Next ▸</button>
+        </div>
       </div>
+      <div id="story-dialog-live" class="sr-only" aria-live="polite" aria-atomic="true"></div>
     </div>
     <div id="story-log-overlay">
       <div id="story-log-inner" class="ui-panel">
