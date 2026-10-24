@@ -99,6 +99,8 @@ const RAIL_ONLY_TARGETS = ['#cancel-btn'];
 // lands on (Primary: finish the line, then advance), and the panels the gallery shoots.
 const STORY_TARGETS = ['#story-dialog-skip', '#story-dialog-next'];
 const STORY_CAPTION = '#story-dialog .sd-caption';
+// The overlay sets data-phase in its click handler, so a working tap shows within this.
+const FINISH_BOUND_MS = 250;
 const LONGEST = longestPanel(STORY_SEQUENCES);
 const VETH_SEQUENCE = 'epilogue_asteroid_belt';
 const VETH_INDEX = STORY_SEQUENCES[VETH_SEQUENCE].panels.findIndex(p => p.speaker === 'veth');
@@ -330,11 +332,25 @@ async function storyDialogAudit(page, deviceName, label) {
       const r = el.getBoundingClientRect();
       return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
     };
+    // Spec 7: the gap must hold the skew bleed AND the hard shadow, so the frame's
+    // transformed box grows by its outline on every side and its drop down-right.
+    const paintedPortrait = () => {
+      const r = rect('#story-dialog-portrait');
+      if (!r) return null;
+      const cs = getComputedStyle(document.querySelector('#story-dialog-portrait'));
+      const outline = parseFloat(cs.outlineWidth) || 0;
+      const [dx = 0, dy = 0] = (cs.boxShadow.match(/-?[\d.]+px/g) ?? []).map(parseFloat);
+      const left = r.left - outline;
+      const top = r.top - outline;
+      const right = r.right + outline + Math.max(0, dx);
+      const bottom = r.bottom + outline + Math.max(0, dy);
+      return { left, top, right, bottom, width: right - left, height: bottom - top };
+    };
     const row = document.querySelector('#story-dialog .sd-panel-row');
     const font = sel => parseFloat(getComputedStyle(document.querySelector(sel)).fontSize);
     return {
       viewport: { width: window.innerWidth, height: window.innerHeight },
-      portrait: rect('#story-dialog-portrait'),
+      portrait: paintedPortrait(),
       tab: rect('#story-dialog-name'),
       caption: rect('#story-dialog .sd-caption'),
       actions: rect('#story-dialog .sd-actions'),
@@ -655,19 +671,32 @@ const seedSave = (page, save) => page.addInitScript(s => {
   localStorage.setItem('lastlight_save', JSON.stringify(s));
 }, save);
 
-// Tap-to-finish proven: the line was still typing, one real tap on the caption
-// completes it, and the panel stays put.
+const untypedChars = page => page.evaluate(() => Array.from(document.querySelector('#story-dialog .sd-rest').textContent).length);
+
+// Tap-to-finish proven: with well over FINISH_BOUND_MS of the line still to type,
+// one real tap on the caption completes it at once and the panel stays put. A tap
+// that did nothing can't pass by the line finishing on its own inside the bound.
+// tapPoint, not tap(): no actionability wait (the slam/pop) between the read and the tap.
 async function finishLine(page, deviceName) {
   const [phase, index] = [await dialogAttr(page, 'phase'), await dialogAttr(page, 'index')];
-  if (phase !== 'typing') throw new Error(`story panel ${index} data-phase="${phase}" before the finishing tap; the harness was too slow to test tap-to-finish`);
-  await tap(page, deviceName, STORY_CAPTION);
-  await expectAttr(page, '#story-dialog', 'phase', 'complete', 1_000);
+  const box = await page.locator(STORY_CAPTION).boundingBox();
+  const rest = await untypedChars(page);
+  if (phase !== 'typing' || rest * STORY_DIALOG.msPerChar < 3 * FINISH_BOUND_MS) {
+    throw new Error(`story panel ${index} data-phase="${phase}" with ${rest} chars left before the finishing tap; the harness was too slow to test tap-to-finish`);
+  }
+  await tapPoint(page, deviceName, { x: box.x + box.width / 2, y: box.y + box.height / 2 });
+  await expectAttr(page, '#story-dialog', 'phase', 'complete', FINISH_BOUND_MS);
   await expectAttr(page, '#story-dialog', 'index', index, 0);
+  const left = await untypedChars(page);
+  if (left !== 0) throw new Error(`story panel ${index} still has ${left} untyped chars after the finishing tap`);
 }
 
-// For shots, where only the end state matters: a short line may finish on its own.
+// For shots, where only the end state matters: a line too short to prove a tap on
+// (the Veth's 25 chars) is left to finish on its own.
 async function completeLine(page, deviceName) {
-  if (await dialogAttr(page, 'phase') === 'typing') await finishLine(page, deviceName);
+  if (await dialogAttr(page, 'phase') !== 'typing') return;
+  if (await untypedChars(page) * STORY_DIALOG.msPerChar >= 3 * FINISH_BOUND_MS) await finishLine(page, deviceName);
+  else await expectAttr(page, '#story-dialog', 'phase', 'complete');
 }
 
 // Past the advance guard (measured from the line's completion), the next tap advances.
@@ -1176,6 +1205,8 @@ const FLOW_ACTIONS = {
     const file = await shoot(page, join(dir, shotName(step)));
     await tap(page, deviceName, '#story-dialog-skip');
     await expectVisible(page, '#story-dialog', false);
+    // Phaser reads DOM input on its next step: give a leaked tap two frames to act.
+    await page.evaluate(() => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res))));
     // The closing tap leaked nothing into the level: no wave sent, no pause.
     await expectText(page, '#wave-btn', '▶ Send Wave 1');
     if (await hasClass(page, '#paused-overlay', 'shown') || await visible(page, '#paused-overlay')) throw new Error('#paused-overlay shown after the briefing closed');
