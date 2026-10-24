@@ -7,6 +7,7 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 
 **2026-10-23: everything is merged into `visual/integration` — Phase 2 code (2.1–2.4), #43 desktop rails, 3.1 theme module and 3.3 radial menus; roadmap 3.4 (title screen + story world map) is in its PR. `main` (production) has only the #44 barracks hotfix (#103) and the #52 Scout Mark hotfix (#110), both live and bundle-verified.**
 - **Merged into `visual/integration`:** #104 (#44 forward-port), #107 (landed the stacked #105 #43 rails + #106 2.4 matrix), #108 (3.1 theme: Orbitron + Rajdhani, strict art-bible palette, CSS kit `.ui-panel`/`.ui-btn`), #109 (3.3 radial build/upgrade menus, tower inspector on long-press, HintPeek replaces `title=`), #52 forward-port. 2648 tests.
+- **Roadmap 3.5 (2026-10-24, PR into `visual/integration`):** story dialogs restyled as action-comic caption boxes (user's option B) with per-speaker sides/colours as data (`STORY_SPEAKERS` side/caption/shape/glitch; Veth colour now `0xb57bff`), slam-in portrait, typewriter (`typewriter.js`), typing/complete/advance state machine with a 250-ms double-tap guard (`dialogFlow.js`), keys captured (Space no longer pauses under a briefing), held-key and double-tap-close swallows (a quick double tap on Continue can't reach LAUNCH), live region + focus trap. Same `play()/close()` API. 3049 tests.
 - **Roadmap 3.4 (2026-10-23, PR into `visual/integration`):** new `TitleScene` (beam-sweep "LAST LIGHT", tap/click/Enter/Space → world map; `MenuScene` deleted); map select rebuilt as a story world map (`MapSelectScene` key kept, user-facing "World Map"): code-drawn vista with 7 planets, route Earth → hive core with gold travelled trail, receding Veth haze/front line, act banner (`src/data/campaign.js`), briefing card quoting Command (`briefingCard.js`), kit meta bar; first-clear post-win flight (`arrivalPlan.js`, skippable, gesture swallowed). GameScene returns `{ from }`. 2888 tests.
 - **Device matrix:** `npm run matrix` passes on desktop 17/17 and iphone/pixel/ipad 18/18 (new `title` step) and drives the radial. The 5-device `--screens` audit is clean, including `radialProblems`.
 - **#52 fixed (2026-10-23):** Scout Vex's Mark Target (Q) now resolves the click to the nearest live enemy within `MARK_PICK_RADIUS` (40 px); a miss keeps the cooldown. Hotfix #110 on `main` (live, production bundle checked) + forward-port into `visual/integration`.
@@ -65,7 +66,7 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
-- **2026-10-23 (session 2):** #52 shipped (hotfix #110 on `main` + forward-port); roadmap 3.4 done (PR into `visual/integration`). **Next, user's order:** 3.5 story dialogs → 3.6 results + stars. #48/#49/#51 wait until after. G3 now also covers the title + world map on a real phone (motion feel of the 14-fps title stars, iOS orientation timing).
+- **2026-10-23 (session 2):** #52 shipped (hotfix #110 on `main` + forward-port); roadmap 3.4 merged (#112); 3.5 story dialogs done (PR into `visual/integration`). **Next, user's order:** 3.6 results + stars. #48/#49/#51 wait until after. G3 now also covers the title + world map on a real phone (motion feel of the 14-fps title stars, iOS orientation timing).
 - Preview for playtesting: `https://tower-defense-git-visual-integration-kbtimko-5183s-projects.vercel.app` (verified 2026-10-22; Vercel SSO-protected — sign in on the device or use the dashboard Share link).
 
 ## Loose ends
@@ -285,6 +286,14 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
     - (f) A reduced-motion title repaints static stars at the frame cap rather than drawing once.
     - (g) After a `resize()` that leaves the canvas size unchanged (fonts `loadingdone`, art `onload`, an early iOS `orientationchange`), the backdrop takes up to ~143 ms to repaint because of the 7-fps idle cap. Fix: force `SpaceCanvas.redraw()`.
     - (h) During the arrival, a Ctrl/Alt/Cmd-click on a node, LAUNCH or the meta bar is not swallowed as a skip, because the shortcut exemption also covers pointer events. Limit `isBrowserShortcut` to key events in `_skipArrival`.
+
+55. `[auto]` **3.5 story-dialog follow-ups** _(2026-10-24, final review)_.
+    - (a) The Story Log replay returns focus to `<body>`; fall back to `#open-story-log` for keyboard users.
+    - (b) The inspector panel (z 40), `.story-banner` (z 25) and the wave preview (z 19) can sit above a victory epilogue (z 18) if they're open when victory fires. This predates 3.5.
+    - (c) A Skip-closing double tap can skip a chained sequence (no call site chains).
+    - (d) Under reduced motion the portrait frame can be empty for about a frame until the PNG decodes.
+    - (e) The glitch blip is fixed at 95 % of the period in the CSS, guarded against `STORY_DIALOG`.
+    - (f) **Matrix flake under host load:** at load average 6–9, iPhone/iPad hit `page.screenshot` 30-s timeouts at varying steps. Desktop and Pixel pass. Re-run `npm run matrix` on an idle machine.
 
 ## Completed
 <!-- Tags below are retrospective/illustrative — runner skips done items regardless. -->

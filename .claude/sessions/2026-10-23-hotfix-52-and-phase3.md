@@ -54,3 +54,28 @@
   - A new canvas under `#game` silently changes any `#game canvas` lookup. Use `#game > canvas`.
   - A harness "expect done" with a 10 s timeout passes even when a skip does nothing, because the animation finishes by itself. Bound the wait tighter than the remaining animation.
   - An event handler in a scene that outlives levels must check that its scene is active, or it eats input on other screens.
+
+**Roadmap 3.5: story dialogs as an action comic** (branch `visual/3.5-story-dialogs`, 2026-10-24)
+- **Brainstorm.** The user wanted the dialogs "cleaner and more like an action comic book". They picked option B, caption boxes, from three mockups, and approved the per-speaker mockup. Spec questions: the user kept the Skip and Next buttons, and chose that a backdrop tap advances.
+- **Pipeline:**
+  - spec, then a builder check;
+  - a 6-task plan, then review-plan;
+  - subagent-driven execution: sonnet for the pure modules, opus for the overlay, CSS, harness and all reviews;
+  - a final review, then one fix wave.
+- **Caught by reviews:**
+  - compact Skip/Next at 36 px with a fine pointer;
+  - a CSS guard blind to `--sd-*` lengths and named colours;
+  - a vacuous tap-to-finish harness bound;
+  - held-key repeats leaking to UIScene after a key-close;
+  - the first panel's live text possibly never announced;
+  - a double tap on Continue falling through onto LAUNCH, proven on iPhone.
+- **Gates:**
+  - `npm test` 3049 and the build pass.
+  - `capture --screens` on desktop1440 and iPhone: 0 problems.
+  - Matrix: desktop 17/17 and Pixel 18/18. iPhone and iPad are blocked only by `page.screenshot` timeouts under host load; see the PR for the base comparison.
+- **Live smoke (production build, 1440×900 and iPhone 14):**
+  - fresh run, Story Log replays and reduced motion all pass;
+  - in a desktop level briefing, Space and Enter work, Space doesn't pause, Esc skips, and nothing leaks.
+- **Lessons:**
+  - A harness proof that taps after other step work goes stale under load. Do the proving action first.
+  - Phaser reads touch events, so a tap swallow must cover `touchstart` and `touchend`, not only pointer events.
