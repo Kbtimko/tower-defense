@@ -1,7 +1,9 @@
+// side/caption/shape/glitch drive the comic caption-box look (see speakerLook.js);
+// docs/art-bible.md "Story speakers" must match these rows.
 export const STORY_SPEAKERS = {
-  command: { name: 'Sol Command',    color: 0x4aa3ff, portraitKey: 'portrait-command' },
-  rael:    { name: 'Commander Rael', color: 0xffd24a, portraitKey: 'portrait-rael'    },
-  veth:    { name: 'The Veth',       color: 0x9b4dff, portraitKey: 'portrait-veth'    },
+  command: { name: 'Sol Command',    color: 0x4aa3ff, portraitKey: 'portrait-command', side: 'left',  caption: 0xffd700 },
+  rael:    { name: 'Commander Rael', color: 0xffd24a, portraitKey: 'portrait-rael',    side: 'right', caption: 0xfff3c4 },
+  veth:    { name: 'The Veth',       color: 0xb57bff, portraitKey: 'portrait-veth',    side: 'left',  caption: 0xd9c2ff, shape: 'jagged', glitch: true },
 };
 
 // Convention: briefing/epilogue sequence ids derive from a map's storyKey.

@@ -42,6 +42,14 @@ offline tools), never hardcoded in entity logic.
 | phantom | `#9b59b6` | flyer |
 | titan | `#e74c3c` | boss |
 
+**Story speakers** — the source of truth is `STORY_SPEAKERS` in `src/data/story.js`; this table must match it. These are content colours like the emissives above, not UI chrome, so the six-token UI palette is unchanged.
+
+| Speaker | Side | Frame / name | Caption fill | Shape | Glitch |
+|---|---|---|---|---|---|
+| Sol Command | left | `#4aa3ff` | `#ffd700` | box | no |
+| Commander Rael | right | `#ffd24a` | `#fff3c4` | box | no |
+| The Veth | left | `#b57bff` | `#d9c2ff` | jagged | yes |
+
 ### Tower accent emissives
 One hue per tower, used for muzzle flashes, projectile cores and tier glow (1.5).
 Archer `#ffb000` (amber), Mage `#dd00ff` (violet), Cannon `#ff7a2f` (ember),
