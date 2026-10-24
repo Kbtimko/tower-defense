@@ -35,9 +35,12 @@ import { DEVICES } from './captureDevices.mjs';
 import { MAPS } from '../src/data/maps.js';
 import { MAP_WAVES } from '../src/data/waves.js';
 import { defaultCaptureBuild } from '../src/systems/debugCapture.js';
-import { layoutProblems, railProblems, railGeometryProblems, overlayProblems, minTouchFor, radialProblems } from '../src/systems/layoutAudit.js';
+import { layoutProblems, railProblems, railGeometryProblems, overlayProblems, minTouchFor, radialProblems, targetSizeProblems } from '../src/systems/layoutAudit.js';
+import { storyDialogProblems, longestPanel } from '../src/systems/storyDialogLayout.js';
+import { STORY_SEQUENCES, STORY_SPEAKERS, STORY_LOG_LABELS } from '../src/data/story.js';
+import { STORY_DIALOG } from '../src/data/storyDialog.js';
 import { layoutClass, routeFrameFor, worldMapProblems } from '../src/systems/worldMapLayout.js';
-import { POINTER_FINE_QUERY } from '../src/data/mobile.js';
+import { POINTER_FINE_QUERY, COMPACT_QUERY } from '../src/data/mobile.js';
 import { CONFIRM_WINDOW_MS } from '../src/data/input.js';
 import { WORLD_WIDTH, WORLD_HEIGHT, MIN_TOUCH_PX } from '../src/data/layout.js';
 import { TITLE } from '../src/data/title.js';
@@ -68,13 +71,16 @@ const HOLD_MS = 1200;
 const REDUCED_MOTION_DEVICES = new Set(['desktop1440', 'iphone']);
 // Node 4's art: blocked in one run to exercise the numbered-circle fallback.
 const BLOCKED_ART = 'overworld_3_orbital_station.png';
-const BLOCKED_ART_URL = new RegExp(`/${BLOCKED_ART.replace(/\./g, '\\.')}$`);
+// The Veth portrait is blocked in the same run, for the story dialog's initial-letter fallback.
+const BLOCKED_PORTRAIT = 'portrait-veth.png';
+const escapeRe = s => s.replace(/\./g, '\\.');
+const BLOCKED_ART_URL = new RegExp(`/(${escapeRe(BLOCKED_ART)}|${escapeRe(BLOCKED_PORTRAIT)})$`);
 const WEBFONT_URL = /\.woff2?(\?.*)?$/;
 const BLOCKED_ART_MAP = MAPS.findIndex(m => m.overworldArt === BLOCKED_ART);
 // Node 4 is the frontier on this save, so its fallback carries next + active.
 const BLOCKED_ART_SAVE = {
   version: 4, maps: MAPS.map((_, i) => Math.max(0, BLOCKED_ART_MAP - i)),
-  seenStoryBeats: { campaign_intro: true },
+  seenStoryBeats: { campaign_intro: true, epilogue_asteroid_belt: true },
 };
 // A skip must end the arrival at once; the natural end (ARRIVAL.totalMs) and the
 // cardAtMs re-select would otherwise satisfy the end-state checks on their own.
@@ -89,6 +95,20 @@ const OVERLAY_AUDITS = new Set([CODEX_TARGETS, SETTINGS_TARGETS]);
 // Real HUD control that is hidden by design until a tower is armed: held to the rail rules
 // when visible, but never reported as `hidden` by layoutProblems.
 const RAIL_ONLY_TARGETS = ['#cancel-btn'];
+// Story dialog (roadmap 3.5): the controls a player must reach (#41c), the caption a tap
+// lands on (Primary: finish the line, then advance), and the panels the gallery shoots.
+const STORY_TARGETS = ['#story-dialog-skip', '#story-dialog-next'];
+const STORY_CAPTION = '#story-dialog .sd-caption';
+const LONGEST = longestPanel(STORY_SEQUENCES);
+const VETH_SEQUENCE = 'epilogue_asteroid_belt';
+const VETH_INDEX = STORY_SEQUENCES[VETH_SEQUENCE].panels.findIndex(p => p.speaker === 'veth');
+// Every Story Log beat seen, so the log lists them all; no stars, so no arrival plays.
+const GALLERY_SAVE = {
+  version: 4, maps: MAPS.map(() => 0),
+  seenStoryBeats: Object.fromEntries(Object.keys(STORY_LOG_LABELS).map(id => [id, true])),
+};
+// Review Focus 1: a 1280x720 laptop at 200 % browser zoom (compact, fine pointer).
+const ZOOMED_LAPTOP = { viewport: { width: 640, height: 360 }, deviceScaleFactor: 2 };
 
 // Playwright rejects unknown context options, so strip ours before newContext.
 function contextOptions(device) {
@@ -290,7 +310,39 @@ async function audit(page, deviceName, label, selectors, railOnly = []) {
     problems.push(...overlayProblems({ device: { hasTouch: !!DEVICES[deviceName].hasTouch }, targets: metrics.targets }));
   }
   if (selectors === MAP_SELECT_TARGETS) problems.push(...await worldMapAudit(page, metrics.pointerFine));
+  // Spec 7: Skip and Next are >= 44x44 on touch, and in compact for any pointer (a
+  // zoomed laptop is compact with a mouse).
+  if (selectors === STORY_TARGETS) {
+    const compact = await page.evaluate(q => matchMedia(q).matches, COMPACT_QUERY);
+    if (DEVICES[deviceName]?.hasTouch || compact) problems.push(...targetSizeProblems(metrics.targets, MIN_TOUCH_PX));
+  }
   return { device: deviceName, label, problems };
+}
+
+// The open story dialog's painted rects, judged by storyDialogProblems. The portrait
+// is the skewed frame's transformed box; the scroll metrics are the fixed-height panel
+// row's, where a caption that outgrows its room shows up.
+async function storyDialogAudit(page, deviceName, label) {
+  const m = await page.evaluate(() => {
+    const rect = sel => {
+      const el = document.querySelector(sel);
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+    };
+    const row = document.querySelector('#story-dialog .sd-panel-row');
+    const font = sel => parseFloat(getComputedStyle(document.querySelector(sel)).fontSize);
+    return {
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      portrait: rect('#story-dialog-portrait'),
+      tab: rect('#story-dialog-name'),
+      caption: rect('#story-dialog .sd-caption'),
+      actions: rect('#story-dialog .sd-actions'),
+      captionScroll: { scrollHeight: row.scrollHeight, clientHeight: row.clientHeight },
+      fontPx: Math.min(font('#story-dialog-text'), font('#story-dialog-name')),
+    };
+  });
+  return { device: deviceName, label, problems: storyDialogProblems(m).map(p => `story dialog: ${p}`) };
 }
 
 // The fit rule (spec 5) on what actually painted: each node rect is its button's
@@ -396,8 +448,19 @@ async function captureScreens(browser, base, deviceName, opts) {
     layout.push(await audit(page, deviceName, 'title', TITLE_TARGETS));
     await tapCentre(page, deviceName);
     await page.locator('#story-dialog-skip').waitFor({ state: 'visible', timeout: 10_000 });
-    await page.waitForTimeout(1500);
+    // Mid-type: the slam has landed and the line is part-way out.
+    await page.waitForTimeout(STORY_DIALOG.slamMs + 500);
+    files.push(await shoot(page, join(dir, '01a-story-typing.png')));
+    const typing = await dialogAttr(page, 'phase');
+    if (typing !== 'typing') layout.push({ device: deviceName, label: 'story-typing', problems: [`01a shot at data-phase="${typing}", expected "typing"`] });
+    // The screen-reader line: the whole first panel, once, named (spec 9).
+    const first = STORY_SEQUENCES.campaign_intro.panels[0];
+    await expectText(page, '#story-dialog-live', `${STORY_SPEAKERS[first.speaker].name}: ${first.text}`, 1_000);
+    await expectAttr(page, '#story-dialog', 'phase', 'complete');
+    await storySettled(page);
     files.push(await shoot(page, join(dir, '01-first-run-story.png')));
+    layout.push(await audit(page, deviceName, 'story', STORY_TARGETS));
+    layout.push(await storyDialogAudit(page, deviceName, 'story-layout'));
     await page.locator(MAP_READY).waitFor({ timeout: 5_000 });
     await page.locator('#story-dialog-skip').click();
     await page.waitForTimeout(800);
@@ -460,7 +523,9 @@ async function captureScreens(browser, base, deviceName, opts) {
     () => captureHeldSkip(browser, base, deviceName, opts),
     () => captureNoFonts(browser, base, deviceName, dir),
     () => captureMissingArt(browser, base, deviceName, dir),
+    () => captureStoryGallery(browser, base, deviceName, dir),
   ];
+  if (deviceName === 'desktop') runs.push(() => captureZoomedStory(browser, base, deviceName, dir));
   if (REDUCED_MOTION_DEVICES.has(deviceName)) runs.push(() => captureReducedMotion(browser, base, deviceName, dir, opts));
   // One at a time: each run times a live animation, so they must not share the CPU.
   for (const run of runs) {
@@ -581,6 +646,98 @@ async function expectAttr(page, sel, name, want, timeout) {
   await until(() => attr(page, sel, name), v => v === want, v => `${sel} data-${name}="${v}", expected "${want}"`, timeout);
 }
 
+const dialogAttr = (page, name) => attr(page, '#story-dialog', name);
+
+// One-shot: a later navigation in the same tab keeps whatever the game saved since.
+const seedSave = (page, save) => page.addInitScript(s => {
+  if (sessionStorage.getItem('capture-seeded')) return;
+  sessionStorage.setItem('capture-seeded', '1');
+  localStorage.setItem('lastlight_save', JSON.stringify(s));
+}, save);
+
+// Tap-to-finish proven: the line was still typing, one real tap on the caption
+// completes it, and the panel stays put.
+async function finishLine(page, deviceName) {
+  const [phase, index] = [await dialogAttr(page, 'phase'), await dialogAttr(page, 'index')];
+  if (phase !== 'typing') throw new Error(`story panel ${index} data-phase="${phase}" before the finishing tap; the harness was too slow to test tap-to-finish`);
+  await tap(page, deviceName, STORY_CAPTION);
+  await expectAttr(page, '#story-dialog', 'phase', 'complete', 1_000);
+  await expectAttr(page, '#story-dialog', 'index', index, 0);
+}
+
+// For shots, where only the end state matters: a short line may finish on its own.
+async function completeLine(page, deviceName) {
+  if (await dialogAttr(page, 'phase') === 'typing') await finishLine(page, deviceName);
+}
+
+// Past the advance guard (measured from the line's completion), the next tap advances.
+async function nextPanel(page, deviceName) {
+  const from = Number(await dialogAttr(page, 'index'));
+  await page.waitForTimeout(STORY_DIALOG.advanceGuardMs + 100);
+  await tap(page, deviceName, STORY_CAPTION);
+  await expectAttr(page, '#story-dialog', 'index', String(from + 1));
+}
+
+// Waits out the one-shot slam/pop/punch (the glitch and the ▸ blink loop forever)
+// and the portrait's decode: with motion off nothing else gives the art time to land.
+async function storySettled(page) {
+  await until(() => page.evaluate(() => document.querySelector('#story-dialog').getAnimations({ subtree: true })
+    .filter(a => a.effect.getComputedTiming().iterations !== Infinity && a.playState !== 'finished').length),
+  n => n === 0, n => `${n} story dialog animation(s) still running`);
+  await until(() => page.evaluate(() => {
+    const img = document.querySelector('#story-dialog-portrait img');
+    return img ? img.complete && img.naturalWidth > 0 : !!document.querySelector('#story-dialog-portrait .sd-initial');
+  }), Boolean, () => 'story portrait never painted (no loaded img, no fallback initial)');
+}
+
+async function expectSpeaker(page, sequenceId, index) {
+  const { speaker } = STORY_SEQUENCES[sequenceId].panels[index];
+  await expectAttr(page, '#story-dialog', 'speaker', speaker, 1_000);
+  await expectAttr(page, '#story-dialog', 'side', STORY_SPEAKERS[speaker].side, 0);
+}
+
+// Story Log -> one entry, by its label, with real taps; the dialog opens on panel 0.
+async function openStoryLogEntry(page, deviceName, sequenceId) {
+  const label = STORY_LOG_LABELS[sequenceId];
+  if (!label) throw new Error(`${sequenceId} has no Story Log entry to replay`);
+  await tap(page, deviceName, '#open-story-log');
+  await page.locator('#story-log-overlay').waitFor({ state: 'visible', timeout: 5_000 });
+  const entry = page.locator('#story-log-list').getByRole('button', { name: label, exact: true });
+  if (DEVICES[deviceName]?.hasTouch) await entry.tap();
+  else await entry.click();
+  await expectVisible(page, '#story-dialog');
+  await expectAttr(page, '#story-dialog', 'index', '0');
+  await expectSpeaker(page, sequenceId, 0);
+}
+
+// Real taps up to `index`, then that panel completed and settled for its shot.
+async function playToPanel(page, deviceName, sequenceId, index) {
+  for (let i = 0; i < index; i++) {
+    await completeLine(page, deviceName);
+    await nextPanel(page, deviceName);
+    await expectSpeaker(page, sequenceId, i + 1);
+  }
+  await completeLine(page, deviceName);
+  await storySettled(page);
+}
+
+async function skipStory(page, deviceName) {
+  await tap(page, deviceName, '#story-dialog-skip');
+  await expectVisible(page, '#story-dialog', false);
+}
+
+// The derived longest line, shot and judged, then skipped.
+async function longestLine(page, deviceName, label, file) {
+  const out = { files: [], layout: [] };
+  await openStoryLogEntry(page, deviceName, LONGEST.sequenceId);
+  await playToPanel(page, deviceName, LONGEST.sequenceId, LONGEST.index);
+  out.files.push(await shoot(page, file));
+  out.layout.push(await storyDialogAudit(page, deviceName, label));
+  out.layout.push(await audit(page, deviceName, `${label}-controls`, STORY_TARGETS));
+  await skipStory(page, deviceName);
+  return out;
+}
+
 // Map 0 to its results screen in the capture build, skipping any story dialog on
 // the way (the first one is shot to `storyFile` when given).
 async function winMapZero(page, base, opts, storyFile) {
@@ -592,8 +749,11 @@ async function winMapZero(page, base, opts, storyFile) {
   while (!(await visible(page, '#game-msg'))) {
     if (Date.now() > deadline) throw new Error('#game-msg never showed after the victory');
     if (await visible(page, '#story-dialog-skip')) {
-      await page.waitForTimeout(1500);
-      if (storyFile && !files.length) files.push(await shoot(page, storyFile));
+      if (storyFile && !files.length) {
+        await expectAttr(page, '#story-dialog', 'phase', 'complete');
+        await storySettled(page);
+        files.push(await shoot(page, storyFile));
+      }
       await page.locator('#story-dialog-skip').click();
     }
     await page.waitForTimeout(200);
@@ -605,10 +765,11 @@ async function winMapZero(page, base, opts, storyFile) {
 // "↩ World Map" with a real tap, then through campaign_intro (a fresh context has
 // not seen it), which the arrival waits under. data-arrival changes are logged
 // from here on, so a run can prove which states it passed through.
-async function returnToMap(page, deviceName) {
+async function returnToMap(page, deviceName, onStory = async () => {}) {
   await tap(page, deviceName, '#msg-btn');
   await page.locator('#map-select').waitFor({ state: 'visible', timeout: 10_000 });
   await expectVisible(page, '#story-dialog');
+  await onStory();
   await expectAttr(page, '#map-overworld', 'arrival', 'waiting');
   await page.evaluate(() => {
     const el = document.querySelector('#map-overworld');
@@ -692,13 +853,39 @@ function captureReducedMotion(browser, base, deviceName, dir, opts) {
     out.files.push(await shoot(page, join(dir, '00c-title-reduced-motion.png')));
     // The title is not tapped, so campaign_intro is still unseen for the return.
     await winMapZero(page, base, opts, null);
-    await returnToMap(page, deviceName);
+    // Read the moment it shows: the first frame is already the whole line, still.
+    await returnToMap(page, deviceName, () => expectStoryStill(page, 'campaign_intro'));
     await expectArrivalDone(page);
     const seen = await arrivals(page);
     if (seen.includes('playing')) throw new Error(`arrival went through ${seen.join(' -> ')}, expected straight to done`);
     out.files.push(await shoot(page, join(dir, '07d-arrival-reduced-motion.png')));
     out.layout.push(await audit(page, deviceName, 'reduced-motion-map', MAP_SELECT_TARGETS));
+    // The glitching Veth panel, which loops forever with motion on, is still too.
+    await seedSave(page, GALLERY_SAVE);
+    await page.goto(base + '/');
+    await page.locator('#title-screen').waitFor({ state: 'visible', timeout: 30_000 });
+    await tapCentre(page, deviceName);
+    await page.locator(MAP_READY).waitFor({ timeout: 10_000 });
+    await openStoryLogEntry(page, deviceName, VETH_SEQUENCE);
+    for (let i = 0; i < VETH_INDEX; i++) {
+      await expectStoryStill(page, `${VETH_SEQUENCE}[${i}]`);
+      await nextPanel(page, deviceName);
+    }
+    await expectStoryStill(page, `${VETH_SEQUENCE}[${VETH_INDEX}]`);
+    await expectAttr(page, '#story-dialog', 'glitch', '1', 0);
+    await storySettled(page);
+    out.files.push(await shoot(page, join(dir, '10g-story-veth-reduced-motion.png')));
+    await skipStory(page, deviceName);
   });
+}
+
+// Motion off (spec 6): the panel is complete on its first frame and nothing in the
+// dialog animates, not even the infinite glitch and blink.
+async function expectStoryStill(page, what) {
+  const phase = await dialogAttr(page, 'phase');
+  if (phase !== 'complete') throw new Error(`${what} data-phase="${phase}" on its first frame with motion off, expected "complete"`);
+  const running = await page.evaluate(() => document.querySelector('#story-dialog').getAnimations({ subtree: true }).map(a => a.animationName ?? a.constructor.name));
+  if (running.length) throw new Error(`${what} has ${running.length} animation(s) with motion off: ${running.join(', ')}`);
 }
 
 // Both webfont formats blocked (a .woff fallback would otherwise load): the title
@@ -718,12 +905,24 @@ function captureNoFonts(browser, base, deviceName, dir) {
     out.layout.push(await audit(page, deviceName, 'no-fonts-title', TITLE_TARGETS));
     await tapCentre(page, deviceName);
     await page.locator('#story-dialog-skip').waitFor({ state: 'visible', timeout: 10_000 });
+    await expectAttr(page, '#story-dialog', 'phase', 'complete');
+    await storySettled(page);
+    out.layout.push(await storyDialogAudit(page, deviceName, 'no-fonts-story'));
     await page.locator(MAP_READY).waitFor({ timeout: 5_000 });
     await tap(page, deviceName, '#story-dialog-skip');
     await expectVisible(page, '#story-dialog', false);
     await page.waitForTimeout(800);
     out.files.push(await shoot(page, join(dir, '02c-map-no-fonts.png')));
     out.layout.push(await audit(page, deviceName, 'no-fonts-map', MAP_SELECT_TARGETS));
+    // The fallback face must not lengthen the longest line past its room either (spec 11).
+    await seedSave(page, GALLERY_SAVE);
+    await page.goto(base + '/');
+    await page.locator('#title-screen').waitFor({ state: 'visible', timeout: 30_000 });
+    await tapCentre(page, deviceName);
+    await page.locator(MAP_READY).waitFor({ timeout: 10_000 });
+    const longest = await longestLine(page, deviceName, 'no-fonts-longest', join(dir, '10h-story-longest-no-fonts.png'));
+    out.files.push(...longest.files);
+    out.layout.push(...longest.layout);
   });
 }
 
@@ -751,6 +950,79 @@ function captureMissingArt(browser, base, deviceName, dir) {
     await page.waitForTimeout(500);
     out.files.push(await shoot(page, join(dir, '02d-missing-art.png')));
     out.layout.push(await audit(page, deviceName, 'missing-art-map', MAP_SELECT_TARGETS));
+    // The Veth panel with its portrait 404ing: the initial inside the same frame.
+    await openStoryLogEntry(page, deviceName, VETH_SEQUENCE);
+    await playToPanel(page, deviceName, VETH_SEQUENCE, VETH_INDEX);
+    const face = await page.locator('#story-dialog-portrait').evaluate(el => ({
+      img: !!el.querySelector('img'), initial: el.querySelector('.sd-initial')?.textContent ?? null,
+    }));
+    const want = STORY_SPEAKERS.veth.name.trim()[0];
+    if (face.img || face.initial !== want) throw new Error(`Veth portrait img=${face.img} initial="${face.initial}", expected the "${want}" fallback`);
+    out.files.push(await shoot(page, join(dir, '10e-story-fallback.png')));
+    out.layout.push(await storyDialogAudit(page, deviceName, 'story-fallback'));
+    await skipStory(page, deviceName);
+  });
+}
+
+// Story Log replays on a save with every beat seen (spec 8.3): the Finale's
+// multi-speaker run with real taps (rael right, command left), the derived longest
+// line, and the Veth's jagged, glitching panel.
+function captureStoryGallery(browser, base, deviceName, dir) {
+  return screensRun(browser, deviceName, 'story-gallery', {}, async (page, out) => {
+    await seedSave(page, GALLERY_SAVE);
+    await page.goto(base + '/');
+    await page.locator('#title-screen').waitFor({ state: 'visible', timeout: 30_000 });
+    await tapCentre(page, deviceName);
+    await page.locator(MAP_READY).waitFor({ timeout: 10_000 });
+    if (await visible(page, '#story-dialog')) throw new Error('campaign_intro played on a save that has seen it');
+
+    const finale = 'campaign_ending';
+    const panels = STORY_SEQUENCES[finale].panels;
+    const shots = { 0: ['10-story-rael.png', 'story-rael'], 1: ['10b-story-command.png', 'story-command'] };
+    await openStoryLogEntry(page, deviceName, finale);
+    for (let i = 0; i < panels.length; i++) {
+      if (i > 0) {
+        await nextPanel(page, deviceName);
+        await expectSpeaker(page, finale, i);
+      }
+      await completeLine(page, deviceName);
+      if (shots[i]) {
+        await storySettled(page);
+        out.files.push(await shoot(page, join(dir, shots[i][0])));
+        out.layout.push(await storyDialogAudit(page, deviceName, shots[i][1]));
+      }
+    }
+    await expectText(page, '#story-dialog-next', 'Continue ▸', 1_000);
+    await page.waitForTimeout(STORY_DIALOG.advanceGuardMs + 100);
+    await tap(page, deviceName, STORY_CAPTION);
+    await expectVisible(page, '#story-dialog', false);
+
+    const longest = await longestLine(page, deviceName, 'story-longest', join(dir, '10c-story-longest.png'));
+    out.files.push(...longest.files);
+    out.layout.push(...longest.layout);
+
+    await openStoryLogEntry(page, deviceName, VETH_SEQUENCE);
+    await playToPanel(page, deviceName, VETH_SEQUENCE, VETH_INDEX);
+    await expectAttr(page, '#story-dialog', 'shape', 'jagged', 0);
+    await expectAttr(page, '#story-dialog', 'glitch', '1', 0);
+    out.files.push(await shoot(page, join(dir, '10d-story-veth.png')));
+    out.layout.push(await storyDialogAudit(page, deviceName, 'story-veth'));
+    await skipStory(page, deviceName);
+  });
+}
+
+// Review Focus 1: the longest line on a 200 %-zoomed 1280x720 laptop (640x360 CSS px,
+// compact, mouse), with Skip and Next visible and >= 44 px.
+function captureZoomedStory(browser, base, deviceName, dir) {
+  return screensRun(browser, deviceName, 'story-zoomed', { contextOptions: ZOOMED_LAPTOP }, async (page, out) => {
+    await seedSave(page, GALLERY_SAVE);
+    await page.goto(base + '/');
+    await page.locator('#title-screen').waitFor({ state: 'visible', timeout: 30_000 });
+    await tapCentre(page, deviceName);
+    await page.locator(MAP_READY).waitFor({ timeout: 10_000 });
+    const longest = await longestLine(page, deviceName, 'story-longest-640', join(dir, '10f-story-longest-640.png'));
+    out.files.push(...longest.files);
+    out.layout.push(...longest.layout);
   });
 }
 
@@ -864,6 +1136,13 @@ const FLOW_ACTIONS = {
   },
   async 'skip-story'({ page, deviceName }) {
     await page.locator(MAP_READY).waitFor({ timeout: STEP_TIMEOUT });
+    // Spec 8.2: a tap finishes the line, a tap past the guard advances, then Skip.
+    await expectAttr(page, '#story-dialog', 'index', '0', 0);
+    await finishLine(page, deviceName);
+    const layout = [await audit(page, deviceName, 'flow-story', STORY_TARGETS), await storyDialogAudit(page, deviceName, 'flow-story-layout')];
+    const problems = layout.flatMap(l => l.problems);
+    if (problems.length) throw new Error(problems.join('; '));
+    await nextPanel(page, deviceName);
     await tap(page, deviceName, '#story-dialog-skip');
     await expectVisible(page, '#story-dialog', false);
     await expectVisible(page, '#map-select');
@@ -891,9 +1170,15 @@ const FLOW_ACTIONS = {
     const shown = await visible(page, '#story-dialog');
     if (shown !== exp.expectBriefing) throw new Error(`briefing ${shown ? 'shown' : 'missing'}, expected ${exp.expectBriefing ? 'shown' : 'none'}`);
     if (!shown) return { file: null };
+    // Tap-to-finish on every device, and a fully typed shot.
+    await finishLine(page, deviceName);
+    await storySettled(page);
     const file = await shoot(page, join(dir, shotName(step)));
     await tap(page, deviceName, '#story-dialog-skip');
     await expectVisible(page, '#story-dialog', false);
+    // The closing tap leaked nothing into the level: no wave sent, no pause.
+    await expectText(page, '#wave-btn', '▶ Send Wave 1');
+    if (await hasClass(page, '#paused-overlay', 'shown') || await visible(page, '#paused-overlay')) throw new Error('#paused-overlay shown after the briefing closed');
     return { file };
   },
   async 'level-ready'({ page, deviceName }) {
