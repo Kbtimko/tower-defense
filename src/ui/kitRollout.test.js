@@ -78,7 +78,6 @@ const SURFACES = {
   '#codex-close': ['ui-btn'],
   '#settings-overlay-inner': ['ui-panel'],
   '#settings-close': ['ui-btn', 'ui-btn--danger'],
-  '.story-dialog-card': ['ui-panel'],
   '#story-dialog-next': ['ui-btn', 'ui-btn--primary'],
   '#story-dialog-skip': ['ui-btn'],
   '.story-banner': ['ui-panel'],
