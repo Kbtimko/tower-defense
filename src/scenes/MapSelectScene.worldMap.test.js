@@ -321,6 +321,19 @@ describe('MapSelectScene world map', () => {
       enter();
       expect($('#story-dialog').style.display).toBe('none');
     });
+
+    it('reads reduced motion live from the registry', () => {
+      const registry = new Map([['ambientMotion', false]]);
+      enter({}, registry);
+      expect($('#story-dialog').classList.contains('motion-off')).toBe(true);
+      expect($('#story-dialog').dataset.phase).toBe('complete');
+      scenes.pop().emitShutdown();
+      localStorage.clear();
+      registry.set('ambientMotion', true);
+      enter({}, registry);
+      expect($('#story-dialog').classList.contains('motion-off')).toBe(false);
+      expect($('#story-dialog').dataset.phase).toBe('typing');
+    });
   });
 
   describe('layout', () => {

@@ -172,7 +172,7 @@ export default class GameScene extends Phaser.Scene {
     );
     this.waveMgr  = new WaveManager(MAP_WAVES[this.mapId] ?? MAP_WAVES[0], this.events);
     this.storyMgr = new StoryManager(STORY_PANELS);
-    this._storyDialog = new StoryDialogOverlay();
+    this._storyDialog = new StoryDialogOverlay({ motion: () => this.game.registry.get('ambientMotion') !== false });
     this.placementManager = new TowerPlacementManager(
       this.pathMgr.buildZones,
       this.economy,
