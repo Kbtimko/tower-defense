@@ -946,6 +946,7 @@ function capturePostWin(browser, base, deviceName, dir, opts) {
     await resultsSettled(page);
     out.files.push(await shoot(page, join(dir, '07-victory.png')));
     out.layout.push(await resultsAudit(page, deviceName, 'victory'));
+    if (TALL_RESULTS_DEVICES.has(deviceName)) out.layout.push(await tallCompositionAudit(page, deviceName, 'victory'));
     await returnToMap(page, deviceName, undefined, '#results-next');
     await expectAttr(page, '#map-overworld', 'arrival', 'playing');
     const playingAt = Date.now();
@@ -1084,6 +1085,26 @@ async function resultsSettled(page) {
     const img = document.querySelector('#results-portrait img');
     return img ? img.complete && img.naturalWidth > 0 : !!document.querySelector('#results-portrait .rs-initial');
   }), Boolean, () => 'results portrait never painted (no loaded img, no fallback initial)');
+}
+
+// Spec 6.2: the approved mockup-B composition on the reference desktop. The size tiers
+// key on the stage's content box (its padding excluded), so a threshold that reads
+// right against the map height can still drop this device into the short tier.
+const TALL_RESULTS_DEVICES = new Set(['desktop1440']);
+
+async function tallCompositionAudit(page, deviceName, label) {
+  const m = await page.evaluate(() => {
+    const centre = r => r.left + r.width / 2;
+    const stage = document.querySelector('#results .rs-stage').getBoundingClientRect();
+    return {
+      actionsColumn: getComputedStyle(document.querySelector('#results-actions')).gridColumnStart,
+      starsOffset: Math.round(centre(document.querySelector('#results-stars').getBoundingClientRect()) - centre(stage)),
+    };
+  });
+  const problems = [];
+  if (m.actionsColumn === '2') problems.push('results: the actions sit in their own column (short tier), expected the tall stack');
+  if (Math.abs(m.starsOffset) > 2) problems.push(`results: the stars row is ${m.starsOffset} px off the stage centre, expected centred under the banner`);
+  return { device: deviceName, label: `${label}-composition`, problems };
 }
 
 // The finished results screen as painted, judged by resultsProblems (spec 8.4). The

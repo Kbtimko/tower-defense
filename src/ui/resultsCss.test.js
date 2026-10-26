@@ -232,9 +232,11 @@ describe('results CSS', () => {
     const tiers = [...containerTiers].sort((a, b) => b.px - a.px);
     expect(tiers.length).toBeGreaterThanOrEqual(2);
     const short = tiers[0];
-    // desktop1440's ~697-px map keeps the mockup composition.
+    // The query measures the stage's CONTENT box (padding excluded): desktop1440's 697-px
+    // map is a 670-px content box and must keep the mockup composition; iPad's 502 and
+    // 1280x720's 597 can't hold the tall stack (measured on the capture build).
     expect(short.px).toBeGreaterThanOrEqual(600);
-    expect(short.px).toBeLessThan(697);
+    expect(short.px).toBeLessThan(670);
     expect(decls(bodyFor('.rs-actions', short.rules))).toEqual(expect.arrayContaining([['grid-column', '2'], ['grid-row', '2 / 5']]));
     for (const sel of ['.rs-stars', '.rs-chips', '.rs-caption']) {
       expect(decls(bodyFor(sel, short.rules)), sel).toContainEqual(['grid-column', '1']);

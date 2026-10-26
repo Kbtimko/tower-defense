@@ -636,13 +636,15 @@
     /* Reduced motion (spec §10) is the saved setting, so a class. The root is left out on
        purpose: its single rs-fade still plays, so the screen fades rather than pops. */
     #results.motion-off *, #results.motion-off *::before, #results.motion-off *::after { animation:none !important; }
-    /* Size tiers key on the MAP RECT (.rs-stage), not the viewport: a 1280x720 window
-       gives a ~620-px stage that a viewport query calls tall, yet the tall stack (banner,
-       stars, chips, then caption beside three stacked buttons) needs ~690 px.
-       Short: the actions take their own column beside stars, chips and caption, and the
-       banner drops to the compact skew, so its bleed costs less height. Set on the banner,
-       where the layout audit reads --rs-skew. desktop1440's ~697-px map stays tall. */
-    @container (max-height: 680px) {
+    /* Size tiers key on the MAP RECT (.rs-stage), not the viewport, and a container query
+       measures the stage's CONTENT box (its padding-bottom excluded). Measured on the
+       capture build: desktop1440's 697-px map is a 670-px content box and holds the tall
+       stack (banner, centred stars and chips, then caption beside three stacked buttons);
+       1280x720 (597) and iPad landscape (502) can't. Short (<= 640): the actions take
+       their own column beside stars, chips and caption, and the banner drops to the
+       compact skew, so its bleed costs less height. Set on the banner, where the layout
+       audit reads --rs-skew. */
+    @container (max-height: 640px) {
       .rs-banner { --rs-skew: var(--rs-compact-skew-deg, 3deg); --rs-tan: var(--rs-compact-skew-tan, 0.0524);
         min-height:clamp(56px, 22cqh, 200px); }
       .rs-stars { grid-column:1; grid-row:2; }
@@ -650,8 +652,8 @@
       .rs-caption { grid-column:1; grid-row:4; }
       .rs-actions { grid-column:2; grid-row:2 / 5; }
     }
-    /* Compact (a stage no taller than COMPACT_QUERY's 500 px, whatever the viewport): the
-       short composition at phone sizes; text drops to Rajdhani (Orbitron only >= 16 px). */
+    /* Compact (a content box no taller than 500 px, whatever the viewport): the short
+       composition at phone sizes; text drops to Rajdhani (Orbitron only >= 16 px). */
     @container (max-height: 500px) {
       .rs-halftone { background-size:calc(12 * var(--ui-u)) calc(12 * var(--ui-u)); }
       .rs-banner { --rs-ink-drop: calc(6 * var(--ui-u)); min-height:clamp(72px, 22cqh, 200px);
