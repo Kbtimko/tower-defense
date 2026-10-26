@@ -1115,7 +1115,8 @@ async function resultsAudit(page, deviceName, label) {
     const fontSels = ['#results-kicker', '#results-banner-text', '.rs-chip-val', '.rs-chip-lbl', '.rs-new-best', '#results-speaker', '#results-line', '.rs-btn'];
     return {
       result: root.dataset.result,
-      skewDeg: parseFloat(getComputedStyle(root).getPropertyValue('--rs-skew')),
+      // Read where it is painted: the stage's size tiers set the skew on the banner.
+      skewDeg: parseFloat(getComputedStyle(banner).getPropertyValue('--rs-skew')),
       bannerBox,
       kicker: shown(q('#results-kicker')),
       bannerText: shown(text),

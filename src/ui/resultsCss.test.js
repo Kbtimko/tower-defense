@@ -38,15 +38,19 @@ function parse(text, out = { rules: [], keyframes: {} }) {
   return out;
 }
 
-// Rules inside every @media block whose head matches `query`.
-function mediaRules(query) {
+// Rules inside every `@<kind>` block whose condition matches `query`.
+function atRules(kind, query) {
   const out = [];
-  for (const m of css.matchAll(/@media\s*([^{]+)\{/g)) {
+  for (const m of css.matchAll(new RegExp(`@${kind}\\s*([^{]+)\\{`, 'g'))) {
     if (!query.test(m[1].trim())) continue;
     out.push(...parse(block(css, m.index + m[0].length - 1)[0]).rules);
   }
   return out;
 }
+
+// Container-query blocks on the stage, keyed by their max-height in px.
+const containerTiers = [...css.matchAll(/@container\s*\(max-height:\s*(\d+)px\)\s*\{/g)]
+  .map((m) => ({ px: Number(m[1]), rules: parse(block(css, m.index + m[0].length - 1)[0]).rules }));
 
 const decls = (body) => body.split(';').map((d) => d.trim()).filter(Boolean)
   .map((d) => { const c = d.indexOf(':'); return [d.slice(0, c).trim(), d.slice(c + 1).trim()]; });
@@ -206,14 +210,37 @@ describe('results CSS', () => {
   });
 
   it('the coarse-pointer block sizes .rs-btn to at least 44 x 44', () => {
-    const coarse = mediaRules(/^\(pointer:\s*coarse\)$/);
+    const coarse = atRules('media', /^\(pointer:\s*coarse\)$/);
     expect(decls(bodyFor('.rs-btn', coarse))).toEqual(expect.arrayContaining([['min-height', '44px'], ['min-width', '44px']]));
   });
 
   // §7.5: compact is >= 44x44 for every pointer (a 200%-zoomed laptop is compact and fine).
-  it('the compact block sizes .rs-btn to at least 44 x 44', () => {
-    const compact = mediaRules(/^\(max-height:\s*500px\)$/);
+  it('the compact stage tier sizes .rs-btn to at least 44 x 44', () => {
+    const compact = atRules('container', /^\(max-height:\s*500px\)$/);
     expect(decls(bodyFor('.rs-btn', compact))).toEqual(expect.arrayContaining([['min-height', '44px'], ['min-width', '44px']]));
+  });
+
+  // What has to fit is the map rect, not the viewport: a 720-px window gives a ~620-px
+  // stage that a viewport query calls tall (Task 8 audit, 1280x720 and iPad).
+  it('no results rule is keyed to a viewport height query; the stage is the size container', () => {
+    const viewport = atRules('media', /height/).filter((r) => names(r.selector)).map((r) => r.selector);
+    expect(viewport).toEqual([]);
+    expect(decls(bodyFor('.rs-stage'))).toContainEqual(['container-type', 'size']);
+  });
+
+  it('a short stage moves the actions into their own column beside stars, chips and caption', () => {
+    const tiers = [...containerTiers].sort((a, b) => b.px - a.px);
+    expect(tiers.length).toBeGreaterThanOrEqual(2);
+    const short = tiers[0];
+    // desktop1440's ~697-px map keeps the mockup composition.
+    expect(short.px).toBeGreaterThanOrEqual(600);
+    expect(short.px).toBeLessThan(697);
+    expect(decls(bodyFor('.rs-actions', short.rules))).toEqual(expect.arrayContaining([['grid-column', '2'], ['grid-row', '2 / 5']]));
+    for (const sel of ['.rs-stars', '.rs-chips', '.rs-caption']) {
+      expect(decls(bodyFor(sel, short.rules)), sel).toContainEqual(['grid-column', '1']);
+    }
+    // The skew is set on the banner, where the layout audit reads it.
+    expect(decls(bodyFor('.rs-banner', short.rules))).toContainEqual(['--rs-skew', 'var(--rs-compact-skew-deg, 3deg)']);
   });
 
   it('the whole overlay is one tap target that never selects text', () => {

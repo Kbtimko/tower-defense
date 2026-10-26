@@ -514,10 +514,11 @@
       width:var(--map-width, 100%); height:var(--map-height, 100%); container-type:size; overflow:hidden;
       display:grid; grid-template-columns:1fr auto; grid-template-rows:auto auto auto 1fr;
       grid-template-areas:"banner banner" "stars stars" "chips chips" "caption actions";
-      padding-bottom:clamp(8px, 5vh, 48px); column-gap:clamp(12px, 3vw, 40px); row-gap:clamp(6px, 2.4vh, 24px);
+      padding-bottom:clamp(8px, 3vh, 40px); column-gap:clamp(12px, 2.5vw, 40px); row-gap:clamp(6px, 1.6vh, 20px);
       box-sizing:border-box; }
-    /* cq units on the stage's own box would resolve against an ancestor, so the side
-       insets live on its children, where 1cqw is 1% of the stage. */
+    /* cq units and container queries on the stage's own box would resolve against an
+       ancestor, so the side insets and every size tier live on its children, where 1cqw
+       is 1% of the stage. */
     /* Positioned so DOM order stacks them above the absolutely placed wash. */
     .rs-banner, .rs-stars, .rs-chips, .rs-caption, .rs-actions { position:relative; }
     .rs-halftone { position:absolute; inset:0; pointer-events:none; opacity:.16; mix-blend-mode:screen;
@@ -635,15 +636,26 @@
     /* Reduced motion (spec §10) is the saved setting, so a class. The root is left out on
        purpose: its single rs-fade still plays, so the screen fades rather than pops. */
     #results.motion-off *, #results.motion-off *::before, #results.motion-off *::after { animation:none !important; }
-    /* Compact (COMPACT_QUERY): the actions take their own column, so the left column keeps
-       banner, stars, chips and caption; text drops to Rajdhani (Orbitron only >= 16 px). */
-    @media (max-height: 500px) {
-      #results { --rs-skew: var(--rs-compact-skew-deg, 3deg); --rs-tan: var(--rs-compact-skew-tan, 0.0524);
-        --rs-ink-drop: calc(6 * var(--ui-u)); }
-      .rs-stage { grid-template-areas:"banner banner" "stars actions" "chips actions" "caption actions";
-        padding-bottom:calc(8 * var(--ui-u)); row-gap:calc(6 * var(--ui-u)); column-gap:calc(12 * var(--ui-u)); }
+    /* Size tiers key on the MAP RECT (.rs-stage), not the viewport: a 1280x720 window
+       gives a ~620-px stage that a viewport query calls tall, yet the tall stack (banner,
+       stars, chips, then caption beside three stacked buttons) needs ~690 px.
+       Short: the actions take their own column beside stars, chips and caption, and the
+       banner drops to the compact skew, so its bleed costs less height. Set on the banner,
+       where the layout audit reads --rs-skew. desktop1440's ~697-px map stays tall. */
+    @container (max-height: 680px) {
+      .rs-banner { --rs-skew: var(--rs-compact-skew-deg, 3deg); --rs-tan: var(--rs-compact-skew-tan, 0.0524);
+        min-height:clamp(56px, 22cqh, 200px); }
+      .rs-stars { grid-column:1; grid-row:2; }
+      .rs-chips { grid-column:1; grid-row:3; }
+      .rs-caption { grid-column:1; grid-row:4; }
+      .rs-actions { grid-column:2; grid-row:2 / 5; }
+    }
+    /* Compact (a stage no taller than COMPACT_QUERY's 500 px, whatever the viewport): the
+       short composition at phone sizes; text drops to Rajdhani (Orbitron only >= 16 px). */
+    @container (max-height: 500px) {
       .rs-halftone { background-size:calc(12 * var(--ui-u)) calc(12 * var(--ui-u)); }
-      .rs-banner { min-height:72px; margin-top:calc(var(--rs-tan) * 56cqw + 8px); }
+      .rs-banner { --rs-ink-drop: calc(6 * var(--ui-u)); min-height:clamp(72px, 22cqh, 200px);
+        margin-top:calc(var(--rs-tan) * 56cqw + 8px); }
       .rs-kicker { font-family:var(--ui-font-body); font-size:var(--ui-fs-sm); letter-spacing:.14em; text-transform:uppercase;
         padding:calc(2 * var(--ui-u)) calc(10 * var(--ui-u)); }
       .rs-star { width:40px; }
@@ -656,7 +668,7 @@
       .rs-portrait { width:64px; }
       .rs-caption-name { font-family:var(--ui-font-body); font-size:var(--ui-fs-sm); letter-spacing:.14em; }
       .rs-caption-text { font-size:var(--ui-fs-md); padding:calc(6 * var(--ui-u)) calc(10 * var(--ui-u)); }
-      .rs-actions { grid-row:2 / 5; margin-right:3cqw; gap:calc(6 * var(--ui-u)); }
+      .rs-actions { margin-right:3cqw; gap:calc(6 * var(--ui-u)); }
       /* Spec §7.5: >= 44x44 in compact for any pointer (a 200%-zoomed laptop is compact and fine). */
       .rs-btn { min-height:44px; min-width:44px; font-family:var(--ui-font-body); font-size:var(--ui-fs-md);
         text-transform:uppercase; padding:calc(6 * var(--ui-u)) calc(14 * var(--ui-u)); }
