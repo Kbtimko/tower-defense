@@ -120,6 +120,12 @@ export class SaveManager {
     return env;
   }
 
+  // Several instances share one storage key (boot registry, GameScene, MapSelectScene);
+  // re-read before patching so a stale snapshot never overwrites another instance's save.
+  _refresh() {
+    this._data = this._load();
+  }
+
   _save() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(this._data));
   }
@@ -130,6 +136,7 @@ export class SaveManager {
   }
 
   setStars(mapId, stars) {
+    this._refresh();
     if (stars > this._data.maps[mapId]) {
       this._data.maps[mapId] = stars;
       this._save();
@@ -151,6 +158,7 @@ export class SaveManager {
   }
 
   setPurchasedUpgrades(ids) {
+    this._refresh();
     this._data.upgrades = ids.slice();
     this._save();
   }
@@ -161,6 +169,7 @@ export class SaveManager {
   }
 
   setStats(stats) {
+    this._refresh();
     this._data.stats = { ...this._data.stats, ...stats };
     this._save();
   }
@@ -171,6 +180,7 @@ export class SaveManager {
   }
 
   setSettings(partial) {
+    this._refresh();
     this._data.settings = { ...this._data.settings, ...partial };
     this._save();
   }
@@ -183,6 +193,7 @@ export class SaveManager {
 
   setSelectedHero(id) {
     if (!HEROES[id]) return;
+    this._refresh();
     this._data.selectedHeroId = id;
     this._save();
   }
@@ -200,6 +211,7 @@ export class SaveManager {
   }
 
   markBeatSeen(id) {
+    this._refresh();
     if (this._data.seenStoryBeats[id]) return;
     this._data.seenStoryBeats[id] = true;
     this._save();
