@@ -5,7 +5,8 @@ import { TOWER_DEFS } from '../data/towers.js';
 const makeEconomy = (gold = 500) => ({
   gold,
   spend(cost) { if (this.gold < cost) return false; this.gold -= cost; return true; },
-  earn(amount) { this.gold += amount; },
+  earn: vi.fn(function (amount) { this.gold += amount; }),
+  refund: vi.fn(function (amount) { this.gold += amount; }),
 });
 
 const makeFactory = () =>
@@ -75,6 +76,8 @@ describe('TowerPlacementManager', () => {
     const tower = mgr.placeTower(0, 'archer', null); // spends 60g → economy.gold = 440
     const refund = mgr.sellTower(tower);
     expect(refund).toBe(36);
+    expect(economy.refund).toHaveBeenCalledWith(36);
+    expect(economy.earn).not.toHaveBeenCalled();
     expect(economy.gold).toBe(440 + Math.floor(60 * 0.6)); // 440 + 36 = 476
     expect(zone.occupied).toBe(false);
     expect(mgr.getTowers()).toHaveLength(0);
