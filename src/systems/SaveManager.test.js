@@ -309,3 +309,59 @@ describe('seenStoryBeats (v4)', () => {
     expect(JSON.parse(localStorage.getItem('lastlight_save')).version).toBe(4);
   });
 });
+
+describe('SaveManager — cross-instance writes', () => {
+  // Several instances live at once (boot registry, GameScene, MapSelectScene); a mutator
+  // on a stale one must not clobber what another instance already saved.
+  it('setSettings on a boot-time instance keeps stars another instance saved', () => {
+    const a = new SaveManager();
+    const b = new SaveManager();
+    b.setStars(0, 3);
+    a.setSettings({ masterVol: 0.3 });
+    const fresh = new SaveManager();
+    expect(fresh.getStars(0)).toBe(3);
+    expect(fresh.getSettings().masterVol).toBe(0.3);
+  });
+
+  it('setStars keeps the max against storage, not the stale snapshot', () => {
+    const a = new SaveManager();
+    const b = new SaveManager();
+    b.setStars(0, 3);
+    a.setStars(0, 2);
+    expect(new SaveManager().getStars(0)).toBe(3);
+  });
+
+  it('setStats keeps a story beat another instance marked', () => {
+    const a = new SaveManager();
+    const b = new SaveManager();
+    b.markBeatSeen('x');
+    a.setStats({ kills: 5 });
+    const fresh = new SaveManager();
+    expect(fresh.hasSeenBeat('x')).toBe(true);
+    expect(fresh.getStats().kills).toBe(5);
+  });
+
+  it('setSelectedHero keeps upgrades another instance purchased', () => {
+    const a = new SaveManager();
+    const b = new SaveManager();
+    b.setPurchasedUpgrades(['rael_hp']);
+    a.setSelectedHero('rael');
+    expect(new SaveManager().getPurchasedUpgrades()).toEqual(['rael_hp']);
+  });
+
+  it('setPurchasedUpgrades keeps stars another instance saved', () => {
+    const a = new SaveManager();
+    const b = new SaveManager();
+    b.setStars(1, 2);
+    a.setPurchasedUpgrades(['rael_hp']);
+    expect(new SaveManager().getStars(1)).toBe(2);
+  });
+
+  it('markBeatSeen keeps settings another instance changed', () => {
+    const a = new SaveManager();
+    const b = new SaveManager();
+    b.setSettings({ muted: true });
+    a.markBeatSeen('y');
+    expect(new SaveManager().getSettings().muted).toBe(true);
+  });
+});
