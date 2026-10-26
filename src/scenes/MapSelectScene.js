@@ -10,7 +10,7 @@ import { briefingCardModel } from '../systems/briefingCard.js';
 import { layoutClass, routeFrameFor, cardWidth, nodeRects } from '../systems/worldMapLayout.js';
 import { routePoints, routeParamAt, frontRadius, parkShip, flight } from '../systems/worldRoute.js';
 import { worldBackdropSource } from '../systems/worldBackdrop.js';
-import { planArrival, arrivalFrame } from '../systems/arrivalPlan.js';
+import { planArrival, arrivalFrame, nextMissionId } from '../systems/arrivalPlan.js';
 import { WorldMapRenderer } from '../ui/WorldMapRenderer.js';
 import { renderBriefingCard } from '../ui/BriefingCard.js';
 import { UpgradeManager }         from '../systems/UpgradeManager.js';
@@ -85,9 +85,11 @@ export default class MapSelectScene extends Phaser.Scene {
     this._stars = starsArray(this._saveMgr, MAPS);
     this._frontier = frontierIndex(this._stars);
     this._totalStars = this._stars.reduce((sum, n) => sum + n, 0);
-    this._selectedId = this._defaultSelection(data?.from);
+    this._records = MAPS.map((_, i) => this._saveMgr.getRecord(i));
     this._overworld.dataset.arrival = 'none';
     this._prepareArrival(data?.from);
+    this._nextId = nextMissionId({ from: data?.from, plan: this._plan, stars: this._stars });
+    this._selectedId = this._defaultSelection(data?.from);
 
     this._renderer = new WorldMapRenderer({
       backdrop: document.getElementById('wm-backdrop'),
@@ -104,6 +106,8 @@ export default class MapSelectScene extends Phaser.Scene {
     this._renderProgress();
     this._renderFeatured(this._selectedId);
     this._bindPlay();
+    // After _bindPlay: it swaps LAUNCH for a clone, so earlier focus lands on the discarded node.
+    if (!this._frame) this._focusLaunch();
     this._renderMetaBar();
     this._renderStats();
     this._bindUpgrades();
@@ -139,6 +143,8 @@ export default class MapSelectScene extends Phaser.Scene {
   // a replay keeps its card); a first clear then moves on to the next mission
   // through the arrival. The title opens on the frontier.
   _defaultSelection(from) {
+    // NEXT MISSION with nothing to play: straight to the next card.
+    if (this._nextId !== null && !this._frame) return this._nextId;
     const last = MAPS.length - 1;
     const id = from?.mapId;
     if (Number.isInteger(id) && id >= 0 && id <= last && this._isOpen(id)) return id;
@@ -186,8 +192,9 @@ export default class MapSelectScene extends Phaser.Scene {
   // Any tap or key jumps to the end and is swallowed, and so is the rest of that
   // gesture, however long it is held, so it can't select or launch. A key that
   // the entry guard already swallowed (it shares document capture) is ignored.
+  // A key the results' tail already swallowed (a held Enter's repeat) is not a skip.
   _skipArrival(e) {
-    if (this._guardTimer || isBrowserShortcut(e)) return;
+    if (this._guardTimer || e.defaultPrevented || isBrowserShortcut(e)) return;
     e.preventDefault();
     e.stopPropagation();
     this._finishArrival();
@@ -241,8 +248,16 @@ export default class MapSelectScene extends Phaser.Scene {
       el.classList.remove(...ONE_SHOT_CLASSES);
     }
     this._renderProgress();
+    this._focusLaunch();
     this._renderStory();
     this._overworld.dataset.arrival = 'done';
+  }
+
+  // NEXT MISSION lands ready to go: one Enter launches. preventScroll, so the
+  // focus can't scroll the fixed-layout page.
+  _focusLaunch() {
+    if (this._nextId === null) return;
+    document.getElementById('featured-play').focus({ preventScroll: true });
   }
 
   _wonNode() {
@@ -262,7 +277,8 @@ export default class MapSelectScene extends Phaser.Scene {
       this._renderNodes();
     }
     if (frame.stamped !== prev.stamped) replay(won.querySelector('.ow-node-stars'), 'wm-stamp');
-    const target = this._plan.toId ?? this._plan.mapId;
+    // A stamp under NEXT MISSION opens the next map's card, not the won one's.
+    const target = this._nextId ?? this._plan.toId ?? this._plan.mapId;
     if (frame.cardOpen && this._selectedId !== target) this._selectMap(target);
     this._renderStory();
   }
@@ -529,7 +545,7 @@ export default class MapSelectScene extends Phaser.Scene {
   }
 
   _renderFeatured(mapId) {
-    renderBriefingCard(document.getElementById('map-featured'), briefingCardModel(mapId, this._stars));
+    renderBriefingCard(document.getElementById('map-featured'), briefingCardModel(mapId, this._stars, this._records));
     this._quote.scrollTop = 0;
     this._syncQuoteFade();
   }

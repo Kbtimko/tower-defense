@@ -221,6 +221,17 @@ describe('MapSelectScene world map', () => {
       expect($('#featured-blurb')).toBeNull();
     });
 
+    it('shows the best run on the stars line, read from the save (spec 5.7)', () => {
+      const records = MAPS.map(() => null);
+      records[0] = { livesLost: 0, timeMs: 582000 };
+      seedSave(PARTIAL, { version: 5, records });
+      enter({ from: { mapId: 0, result: 'defeat', prevStars: 3, stars: 3 } });
+      expect($('#featured-stars .fs-best').textContent).toBe(' · Best: 0 lost · 9:42');
+      passGuard();
+      $('.ow-node[data-map-id="1"]').click();
+      expect($('#featured-stars .fs-best')).toBeNull();
+    });
+
     it('LAUNCH starts GameScene with { mapId, heroId }', () => {
       seedSave(PARTIAL);
       const scene = enter();

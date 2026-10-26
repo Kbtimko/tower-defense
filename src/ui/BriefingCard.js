@@ -1,11 +1,19 @@
 import { CARD_COPY } from '../data/campaign.js';
-import { starsDisplay } from '../utils/display.js';
+import { starsDisplay, formatDuration } from '../utils/display.js';
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
   node.className = className;
   node.textContent = text;
   return node;
+}
+
+// A partial record shows only the fields it has; a sanitized record is never empty.
+function bestText(record) {
+  const parts = [];
+  if (record.livesLost !== null && record.livesLost !== undefined) parts.push(`${record.livesLost} ${CARD_COPY.lostWord}`);
+  if (record.timeMs !== null && record.timeMs !== undefined) parts.push(formatDuration(record.timeMs));
+  return `${CARD_COPY.bestSep}${CARD_COPY.best}${parts.join(CARD_COPY.bestSep)}`;
 }
 
 // Renders a briefingCardModel into #map-featured. Ids are kept because the capture
@@ -32,7 +40,10 @@ export function renderBriefingCard(rootEl, model) {
   }
 
   $('featured-tier').textContent = `${CARD_COPY.tierPrefix}${model.maxTier}`;
-  $('featured-stars').textContent = model.stars > 0 ? starsDisplay(model.stars) : CARD_COPY.noStars;
+  // Inside the stars line, not a new row, so the card's layout is unchanged.
+  const stars = $('featured-stars');
+  stars.textContent = model.stars > 0 ? starsDisplay(model.stars) : CARD_COPY.noStars;
+  if (model.record) stars.append(el('span', 'fs-best', bestText(model.record)));
 
   const play = $('featured-play');
   play.textContent = CARD_COPY.launch;

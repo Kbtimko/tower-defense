@@ -26,7 +26,7 @@ export function newThreats(mapId) {
   return out;
 }
 
-export function briefingCardModel(mapId, stars) {
+export function briefingCardModel(mapId, stars, records = []) {
   const map = MAPS[mapId];
   return {
     missionNo: mapId + 1,
@@ -36,5 +36,6 @@ export function briefingCardModel(mapId, stars) {
     maxTier: map.maxTierAllowed,
     stars: stars[mapId],
     launchable: mapId === 0 || stars[mapId - 1] > 0,
+    record: records[mapId] ?? null,
   };
 }

@@ -29,6 +29,10 @@ export const CARD_COPY = {
   tierPrefix: 'Towers upgrade to Tier ',
   launch: '▶ LAUNCH',
   noStars: '☆☆☆',
+  // The best-run tail on the stars line: ' · Best: 0 lost · 9:42'.
+  best: 'Best: ',
+  lostWord: 'lost',
+  bestSep: ' · ',
 };
 
 // Meta-bar fullscreen toggle: only the .mb-label text and aria-label change, so

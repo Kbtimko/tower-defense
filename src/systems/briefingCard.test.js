@@ -66,11 +66,21 @@ describe('briefingCard', () => {
         maxTier: m.maxTierAllowed,
         stars: stars[m.id],
         launchable: m.id === 0 || stars[m.id - 1] > 0,
+        record: null,
       });
     }
     const s = MAPS.map((_, i) => Math.max(0, 3 - i));
     expect(briefingCardModel(1, s).stars).toBe(2);
     expect(briefingCardModel(0, MAPS.map(() => 0)).launchable).toBe(true);
     expect(briefingCardModel(1, MAPS.map(() => 0)).launchable).toBe(false);
+  });
+
+  it("model: record is records[mapId], or null when there's none", () => {
+    const stars = MAPS.map(() => 0);
+    const records = MAPS.map(() => null);
+    records[2] = { livesLost: 0, timeMs: 582000 };
+    expect(briefingCardModel(2, stars, records).record).toEqual({ livesLost: 0, timeMs: 582000 });
+    expect(briefingCardModel(1, stars, records).record).toBeNull();
+    expect(briefingCardModel(2, stars).record).toBeNull();
   });
 });
