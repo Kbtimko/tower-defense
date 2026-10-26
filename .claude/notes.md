@@ -3,7 +3,12 @@
 ## Goal
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
-## Current Status (2026-10-23)
+## Current Status (2026-10-26)
+
+**2026-10-26: roadmap 3.6 (results screen + stars) is done — PR into `visual/integration`; Phase 3 is complete once it merges. Production hotfix #114 (stale-save writes wiped stars) is live; forward-port #115 merged.**
+- **Roadmap 3.6:** victory/defeat end on an action-comic results screen (user's option B): slanted banner (SECTOR HELD! / THE LINE FELL), stars stamping (rule unchanged 80/50 %, now `starsFor` + `STAR_RULE` in `src/data/results.js`), stat chips (lives n/run-start incl. Garrison, kills, gold earned = income only, time = sim time from Send Wave 1), Sol Command reacting by star tier / the Veth taunting on defeat, buttons NEXT MISSION / RETRY / WORLD MAP. First tap finishes the reveal, 250-ms guard, module-level gesture tail (`src/ui/gestureTail.js`) so held keys/double taps never act twice across a scene switch. RETRY = `scene.restart({ mapId, heroId, entryStars })` (first-clear flight still owed). NEXT MISSION lands on the next map's briefing with LAUNCH focused (flight on a first clear). Save **v5**: per-map `records[] = { livesLost, timeMs }` (fewest lives lost, so Garrison can't fake a NEW BEST), NEW BEST stamps, briefing card shows "Best: N lost · m:ss". Layout tiers are `@container` on `.rs-stage` (content box; short ≤ 640 px), not a viewport query. Also fixed: a last-life leak on the final wave no longer counts as a win too (defeat wins the same-frame tie). 3298 tests.
+- **Hotfix #114 (2026-10-26, live, bundle-verified):** three `SaveManager` instances each wrote their whole stale snapshot; muting / toggling ambient motion after a win wiped that win's stars on reload. Every mutator now `_refresh()`es from storage first. Forward-port #115.
+- **Device matrix confirmed idle (2026-10-24, load 2.4):** desktop 17/17, iphone/pixel/ipad 18/18 — the 3.5 iPhone/iPad timeouts were host load.
 
 **2026-10-23: everything is merged into `visual/integration` — Phase 2 code (2.1–2.4), #43 desktop rails, 3.1 theme module and 3.3 radial menus; roadmap 3.4 (title screen + story world map) is in its PR. `main` (production) has only the #44 barracks hotfix (#103) and the #52 Scout Mark hotfix (#110), both live and bundle-verified.**
 - **Merged into `visual/integration`:** #104 (#44 forward-port), #107 (landed the stacked #105 #43 rails + #106 2.4 matrix), #108 (3.1 theme: Orbitron + Rajdhani, strict art-bible palette, CSS kit `.ui-panel`/`.ui-btn`), #109 (3.3 radial build/upgrade menus, tower inspector on long-press, HintPeek replaces `title=`), #52 forward-port. 2648 tests.
@@ -66,7 +71,7 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
-- **2026-10-23 (session 2):** #52 shipped (hotfix #110 on `main` + forward-port); roadmap 3.4 merged (#112); 3.5 story dialogs done (PR into `visual/integration`). **Next, user's order:** 3.6 results + stars. #48/#49/#51 wait until after. G3 now also covers the title + world map on a real phone (motion feel of the 14-fps title stars, iOS orientation timing).
+- **2026-10-26:** 3.6 results + stars in its PR (`visual/3.6-results-stars` → `visual/integration`). **Next, user's order:** backlog #51, #48, #49. Waiting on the user: G3 (now also the results screen on a real phone) and `visual/integration` → `main` after G3; the reduced-motion probe call in #56(a).
 - Preview for playtesting: `https://tower-defense-git-visual-integration-kbtimko-5183s-projects.vercel.app` (verified 2026-10-22; Vercel SSO-protected — sign in on the device or use the dashboard Share link).
 
 ## Loose ends
@@ -293,7 +298,15 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
     - (c) A Skip-closing double tap can skip a chained sequence (no call site chains).
     - (d) Under reduced motion the portrait frame can be empty for about a frame until the PNG decodes.
     - (e) The glitch blip is fixed at 95 % of the period in the CSS, guarded against `STORY_DIALOG`.
-    - (f) **Matrix flake under host load:** at load average 6–9, iPhone/iPad hit `page.screenshot` 30-s timeouts at varying steps. Desktop and Pixel pass. Re-run `npm run matrix` on an idle machine.
+    - (f) ~~**Matrix flake under host load:**~~ **closed 2026-10-24**: idle re-run (load 2.4) passed all four devices. at load average 6–9, iPhone/iPad hit `page.screenshot` 30-s timeouts at varying steps. Desktop and Pixel pass. Re-run `npm run matrix` on an idle machine.
+56. `[auto]` **3.6 results-screen follow-ups** _(2026-10-26, final review)_.
+    - (a) **Your call — the desktop1440 reduced-motion probe is miscalibrated, not a regression.** `captureReducedMotion` expects no animations `fadeMs + 100` = 300 ms after open; an A/B (20 rounds each, load ~7) measured the 200-ms `rs-fade` finishing at median 342 ms on the pre-fix base and 337 ms on the fix, so it flakes under load on both. Proposed fix (keeps the proof, drops the race): await `rs-fade`'s `finished` promise, then assert no other animations remain. Not changed, per "never loosen timeouts".
+    - (b) `tallCompositionAudit` pins only the desktop1440 victory; pin the defeat screen too.
+    - (c) CSS fallbacks in `#results` (5deg, 0.0875, 2deg, 3deg, 0.0524, star scale 3) duplicate `RESULTS`; they never paint (JS publishes first) — delete rather than sync. The named-colour guard false-positives on CSS `tan()`.
+    - (d) Capture audit's compact touch-size rule keys on the viewport while the CSS keys on the stage (audit never stricter; reverse case unchecked). The briefing worst-case record is fixed at {10 lost, 12:34}; derive one covering h:mm:ss.
+    - (e) A keyboard-only player sees a `:focus-visible` ring on NEXT MISSION and LAUNCH (Chrome heuristic); untested either way.
+    - (f) Small: `_runStars` not reset per create; `onlyLine` hardcodes the `RESULT_LINES` shape; retry×3 test doesn't count the `game.events` trio; journey "first clear + campaign_intro unseen + NEXT MISSION" untested (works by reading); `resultsLayout` duplicates storyDialogLayout helpers; `_onUiCancel` now runs only before the epilogue, so a mode armed *during* it would survive under the results (the 3.5 dialog captures keys and covers the board, so believed unreachable).
+57. `[auto]` **Stale SaveManager *reads*** _(2026-10-26)_. #114 fixed writes; getters on a long-lived instance (the boot `registry 'save'`, e.g. the codex's encounter gating) still show values from boot until it next writes. Read through a fresh `_refresh()` or a single shared instance.
 
 ## Completed
 <!-- Tags below are retrospective/illustrative — runner skips done items regardless. -->
