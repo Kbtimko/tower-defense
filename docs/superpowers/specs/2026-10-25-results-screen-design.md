@@ -563,7 +563,7 @@ On any action, `ResultsScreen` arms `armGestureTail` before calling `onAction` (
   display:grid; grid-template-columns:1fr auto; grid-template-rows:auto auto auto 1fr;
   grid-template-areas: "banner banner" "stars stars" "chips chips" "caption actions"; }
 /* Short stage: actions get their own right-hand column; banner drops to the 3° skew. */
-@container (max-height: 680px) {
+@container (max-height: 640px) {
   .rs-banner  { --rs-skew: var(--rs-compact-skew-deg, 3deg); /* … */ }
   .rs-stars   { grid-column:1; grid-row:2; }
   .rs-chips   { grid-column:1; grid-row:3; }
@@ -574,7 +574,7 @@ On any action, `ResultsScreen` arms `armGestureTail` before calling `onAction` (
    body font instead of Orbitron). Layout is inherited from the tier above. */
 @container (max-height: 500px) { /* sizes only */ }
 ```
-- **Why the map rect decides:** the stage is the map rect, not the viewport. A 1280×720 window gives a ~620-px map, which a viewport query called tall, yet the tall stack (banner, stars, chips, then the caption beside three stacked buttons) needs ~690 px, so the 3-button stack clipped on 720p and iPad (fixed in `bd04dc0`). A ~697-px desktop map stays tall.
+- **Why the map rect decides:** the stage is the map rect, not the viewport, and a container query measures the stage's *content* box (its padding-bottom excluded). Measured on the capture build: desktop 1280×720 → 597 px, desktop1440 (1440×900, a 697-px map) → 670 px, iPad landscape → 502 px. The tall stack (banner, centred stars and chips, then the caption beside three stacked buttons) fits 670 but not 597 or 502, so the short tier is `≤ 640 px` (any value from 598 to 669 works). A viewport query had called the 1280×720 stage tall and clipped the 3-button stack on 720p and iPad (fixed in `bd04dc0`); a 680-px threshold then put desktop1440 in the short tier (fixed in `cfe5980`).
 - **Defeat:** `.rs-stars` is `display:none`, and the row collapses.
 - **Compact budget** (smallest map, iPhone 14 at 750×340 → map ≈ 588×331; 844×390 → 662×372; 932×430 → 731×411):
 
