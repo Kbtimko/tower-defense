@@ -69,7 +69,7 @@ describe('TowerPlacementManager', () => {
     expect(mgr.getTowerAtZone(0)).toBeNull();
   });
 
-  it('sellTower frees zone, earns 60% refund, removes from array', () => {
+  it('sellTower frees zone, refunds 60%, removes from array', () => {
     const zone = { cx: 100, cy: 100, radius: 22, occupied: false };
     const economy = makeEconomy(500);
     const mgr = new TowerPlacementManager([zone], economy, makeFactory());

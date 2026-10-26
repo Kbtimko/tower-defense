@@ -28,6 +28,13 @@ export const RESULTS_COPY = Object.freeze({
   chips: { lives: 'LIVES', wave: 'WAVE', kills: 'KILLS', gold: 'GOLD', time: 'TIME' },
   newBest: 'NEW BEST',
   actions: { next: 'NEXT MISSION ▸', retry: '↻ RETRY', map: 'WORLD MAP' },
+  // Screen-reader announcement fragments (the spoken twin of the visible chips).
+  announce: {
+    of: ' of ',
+    starsOf: (n) => `${n} of 3 stars`,
+    newBestLives: 'New best: fewest lives lost.',
+    newBestTime: 'New best time.',
+  },
   actionNames: { next: 'Next mission', retry: 'Retry', map: 'World map' },   // aria-label
 });
 

@@ -122,6 +122,13 @@ describe('arrivalFrame', () => {
 });
 
 describe('nextMissionId', () => {
+  it('uses the injected maps for the last-map boundary', () => {
+    const from = { mapId: 1, result: 'victory', prevStars: 3, stars: 3, next: true };
+    const stars = withStars({ 0: 3, 1: 3 });
+    const plan = { kind: 'none' };
+    expect(nextMissionId({ from, plan, stars }, [{}, {}, {}])).toBe(2);
+    expect(nextMissionId({ from, plan, stars }, [{}, {}])).toBeNull();
+  });
   const next = (mapId) => ({ mapId, result: 'victory', prevStars: 0, stars: 1, next: true });
   it('null when next was not requested', () => {
     const from = { mapId: 0, result: 'victory', prevStars: 0, stars: 2 };

@@ -39,27 +39,30 @@ function actionsFor(win, final, copy) {
   }));
 }
 
-function announce({ win, stars, starsLabel, chips, newBest, banner, speakerName, line }) {
+function announce({ win, starsLabel, chips, newBest, banner, speakerName, line }, say) {
   const spoken = chips.map((c, i) => {
     const label = i === 0 ? sentence(c.label) : c.label.toLowerCase();
-    return `${label} ${c.value.replace('/', ' of ')}`;
+    return `${label} ${c.value.replace('/', say.of)}`;
   }).join(', ');
   const parts = [win ? `${sentence(banner)} ${starsLabel}.` : `${sentence(banner)}.`, `${spoken}.`];
-  if (win && newBest.livesLost) parts.push('New best: fewest lives lost.');
-  if (win && newBest.time) parts.push('New best time.');
+  if (win && newBest.livesLost) parts.push(say.newBestLives);
+  if (win && newBest.time) parts.push(say.newBestTime);
   parts.push(`${speakerName}: ${line}`);
   return parts.join(' ');
 }
 
 export function resultsModel(
   run,
-  { maps = MAPS, lines = RESULT_LINES, copy = RESULTS_COPY, speakers = RESULT_SPEAKERS } = {},
+  {
+    maps = MAPS, lines = RESULT_LINES, copy = RESULTS_COPY, speakers = RESULT_SPEAKERS,
+    speakerNames = STORY_SPEAKERS,
+  } = {},
 ) {
   const win = run.result === 'victory';
   const final = run.mapId === maps.length - 1;
   const newBest = run.newBest ?? {};
   const stars = win ? run.stars : 0;
-  const starsLabel = win ? `${stars} of 3 stars` : '';
+  const starsLabel = win ? copy.announce.starsOf(stars) : '';
   const speaker = speakers[run.result];
   const line = pickResultLine({ result: run.result, stars, final, mapId: run.mapId, wave: run.wave }, lines);
   const chips = chipsFor(run, win, newBest, copy);
@@ -77,8 +80,8 @@ export function resultsModel(
     line,
     actions: actionsFor(win, final, copy),
     announcement: announce({
-      win, stars, starsLabel, chips, newBest, banner: bannerText,
-      speakerName: STORY_SPEAKERS[speaker].name, line,
-    }),
+      win, starsLabel, chips, newBest, banner: bannerText,
+      speakerName: speakerNames[speaker].name, line,
+    }, copy.announce),
   };
 }

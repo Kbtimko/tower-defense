@@ -1859,6 +1859,8 @@ export default class GameScene extends Phaser.Scene {
     if (am) am.playSfx('victory');
     this.won = true;
     this._closeRadial();
+    // Before the epilogue: an armed aim/build mode must not survive under the story dialog.
+    this._onUiCancel();
     this._syncCancelButton();
     this._commitStats(true);
     const map   = MAPS[this.mapId];
@@ -1888,6 +1890,7 @@ export default class GameScene extends Phaser.Scene {
     if (am) am.playSfx('defeat');
     this.over = true;
     this._closeRadial();
+    this._onUiCancel();
     this._syncCancelButton();
     this._commitStats(false);
     this._showResults('defeat');
@@ -1897,7 +1900,6 @@ export default class GameScene extends Phaser.Scene {
     document.getElementById('exit-btn').classList.add('disabled');
     document.getElementById('pause-btn').classList.add('disabled');
     // Nothing from the level may float over or under the results (Claude's call 25).
-    this._onUiCancel();
     this._hideTowerTooltip();
     this.inspector?.dismiss();
     this.inspector?.hidePeek();

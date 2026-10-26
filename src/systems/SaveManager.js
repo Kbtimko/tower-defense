@@ -175,6 +175,10 @@ export class SaveManager {
   }
 
   recordRun(mapId, run) {
+    // An id outside the table would grow `records`, and the next load's length check nulls them all.
+    if (!Number.isInteger(mapId) || mapId < 0 || mapId >= MAP_COUNT) {
+      return { newBest: { livesLost: false, time: false } };
+    }
     this._refresh();
     const { record, newBest } = mergeRecord(this._data.records[mapId], run);
     // Skip the write when nothing improved: first-ever values set a record without a NEW BEST flag.

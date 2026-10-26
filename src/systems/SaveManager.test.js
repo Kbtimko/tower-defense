@@ -297,7 +297,7 @@ describe('seenStoryBeats (v4)', () => {
     expect(raw.version).toBe(5);
   });
 
-  it('migrates a v1 save all the way to v4', () => {
+  it('migrates a v1 save all the way to v5', () => {
     const v1 = {
       version: 1,
       maps: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -457,6 +457,17 @@ describe('SaveManager v5 — per-map records', () => {
     expect(sm.recordRun(0, { livesLost: 1, timeMs: 70000 })).toEqual({ newBest: { livesLost: false, time: true } });
     expect(stored().records[0]).toEqual({ livesLost: 1, timeMs: 70000 });
     expect(new SaveManager().getRecord(0)).toEqual({ livesLost: 1, timeMs: 70000 });
+  });
+
+  it('recordRun ignores an out-of-range map id without writing', () => {
+    const sm = new SaveManager();
+    const spy = vi.spyOn(Storage.prototype, 'setItem');
+    for (const id of [10, -1, 1.5, NaN, undefined, '2']) {
+      expect(sm.recordRun(id, { livesLost: 0, timeMs: 1 })).toEqual({ newBest: { livesLost: false, time: false } });
+    }
+    expect(spy).not.toHaveBeenCalled();
+    expect(sm._data.records).toHaveLength(10);
+    spy.mockRestore();
   });
 
   it('recordRun makes no setItem call when nothing improved', () => {

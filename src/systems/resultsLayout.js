@@ -15,7 +15,7 @@ const outside = (r, m) => r.left < m.left - EDGE_TOLERANCE_PX || r.top < m.top -
 const intersects = (a, b) => a.left < b.right - EDGE_TOLERANCE_PX && a.right > b.left + EDGE_TOLERANCE_PX
   && a.top < b.bottom - EDGE_TOLERANCE_PX && a.bottom > b.top + EDGE_TOLERANCE_PX;
 
-// The banner is rotated about its centre, so its lower edge is a slanted line, not box.bottom.
+// The banner is skewed (skewY) about its centre, so its lower edge is a slanted line, not box.bottom.
 // Comparing against the bounding box would flag the empty corners and miss the skew bleed.
 export function bannerLowerEdge(box, skewDeg) {
   const cx = (box.left + box.right) / 2;

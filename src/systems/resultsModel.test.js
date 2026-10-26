@@ -140,3 +140,26 @@ describe('longestResultLine', () => {
     expect(longestResultLine(lines)).toBe('bbb');
   });
 });
+
+describe('resultsModel injection', () => {
+  it('reads announcement copy from the injected copy', () => {
+    const copy = {
+      ...RESULTS_COPY,
+      announce: {
+        of: ' over ', starsOf: (n) => `${n} pips`,
+        newBestLives: 'Record lives.', newBestTime: 'Record time.',
+      },
+    };
+    const m = resultsModel(win({ stars: 2, newBest: { livesLost: true, time: true } }), { copy });
+    expect(m.starsLabel).toBe('2 pips');
+    expect(m.announcement).toContain('Lives 17 over 22');
+    expect(m.announcement).toContain('Record lives. Record time.');
+    expect(m.announcement).not.toContain('New best');
+  });
+
+  it('reads the speaker name from injected speakerNames', () => {
+    const m = resultsModel(win(), { speakerNames: { command: { name: 'Zed' }, veth: { name: 'Y' } } });
+    expect(m.announcement).toContain(`Zed: ${m.line}`);
+  });
+});
+

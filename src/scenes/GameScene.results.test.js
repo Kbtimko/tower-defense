@@ -139,6 +139,28 @@ describe('GameScene victory records the run', () => {
     expect(scene._showResults).toHaveBeenCalledWith('victory');
   });
 
+  it('cancels an armed mode at once, before the epilogue dialog plays', () => {
+    const scene = frameScene({ mapId: DIALOG_MAP, lives: 17, startLives: 22 });
+    scene.saveMgr.hasSeenBeat = () => false;
+    scene._onUiCancel = vi.fn();
+    scene._storyDialog = { play: vi.fn() };
+
+    scene._onVictory();
+
+    expect(scene._onUiCancel).toHaveBeenCalledTimes(1);
+    expect(scene._onUiCancel.mock.invocationCallOrder[0])
+      .toBeLessThan(scene._storyDialog.play.mock.invocationCallOrder[0]);
+    scene._storyDialog.play.mock.calls[0][1]();
+    expect(scene._onUiCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('defeat cancels an armed mode too', () => {
+    const scene = frameScene();
+    scene._onUiCancel = vi.fn();
+    scene._onDefeat();
+    expect(scene._onUiCancel).toHaveBeenCalledTimes(1);
+  });
+
   it('opens the results at once when no dialog plays', () => {
     const scene = frameScene({ lives: 20 });
     scene._onVictory();
