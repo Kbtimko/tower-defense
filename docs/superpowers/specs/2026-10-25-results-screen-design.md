@@ -1,6 +1,6 @@
 # Roadmap 3.6: results screen and stars (design)
 
-**Branch:** `visual/3.6-results-stars` (off `origin/visual/integration` at `a2eeed1`, which includes 3.4 world map and 3.5 story dialogs) · **Date:** 2026-10-25, updated 2026-10-26 (user decisions 6–7, builder-check correction) · **PR targets** `visual/integration`, not `main`.
+**Branch:** `visual/3.6-results-stars` (off `origin/visual/integration` at `a2eeed1`, which includes 3.4 world map and 3.5 story dialogs) · **Date:** 2026-10-25, updated 2026-10-26 (user decisions 6–7, builder-check correction); updated 2026-10-26: §8.2 container tiers · **PR targets** `visual/integration`, not `main`.
 **Approved mockup:** `.superpowers/brainstorm/18926-1792977250/content/results-directions-v2.html`, option **B · Action-comic finale**. Its CSS (`.B …`, `@keyframes slam/stamp/chip/shake`) is the seed for the choreography in §6. It is a rough sketch, not a pixel spec.
 
 **Prerequisite (user decision 7):** the stale-`SaveManager` write fix (§4.4) ships first as its own hotfix PR to `main`, and is then forward-ported into `visual/integration`. 3.6 implementation starts only once that forward-port is in `origin/visual/integration`. Rebase this branch onto it before the first task.
@@ -556,16 +556,25 @@ On any action, `ResultsScreen` arms `armGestureTail` before calling `onAction` (
 - The ids are fixed so the harness and tests can address them. No `title=` attributes.
 - `#results[hidden] { display: none }` is explicit, because the author `display` rule would otherwise beat the UA `[hidden]`.
 
-### 8.2 Grid (map rect; tall vs compact by `COMPACT_QUERY` = `(max-height: 500px)`)
+### 8.2 Grid (map rect; two `@container` tiers on `.rs-stage`, not a viewport query)
 ```css
 .rs-stage { position:absolute; left:var(--map-left,0px); top:var(--map-top,0px);
   width:var(--map-width,100%); height:var(--map-height,100%); container-type:size; overflow:hidden;
   display:grid; grid-template-columns:1fr auto; grid-template-rows:auto auto auto 1fr;
   grid-template-areas: "banner banner" "stars stars" "chips chips" "caption actions"; }
-@media (max-height: 500px) {
-  .rs-stage { grid-template-areas: "banner banner" "stars actions" "chips actions" "caption actions"; }
+/* Short stage: actions get their own right-hand column; banner drops to the 3° skew. */
+@container (max-height: 680px) {
+  .rs-banner  { --rs-skew: var(--rs-compact-skew-deg, 3deg); /* … */ }
+  .rs-stars   { grid-column:1; grid-row:2; }
+  .rs-chips   { grid-column:1; grid-row:3; }
+  .rs-caption { grid-column:1; grid-row:4; }
+  .rs-actions { grid-column:2; grid-row:2 / 5; }
 }
+/* Compact stage: phone sizes (40-px stars, 16-px chip values, 64-px portrait, 44-px buttons,
+   body font instead of Orbitron). Layout is inherited from the tier above. */
+@container (max-height: 500px) { /* sizes only */ }
 ```
+- **Why the map rect decides:** the stage is the map rect, not the viewport. A 1280×720 window gives a ~620-px map, which a viewport query called tall, yet the tall stack (banner, stars, chips, then the caption beside three stacked buttons) needs ~690 px, so the 3-button stack clipped on 720p and iPad (fixed in `bd04dc0`). A ~697-px desktop map stays tall.
 - **Defeat:** `.rs-stars` is `display:none`, and the row collapses.
 - **Compact budget** (smallest map, iPhone 14 at 750×340 → map ≈ 588×331; 844×390 → 662×372; 932×430 → 731×411):
 
