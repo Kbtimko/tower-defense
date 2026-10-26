@@ -493,6 +493,177 @@
       .sd-actions button { min-height:44px; min-width:44px; padding:calc(6 * var(--ui-u)) calc(14 * var(--ui-u)); }
       #story-dialog-next { min-width:calc(110 * var(--ui-u)); }
     }
+    /* Results screen: action-comic finale (roadmap 3.6, spec §6, §8). A skewed banner
+       slams in over a halftone wash, stars stamp, chips pop, then the speaker's line and
+       the button stack fade in. --rs-hue is currency on a win and danger on a loss; the
+       speaker arrives as --rs-frame/--rs-caption; "ink" is --ui-bevel-lo. Timings are the
+       --rs-*-ms vars ResultsScreen publishes from RESULTS, and each revealed element gets
+       its delay as an inline --rs-at. Resting styles are the END state: keyframes only
+       describe the from-side (fill both), so .rs-done skips straight to it. Only the
+       individual translate/scale/rotate/opacity properties animate, never transform,
+       which carries the banner skew. src/ui/resultsCss.test.js guards all of this. */
+    .rs-overlay { position:absolute; inset:0; z-index:26; background:rgba(0,0,0,0.66); outline:none;
+      cursor:pointer; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; touch-action:manipulation;
+      animation:rs-fade var(--rs-fade-ms) ease-out backwards; }
+    #results[hidden] { display:none; }
+    #results { --rs-hue: var(--ui-currency); --rs-skew: var(--rs-skew-deg, 5deg); --rs-tan: var(--rs-skew-tan, 0.0875);
+      --rs-tilt: var(--rs-chip-tilt-deg, 2deg); --rs-ink-drop: calc(10 * var(--ui-u)); }
+    #results[data-result="defeat"] { --rs-hue: var(--ui-danger); }
+    /* The map rect, so the results sit where the battlefield was and the rails stay framed. */
+    .rs-stage { position:absolute; left:var(--map-left, 0px); top:var(--map-top, 0px);
+      width:var(--map-width, 100%); height:var(--map-height, 100%); container-type:size; overflow:hidden;
+      display:grid; grid-template-columns:1fr auto; grid-template-rows:auto auto auto 1fr;
+      grid-template-areas:"banner banner" "stars stars" "chips chips" "caption actions";
+      padding-bottom:clamp(8px, 5vh, 48px); column-gap:clamp(12px, 3vw, 40px); row-gap:clamp(6px, 2.4vh, 24px);
+      box-sizing:border-box; }
+    /* cq units on the stage's own box would resolve against an ancestor, so the side
+       insets live on its children, where 1cqw is 1% of the stage. */
+    /* Positioned so DOM order stacks them above the absolutely placed wash. */
+    .rs-banner, .rs-stars, .rs-chips, .rs-caption, .rs-actions { position:relative; }
+    .rs-halftone { position:absolute; inset:0; pointer-events:none; opacity:.16; mix-blend-mode:screen;
+      background-image:radial-gradient(circle, var(--rs-hue) 22%, transparent 24%);
+      background-size:calc(18 * var(--ui-u)) calc(18 * var(--ui-u)); }
+    /* Full bleed at -4%/+4% past the stage, and tall enough that the skewed lower edge
+       (rising toward the right) still clears the level text's far end. The margins reserve the skew rise at the right
+       end (top) and its drop at the chips' left edge (bottom), plus the ink drop. */
+    .rs-banner { grid-area:banner; display:flex; align-items:center; justify-content:center;
+      margin:calc(var(--rs-tan) * 56cqw + 2cqh) -4cqw calc(var(--rs-tan) * 46cqw + var(--rs-ink-drop));
+      min-height:clamp(56px, 26cqh, 200px); background-color:var(--rs-hue);
+      transform:skewY(calc(-1 * var(--rs-skew)));
+      box-shadow:0 var(--rs-ink-drop) 0 var(--ui-bevel-lo);
+      animation:rs-slam var(--rs-banner-ms) cubic-bezier(.2,1.5,.4,1) var(--rs-at) both; }
+    .rs-banner-text { margin:0; transform:skewY(var(--rs-skew)); white-space:nowrap; line-height:1;
+      font-family:var(--ui-font-heading); font-weight:700; font-style:italic; letter-spacing:.04em;
+      font-size:clamp(24px, min(7cqw, 14cqh), 88px); color:var(--ui-bevel-lo);
+      -webkit-text-stroke:calc(1 * var(--ui-u)) var(--ui-bevel-lo); }
+    #results[data-result="defeat"] .rs-banner-text { animation:rs-shake var(--rs-shake-ms) ease var(--rs-at) both; }
+    .rs-kicker { position:absolute; left:10cqw; top:0; translate:0 calc(-100% - 4px);
+      transform:skewY(var(--rs-skew)); white-space:nowrap; line-height:1.1;
+      font-family:var(--ui-font-heading); font-weight:700; font-size:clamp(16px, 1.4cqw, var(--ui-fs-lg)); letter-spacing:.2em;
+      padding:calc(5 * var(--ui-u)) calc(14 * var(--ui-u)); color:var(--rs-hue); background-color:var(--ui-bevel-lo);
+      border:calc(3 * var(--ui-u)) solid var(--rs-hue); }
+    .rs-stars { grid-area:stars; display:flex; justify-content:center; gap:clamp(12px, 4cqh, 40px); }
+    #results[data-result="defeat"] .rs-stars { display:none; }
+    /* Layered: the shadow filter on the wrapper, the star clip-path on ::before, because a
+       clip-path on the shadowed element would clip the shadow off. */
+    .rs-star { position:relative; width:clamp(32px, 12cqh, 96px); aspect-ratio:1;
+      filter:drop-shadow(calc(4 * var(--ui-u)) calc(4 * var(--ui-u)) 0 var(--ui-bevel-lo));
+      animation:rs-stamp var(--rs-star-ms) cubic-bezier(.2,1.8,.4,1) var(--rs-at) both; }
+    .rs-star[data-earned="1"] { filter:drop-shadow(calc(4 * var(--ui-u)) calc(4 * var(--ui-u)) 0 var(--ui-bevel-lo))
+      drop-shadow(0 0 calc(6 * var(--ui-u)) var(--ui-currency)); }
+    .rs-star::before { content:''; position:absolute; inset:0; background-color:var(--ui-panel-edge);
+      clip-path:polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
+    .rs-star[data-earned="1"]::before { background-color:var(--ui-currency); }
+    .rs-chips { grid-area:chips; display:flex; justify-content:center; flex-wrap:nowrap; gap:clamp(8px, 2cqw, 28px);
+      list-style:none; margin:0; padding:0; }
+    .rs-chip { display:flex; flex-direction:column; align-items:center; min-width:clamp(80px, 11cqw, 150px);
+      padding:calc(8 * var(--ui-u)) calc(16 * var(--ui-u)); box-sizing:border-box; text-align:center;
+      background-color:var(--ui-panel); border:calc(4 * var(--ui-u)) solid var(--ui-bevel-lo);
+      outline:calc(1 * var(--ui-u)) solid var(--ui-panel-edge); rotate:calc(-1 * var(--rs-tilt));
+      animation:rs-chip var(--rs-chip-ms) cubic-bezier(.2,1.6,.4,1) var(--rs-at) both; }
+    .rs-chip:nth-child(even) { rotate:var(--rs-tilt); }
+    .rs-chip-val { font-family:var(--ui-font-heading); font-weight:700; font-size:clamp(16px, min(2.6cqw, 6cqh), 34px);
+      line-height:1.15; white-space:nowrap; color:var(--rs-hue); }
+    .rs-chip-lbl { font-family:var(--ui-font-body); font-weight:700; font-size:var(--ui-fs-sm); letter-spacing:.14em;
+      color:var(--ui-text-muted); }
+    /* Pinned to the chip's top-right corner; it overhangs the chip, not its neighbour. */
+    .rs-new-best { position:absolute; top:0; right:0; translate:25% -60%; rotate:-8deg; white-space:nowrap;
+      font-family:var(--ui-font-body); font-weight:700; font-size:var(--ui-fs-xs); letter-spacing:.1em; text-transform:uppercase;
+      line-height:1.2; padding:calc(2 * var(--ui-u)) calc(6 * var(--ui-u));
+      color:var(--ui-currency); background-color:var(--ui-bevel-lo); border:calc(2 * var(--ui-u)) solid var(--ui-currency);
+      animation:rs-tag var(--rs-new-best-ms) cubic-bezier(.2,1.8,.4,1) var(--rs-at) both; }
+    .rs-caption { grid-area:caption; align-self:end; justify-self:start; display:flex; align-items:flex-end;
+      gap:calc(14 * var(--ui-u)); max-width:62cqw; margin-left:5cqw;
+      animation:rs-fade var(--rs-caption-ms) ease var(--rs-at) both; }
+    .rs-portrait-outer { flex:none; }
+    .rs-portrait { position:relative; width:clamp(64px, 18cqh, 140px); aspect-ratio:1; overflow:hidden;
+      background-color:var(--ui-bevel-lo); border:calc(4 * var(--ui-u)) solid var(--ui-bevel-lo);
+      outline:calc(2 * var(--ui-u)) solid var(--rs-frame, var(--ui-panel-edge));
+      box-shadow:calc(6 * var(--ui-u)) calc(6 * var(--ui-u)) 0 var(--ui-bevel-lo); }
+    .rs-portrait img, .rs-initial { position:absolute; inset:0; width:100%; height:100%; }
+    .rs-portrait img { object-fit:cover; }
+    .rs-initial { display:flex; align-items:center; justify-content:center;
+      background-color:var(--rs-frame, var(--ui-panel-edge)); color:var(--ui-bevel-lo);
+      font-family:var(--ui-font-heading); font-weight:700; font-size:clamp(var(--ui-fs-xl), 10cqh, 72px); }
+    .rs-caption-col { min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:calc(8 * var(--ui-u)); }
+    .rs-caption-name { max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      font-family:var(--ui-font-heading); font-weight:700; font-size:16px; letter-spacing:.2em; text-transform:uppercase;
+      line-height:1.2; padding:calc(4 * var(--ui-u)) calc(12 * var(--ui-u));
+      color:var(--rs-frame, var(--ui-panel-edge)); background-color:var(--ui-bevel-lo); }
+    .rs-caption-box { position:relative; isolation:isolate; background-color:var(--rs-caption, var(--ui-text));
+      border:calc(4 * var(--ui-u)) solid var(--ui-bevel-lo);
+      box-shadow:calc(7 * var(--ui-u)) calc(7 * var(--ui-u)) 0 var(--ui-bevel-lo); }
+    .rs-caption-text { margin:0; padding:calc(10 * var(--ui-u)) calc(16 * var(--ui-u));
+      font-family:var(--ui-font-body); font-weight:700; font-size:clamp(var(--ui-fs-md), 2cqw, var(--ui-fs-lg));
+      line-height:1.25; color:var(--ui-bevel-lo); }
+    /* The Veth's jagged box (3.5's three-layer build): ink and fill polygons on the box's
+       pseudo-elements, the drop shadow as a filter on the unclipped column (the glitch
+       animates filter on the box, so the shadow can't live there). The transparent border
+       keeps the box model, so the line wraps as any other, and the text never overflows. */
+    #results[data-shape="jagged"] .rs-caption-col {
+      filter:drop-shadow(calc(7 * var(--ui-u)) calc(7 * var(--ui-u)) 0 var(--ui-bevel-lo)); }
+    #results[data-shape="jagged"] .rs-caption-box { background-color:transparent; border-color:transparent; box-shadow:none; }
+    #results[data-shape="jagged"] .rs-caption-box::before,
+    #results[data-shape="jagged"] .rs-caption-box::after { content:''; position:absolute; z-index:-1;
+      clip-path:polygon(0 8%, 3% 0, 97% 0, 100% 10%, 98% 92%, 100% 100%, 4% 100%, 0 88%, 2% 50%); }
+    #results[data-shape="jagged"] .rs-caption-box::before { inset:calc(-4 * var(--ui-u)); background-color:var(--ui-bevel-lo); }
+    #results[data-shape="jagged"] .rs-caption-box::after { inset:0; background-color:var(--rs-caption, var(--ui-text)); }
+    /* Inner elements loop (outer = fade, inner = glitch), so .rs-done never stops them;
+       motion-off does. They start with the caption beat via the inherited --rs-at. */
+    #results[data-glitch="1"] .rs-portrait,
+    #results[data-glitch="1"] .rs-caption-box { animation:sd-glitch var(--rs-glitch-period-ms) steps(1) var(--rs-at) infinite; }
+    /* Opacity only: the buttons never move, so a real tap lands where they are drawn. */
+    .rs-actions { grid-area:actions; align-self:end; display:flex; flex-direction:column; gap:calc(10 * var(--ui-u)); margin-right:5cqw;
+      animation:rs-fade var(--rs-actions-ms) ease var(--rs-at) both; }
+    .rs-btn { min-height:40px; min-width:40px; margin:0; padding:calc(10 * var(--ui-u)) calc(22 * var(--ui-u));
+      font-family:var(--ui-font-heading); font-weight:700; font-size:16px; letter-spacing:.08em; white-space:nowrap;
+      cursor:pointer; border-radius:0; color:var(--ui-text); background-color:var(--ui-panel);
+      border:calc(3 * var(--ui-u)) solid var(--ui-bevel-lo); outline:calc(1 * var(--ui-u)) solid var(--ui-panel-edge);
+      box-shadow:calc(4 * var(--ui-u)) calc(4 * var(--ui-u)) 0 var(--ui-bevel-lo); }
+    .rs-btn[hidden] { display:none; }
+    .rs-btn--primary { color:var(--ui-bevel-lo); background-color:var(--rs-hue); outline:none; }
+    .rs-btn:active { translate:calc(4 * var(--ui-u)) calc(4 * var(--ui-u)); box-shadow:none; }
+    #results .rs-btn:focus-visible { outline:calc(3 * var(--ui-u)) solid var(--ui-accent); outline-offset:calc(3 * var(--ui-u)); }
+    @keyframes rs-fade { from { opacity:0; } }
+    @keyframes rs-slam { from { translate:-110% 0; } }
+    @keyframes rs-shake { 25% { translate:-0.08em 0; } 75% { translate:0.08em 0; } }
+    @keyframes rs-stamp { from { scale:var(--rs-star-from-scale, 3); opacity:0; } }
+    @keyframes rs-chip { from { scale:.5; rotate:-8deg; opacity:0; } }
+    @keyframes rs-tag { from { scale:2; opacity:0; } }
+    /* Skip: every reveal jumps to its resting (end) state at once. */
+    #results.rs-done .rs-reveal { animation:none !important; }
+    /* Reduced motion (spec §10) is the saved setting, so a class. The root is left out on
+       purpose: its single rs-fade still plays, so the screen fades rather than pops. */
+    #results.motion-off *, #results.motion-off *::before, #results.motion-off *::after { animation:none !important; }
+    /* Compact (COMPACT_QUERY): the actions take their own column, so the left column keeps
+       banner, stars, chips and caption; text drops to Rajdhani (Orbitron only >= 16 px). */
+    @media (max-height: 500px) {
+      #results { --rs-skew: var(--rs-compact-skew-deg, 3deg); --rs-tan: var(--rs-compact-skew-tan, 0.0524);
+        --rs-ink-drop: calc(6 * var(--ui-u)); }
+      .rs-stage { grid-template-areas:"banner banner" "stars actions" "chips actions" "caption actions";
+        padding-bottom:calc(8 * var(--ui-u)); row-gap:calc(6 * var(--ui-u)); column-gap:calc(12 * var(--ui-u)); }
+      .rs-halftone { background-size:calc(12 * var(--ui-u)) calc(12 * var(--ui-u)); }
+      .rs-banner { min-height:72px; margin-top:calc(var(--rs-tan) * 56cqw + 8px); }
+      .rs-kicker { font-family:var(--ui-font-body); font-size:var(--ui-fs-sm); letter-spacing:.14em; text-transform:uppercase;
+        padding:calc(2 * var(--ui-u)) calc(10 * var(--ui-u)); }
+      .rs-star { width:40px; }
+      .rs-chips { gap:calc(6 * var(--ui-u)); margin-top:calc(14 * var(--ui-u)); }
+      .rs-new-best { translate:40% -100%; }
+      .rs-chip { min-width:0; padding:calc(5 * var(--ui-u)) calc(10 * var(--ui-u)); }
+      .rs-chip-val { font-size:16px; }
+      .rs-chip-lbl { font-size:var(--ui-fs-xs); }
+      .rs-caption { max-width:none; margin-left:3cqw; gap:calc(10 * var(--ui-u)); }
+      .rs-portrait { width:64px; }
+      .rs-caption-name { font-family:var(--ui-font-body); font-size:var(--ui-fs-sm); letter-spacing:.14em; }
+      .rs-caption-text { font-size:var(--ui-fs-md); padding:calc(6 * var(--ui-u)) calc(10 * var(--ui-u)); }
+      .rs-actions { grid-row:2 / 5; margin-right:3cqw; gap:calc(6 * var(--ui-u)); }
+      /* Spec §7.5: >= 44x44 in compact for any pointer (a 200%-zoomed laptop is compact and fine). */
+      .rs-btn { min-height:44px; min-width:44px; font-family:var(--ui-font-body); font-size:var(--ui-fs-md);
+        text-transform:uppercase; padding:calc(6 * var(--ui-u)) calc(14 * var(--ui-u)); }
+    }
+    @media (pointer: coarse) {
+      .rs-btn { min-height:44px; min-width:44px; }
+    }
     .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
       clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0; }
     #story-log-overlay { display:none; position:absolute; inset:0; z-index:17;
@@ -1107,6 +1278,32 @@
         <div id="story-log-list"></div>
         <button id="story-log-close" class="ui-btn">Close</button>
       </div>
+    </div>
+    <div id="results" class="rs-overlay" role="dialog" aria-modal="true" aria-labelledby="results-banner-text" tabindex="-1" hidden>
+      <div class="rs-stage">
+        <div class="rs-halftone" aria-hidden="true"></div>
+        <div class="rs-banner rs-reveal">
+          <div id="results-kicker" class="rs-kicker"></div>
+          <h2 id="results-banner-text" class="rs-banner-text rs-reveal"></h2>
+        </div>
+        <div id="results-stars" class="rs-stars" role="img">
+          <span class="rs-star rs-reveal"></span><span class="rs-star rs-reveal"></span><span class="rs-star rs-reveal"></span>
+        </div>
+        <ul id="results-chips" class="rs-chips"></ul>
+        <div id="results-caption" class="rs-caption rs-reveal">
+          <div class="rs-portrait-outer"><div id="results-portrait" class="rs-portrait" aria-hidden="true"></div></div>
+          <div class="rs-caption-col">
+            <div id="results-speaker" class="rs-caption-name"></div>
+            <div class="rs-caption-box"><p id="results-line" class="rs-caption-text"></p></div>
+          </div>
+        </div>
+        <div id="results-actions" class="rs-actions rs-reveal">
+          <button id="results-next" class="rs-btn" type="button"></button>
+          <button id="results-retry" class="rs-btn" type="button"></button>
+          <button id="results-map" class="rs-btn" type="button"></button>
+        </div>
+      </div>
+      <div id="results-live" class="sr-only" aria-live="polite" aria-atomic="true"></div>
     </div>
     <div id="map-select">
       <div id="map-overworld">
