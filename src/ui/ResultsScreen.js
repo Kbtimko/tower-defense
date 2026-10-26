@@ -216,6 +216,7 @@ export class ResultsScreen {
   // including one on a still-invisible button.
   _onClick(e) {
     if (e.defaultPrevented || !this._flow) return;
+    this._tick();
     const btn = e.target.closest('.rs-btn');
     if (this._flow.phase === 'ready' && !(btn && !btn.hidden)) return;
     this._press(e, () => btn.id.replace('results-', ''));
@@ -230,6 +231,7 @@ export class ResultsScreen {
     // Also stops a focused button's native activation, which would act twice.
     e.preventDefault();
     if (e.repeat) return;
+    this._tick();
     if (e.key === 'Tab') {
       if (this._flow.phase === 'ready') this._wrapFocus(e.shiftKey);
       return;
@@ -271,7 +273,12 @@ export class ResultsScreen {
 
   _onFrame() {
     this._frame = 0;
-    if (!this._flow) return;
+    if (this._flow) this._tick();
+  }
+
+  // Input is dispatched before rAF, so after a stall the stored phase can be stale:
+  // every decision ticks first, or a ready screen would be judged as revealing.
+  _tick() {
     this._flow = tickFlow(this._flow, this._now());
     this._sync();
   }

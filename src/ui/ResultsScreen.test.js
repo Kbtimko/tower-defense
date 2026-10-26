@@ -227,6 +227,26 @@ describe('ResultsScreen', () => {
       expect(root().hidden).toBe(false);
     });
 
+    // Input is dispatched before rAF, so after a stall the stored flow can still read
+    // revealing past endMs + guard: the decision must tick first.
+    it('a stage tap after a stall past the end and the guard (no frame run) does not act or throw', () => {
+      const onAction = vi.fn();
+      make().open(resultsModel(victoryRun()), onAction);
+      clock.t += VICTORY_END + GUARD + 500;
+      click($('.rs-stage'));
+      expect(onAction).not.toHaveBeenCalled();
+      expect(root().dataset.phase).toBe('ready');
+      expect(root().hidden).toBe(false);
+    });
+
+    it('Tab after a stall past the end (no frame run) wraps from the primary like any ready Tab', () => {
+      make().open(resultsModel(victoryRun()), () => {});
+      clock.t += VICTORY_END + GUARD + 500;
+      key('Tab');
+      expect(root().dataset.phase).toBe('ready');
+      expect(document.activeElement).toBe($('#results-retry'));
+    });
+
     it('motion off: ready at once with .motion-off, and the guard still holds', () => {
       motionOn = false;
       const onAction = vi.fn();
