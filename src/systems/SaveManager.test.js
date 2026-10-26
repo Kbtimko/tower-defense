@@ -49,7 +49,7 @@ describe('SaveManager — migration', () => {
     expect(sm.getStars(1)).toBe(2);
     expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
     const env = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    expect(env.version).toBe(4);
+    expect(env.version).toBe(5);
     expect(env.maps).toEqual([3,2,0,0,0,0,0,0,0,0]);
     expect(env.upgrades).toEqual([]);
     expect(env.stats).toEqual({ kills: 0, gamesPlayed: 0, victories: 0, defeats: 0, bestWave: 0 });
@@ -113,7 +113,7 @@ describe('SaveManager — v2 settings', () => {
       mapGrade: null,
     });
     const env = JSON.parse(localStorage.getItem('lastlight_save'));
-    expect(env.version).toBe(4);
+    expect(env.version).toBe(5);
     expect(env.settings.masterVol).toBe(0.5);
     expect(env.settings.muted).toBe(true);
   });
@@ -130,7 +130,7 @@ describe('SaveManager — v2 settings', () => {
     expect(sm.getPurchasedUpgrades()).toEqual(['command-1']);
     expect(sm.getSettings().musicVol).toBe(0.6);
     const env = JSON.parse(localStorage.getItem('lastlight_save'));
-    expect(env.version).toBe(4);
+    expect(env.version).toBe(5);
     expect(env.settings).toBeDefined();
   });
 
@@ -258,12 +258,12 @@ describe('SaveManager v3 — selectedHeroId + cmd_* rename', () => {
 describe('seenStoryBeats (v4)', () => {
   beforeEach(() => localStorage.clear());
 
-  it('fresh save starts with empty seenStoryBeats and version 4', () => {
+  it('fresh save starts with empty seenStoryBeats and version 5', () => {
     const sm = new SaveManager();
     expect(sm.hasSeenBeat('campaign_intro')).toBe(false);
     expect(sm.getSeenBeats()).toEqual({});
     const raw = JSON.parse(localStorage.getItem('lastlight_save'));
-    expect(raw.version).toBe(4);
+    expect(raw.version).toBe(5);
   });
 
   it('markBeatSeen persists and round-trips through a reload', () => {
@@ -294,7 +294,7 @@ describe('seenStoryBeats (v4)', () => {
     expect(sm.getSelectedHero()).toBe('engineer');
     expect(sm.getSeenBeats()).toEqual({});
     const raw = JSON.parse(localStorage.getItem('lastlight_save'));
-    expect(raw.version).toBe(4);
+    expect(raw.version).toBe(5);
   });
 
   it('migrates a v1 save all the way to v4', () => {
@@ -309,7 +309,7 @@ describe('seenStoryBeats (v4)', () => {
     const sm = new SaveManager();
     expect(sm.getPurchasedUpgrades()).toEqual(['rael_veteran']); // cmd_*→rael_* still applied
     expect(sm.getSeenBeats()).toEqual({});
-    expect(JSON.parse(localStorage.getItem('lastlight_save')).version).toBe(4);
+    expect(JSON.parse(localStorage.getItem('lastlight_save')).version).toBe(5);
   });
 });
 
@@ -366,5 +366,138 @@ describe('SaveManager — cross-instance writes', () => {
     b.setSettings({ muted: true });
     a.markBeatSeen('y');
     expect(new SaveManager().getSettings().muted).toBe(true);
+  });
+});
+
+const NULL_RECORDS = new Array(10).fill(null);
+
+describe('SaveManager v5 — per-map records', () => {
+  const v4 = () => ({
+    version: 4,
+    maps: [3, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+    upgrades: ['rael_hp'],
+    stats: { kills: 9, gamesPlayed: 4, victories: 3, defeats: 1, bestWave: 7 },
+    settings: { masterVol: 0.5, sfxVol: 1, musicVol: 0.6, muted: true, ambientMotion: 'off', mapGrade: null },
+    selectedHeroId: 'rael',
+    seenStoryBeats: { intro: true },
+  });
+  const stored = () => JSON.parse(localStorage.getItem(STORAGE_KEY));
+
+  it('v4 fixture migrates to v5 with null records and every other field identical', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(v4()));
+    new SaveManager();
+    const { version, records, ...rest } = stored();
+    const { version: _v, ...fixtureRest } = v4();
+    expect(version).toBe(5);
+    expect(records).toEqual(NULL_RECORDS);
+    expect(rest).toEqual(fixtureRest);
+  });
+
+  it('v1, v2 and v3 fixtures all land on v5 with null records', () => {
+    for (const version of [1, 2, 3]) {
+      localStorage.clear();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...v4(), version }));
+      new SaveManager();
+      expect(stored().version).toBe(5);
+      expect(stored().records).toEqual(NULL_RECORDS);
+    }
+  });
+
+  it('fresh save has v5 and null records', () => {
+    new SaveManager();
+    expect(stored().version).toBe(5);
+    expect(stored().records).toEqual(NULL_RECORDS);
+  });
+
+  it('a v5 save round-trips its records', () => {
+    const records = NULL_RECORDS.slice();
+    records[2] = { livesLost: 1, timeMs: 90000 };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...v4(), version: 5, records }));
+    const sm = new SaveManager();
+    expect(sm.getRecord(2)).toEqual({ livesLost: 1, timeMs: 90000 });
+    expect(sm.getRecord(0)).toBeNull();
+  });
+
+  it.each([
+    ['a string', 'x'],
+    ['wrong length', [null, null]],
+    ['not an array', { 0: { livesLost: 1, timeMs: 5 } }],
+  ])('garbage records (%s) sanitize to nulls', (_n, records) => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...v4(), version: 5, records }));
+    const sm = new SaveManager();
+    for (let i = 0; i < 10; i++) expect(sm.getRecord(i)).toBeNull();
+  });
+
+  it('old-shaped entries inside a right-length array sanitize to null, valid ones survive', () => {
+    const records = NULL_RECORDS.slice();
+    records[0] = { lives: 18 };
+    records[1] = { livesLost: 2, timeMs: 1000 };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...v4(), version: 5, records }));
+    const sm = new SaveManager();
+    expect(sm.getRecord(0)).toBeNull();
+    expect(sm.getRecord(1)).toEqual({ livesLost: 2, timeMs: 1000 });
+  });
+
+  it('a future v6 keeps sanitized records', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const records = NULL_RECORDS.slice();
+    records[3] = { livesLost: 0, timeMs: 5000 };
+    records[4] = { lives: 18 };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...v4(), version: 6, records }));
+    const sm = new SaveManager();
+    expect(sm.getRecord(3)).toEqual({ livesLost: 0, timeMs: 5000 });
+    expect(sm.getRecord(4)).toBeNull();
+    warn.mockRestore();
+  });
+
+  it('recordRun returns the flags and persists', () => {
+    const sm = new SaveManager();
+    expect(sm.recordRun(0, { livesLost: 3, timeMs: 80000 })).toEqual({ newBest: { livesLost: false, time: false } });
+    expect(sm.recordRun(0, { livesLost: 1, timeMs: 90000 })).toEqual({ newBest: { livesLost: true, time: false } });
+    expect(sm.recordRun(0, { livesLost: 1, timeMs: 70000 })).toEqual({ newBest: { livesLost: false, time: true } });
+    expect(stored().records[0]).toEqual({ livesLost: 1, timeMs: 70000 });
+    expect(new SaveManager().getRecord(0)).toEqual({ livesLost: 1, timeMs: 70000 });
+  });
+
+  it('recordRun makes no setItem call when nothing improved', () => {
+    const sm = new SaveManager();
+    sm.recordRun(0, { livesLost: 1, timeMs: 70000 });
+    const spy = vi.spyOn(Storage.prototype, 'setItem');
+    const res = sm.recordRun(0, { livesLost: 1, timeMs: 70000 });
+    sm.recordRun(0, { livesLost: 4, timeMs: 99999 });
+    expect(res.newBest).toEqual({ livesLost: false, time: false });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it('getRecord returns a copy', () => {
+    const sm = new SaveManager();
+    sm.recordRun(0, { livesLost: 1, timeMs: 70000 });
+    sm.getRecord(0).livesLost = 99;
+    expect(sm.getRecord(0)).toEqual({ livesLost: 1, timeMs: 70000 });
+  });
+
+  it('getRecord is null for an unplayed or out-of-range map', () => {
+    const sm = new SaveManager();
+    expect(sm.getRecord(0)).toBeNull();
+    expect(sm.getRecord(99)).toBeNull();
+  });
+
+  it('recordRun on a stale instance keeps stars another instance saved', () => {
+    const a = new SaveManager();
+    const b = new SaveManager();
+    a.setStars(0, 3);
+    b.recordRun(0, { livesLost: 0, timeMs: 60000 });
+    const fresh = new SaveManager();
+    expect(fresh.getStars(0)).toBe(3);
+    expect(fresh.getRecord(0)).toEqual({ livesLost: 0, timeMs: 60000 });
+  });
+
+  it('setSettings on a stale instance keeps a record another instance saved', () => {
+    const a = new SaveManager();
+    const b = new SaveManager();
+    a.recordRun(1, { livesLost: 2, timeMs: 61000 });
+    b.setSettings({ masterVol: 0.1 });
+    expect(new SaveManager().getRecord(1)).toEqual({ livesLost: 2, timeMs: 61000 });
   });
 });
