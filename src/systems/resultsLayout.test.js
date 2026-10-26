@@ -4,9 +4,11 @@ import { resultsProblems, bannerLowerEdge } from './resultsLayout.js';
 const R = (left, top, right, bottom) => ({ left, top, right, bottom, width: right - left, height: bottom - top });
 
 const fixture = (over = {}) => ({
+  result: 'victory',
   mapRect: R(0, 0, 800, 400),
   bannerBox: R(200, 10, 600, 70),
   skewDeg: 5,
+  kicker: R(240, 0, 520, 9),
   bannerText: R(220, 20, 580, 60),
   bannerTextScroll: { scrollWidth: 300, clientWidth: 360 },
   stars: R(300, 100, 500, 150),
@@ -39,7 +41,28 @@ describe('resultsProblems', () => {
     expect(resultsProblems(fixture())).toEqual([]);
   });
   it('passes a defeat (stars null)', () => {
-    expect(resultsProblems(fixture({ stars: null }))).toEqual([]);
+    expect(resultsProblems(fixture({ result: 'defeat', stars: null }))).toEqual([]);
+  });
+  // A broken selector measures null; skipping nulls would pass it vacuously.
+  it.each([
+    ['bannerBox', { bannerBox: null }],
+    ['kicker', { kicker: null }],
+    ['bannerText', { bannerText: null }],
+    ['stars', { stars: null }],
+    ['chips', { chips: [] }],
+    ['chips[1]', { chips: [R(40, 170, 180, 230), null] }],
+    ['newBest[0]', { newBest: [null] }],
+    ['caption', { caption: null }],
+    ['actions', { actions: null }],
+    ['button #results-next', { buttons: [{ name: '#results-next', rect: null, visible: true }] }],
+  ])('flags a missing %s', (name, over) => {
+    expect(resultsProblems(fixture(over))).toContain(`${name} missing`);
+  });
+  it('requires stars on a victory only', () => {
+    expect(resultsProblems(fixture({ result: 'defeat', stars: null })).join()).not.toMatch(/missing/);
+  });
+  it('flags a kicker outside the map', () => {
+    expect(resultsProblems(fixture({ kicker: R(240, 0, 830, 9) })).join()).toMatch(/kicker outside map/);
   });
   it('flags a rect outside the map', () => {
     expect(resultsProblems(fixture({ caption: R(40, 245, 900, 315) })).join()).toMatch(/caption outside map/);
@@ -79,10 +102,10 @@ describe('resultsProblems', () => {
   it('passes a rect in the bounding-box right corner but under the slanted edge', () => {
     // Right edge y ~ 52.5; bounding-box bottom is 70. Top 60 is inside the bbox yet below the edge.
     const stars = R(560, 60, 600, 100);
-    expect(resultsProblems(fixture({ stars, chips: [], actions: R(40, 330, 760, 390) }))).toEqual([]);
+    expect(resultsProblems(fixture({ stars, actions: R(40, 330, 760, 390) }))).toEqual([]);
   });
   it('ignores a rect that does not overlap the banner horizontally', () => {
-    expect(resultsProblems(fixture({ stars: R(10, 20, 100, 60), chips: [] }))).toEqual([]);
+    expect(resultsProblems(fixture({ stars: R(10, 20, 100, 60) }))).toEqual([]);
   });
   it('flags a small visible button, not a small hidden one', () => {
     const small = R(40, 330, 80, 360);

@@ -26,16 +26,21 @@ export function bannerLowerEdge(box, skewDeg) {
 export function resultsProblems(m) {
   const problems = [];
   const named = [
+    ['kicker', m.kicker],
     ['bannerText', m.bannerText],
-    ['stars', m.stars],
+    ...(m.result === 'defeat' ? [] : [['stars', m.stars]]),
     ...m.chips.map((r, i) => [`chips[${i}]`, r]),
     ...m.newBest.map((r, i) => [`newBest[${i}]`, r]),
     ['caption', m.caption],
     ['actions', m.actions],
-    ...m.buttons.filter(b => b.visible && b.rect).map(b => [`button ${b.name}`, b.rect]),
+    ...m.buttons.filter(b => b.visible).map(b => [`button ${b.name}`, b.rect]),
   ];
+  // A selector that matched nothing measures null; skipping it would pass vacuously.
+  if (!m.bannerBox) problems.push('bannerBox missing');
+  if (!m.chips.length) problems.push('chips missing');
   for (const [name, r] of named) {
-    if (r && outside(r, m.mapRect)) problems.push(`${name} outside map ${fmt(r)}`);
+    if (!r) problems.push(`${name} missing`);
+    else if (outside(r, m.mapRect)) problems.push(`${name} outside map ${fmt(r)}`);
   }
 
   if (m.bannerTextScroll.scrollWidth > m.bannerTextScroll.clientWidth + EDGE_TOLERANCE_PX) {
@@ -59,10 +64,10 @@ export function resultsProblems(m) {
     if (a && b && intersects(a, b)) problems.push(`${an} overlaps ${bn}`);
   }
 
-  const edge = bannerLowerEdge(m.bannerBox, m.skewDeg);
+  const edge = m.bannerBox ? bannerLowerEdge(m.bannerBox, m.skewDeg) : null;
   const below = [['stars', m.stars], ...m.chips.map((r, i) => [`chip ${i}`, r]), ['caption', m.caption], ['actions', m.actions]];
   for (const [name, r] of below) {
-    if (!r) continue;
+    if (!r || !edge) continue;
     const overlapsX = r.left < m.bannerBox.right && r.right > m.bannerBox.left;
     if (overlapsX && (r.top < edge(r.left) || r.top < edge(r.right))) problems.push(`${name} collides with banner`);
   }
