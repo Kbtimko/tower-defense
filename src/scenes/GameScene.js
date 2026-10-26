@@ -40,7 +40,6 @@ import { PAD_BEACON } from '../data/ambient.js';
 import { FONTS } from '../data/theme.js';
 import { beaconAlpha, beaconLevel } from '../systems/padBeacon.js';
 import { STORY_PANELS, briefKey, victorySequenceId, STORY_SEQUENCES } from '../data/story.js';
-import { starsDisplay }    from '../utils/display.js';
 import { soldierSource, heroAbilitySource } from '../data/sourceBuilders.js';
 import { ENEMY_MELEE_DAMAGE, findBlockingSoldier, heroBlocksEnemy } from '../systems/soldierCombat.js';
 import { AreaEffectsManager } from '../systems/AreaEffectsManager.js';
@@ -79,6 +78,11 @@ import { CodexOverlay }       from '../ui/CodexOverlay.js';
 import { shouldAutoPause }    from '../systems/shellLifecycle.js';
 import { PHONE_PORTRAIT_QUERY } from '../data/mobile.js';
 import { buildCatalog, progressFromSave } from '../systems/codexCatalog.js';
+import { starsFor }           from '../systems/starRating.js';
+import { livesLostFor }       from '../systems/runRecord.js';
+import { resultsModel }       from '../systems/resultsModel.js';
+import { exitPayload }        from '../systems/missionExit.js';
+import { ResultsScreen }      from '../ui/ResultsScreen.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const WAVE_CLEAR_BONUS   = 38;
@@ -86,6 +90,12 @@ const WAVE_CLEAR_BONUS   = 38;
 const PREVIEW_OK         = 0xffd700;
 const PREVIEW_BAD        = 0x884444;
 const BUILD_HUB          = 'Build';
+
+// Every pool reduced to one line, so the audit can force the longest caption.
+function onlyLine(line) {
+  const tiers = { 1: [line], 2: [line], 3: [line] };
+  return { victory: tiers, final: tiers, defeat: [line] };
+}
 
 // Scripted state for scripts/capture.mjs. Module-level, not a method, so the
 // production build drops it along with its only (dead) call site.
@@ -114,8 +124,17 @@ function applyDebugCapture(scene) {
     simMs: 0, enemies: 0, errors,
     // Game-space positions, so the harness can click a tower to open its ring.
     towers: placed.map(t => ({ type: t.type, x: t.x, y: t.y })),
-    // Jumps straight to a results screen without playing a level out.
-    end: (result) => (result === 'victory' ? scene._onVictory() : scene._onDefeat()),
+    // Jumps straight to a results screen without playing a level out; overrides
+    // force the worst-case chips and line for the layout audit.
+    end: (result, overrides = {}) => {
+      const { lives, kills, goldEarned, timeMs, line } = overrides;
+      if (lives !== undefined) scene.economy.lives = lives;
+      if (kills !== undefined) scene.kills = kills;
+      if (goldEarned !== undefined) scene.economy.earned = goldEarned;
+      if (timeMs !== undefined) scene._runMs = timeMs;
+      scene._resultLines = line === undefined ? undefined : onlyLine(line);
+      return result === 'victory' ? scene._onVictory() : scene._onDefeat();
+    },
   };
 }
 
@@ -132,6 +151,11 @@ export default class GameScene extends Phaser.Scene {
     this.heroId = data?.heroId ?? 'rael';
     // Only BootScene's capture-hook branch passes this; normal entry clears it.
     this._debug = (import.meta.env.DEV || import.meta.env.MODE === 'capture') ? (data?.debug ?? null) : null;
+    // Only RETRY carries it: a retry chain must hand the world map the stars the
+    // player walked in with, not the ones an earlier run of the chain saved.
+    this._carriedEntryStars = Number.isInteger(data?.entryStars) ? data.entryStars : null;
+    // Capture-hook override only; undefined keeps resultsModel's default lines.
+    this._resultLines = undefined;
   }
 
   create() {
@@ -165,14 +189,22 @@ export default class GameScene extends Phaser.Scene {
     this._towerCostMult  = mods.towerCostMult ?? 1;
 
     this.pathMgr  = new PathManager(map.waypoints, map.towerSlots, WORLD_WIDTH, WORLD_HEIGHT);
+    // Garrison included: lives lost are measured from what this run started with.
+    this._startLives = map.startLives + mods.startLivesBonus;
+    this._entryStars = this._carriedEntryStars ?? this.saveMgr.getStars(this.mapId);
+    this._runMs      = 0;
+    this._newBest    = null;
     this.economy  = new EconomyManager(
       startingGold(map.startGold, mods.startGoldPct),
-      map.startLives + mods.startLivesBonus,
+      this._startLives,
       this.events,
     );
     this.waveMgr  = new WaveManager(MAP_WAVES[this.mapId] ?? MAP_WAVES[0], this.events);
     this.storyMgr = new StoryManager(STORY_PANELS);
     this._storyDialog = new StoryDialogOverlay({ motion: () => this.game.registry.get('ambientMotion') !== false });
+    this._results = new ResultsScreen({ motion: () => this.game.registry.get('ambientMotion') !== false });
+    // A level never opens under a stale screen.
+    this._results.close();
     this.placementManager = new TowerPlacementManager(
       this.pathMgr.buildZones,
       this.economy,
@@ -422,15 +454,26 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // Tells the world map what happened so it can animate a first-clear win.
-  _returnToMap() {
+  _returnToMap(opts = {}) {
     if (this._leftToMap) return;
     this._leftToMap = true;
-    const result = this.won ? 'victory' : this.over ? 'defeat' : 'abandon';
-    const saved  = this.saveMgr.getStars(this.mapId);
-    // Victory's prevStars was captured before setStars, which keeps the max and hides it.
-    const prevStars = result === 'victory' ? this._prevStars : saved;
-    const stars     = result === 'victory' ? this._runStars  : saved;
-    this.scene.start('MapSelectScene', { from: { mapId: this.mapId, result, prevStars, stars } });
+    const from = exitPayload({
+      mapId: this.mapId,
+      result: this.won ? 'victory' : this.over ? 'defeat' : 'abandon',
+      entryStars: this._entryStars,
+      savedStars: this.saveMgr.getStars(this.mapId),
+      runStars: this._runStars,
+      next: !!opts.next,
+    });
+    this.scene.start('MapSelectScene', { from });
+  }
+
+  // restart() emits the same shutdown as leaving to the map, so every listener
+  // is unwired once. debug is deliberately not carried: a retry is a normal run.
+  _retry() {
+    if (this._leftToMap) return;
+    this._leftToMap = true;
+    this.scene.restart({ mapId: this.mapId, heroId: this.heroId, entryStars: this._entryStars });
   }
 
   _showConfirmExit() {
@@ -575,6 +618,7 @@ export default class GameScene extends Phaser.Scene {
     this._codexOverlay?.close();
     this._codexOverlay = null;
     this._storyDialog?.close();
+    this._results?.close();
     this._inputCtl?.destroy();
     this._inputCtl = null;
     this.inspector?.destroy();
@@ -656,6 +700,8 @@ export default class GameScene extends Phaser.Scene {
     this._fxTime += delta / 1000;
     const dt    = (delta / 1000) * this.speed;
     const dtMs  = delta * this.speed;
+    // currentWave turns 1 at Send Wave 1, so the clock starts there.
+    if (this.waveMgr.currentWave > 0) this._runMs += dtMs;
     this._ambient?.update(dtMs);
     // Real dt (not speed-scaled): portal/beacon pulsing is decoration, not game time.
     this._endpoints?.update(delta / 1000);
@@ -1807,7 +1853,8 @@ export default class GameScene extends Phaser.Scene {
   // ─── Game end ──────────────────────────────────────────────────────────────
 
   _onVictory() {
-    if (this.won) return;
+    // A leak that ends the game earlier in the same frame wins the tie: the base fell.
+    if (this.won || this.over) return;
     const am = this.game.registry.get('audio');
     if (am) am.playSfx('victory');
     this.won = true;
@@ -1815,32 +1862,24 @@ export default class GameScene extends Phaser.Scene {
     this._syncCancelButton();
     this._commitStats(true);
     const map   = MAPS[this.mapId];
-    const pct   = this.economy.lives / map.startLives;
-    const stars = pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : 1;
-    this._prevStars = this.saveMgr.getStars(this.mapId);
-    this._runStars  = stars;
+    const stars = starsFor(this.economy.lives, map.startLives);
+    this._runStars = stars;
     this.saveMgr.setStars(this.mapId, stars);
+    // Written before the epilogue, like the stars, so closing the tab mid-dialog keeps it.
+    this._newBest = this.saveMgr.recordRun(this.mapId, {
+      livesLost: livesLostFor(this._startLives, this.economy.lives),
+      timeMs: this._runMs,
+    }).newBest;
     const isFinal = this.mapId === MAPS.length - 1;
     const seqId   = victorySequenceId(map.storyKey, isFinal);
     if (STORY_SEQUENCES[seqId] && !this.saveMgr.hasSeenBeat(seqId)) {
       this._storyDialog.play(seqId, () => {
         this.saveMgr.markBeatSeen(seqId);
-        this._showVictoryOverlay(stars);
+        this._showResults('victory');
       });
     } else {
-      this._showVictoryOverlay(stars);
+      this._showResults('victory');
     }
-  }
-
-  _showVictoryOverlay(stars) {
-    document.getElementById('msg-title').textContent = '🏆 Victory!';
-    document.getElementById('msg-body').textContent  =
-      starsDisplay(stars) + ' — ' + this.kills + ' kills';
-    document.getElementById('msg-btn').textContent          = '↩ World Map';
-    document.getElementById('msg-cancel-btn').style.display = 'none';
-    document.getElementById('exit-btn').classList.add('disabled');
-    document.getElementById('pause-btn').classList.add('disabled');
-    document.getElementById('game-msg').style.display = 'block';
   }
 
   _onDefeat() {
@@ -1851,13 +1890,39 @@ export default class GameScene extends Phaser.Scene {
     this._closeRadial();
     this._syncCancelButton();
     this._commitStats(false);
-    document.getElementById('msg-title').textContent = '💀 Defeat';
-    document.getElementById('msg-body').textContent  = `The line did not hold. Wave ${this.waveMgr.currentWave}.`;
-    document.getElementById('msg-btn').textContent          = '↩ World Map';
-    document.getElementById('msg-cancel-btn').style.display = 'none';
+    this._showResults('defeat');
+  }
+
+  _showResults(result) {
     document.getElementById('exit-btn').classList.add('disabled');
     document.getElementById('pause-btn').classList.add('disabled');
-    document.getElementById('game-msg').style.display = 'block';
+    // Nothing from the level may float over or under the results (Claude's call 25).
+    this._onUiCancel();
+    this._hideTowerTooltip();
+    this.inspector?.dismiss();
+    this.inspector?.hidePeek();
+    this._wavePreview?.hide();
+    const win = result === 'victory';
+    const model = resultsModel({
+      result,
+      mapId: this.mapId,
+      lives: this.economy.lives,
+      startLives: this._startLives,
+      stars: win ? this._runStars : 0,
+      kills: this.kills,
+      goldEarned: this.economy.earned,
+      timeMs: this._runMs,
+      wave: this.waveMgr.currentWave,
+      waveCount: this.waveMgr.waves.length,
+      newBest: win ? this._newBest : null,
+    }, { lines: this._resultLines });
+    this._results.open(model, (id) => this._onResultsAction(id));
+  }
+
+  _onResultsAction(id) {
+    if (id === 'next') this._returnToMap({ next: true });
+    else if (id === 'map') this._returnToMap();
+    else if (id === 'retry') this._retry();
   }
 
   _commitStats(isVictory) {

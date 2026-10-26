@@ -42,9 +42,15 @@ function makeScene({ mapId = 0, saved = 0, lives = null } = {}) {
     setStars: (id, s) => { stars[id] = Math.max(stars[id] ?? 0, s); },
     hasSeenBeat: () => true,
     markBeatSeen: () => {},
+    recordRun: () => ({ newBest: { livesLost: false, time: false } }),
   };
-  scene.economy = { lives: lives ?? MAPS[mapId].startLives };
-  scene.waveMgr = { currentWave: 3 };
+  // The stars at level entry: no retry chain in these cases.
+  scene._entryStars = saved;
+  scene._startLives = MAPS[mapId].startLives;
+  scene._runMs = 0;
+  scene._results = { open: vi.fn(), close: vi.fn() };
+  scene.economy = { lives: lives ?? MAPS[mapId].startLives, earned: 0 };
+  scene.waveMgr = { currentWave: 3, waves: Array(MAPS[mapId].waveCount).fill([]) };
   scene.game = { registry: { get: () => null } };
   scene._commitStats = () => {};
   scene._closeRadial = () => {};
@@ -103,12 +109,13 @@ describe('GameScene return-to-map data', () => {
     expect(scene.scene.start).toHaveBeenCalledOnce();
   });
 
-  it('label reads World Map on victory and defeat', () => {
-    const btn = () => document.getElementById('msg-btn').textContent;
-    makeScene()._showVictoryOverlay(2);
-    expect(btn()).toBe('↩ World Map');
-    document.getElementById('msg-btn').textContent = 'x';
-    makeScene()._onDefeat();
-    expect(btn()).toBe('↩ World Map');
+  it('the results map action reads WORLD MAP on victory and defeat', () => {
+    const mapLabel = (scene) => scene._results.open.mock.calls[0][0].actions.find(a => a.id === 'map').label;
+    const won = makeScene();
+    won._onVictory();
+    expect(mapLabel(won)).toBe('WORLD MAP');
+    const lost = makeScene();
+    lost._onDefeat();
+    expect(mapLabel(lost)).toBe('WORLD MAP');
   });
 });

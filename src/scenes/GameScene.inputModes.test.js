@@ -263,6 +263,8 @@ describe('Cancel button at level end', () => {
       game: { events: { emit: vi.fn() }, registry: { get: () => null } },
       waveMgr: { currentWave: 3 },
       _commitStats: vi.fn(),
+      // The results screen has its own tests; this pins the cancel button only.
+      _showResults: vi.fn(),
     });
     s._selectTowerType('archer', btn('archer'));
     s._onDefeat();
@@ -274,8 +276,12 @@ describe('Cancel button at level end', () => {
       won: false, mapId: 0, kills: 0,
       game: { events: { emit: vi.fn() }, registry: { get: () => null } },
       economy: { lives: 20 },
-      saveMgr: { getStars: () => 0, setStars: vi.fn(), hasSeenBeat: () => true, markBeatSeen: vi.fn() },
+      saveMgr: {
+        getStars: () => 0, setStars: vi.fn(), hasSeenBeat: () => true, markBeatSeen: vi.fn(),
+        recordRun: vi.fn(() => ({ newBest: { livesLost: false, time: false } })),
+      },
       _commitStats: vi.fn(),
+      _showResults: vi.fn(),
     });
     s._selectTowerType('archer', btn('archer'));
     s._onVictory();
