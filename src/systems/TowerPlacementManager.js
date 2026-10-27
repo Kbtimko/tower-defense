@@ -52,7 +52,7 @@ export class TowerPlacementManager {
 
   sellTower(tower) {
     const refund = sellRefund(tower.totalCost);
-    this.economy.earn(refund);
+    this.economy.refund(refund);
     this.zones[tower.zoneIndex].occupied = false;
     this.towers = this.towers.filter(t => t !== tower);
     tower.destroy();

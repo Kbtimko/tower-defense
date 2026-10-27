@@ -13,7 +13,27 @@ vi.mock('phaser', () => ({
   },
 }));
 
+vi.mock('../entities/Hero.js', async () => {
+  const { HEROES } = await import('../data/heroes.js');
+  return {
+    Hero: class {
+      constructor(scene, { x, y, heroId }) {
+        Object.assign(this, { x, y, heroId, def: HEROES[heroId], level: 1, dead: false });
+      }
+      update() {}
+      destroy() {}
+    },
+  };
+});
+vi.mock('../entities/Enemy.js', () => ({
+  Enemy: class { constructor(scene, opts) { Object.assign(this, opts, { dead: false }); } },
+}));
+vi.mock('../systems/AmbientBackgroundLayer.js', () => ({
+  AmbientBackgroundLayer: class { update() {} destroy() {} },
+}));
+
 import GameScene from './GameScene.js';
+import { loadShippedDOM, liveScene, startLevel } from './gameSceneHarness.js';
 
 function el(tag, attrs, parent) {
   const node = document.createElement(tag);
@@ -193,6 +213,36 @@ describe('GameScene scene-event wiring survives a replay', () => {
     scene.events.emit('hero:level-up', { level: 3 });
 
     expect(relayed).toEqual([['hero:level-up', { level: 3 }]]);
+  });
+});
+
+// RETRY restarts the same scene instance (ScenePlugin.restart: shutdown, then
+// init + create), so it is the replay path at its tightest loop.
+describe('GameScene scene-event wiring survives RETRY', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    loadShippedDOM();
+  });
+
+  const SCENE_EVENTS = ['shutdown', 'enemy:spawn', 'economy:update', 'game:defeat', 'hero:level-up',
+    'damage-dealt', 'wave:start'];
+  const counts = (events) => Object.fromEntries(events.eventNames().map(e => [e, events.listenerCount(e)]));
+
+  it('three retries leave one listener per scene event and one enemy per spawn', () => {
+    const scene = liveScene();
+    startLevel(scene, { mapId: 0, heroId: 'rael' });
+    const firstEntry = counts(scene.events);
+
+    for (let i = 0; i < 3; i++) {
+      scene._onDefeat();
+      scene._retry();
+    }
+
+    expect(scene.scene.restart).toHaveBeenCalledTimes(3);
+    for (const evt of SCENE_EVENTS) expect(scene.events.listenerCount(evt, scene)).toBe(1);
+    expect(counts(scene.events)).toEqual(firstEntry);
+    scene.events.emit('enemy:spawn', { def: { type: 'drone' }, scaleFactor: 1 });
+    expect(scene.enemies).toHaveLength(1);
   });
 });
 

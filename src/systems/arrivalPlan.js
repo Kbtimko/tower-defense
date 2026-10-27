@@ -63,3 +63,13 @@ export function arrivalFrame(plan, tMs, A = ARRIVAL) {
     done: t >= A.totalMs,
   };
 }
+
+// Where NEXT MISSION lands (spec §9.2). Only a NEXT press sets from.next, so WORLD MAP and
+// Abandon keep today's behaviour.
+export function nextMissionId({ from, plan, stars }, maps = MAPS) {
+  if (from?.next !== true) return null;
+  if (plan.kind === 'advance') return plan.toId;
+  if (plan.kind === 'complete') return null;
+  const id = from.mapId + 1;
+  return id < maps.length && stars[from.mapId] > 0 ? id : null;
+}

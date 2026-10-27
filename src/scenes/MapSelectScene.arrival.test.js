@@ -13,6 +13,7 @@ import { arrivalFrame, planArrival } from '../systems/arrivalPlan.js';
 import { routeFrameFor, nodeRects } from '../systems/worldMapLayout.js';
 import { routePoints, parkShip, routeParamAt, exitParam, flight } from '../systems/worldRoute.js';
 import { WorldMapRenderer } from '../ui/WorldMapRenderer.js';
+import { armGestureTail, disarmGestureTail } from '../ui/gestureTail.js';
 
 const $ = (sel) => document.querySelector(sel);
 const node = (id) => $(`.ow-node[data-map-id="${id}"]`);
@@ -511,4 +512,106 @@ describe('MapSelectScene post-win arrival (spec 2.3)', () => {
       expect(s.trailT).toBeCloseTo(want.trailT);
     });
   });
+
+  // NEXT MISSION from the results screen (spec 5.6, 9.3, 12.1-15).
+  describe('NEXT MISSION hand-off (from.next)', () => {
+    const launch = () => document.getElementById('featured-play');
+    const launchFocused = () => document.activeElement === launch();
+
+    afterEach(() => disarmGestureTail());
+
+    it('a replay with the same stars: no arrival, card on mapId + 1 with LAUNCH focused', () => {
+      seedSave([3, 2, 1, 0, 0, 0, 0, 0, 0, 0]);
+      enter({ from: { mapId: 0, result: 'victory', prevStars: 3, stars: 3, next: true } });
+      expect(arrival()).toBe('none');
+      expect($('#featured-name').textContent).toBe(MAPS[1].name);
+      expect($('.ow-node.active').dataset.mapId).toBe('1');
+      expect(launch().isConnected).toBe(true);
+      expect(launchFocused()).toBe(true);
+    });
+
+    it('a replay with more stars: stamps the won node, then the card opens on mapId + 1 with LAUNCH focused', () => {
+      seedSave([3, 2, 0, 0, 0, 0, 0, 0, 0, 0]);
+      enter({ from: { mapId: 0, result: 'victory', prevStars: 1, stars: 3, next: true } });
+      expect(arrival()).toBe('playing');
+      expect($('#featured-name').textContent).toBe(MAPS[0].name);
+      expect(launchFocused()).toBe(false);
+      vi.advanceTimersByTime(ARRIVAL.totalMs);
+      expect(arrival()).toBe('done');
+      expect(node(0).querySelector('.ow-node-stars').textContent).toBe('★★★');
+      expect($('#featured-name').textContent).toBe(MAPS[1].name);
+      expect($('.ow-node.active').dataset.mapId).toBe('1');
+      expect(launchFocused()).toBe(true);
+    });
+
+    it('a first clear: flies, card on toId, LAUNCH focused only after the arrival ends', () => {
+      seedSave(AFTER_FIRST_CLEAR);
+      enter({ from: { ...FIRST_CLEAR_0, next: true } });
+      expect(arrival()).toBe('playing');
+      vi.advanceTimersByTime(ARRIVAL.totalMs - FRAME_MS * 4);
+      expect(launchFocused()).toBe(false);
+      vi.advanceTimersByTime(ARRIVAL.totalMs);
+      expect(arrival()).toBe('done');
+      expect($('#featured-name').textContent).toBe(MAPS[1].name);
+      expect(launchFocused()).toBe(true);
+    });
+
+    it('a first clear, skipped: LAUNCH focused at the skip', () => {
+      seedSave(AFTER_FIRST_CLEAR);
+      enter({ from: { ...FIRST_CLEAR_0, next: true } });
+      vi.advanceTimersByTime(LAYOUT.inputGuardMs);
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter' }));
+      expect(arrival()).toBe('done');
+      expect($('#featured-name').textContent).toBe(MAPS[1].name);
+      expect(launchFocused()).toBe(true);
+    });
+
+    it('a first clear with motion off: the end state at once, LAUNCH focused', () => {
+      seedSave(AFTER_FIRST_CLEAR);
+      enter({ from: { ...FIRST_CLEAR_0, next: true } }, new Map([['ambientMotion', false]]));
+      expect(arrival()).toBe('done');
+      expect($('#featured-name').textContent).toBe(MAPS[1].name);
+      expect(launchFocused()).toBe(true);
+    });
+
+    it('campaign_intro first (fresh context): the dialog hands focus back to LAUNCH', () => {
+      seedSave([3, 2, 1, 0, 0, 0, 0, 0, 0, 0], { seenStoryBeats: {} });
+      enter({ from: { mapId: 0, result: 'victory', prevStars: 3, stars: 3, next: true } });
+      expect($('#story-dialog').style.display).toBe('flex');
+      expect(launchFocused()).toBe(false);
+      vi.advanceTimersByTime(LAYOUT.inputGuardMs);
+      $('#story-dialog-skip').click();
+      expect($('#story-dialog').style.display).toBe('none');
+      expect($('#featured-name').textContent).toBe(MAPS[1].name);
+      expect(launchFocused()).toBe(true);
+    });
+
+    it('without next: today\'s behaviour, nothing focused', () => {
+      seedSave(AFTER_FIRST_CLEAR);
+      enter({ from: FIRST_CLEAR_0 });
+      vi.advanceTimersByTime(ARRIVAL.totalMs);
+      expect($('#featured-name').textContent).toBe(MAPS[1].name);
+      expect(launchFocused()).toBe(false);
+      scenes.pop().emitShutdown();
+      seedSave([3, 2, 1, 0, 0, 0, 0, 0, 0, 0]);
+      enter({ from: { mapId: 0, result: 'victory', prevStars: 3, stars: 3 } });
+      expect($('#featured-name').textContent).toBe(MAPS[0].name);
+      expect(launchFocused()).toBe(false);
+    });
+
+    // A held Enter's repeat, swallowed by the results' key tail (spec 7.4), must not skip the flight.
+    it('_skipArrival ignores a keydown the results key tail already prevented', () => {
+      seedSave(AFTER_FIRST_CLEAR);
+      armGestureTail({ now: () => performance.now(), windowMs: 250, key: true });
+      enter({ from: { ...FIRST_CLEAR_0, next: true } });
+      vi.advanceTimersByTime(LAYOUT.inputGuardMs);
+      const repeat = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter', repeat: true });
+      document.body.dispatchEvent(repeat);
+      expect(repeat.defaultPrevented).toBe(true);
+      expect(arrival()).toBe('playing');
+      vi.advanceTimersByTime(ARRIVAL.totalMs);
+      expect(arrival()).toBe('done');
+    });
+  });
 });
+

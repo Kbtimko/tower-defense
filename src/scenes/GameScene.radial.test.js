@@ -491,6 +491,7 @@ describe('GameScene radial wiring', () => {
 
     it('defeat closes it', () => {
       const s = makeScene();
+      s._showResults = vi.fn();
       tapZone(s, 0);
       s._onDefeat();
       expect(isOpen()).toBe(false);
@@ -499,7 +500,11 @@ describe('GameScene radial wiring', () => {
     it('victory closes it', () => {
       const s = makeScene();
       s.economy.lives = 20;
-      s.saveMgr = { getStars: () => 0, setStars: vi.fn(), hasSeenBeat: () => true, markBeatSeen: vi.fn() };
+      s.saveMgr = {
+        getStars: () => 0, setStars: vi.fn(), hasSeenBeat: () => true, markBeatSeen: vi.fn(),
+        recordRun: vi.fn(() => ({ newBest: { livesLost: false, time: false } })),
+      };
+      s._showResults = vi.fn();
       tapZone(s, 0);
       s._onVictory();
       expect(isOpen()).toBe(false);

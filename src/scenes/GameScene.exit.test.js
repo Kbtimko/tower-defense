@@ -13,7 +13,14 @@ vi.mock('phaser', () => ({
   },
 }));
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import GameScene from './GameScene.js';
+import { ResultsScreen } from '../ui/ResultsScreen.js';
+import { MAPS } from '../data/maps.js';
+
+const html = readFileSync(join(__dirname, '..', '..', 'index.html'), 'utf8');
+const SHIPPED_RESULTS = new DOMParser().parseFromString(html, 'text/html').getElementById('results');
 
 function setupDOM() {
   document.body.textContent = '';
@@ -75,74 +82,59 @@ describe('GameScene._showConfirmExit', () => {
   });
 });
 
-describe('GameScene._showVictoryOverlay modal reset', () => {
-  beforeEach(setupDOM);
-
-  it('shows the Map Select button and hides the cancel button', () => {
-    // Simulate the modal having been previously repurposed for an Exit confirm
-    document.getElementById('msg-btn').textContent          = 'Abandon Level';
-    document.getElementById('msg-cancel-btn').style.display = 'inline-block';
-
-    const scene = Object.create(GameScene.prototype);
-    scene.kills = 7;
-
-    scene._showVictoryOverlay(3);
-
-    expect(document.getElementById('msg-btn').textContent).toBe('↩ World Map');
-    expect(document.getElementById('msg-cancel-btn').style.display).toBe('none');
-    expect(document.getElementById('game-msg').style.display).toBe('block');
+// The level-end screen is #results now; #game-msg is the Exit confirm only and
+// must stay hidden at game end, even after it was repurposed for an abandon prompt.
+function endScene({ over = false, won = false } = {}) {
+  const scene = makeScene({ over, won });
+  Object.assign(scene, {
+    mapId: 0, kills: 7, _startLives: MAPS[0].startLives, _runStars: 2, _runMs: 60000, _newBest: null,
+    economy: { lives: MAPS[0].startLives, earned: 120 },
+    waveMgr: { currentWave: 3, waves: [[], [], []] },
+    game: { registry: { get() { return null; } } },
+    _commitStats: () => {},
+    _results: new ResultsScreen({ motion: () => false }),
   });
+  return scene;
+}
 
-  it('adds the disabled class to #exit-btn and #pause-btn', () => {
-    const exit  = document.getElementById('exit-btn');
-    const pause = document.getElementById('pause-btn');
+for (const [end, result] of [['_onVictory', 'victory'], ['_onDefeat', 'defeat']]) {
+  describe(`GameScene.${end} modal reset`, () => {
+    beforeEach(() => {
+      setupDOM();
+      document.body.appendChild(document.importNode(SHIPPED_RESULTS, true));
+    });
 
-    const scene = Object.create(GameScene.prototype);
-    scene.kills = 0;
-    scene._showVictoryOverlay(2);
+    it('opens #results and leaves the Exit-confirm modal hidden', () => {
+      // Simulate the modal having been previously repurposed for an Exit confirm
+      document.getElementById('msg-btn').textContent          = 'Abandon Level';
+      document.getElementById('msg-cancel-btn').style.display = 'inline-block';
+      const scene = endScene();
+      scene.saveMgr = {
+        getStars: () => 0, setStars() {}, hasSeenBeat: () => true, markBeatSeen() {},
+        recordRun: () => ({ newBest: { livesLost: false, time: false } }),
+      };
 
-    expect(exit.classList.contains('disabled')).toBe(true);
-    expect(pause.classList.contains('disabled')).toBe(true);
+      scene[end]();
+
+      const results = document.getElementById('results');
+      expect(results.hidden).toBe(false);
+      expect(results.dataset.result).toBe(result);
+      expect(document.getElementById('game-msg').style.display).toBe('none');
+    });
+
+    it('adds the disabled class to #exit-btn and #pause-btn', () => {
+      const exit  = document.getElementById('exit-btn');
+      const pause = document.getElementById('pause-btn');
+      const scene = endScene();
+      scene.saveMgr = {
+        getStars: () => 0, setStars() {}, hasSeenBeat: () => true, markBeatSeen() {},
+        recordRun: () => ({ newBest: { livesLost: false, time: false } }),
+      };
+
+      scene[end]();
+
+      expect(exit.classList.contains('disabled')).toBe(true);
+      expect(pause.classList.contains('disabled')).toBe(true);
+    });
   });
-});
-
-describe('GameScene._onDefeat modal reset', () => {
-  beforeEach(setupDOM);
-
-  it('shows the Map Select button and hides the cancel button', () => {
-    document.getElementById('msg-btn').textContent          = 'Abandon Level';
-    document.getElementById('msg-cancel-btn').style.display = 'inline-block';
-
-    const scene = Object.create(GameScene.prototype);
-    scene.over = false;
-    scene.won  = false;
-    scene.waveMgr = { currentWave: 3 };
-    scene.kills = 0;
-    scene.game = { registry: { get() { return null; } } };
-    scene._commitStats = () => {};
-
-    scene._onDefeat();
-
-    expect(document.getElementById('msg-btn').textContent).toBe('↩ World Map');
-    expect(document.getElementById('msg-cancel-btn').style.display).toBe('none');
-    expect(document.getElementById('game-msg').style.display).toBe('block');
-  });
-
-  it('adds the disabled class to #exit-btn and #pause-btn', () => {
-    const exit  = document.getElementById('exit-btn');
-    const pause = document.getElementById('pause-btn');
-
-    const scene = Object.create(GameScene.prototype);
-    scene.over = false;
-    scene.won  = false;
-    scene.waveMgr = { currentWave: 5 };
-    scene.kills = 0;
-    scene.game = { registry: { get() { return null; } } };
-    scene._commitStats = () => {};
-
-    scene._onDefeat();
-
-    expect(exit.classList.contains('disabled')).toBe(true);
-    expect(pause.classList.contains('disabled')).toBe(true);
-  });
-});
+}

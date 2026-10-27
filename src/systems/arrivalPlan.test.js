@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { MAPS } from '../data/maps.js';
-import { planArrival, arrivalFrame, easeInOut } from './arrivalPlan.js';
+import { planArrival, arrivalFrame, easeInOut, nextMissionId } from './arrivalPlan.js';
 
 const zeros = () => MAPS.map(() => 0);
 const win = (mapId, prevStars, stars) => ({ mapId, result: 'victory', prevStars, stars });
@@ -118,5 +118,65 @@ describe('arrivalFrame', () => {
     expect(easeInOut(-1)).toBe(0);
     expect(easeInOut(2)).toBe(1);
     expect(easeInOut(0.5)).toBe(0.5);
+  });
+});
+
+describe('nextMissionId', () => {
+  it('uses the injected maps for the last-map boundary', () => {
+    const from = { mapId: 1, result: 'victory', prevStars: 3, stars: 3, next: true };
+    const stars = withStars({ 0: 3, 1: 3 });
+    const plan = { kind: 'none' };
+    expect(nextMissionId({ from, plan, stars }, [{}, {}, {}])).toBe(2);
+    expect(nextMissionId({ from, plan, stars }, [{}, {}])).toBeNull();
+  });
+  const next = (mapId) => ({ mapId, result: 'victory', prevStars: 0, stars: 1, next: true });
+  it('null when next was not requested', () => {
+    const from = { mapId: 0, result: 'victory', prevStars: 0, stars: 2 };
+    const stars = withStars({ 0: 2 });
+    expect(nextMissionId({ from, plan: planArrival({ from, stars }), stars })).toBeNull();
+    expect(nextMissionId({ from: null, plan: { kind: 'none' }, stars })).toBeNull();
+  });
+  it('advance returns the flight destination', () => {
+    const stars = withStars({ 0: 1 });
+    const from = next(0);
+    expect(nextMissionId({ from, plan: planArrival({ from, stars }), stars })).toBe(1);
+  });
+  it('advance on a gap save returns the post-win frontier, not mapId + 1', () => {
+    const stars = withStars({ 0: 1, 1: 1, 2: 2 });
+    const from = next(1);
+    expect(nextMissionId({ from, plan: planArrival({ from, stars }), stars })).toBe(3);
+  });
+  it('complete returns null', () => {
+    const last = MAPS.length - 1;
+    const stars = MAPS.map(() => 1);
+    const from = next(last);
+    const plan = planArrival({ from, stars });
+    expect(plan.kind).toBe('complete');
+    expect(nextMissionId({ from, plan, stars })).toBeNull();
+  });
+  it('stamp returns mapId + 1 when this map is open', () => {
+    const stars = withStars({ 0: 3, 1: 0 });
+    const from = { mapId: 0, result: 'victory', prevStars: 1, stars: 3, next: true };
+    const plan = planArrival({ from, stars });
+    expect(plan.kind).toBe('stamp');
+    expect(nextMissionId({ from, plan, stars })).toBe(1);
+  });
+  it('none returns mapId + 1 for a replay with no gain', () => {
+    const stars = withStars({ 0: 3 });
+    const from = { mapId: 0, result: 'victory', prevStars: 3, stars: 1, next: true };
+    const plan = planArrival({ from, stars });
+    expect(plan.kind).toBe('none');
+    expect(nextMissionId({ from, plan, stars })).toBe(1);
+  });
+  it('stamp or none on the last map returns null (past the end)', () => {
+    const last = MAPS.length - 1;
+    const stars = MAPS.map(() => 2);
+    const from = { mapId: last, result: 'victory', prevStars: 2, stars: 1, next: true };
+    expect(nextMissionId({ from, plan: planArrival({ from, stars }), stars })).toBeNull();
+  });
+  it('none returns null when the played map is not open (no stars)', () => {
+    const stars = zeros();
+    const from = next(0);
+    expect(nextMissionId({ from, plan: { kind: 'none' }, stars })).toBeNull();
   });
 });

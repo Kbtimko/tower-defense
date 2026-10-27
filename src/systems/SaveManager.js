@@ -1,9 +1,10 @@
 import { HEROES } from '../data/heroes.js';
+import { sanitizeRecord, mergeRecord } from './runRecord.js';
 
 const STORAGE_KEY = 'lastlight_save';
 const LEGACY_KEY  = 'lastlight_progress';
 const MAP_COUNT   = 10;
-const VERSION     = 4;
+const VERSION     = 5;
 
 function defaultSettings() {
   return { masterVol: 0.8, sfxVol: 1.0, musicVol: 0.6, muted: false, ambientMotion: null, mapGrade: null };
@@ -18,6 +19,7 @@ function freshEnvelope() {
     settings:       defaultSettings(),
     selectedHeroId: 'rael',
     seenStoryBeats: {},
+    records:        new Array(MAP_COUNT).fill(null),
   };
 }
 
@@ -45,6 +47,14 @@ function migrateV3toV4(env) {
   };
 }
 
+function migrateV4toV5(env) {
+  return {
+    ...env,
+    version: 5,
+    records: new Array(MAP_COUNT).fill(null),
+  };
+}
+
 export class SaveManager {
   constructor() {
     this._data = this._load();
@@ -57,16 +67,19 @@ export class SaveManager {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && Array.isArray(parsed.maps) && parsed.maps.length === MAP_COUNT
-            && (parsed.version === 1 || parsed.version === 2 || parsed.version === 3 || parsed.version === 4)) {
+            && (parsed.version === 1 || parsed.version === 2 || parsed.version === 3 || parsed.version === 4 || parsed.version === 5)) {
           let normalized = this._normalize(parsed);
           if (parsed.version === 1) {
-            normalized = migrateV3toV4(migrateV2toV3({ ...normalized, version: 2 }));
+            normalized = migrateV4toV5(migrateV3toV4(migrateV2toV3({ ...normalized, version: 2 })));
             localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
           } else if (parsed.version === 2) {
-            normalized = migrateV3toV4(migrateV2toV3(normalized));
+            normalized = migrateV4toV5(migrateV3toV4(migrateV2toV3(normalized)));
             localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
           } else if (parsed.version === 3) {
-            normalized = migrateV3toV4(normalized);
+            normalized = migrateV4toV5(migrateV3toV4(normalized));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+          } else if (parsed.version === 4) {
+            normalized = migrateV4toV5(normalized);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
           }
           return normalized;
@@ -117,6 +130,9 @@ export class SaveManager {
         && !Array.isArray(parsed.seenStoryBeats)) {
       env.seenStoryBeats = { ...parsed.seenStoryBeats };
     }
+    if (Array.isArray(parsed.records) && parsed.records.length === MAP_COUNT) {
+      env.records = parsed.records.map(sanitizeRecord);
+    }
     return env;
   }
 
@@ -150,6 +166,28 @@ export class SaveManager {
 
   getTotalStars() {
     return this._data.maps.reduce((sum, s) => sum + s, 0);
+  }
+
+  // ─── Best records ───
+  getRecord(mapId) {
+    const r = this._data.records[mapId];
+    return r ? { ...r } : null;
+  }
+
+  recordRun(mapId, run) {
+    // An id outside the table would grow `records`, and the next load's length check nulls them all.
+    if (!Number.isInteger(mapId) || mapId < 0 || mapId >= MAP_COUNT) {
+      return { newBest: { livesLost: false, time: false } };
+    }
+    this._refresh();
+    const { record, newBest } = mergeRecord(this._data.records[mapId], run);
+    // Skip the write when nothing improved: first-ever values set a record without a NEW BEST flag.
+    const prev = this._data.records[mapId];
+    if (JSON.stringify(record) !== JSON.stringify(prev)) {
+      this._data.records[mapId] = record;
+      this._save();
+    }
+    return { newBest };
   }
 
   // ─── Upgrades ───

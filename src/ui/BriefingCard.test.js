@@ -75,4 +75,44 @@ describe('renderBriefingCard', () => {
     renderBriefingCard(root, briefingCardModel(0, fresh));
     expect($('featured-quote').querySelectorAll('.fq-text')).toHaveLength(1);
   });
+
+  describe('best-run line (spec 5.7)', () => {
+    const withRecord = (record) => {
+      const records = MAPS.map(() => null);
+      records[0] = record;
+      return briefingCardModel(0, [2, 0, 0, 0, 0, 0, 0, 0, 0, 0], records);
+    };
+    const best = () => $('featured-stars').querySelectorAll('.fs-best');
+
+    it.each([
+      ['full', { livesLost: 0, timeMs: 582000 }, ' · Best: 0 lost · 9:42'],
+      ['lives lost only', { livesLost: 2, timeMs: null }, ' · Best: 2 lost'],
+      ['time only', { livesLost: null, timeMs: 582999 }, ' · Best: 9:42'],
+    ])('%s: a .fs-best span inside the stars line', (_name, record, text) => {
+      renderBriefingCard(root, withRecord(record));
+      expect(best()).toHaveLength(1);
+      expect(best()[0].tagName).toBe('SPAN');
+      expect(best()[0].textContent).toBe(text);
+      expect($('featured-stars').textContent).toBe(`${starsDisplay(2)}${text}`);
+    });
+
+    it('no record, no span; a re-render on another mission drops it', () => {
+      renderBriefingCard(root, withRecord(null));
+      expect(best()).toHaveLength(0);
+      expect($('featured-stars').textContent).toBe(starsDisplay(2));
+      renderBriefingCard(root, withRecord({ livesLost: 0, timeMs: 582000 }));
+      renderBriefingCard(root, withRecord({ livesLost: 0, timeMs: 582000 }));
+      expect(best()).toHaveLength(1);
+      renderBriefingCard(root, briefingCardModel(0, fresh));
+      expect(best()).toHaveLength(0);
+    });
+
+    it('follows the empty-stars line too', () => {
+      const records = MAPS.map(() => null);
+      records[0] = { livesLost: 3, timeMs: 61000 };
+      renderBriefingCard(root, briefingCardModel(0, fresh, records));
+      expect($('featured-stars').textContent).toBe('☆☆☆ · Best: 3 lost · 1:01');
+    });
+  });
 });
+

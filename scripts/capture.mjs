@@ -11,7 +11,7 @@
 //   npm run matrix -- [--devices iphone] [--no-build]     (= capture.mjs --flow)
 //
 // --screens shoots the non-gameplay screens instead (title, first-run story, world
-// map, in-game, tower ring, build radial, defeat, victory, post-win arrival) into
+// map, in-game, tower ring, build radial, defeat and victory results, post-win arrival) into
 // <device>/screens/, using the first of --maps for the level shots. The victory and
 // arrival always use map 0: only a fresh save's frontier mission flies the ship.
 // It also runs the world map with fonts blocked and with one node's art blocked on
@@ -37,7 +37,7 @@ import { MAP_WAVES } from '../src/data/waves.js';
 import { defaultCaptureBuild } from '../src/systems/debugCapture.js';
 import { layoutProblems, railProblems, railGeometryProblems, overlayProblems, minTouchFor, radialProblems, targetSizeProblems } from '../src/systems/layoutAudit.js';
 import { storyDialogProblems, longestPanel } from '../src/systems/storyDialogLayout.js';
-import { STORY_SEQUENCES, STORY_SPEAKERS, STORY_LOG_LABELS } from '../src/data/story.js';
+import { STORY_SEQUENCES, STORY_SPEAKERS, STORY_LOG_LABELS, epilogueKey, briefKey } from '../src/data/story.js';
 import { STORY_DIALOG } from '../src/data/storyDialog.js';
 import { layoutClass, routeFrameFor, worldMapProblems } from '../src/systems/worldMapLayout.js';
 import { POINTER_FINE_QUERY, COMPACT_QUERY } from '../src/data/mobile.js';
@@ -45,6 +45,13 @@ import { CONFIRM_WINDOW_MS } from '../src/data/input.js';
 import { WORLD_WIDTH, WORLD_HEIGHT, MIN_TOUCH_PX } from '../src/data/layout.js';
 import { TITLE } from '../src/data/title.js';
 import { ARRIVAL } from '../src/data/worldMap.js';
+import { RESULTS, RESULTS_COPY, STAR_RULE } from '../src/data/results.js';
+import { CARD_COPY } from '../src/data/campaign.js';
+import { resultsProblems } from '../src/systems/resultsLayout.js';
+import { longestResultLine } from '../src/systems/resultsModel.js';
+import { resultsTimeline } from '../src/systems/resultsTimeline.js';
+import { mergeRecord } from '../src/systems/runRecord.js';
+import { formatDuration } from '../src/utils/display.js';
 import { stepsFor, shotName, worldToPagePoint, flowExpectations, summarizeFlow, freePad, padWorldPoint, buildStates } from '../src/systems/deviceFlow.js';
 
 const OUT_DIR   = '.art-cache/captures';
@@ -111,6 +118,45 @@ const GALLERY_SAVE = {
 };
 // Review Focus 1: a 1280x720 laptop at 200 % browser zoom (compact, fine pointer).
 const ZOOMED_LAPTOP = { viewport: { width: 640, height: 360 }, deviceScaleFactor: 2 };
+
+// Results screen (roadmap 3.6, spec 12.2).
+const RESULTS_BUTTONS = ['#results-next', '#results-retry', '#results-map'];
+// Spec 7.5: a tall screen with a fine pointer holds buttons to 40 px, not the 44-px touch floor.
+const FINE_TALL_MIN_PX = 40;
+const VICTORY_END_MS = resultsTimeline('victory').endMs;
+// Mid-reveal shots: the defeat's chips mid-pop, the victory's stars stamping.
+const DEFEAT_REVEAL_MS = 900;
+const VICTORY_REVEAL_MS = 1100;
+const FINAL_MAP = MAPS.length - 1;
+// Review Focus 4: the longest kicker is MISSION n · <the longest map name>.
+const LONGEST_NAME_MAP = MAPS.reduce((best, m, i) => (m.name.length > MAPS[best].name.length ? i : best), 0);
+const MAP0_EPILOGUE = epilogueKey(MAPS[0].storyKey);
+const ALL_BEATS_SEEN = Object.fromEntries(Object.keys(STORY_SEQUENCES).map(id => [id, true]));
+const noStars = () => MAPS.map(() => 0);
+// A first clear of map 0 that opens the results at once (no epilogue on the way in).
+const FIRST_CLEAR_SAVE = { version: 4, maps: noStars(), seenStoryBeats: { [MAP0_EPILOGUE]: true } };
+// The same, with the prologue seen too, so nothing covers the map on the way out.
+const FIRST_CLEAR_QUIET_SAVE = { ...FIRST_CLEAR_SAVE, seenStoryBeats: { campaign_intro: true, [MAP0_EPILOGUE]: true } };
+const RETRY_SAVE = { version: 4, maps: noStars(), seenStoryBeats: { [briefKey(MAPS[0].storyKey)]: true } };
+// The worst-case run on every map beats this record, so both NEW BEST tags show.
+const WORST_CASE_SAVE = {
+  version: 5, maps: noStars(), seenStoryBeats: ALL_BEATS_SEEN,
+  records: MAPS.map(() => ({ livesLost: 99, timeMs: 99_999_999 })),
+};
+const WORST_CASE_RUN = { kills: 9_999, goldEarned: 99_999, timeMs: ((9 * 60 + 59) * 60 + 59) * 1000, line: longestResultLine() };
+const WORST_CASES = [
+  { label: 'final-1star', mapId: FINAL_MAP, result: 'victory', stars: 1 },
+  { label: 'longest-name-2star', mapId: LONGEST_NAME_MAP, result: 'victory', stars: 2 },
+  { label: 'longest-name-defeat', mapId: LONGEST_NAME_MAP, result: 'defeat', stars: 0 },
+];
+// A replay of a 3-star map 0 that gains nothing (no arrival). Map 1 carries the
+// worst-case best line its briefing card must fit on one line (Task 7 ruling).
+const REPLAY_SAVE = {
+  version: 5, maps: [3, 1, ...MAPS.slice(2).map(() => 0)],
+  seenStoryBeats: { campaign_intro: true, [MAP0_EPILOGUE]: true, [epilogueKey(MAPS[1].storyKey)]: true },
+  records: [{ livesLost: 3, timeMs: 400_000 }, { livesLost: 10, timeMs: 754_000 }, ...MAPS.slice(2).map(() => null)],
+};
+const REPLAY_RUN = { lives: MAPS[0].startLives, timeMs: 500_000 };
 
 // Playwright rejects unknown context options, so strip ours before newContext.
 function contextOptions(device) {
@@ -526,10 +572,15 @@ async function captureScreens(browser, base, deviceName, opts) {
       files.push(await shoot(page, join(dir, '04b-build-radial.png')));
       layout.push(await radialAudit(page, deviceName, 'build-radial'));
     }
+    await watchResults(page);
     await page.evaluate(() => window.__capture.end('defeat'));
-    await page.locator('#game-msg').waitFor({ state: 'visible', timeout: 5_000 });
-    await page.waitForTimeout(500);
+    const reveal = await revealShot(page, DEFEAT_REVEAL_MS, join(dir, '05a-defeat-reveal.png'));
+    files.push(reveal.file);
+    if (reveal.phase !== 'revealing') layout.push({ device: deviceName, label: 'defeat-reveal', problems: [`05a shot at data-phase="${reveal.phase}", expected "revealing"`] });
+    await expectAttr(page, '#results', 'phase', 'ready');
+    await resultsSettled(page);
     files.push(await shoot(page, join(dir, '05-defeat.png')));
+    layout.push(await resultsAudit(page, deviceName, 'defeat'));
     problems.push(...p2);
   } finally {
     await context.close();
@@ -537,13 +588,18 @@ async function captureScreens(browser, base, deviceName, opts) {
   const runs = [
     () => capturePostWin(browser, base, deviceName, dir, opts),
     () => captureHeldSkip(browser, base, deviceName, opts),
+    () => captureResultsGuard(browser, base, deviceName),
+    () => captureRetry(browser, base, deviceName),
+    () => captureNextMissionReplay(browser, base, deviceName, dir),
+    () => captureResultsAudits(browser, base, deviceName, dir),
     () => captureNoFonts(browser, base, deviceName, dir),
     () => captureMissingArt(browser, base, deviceName, dir),
     () => captureStoryGallery(browser, base, deviceName, dir),
     () => captureDoubleTapClose(browser, base, deviceName),
   ];
   if (deviceName === 'desktop') runs.push(() => captureZoomedStory(browser, base, deviceName, dir));
-  if (REDUCED_MOTION_DEVICES.has(deviceName)) runs.push(() => captureReducedMotion(browser, base, deviceName, dir, opts));
+  if (!DEVICES[deviceName].hasTouch) runs.push(() => captureHeldEnter(browser, base, deviceName));
+  if (REDUCED_MOTION_DEVICES.has(deviceName)) runs.push(() => captureReducedMotion(browser, base, deviceName, dir));
   // One at a time: each run times a live animation, so they must not share the CPU.
   for (const run of runs) {
     const r = await run();
@@ -672,6 +728,18 @@ const seedSave = (page, save) => page.addInitScript(s => {
   localStorage.setItem('lastlight_save', JSON.stringify(s));
 }, save);
 
+// A capture-build level on a seeded save. The init script only fires on the URL
+// carrying its own token, so the game's later writes (and seedSave's one-shot) stand.
+let seedCount = 0;
+async function gotoLevel(page, base, mapId, save, wave = 1) {
+  const token = `s${++seedCount}`;
+  await page.addInitScript(([t, s]) => {
+    if (new URLSearchParams(location.search).get('capture-seed') === t) localStorage.setItem('lastlight_save', JSON.stringify(s));
+  }, [token, save]);
+  await page.goto(`${base}${captureUrl(mapId, { wave }).path}&capture-seed=${token}`);
+  await page.waitForFunction(() => window.__capture, null, { timeout: 30_000 });
+}
+
 const untypedChars = page => page.evaluate(() => Array.from(document.querySelector('#story-dialog .sd-rest').textContent).length);
 
 // Tap-to-finish proven: with well over FINISH_BOUND_MS of the line still to type,
@@ -779,10 +847,11 @@ async function winMapZero(page, base, opts, storyFile) {
   const files = [];
   await page.goto(base + captureUrl(0, opts).path);
   await page.waitForFunction(() => window.__capture, null, { timeout: 30_000 });
+  await watchResults(page);
   await page.evaluate(() => window.__capture.end('victory'));
   const deadline = Date.now() + 15_000;
-  while (!(await visible(page, '#game-msg'))) {
-    if (Date.now() > deadline) throw new Error('#game-msg never showed after the victory');
+  while (!(await visible(page, '#results[data-result="victory"]'))) {
+    if (Date.now() > deadline) throw new Error('#results[data-result="victory"] never showed after the victory');
     if (await visible(page, '#story-dialog-skip')) {
       if (storyFile && !files.length) {
         await expectAttr(page, '#story-dialog', 'phase', 'complete');
@@ -790,28 +859,47 @@ async function winMapZero(page, base, opts, storyFile) {
         files.push(await shoot(page, storyFile));
       }
       await page.locator('#story-dialog-skip').click();
+      // The dialog swallows a tap for this long after it closes; the results' first
+      // tap must not be eaten by it.
+      await pastCloseGuard(page);
     }
     await page.waitForTimeout(200);
   }
-  await expectText(page, '#msg-btn', '↩ World Map');
+  if (await visible(page, '#game-msg')) throw new Error('#game-msg showed alongside the results');
+  await expectText(page, '#results-next', RESULTS_COPY.actions.next, 1_000);
   return files;
 }
 
-// "↩ World Map" with a real tap, then through campaign_intro (a fresh context has
-// not seen it), which the arrival waits under. data-arrival changes are logged
-// from here on, so a run can prove which states it passed through.
-async function returnToMap(page, deviceName, onStory = async () => {}) {
-  await tap(page, deviceName, '#msg-btn');
+// From here on data-arrival changes are logged, with the page time each state was
+// first seen, so a run can prove which states it passed through and when.
+const watchArrivals = page => page.evaluate(() => {
+  const el = document.querySelector('#map-overworld');
+  window.__arrivals = [];
+  window.__arrivalAt = {};
+  new MutationObserver(() => {
+    window.__arrivals.push(el.dataset.arrival);
+    window.__arrivalAt[el.dataset.arrival] ??= performance.now();
+  }).observe(el, { attributes: true, attributeFilter: ['data-arrival'] });
+});
+
+// Results to the world map (spec 12.2): one tap on the stage finishes the reveal (or
+// does nothing once it's done), then, past the act guard, a real tap on `via`. Then
+// through campaign_intro (a fresh context has not seen it), which the arrival waits under.
+async function returnToMap(page, deviceName, onStory = async () => {}, via = '#results-map') {
+  const stage = await page.locator('#results .rs-stage').boundingBox();
+  const centre = { x: stage.x + stage.width / 2, y: stage.y + stage.height / 2 };
+  if (await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('.rs-btn'), centre)) {
+    throw new Error(`the stage tap point (${Math.round(centre.x)}, ${Math.round(centre.y)}) is on a results button`);
+  }
+  await tapPoint(page, deviceName, centre);
+  await expectAttr(page, '#results', 'phase', 'ready', FINISH_BOUND_MS);
+  await page.waitForTimeout(RESULTS.actGuardMs + 100);
+  await tap(page, deviceName, via);
   await page.locator('#map-select').waitFor({ state: 'visible', timeout: 10_000 });
   await expectVisible(page, '#story-dialog');
   await onStory();
   await expectAttr(page, '#map-overworld', 'arrival', 'waiting');
-  await page.evaluate(() => {
-    const el = document.querySelector('#map-overworld');
-    window.__arrivals = [];
-    new MutationObserver(() => window.__arrivals.push(el.dataset.arrival))
-      .observe(el, { attributes: true, attributeFilter: ['data-arrival'] });
-  });
+  await watchArrivals(page);
   await page.locator(MAP_READY).waitFor({ timeout: 5_000 });
   await tap(page, deviceName, '#story-dialog-skip');
   await expectVisible(page, '#story-dialog', false);
@@ -833,14 +921,33 @@ async function expectArrivalDone(page) {
   if (await hasClass(page, '.ow-node[data-map-id="0"]', 'active')) throw new Error('.ow-node[data-map-id="0"] still .active');
 }
 
-// Win map 0, return, shoot the flight, then skip it with a real tap ON node 0: a
-// leaked tap would select node 0 and fail the end-state check.
+// NEXT MISSION lands with LAUNCH focused (spec 9.3). The focus is programmatic after a
+// pointer gesture, so a mouse user sees no :focus-visible ring (spec 7.3); on touch
+// the ring is only reported, as Chrome's heuristic there isn't the spec's call.
+async function expectLaunchFocused(page, deviceName, label) {
+  const f = await page.evaluate(() => {
+    const el = document.activeElement;
+    return { id: el?.id || el?.tagName || null, ring: !!el?.matches(':focus-visible'), outline: el ? getComputedStyle(el).outlineStyle : null };
+  });
+  if (f.id !== 'featured-play') throw new Error(`focus on ${f.id} after NEXT MISSION, expected #featured-play`);
+  console.log(`  focus ${deviceName} ${label}: #featured-play :focus-visible=${f.ring} outline-style=${f.outline}`);
+  if (!DEVICES[deviceName].hasTouch && f.ring) throw new Error(`#featured-play shows a :focus-visible ring (outline ${f.outline}) after a mouse click`);
+}
+
+// Win map 0, return by NEXT MISSION, shoot the flight, then skip it with a real tap ON
+// node 0: a leaked tap would select node 0 and fail the end-state check.
 function capturePostWin(browser, base, deviceName, dir, opts) {
   return screensRun(browser, deviceName, 'post-win', {}, async (page, out) => {
     out.files.push(...await winMapZero(page, base, opts, join(dir, '06-victory-story.png')));
-    await page.waitForTimeout(500);
+    const reveal = await revealShot(page, VICTORY_REVEAL_MS, join(dir, '07a-victory-reveal.png'));
+    out.files.push(reveal.file);
+    if (reveal.phase !== 'revealing') throw new Error(`07a shot at data-phase="${reveal.phase}", expected "revealing"`);
+    await expectAttr(page, '#results', 'phase', 'ready');
+    await resultsSettled(page);
     out.files.push(await shoot(page, join(dir, '07-victory.png')));
-    await returnToMap(page, deviceName);
+    out.layout.push(await resultsAudit(page, deviceName, 'victory'));
+    if (TALL_RESULTS_DEVICES.has(deviceName)) out.layout.push(await tallCompositionAudit(page, deviceName, 'victory'));
+    await returnToMap(page, deviceName, undefined, '#results-next');
     await expectAttr(page, '#map-overworld', 'arrival', 'playing');
     const playingAt = Date.now();
     await page.waitForTimeout(ARRIVAL_MID_MS);
@@ -852,6 +959,7 @@ function capturePostWin(browser, base, deviceName, dir, opts) {
     await tapPoint(page, deviceName, await nodeFace(page, 0));
     await expectAttr(page, '#map-overworld', 'arrival', 'done', SKIP_DONE_MS);
     await expectArrivalDone(page);
+    await expectLaunchFocused(page, deviceName, 'post-win');
     await page.waitForTimeout(500);
     out.files.push(await shoot(page, join(dir, '07c-arrival-done.png')));
     out.layout.push(await audit(page, deviceName, 'post-win-map', MAP_SELECT_TARGETS));
@@ -880,7 +988,7 @@ function captureHeldSkip(browser, base, deviceName, opts) {
 
 // Reduced motion (spec 6): the title is lit on show, and the arrival jumps
 // straight to its end state without ever playing.
-function captureReducedMotion(browser, base, deviceName, dir, opts) {
+function captureReducedMotion(browser, base, deviceName, dir) {
   return screensRun(browser, deviceName, 'reduced-motion', { contextOptions: { reducedMotion: 'reduce' } }, async (page, out) => {
     await page.goto(base + '/');
     await page.locator('#title-screen').waitFor({ state: 'visible', timeout: 30_000 });
@@ -888,7 +996,7 @@ function captureReducedMotion(browser, base, deviceName, dir, opts) {
     if (phase !== 'lit') throw new Error(`title data-phase="${phase}" on show, expected "lit"`);
     out.files.push(await shoot(page, join(dir, '00c-title-reduced-motion.png')));
     // The title is not tapped, so campaign_intro is still unseen for the return.
-    await winMapZero(page, base, opts, null);
+    await reducedMotionResults(page, base, deviceName);
     // Read the moment it shows: the first frame is already the whole line, still.
     await returnToMap(page, deviceName, () => expectStoryStill(page, 'campaign_intro'));
     await expectArrivalDone(page);
@@ -912,6 +1020,377 @@ function captureReducedMotion(browser, base, deviceName, dir, opts) {
     await storySettled(page);
     out.files.push(await shoot(page, join(dir, '10g-story-veth-reduced-motion.png')));
     await skipStory(page, deviceName);
+  });
+}
+
+// Spec 12.2 / 7.2 case 4: with motion off the results open ready, fading only, and a
+// tap already in flight (here: WORLD MAP, inside the act guard) does nothing. No
+// epilogue on the way in, or its own close swallow would eat the tap instead.
+async function reducedMotionResults(page, base, deviceName) {
+  await gotoLevel(page, base, 0, FIRST_CLEAR_SAVE);
+  await watchResults(page);
+  const point = await page.evaluate(() => {
+    window.__capture.end('victory');
+    const r = document.querySelector('#results-map').getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  await tapPoint(page, deviceName, point);
+  const { log, clicks } = await resultsLog(page);
+  const open = log.find(e => !e.hidden);
+  if (!open) throw new Error('#results never opened');
+  if (open.phase !== 'ready') throw new Error(`results opened at data-phase="${open.phase}" with motion off, expected "ready"`);
+  if (open.anims.join() !== 'rs-fade') throw new Error(`results opened running [${open.anims.join(', ')}] with motion off, expected only the root rs-fade`);
+  const gapMs = clicks[0] - open.t;
+  if (!(gapMs < RESULTS.actGuardMs)) throw new Error(`the tap landed ${Math.round(gapMs)} ms after open; the harness was too slow to land it inside the act guard`);
+  await page.waitForTimeout(RESULTS.fadeMs + 100);
+  const left = await page.evaluate(() => document.querySelector('#results').getAnimations({ subtree: true }).map(a => a.animationName ?? a.constructor.name));
+  if (left.length) throw new Error(`results still running [${left.join(', ')}] ${RESULTS.fadeMs + 100} ms after open with motion off`);
+  if (!(await visible(page, '#results')) || await visible(page, '#map-select')) throw new Error('a tap inside the act guard left the results with motion off');
+}
+
+// Logs #results' open/close and phase changes, and every click, on the page clock, so
+// a run can tell a tap-finish from the natural end without racing the reveal. The
+// open entry also lists what is animating on that first frame.
+const watchResults = page => page.evaluate(() => {
+  const root = document.querySelector('#results');
+  window.__results = [];
+  window.__clicks = [];
+  new MutationObserver(() => window.__results.push({
+    t: performance.now(), hidden: root.hidden, phase: root.dataset.phase ?? null,
+    anims: root.hidden ? [] : root.getAnimations({ subtree: true }).map(a => a.animationName ?? a.constructor.name),
+  })).observe(root, { attributes: true, attributeFilter: ['hidden', 'data-phase'] });
+  document.addEventListener('click', () => window.__clicks.push(performance.now()), true);
+});
+
+const resultsLog = page => page.evaluate(() => ({ log: window.__results, clicks: window.__clicks, now: performance.now() }));
+
+// A mid-reveal frame `atMs` after the results opened (page clock). CSS px, so the
+// screenshot doesn't eat the moment; the phase is read after it, so a shot that
+// landed on the finished screen can't pass for a reveal.
+async function revealShot(page, atMs, file) {
+  await page.waitForFunction(ms => {
+    const open = window.__results.find(e => !e.hidden);
+    return open && performance.now() >= open.t + ms;
+  }, atMs, { polling: 'raf', timeout: 10_000 });
+  await shoot(page, file, { scale: 'css' });
+  return { file, phase: await attr(page, '#results', 'phase') };
+}
+
+// Waits out the one-shot reveal (the Veth's glitch loops forever) and the portrait.
+async function resultsSettled(page) {
+  await until(() => page.evaluate(() => document.querySelector('#results').getAnimations({ subtree: true })
+    .filter(a => a.effect.getComputedTiming().iterations !== Infinity && a.playState !== 'finished').length),
+  n => n === 0, n => `${n} results animation(s) still running`);
+  await until(() => page.evaluate(() => {
+    const img = document.querySelector('#results-portrait img');
+    return img ? img.complete && img.naturalWidth > 0 : !!document.querySelector('#results-portrait .rs-initial');
+  }), Boolean, () => 'results portrait never painted (no loaded img, no fallback initial)');
+}
+
+// Spec 6.2: the approved mockup-B composition on the reference desktop. The size tiers
+// key on the stage's content box (its padding excluded), so a threshold that reads
+// right against the map height can still drop this device into the short tier.
+const TALL_RESULTS_DEVICES = new Set(['desktop1440']);
+
+async function tallCompositionAudit(page, deviceName, label) {
+  const m = await page.evaluate(() => {
+    const centre = r => r.left + r.width / 2;
+    const stage = document.querySelector('#results .rs-stage').getBoundingClientRect();
+    return {
+      actionsColumn: getComputedStyle(document.querySelector('#results-actions')).gridColumnStart,
+      starsOffset: Math.round(centre(document.querySelector('#results-stars').getBoundingClientRect()) - centre(stage)),
+    };
+  });
+  const problems = [];
+  if (m.actionsColumn === '2') problems.push('results: the actions sit in their own column (short tier), expected the tall stack');
+  if (Math.abs(m.starsOffset) > 2) problems.push(`results: the stars row is ${m.starsOffset} px off the stage centre, expected centred under the banner`);
+  return { device: deviceName, label: `${label}-composition`, problems };
+}
+
+// The finished results screen as painted, judged by resultsProblems (spec 8.4). The
+// map rect comes from the canvas and the page's own pointer class, not from the
+// stage under test. bannerLowerEdge wants the banner's box BEFORE its skewY (about
+// its centre), so it is the offset box (offset* ignore transforms), not the skewed
+// bounding box.
+async function resultsAudit(page, deviceName, label) {
+  const pointerFine = await page.evaluate(q => matchMedia(q).matches, POINTER_FINE_QUERY);
+  const box = await page.locator(GAME_CANVAS).boundingBox();
+  const a = worldToPagePoint({ x: 0, y: 0 }, box, { pointerFine });
+  const b = worldToPagePoint({ x: WORLD_WIDTH, y: WORLD_HEIGHT }, box, { pointerFine });
+  const mapRect = { left: a.x, top: a.y, right: b.x, bottom: b.y, width: b.x - a.x, height: b.y - a.y };
+  const m = await page.evaluate(({ buttons, compactQuery }) => {
+    const plain = r => ({ left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height });
+    const q = sel => document.querySelector(sel);
+    const isShown = el => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
+    const shown = el => (el && isShown(el) ? plain(el.getBoundingClientRect()) : null);
+    const root = q('#results');
+    const stage = q('#results .rs-stage');
+    const banner = q('#results .rs-banner');
+    const text = q('#results-banner-text');
+    const s = stage.getBoundingClientRect();
+    const bannerBox = banner && banner.offsetParent === stage ? plain({
+      left: s.left + banner.offsetLeft, top: s.top + banner.offsetTop,
+      right: s.left + banner.offsetLeft + banner.offsetWidth, bottom: s.top + banner.offsetTop + banner.offsetHeight,
+      width: banner.offsetWidth, height: banner.offsetHeight,
+    }) : null;
+    const fontSels = ['#results-kicker', '#results-banner-text', '.rs-chip-val', '.rs-chip-lbl', '.rs-new-best', '#results-speaker', '#results-line', '.rs-btn'];
+    return {
+      result: root.dataset.result,
+      // Read where it is painted: the stage's size tiers set the skew on the banner.
+      skewDeg: parseFloat(getComputedStyle(banner).getPropertyValue('--rs-skew')),
+      bannerBox,
+      kicker: shown(q('#results-kicker')),
+      bannerText: shown(text),
+      bannerTextScroll: { scrollWidth: text.scrollWidth, clientWidth: text.clientWidth },
+      stars: root.dataset.result === 'defeat' ? null : shown(q('#results-stars')),
+      chips: [...document.querySelectorAll('#results-chips .rs-chip')].map(shown),
+      newBest: [...document.querySelectorAll('#results-chips .rs-new-best')].filter(el => !el.hidden).map(shown),
+      caption: shown(q('#results-caption')),
+      // The stage is the fixed-size, overflow-clipped map rect: content taller than it
+      // (a caption that wrapped one line too many) shows up as its scroll height, less
+      // the bottom padding that scroll height also counts.
+      captionScroll: {
+        scrollHeight: stage.scrollHeight - parseFloat(getComputedStyle(stage).paddingBottom), clientHeight: stage.clientHeight,
+      },
+      actions: shown(q('#results-actions')),
+      // A selector that matches nothing is reported missing, not skipped as hidden.
+      buttons: buttons.map(sel => {
+        const el = q(sel);
+        return { name: sel, rect: el ? plain(el.getBoundingClientRect()) : null, visible: el ? isShown(el) : true };
+      }),
+      fonts: fontSels.flatMap(sel => [...document.querySelectorAll(`#results ${sel}`)].filter(isShown)
+        .map(el => ({ name: sel, px: parseFloat(getComputedStyle(el).fontSize) }))),
+      compact: matchMedia(compactQuery).matches,
+    };
+  }, { buttons: RESULTS_BUTTONS, compactQuery: COMPACT_QUERY });
+  const minTouchPx = !pointerFine || m.compact ? MIN_TOUCH_PX : FINE_TALL_MIN_PX;
+  const problems = Number.isFinite(m.skewDeg) ? resultsProblems({ ...m, mapRect, minTouchPx }) : ['--rs-skew unreadable'];
+  return { device: deviceName, label, problems: problems.map(p => `results: ${p}`) };
+}
+
+// Lives that earn exactly `stars` on the map by the star rule; 1 is the floor's.
+function livesFor(mapId, stars) {
+  const t = STAR_RULE.thresholds.find(x => x.stars === stars);
+  return t ? Math.ceil(t.minRatio * MAPS[mapId].startLives) : 1;
+}
+
+const kickerFor = (mapId, result) => (result === 'victory' && mapId === FINAL_MAP
+  ? RESULTS_COPY.campaignComplete : RESULTS_COPY.kicker(mapId + 1, MAPS[mapId].name));
+
+// What the open results show, read only after sentinels were planted before the end.
+const resultsShown = page => page.evaluate(() => ({
+  kicker: document.querySelector('#results-kicker').textContent,
+  line: document.querySelector('#results-line').textContent,
+  stars: document.querySelector('#results').dataset.stars,
+  newBest: [...document.querySelectorAll('#results-chips .rs-new-best')].filter(el => !el.hidden).length,
+  chips: document.querySelectorAll('#results-chips .rs-chip').length,
+}));
+
+const plantResultsSentinels = page => page.evaluate(() => {
+  for (const id of ['results-kicker', 'results-line']) document.getElementById(id).textContent = 'SENTINEL';
+});
+
+// Spec 12.2 worst case on one map: forced content, then the audit of what painted.
+async function worstCaseAudit(page, base, deviceName, prefix, c) {
+  await gotoLevel(page, base, c.mapId, WORST_CASE_SAVE, MAP_WAVES[c.mapId].length);
+  await plantResultsSentinels(page);
+  const run = { ...WORST_CASE_RUN, ...(c.result === 'victory' ? { lives: livesFor(c.mapId, c.stars) } : {}) };
+  await page.evaluate(([r, o]) => window.__capture.end(r, o), [c.result, run]);
+  await expectAttr(page, '#results', 'phase', 'ready');
+  await resultsSettled(page);
+  const got = await resultsShown(page);
+  const want = { kicker: kickerFor(c.mapId, c.result), line: run.line, stars: String(c.stars),
+    newBest: c.result === 'victory' ? 2 : 0, chips: 4 };
+  if (JSON.stringify(got) !== JSON.stringify(want)) throw new Error(`${prefix}-${c.label} showed ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`);
+  return resultsAudit(page, deviceName, `${prefix}-${c.label}`);
+}
+
+async function worstCaseAudits(page, base, deviceName, prefix) {
+  const layout = [];
+  for (const c of WORST_CASES) layout.push(await worstCaseAudit(page, base, deviceName, prefix, c));
+  return layout;
+}
+
+// The worst cases, and the natural final-map victory (07e: CAMPAIGN COMPLETE, WORLD
+// MAP primary, no NEXT MISSION).
+function captureResultsAudits(browser, base, deviceName, dir) {
+  return screensRun(browser, deviceName, 'results-audit', {}, async (page, out) => {
+    out.layout.push(...await worstCaseAudits(page, base, deviceName, 'worst'));
+    await gotoLevel(page, base, FINAL_MAP, { version: 4, maps: noStars(), seenStoryBeats: ALL_BEATS_SEEN });
+    await plantResultsSentinels(page);
+    await page.evaluate(() => window.__capture.end('victory'));
+    await expectAttr(page, '#results', 'phase', 'ready');
+    await resultsSettled(page);
+    const got = await resultsShown(page);
+    if (got.kicker !== RESULTS_COPY.campaignComplete) throw new Error(`final victory kicker "${got.kicker}", expected "${RESULTS_COPY.campaignComplete}"`);
+    if (await visible(page, '#results-next')) throw new Error('NEXT MISSION offered on the final map');
+    if (!(await hasClass(page, '#results-map', 'rs-btn--primary'))) throw new Error('WORLD MAP is not the primary on the final map');
+    out.files.push(await shoot(page, join(dir, '07e-victory-final.png')));
+    out.layout.push(await resultsAudit(page, deviceName, 'victory-final'));
+  });
+}
+
+// Spec 12.2: a double tap on NEXT MISSION mid-reveal finishes the reveal and stops
+// there; the act guard drops the second tap. One tap after the guard then leaves.
+function captureResultsGuard(browser, base, deviceName) {
+  return screensRun(browser, deviceName, 'results-guard', {}, async page => {
+    await gotoLevel(page, base, 0, FIRST_CLEAR_SAVE);
+    await watchResults(page);
+    const point = await page.evaluate(() => {
+      window.__capture.end('victory');
+      const r = document.querySelector('#results-next').getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    const before = await resultsLog(page);
+    const opened = before.log.find(e => !e.hidden)?.t;
+    if (opened === undefined) throw new Error('#results never opened');
+    const leftMs = VICTORY_END_MS - (before.now - opened);
+    if (leftMs < 2 * FINISH_BOUND_MS) throw new Error(`only ${Math.round(leftMs)} ms of reveal left before the double tap; the harness was too slow to test the guard`);
+    await tapPoint(page, deviceName, point);
+    await tapPoint(page, deviceName, point);
+    await expectAttr(page, '#results', 'phase', 'ready', FINISH_BOUND_MS);
+    const { log, clicks } = await resultsLog(page);
+    if (clicks.length < 2) throw new Error(`${clicks.length} click(s) reached the page from the double tap`);
+    const gapMs = clicks[1] - clicks[0];
+    if (gapMs >= RESULTS.actGuardMs) throw new Error(`the two taps were ${Math.round(gapMs)} ms apart; the harness was too slow to land the second inside the act guard`);
+    const ready = log.find(e => e.phase === 'ready');
+    // The natural end would log at opened + endMs; a tap-finish logs right after the tap.
+    if (!ready || ready.t - clicks[0] > FINISH_BOUND_MS || ready.t >= opened + VICTORY_END_MS - FINISH_BOUND_MS) {
+      throw new Error(`data-phase went ready ${ready ? Math.round(ready.t - clicks[0]) : '(never)'} ms after the first tap, expected within ${FINISH_BOUND_MS} ms (tap-to-finish)`);
+    }
+    // Long enough for a leaked second tap to have left for the world map.
+    await page.waitForTimeout(1_000);
+    if (!(await visible(page, '#results')) || await visible(page, '#map-select')) {
+      throw new Error('the double tap\'s second tap left the results (inside the act guard)');
+    }
+    await expectAttr(page, '#results', 'phase', 'ready', 0);
+    await tap(page, deviceName, '#results-next');
+    await expectVisible(page, '#map-select', true, 5_000);
+  });
+}
+
+// Spec 12.2: RETRY restarts the same map as a normal level: wave 1, full lives, no
+// briefing (seen), not paused, and Send Wave sends wave 1. The retried level is not
+// a debug one, so window.__capture is stale from here and never read.
+function captureRetry(browser, base, deviceName) {
+  return screensRun(browser, deviceName, 'results-retry', {}, async page => {
+    const map = MAPS[0];
+    await gotoLevel(page, base, 0, RETRY_SAVE);
+    await page.evaluate(() => window.__capture.end('defeat'));
+    await expectAttr(page, '#results', 'phase', 'ready');
+    // Sentinels: the retried level must rewrite every one of these.
+    await page.evaluate(() => {
+      for (const id of ['stat-lives', 'stat-wave', 'wave-btn']) document.getElementById(id).textContent = 'SENTINEL';
+    });
+    await page.waitForTimeout(RESULTS.actGuardMs + 100);
+    await tap(page, deviceName, '#results-retry');
+    await expectVisible(page, '#results', false);
+    await expectText(page, '#wave-btn', '▶ Send Wave 1');
+    await expectText(page, '#stat-lives', map.startLives, 1_000);
+    await expectText(page, '#stat-wave', `0/${map.waveCount}`, 1_000);
+    if (await hasClass(page, '#paused-overlay', 'shown')) throw new Error('the retried level opened paused');
+    // create() plays an unseen briefing synchronously, so it would be up by now.
+    if (await visible(page, '#story-dialog')) throw new Error('the briefing played on the retried level (seeded as seen)');
+    const focus = await page.evaluate(() => ({ id: document.activeElement?.id || document.activeElement?.tagName, ring: !!document.activeElement?.matches(':focus-visible') }));
+    console.log(`  focus ${deviceName} retry: ${focus.id} :focus-visible=${focus.ring}`);
+    await tap(page, deviceName, '#wave-btn');
+    await expectText(page, '#stat-wave', `1/${map.waveCount}`);
+  });
+}
+
+// Ruling (Task 7): the best run rides the stars line and must not wrap it; the quote
+// above may scroll (it fades when it does) but must keep room for two lines.
+async function briefingCardFit(page) {
+  const f = await page.evaluate(() => {
+    const stars = document.querySelector('#featured-stars');
+    const range = document.createRange();
+    range.selectNodeContents(stars);
+    const rects = [...range.getClientRects()].filter(r => r.width > 0);
+    const quote = document.querySelector('#featured-quote');
+    return {
+      oneLine: rects.length > 0 && Math.max(...rects.map(r => r.top)) < Math.min(...rects.map(r => r.bottom)),
+      starsScroll: [stars.scrollWidth, stars.clientWidth],
+      quote: { client: quote.clientHeight, scroll: quote.scrollHeight, line: parseFloat(getComputedStyle(quote).lineHeight),
+        more: quote.classList.contains('fq-more'), atEnd: quote.scrollTop + quote.clientHeight >= quote.scrollHeight - 1 },
+    };
+  });
+  const problems = [];
+  if (!f.oneLine) problems.push('#featured-stars wraps onto a second line');
+  if (f.starsScroll[0] > f.starsScroll[1] + 1) problems.push(`#featured-stars clipped: scrollWidth ${f.starsScroll[0]} > clientWidth ${f.starsScroll[1]}`);
+  if (f.quote.scroll > f.quote.client + 1 && f.quote.client < 2 * f.quote.line - 1) problems.push(`#featured-quote squeezed to ${f.quote.client}px (< 2 lines of ${f.quote.line}px)`);
+  if (f.quote.scroll > f.quote.client + 1 && !f.quote.atEnd && !f.quote.more) problems.push('#featured-quote cut off with no .fq-more fade');
+  return problems;
+}
+
+const bestLine = r => `${CARD_COPY.bestSep}${CARD_COPY.best}${r.livesLost} ${CARD_COPY.lostWord}${CARD_COPY.bestSep}${formatDuration(r.timeMs)}`.trim();
+
+// Spec 12.2: a replay of a 3-star map that gains nothing. NEXT MISSION -> no arrival,
+// the next map's card, LAUNCH focused; WORLD MAP -> the played map's card with the
+// record just merged.
+function captureNextMissionReplay(browser, base, deviceName, dir) {
+  return screensRun(browser, deviceName, 'next-mission-replay', {}, async (page, out) => {
+    const merged = mergeRecord(REPLAY_SAVE.records[0], { livesLost: 0, timeMs: REPLAY_RUN.timeMs }).record;
+    for (const [via, mapId, record] of [['#results-next', 1, REPLAY_SAVE.records[1]], ['#results-map', 0, merged]]) {
+      await gotoLevel(page, base, 0, REPLAY_SAVE);
+      // A real run always clicks Send Wave first. Without any pointer-focused element
+      // Chrome treats the results' programmatic focus as keyboard focus (a ring), which
+      // no player can reach; the debug level jumps straight to the end.
+      await tap(page, deviceName, '#wave-btn');
+      await page.evaluate(run => window.__capture.end('victory', run), REPLAY_RUN);
+      await expectAttr(page, '#results', 'phase', 'ready');
+      const stars = await attr(page, '#results', 'stars');
+      if (stars !== '3') throw new Error(`replay run earned ${stars} stars, expected 3 (no gain on a 3-star map)`);
+      await watchArrivals(page);
+      await page.evaluate(() => { document.querySelector('#featured-name').textContent = 'SENTINEL'; });
+      await page.waitForTimeout(RESULTS.actGuardMs + 100);
+      await tap(page, deviceName, via);
+      await page.locator('#map-select').waitFor({ state: 'visible', timeout: 10_000 });
+      await page.locator(MAP_READY).waitFor({ timeout: 5_000 });
+      await expectText(page, '#featured-name', MAPS[mapId].name);
+      await expectText(page, '#featured-stars .fs-best', bestLine(record), 1_000);
+      const seen = await arrivals(page);
+      if (seen.includes('playing')) throw new Error(`${via}: arrival went through ${seen.join(' -> ')} on a replay with no star gain`);
+      if (via === '#results-next') {
+        await expectLaunchFocused(page, deviceName, 'next-mission-replay');
+        out.files.push(await shoot(page, join(dir, '07f-next-mission-card.png')));
+        const card = await briefingCardFit(page);
+        out.layout.push({ device: deviceName, label: 'next-mission-card', problems: card });
+        out.layout.push(await audit(page, deviceName, 'next-mission-map', MAP_SELECT_TARGETS));
+      }
+    }
+  });
+}
+
+// Desktop (keyboard) only, spec 12.2 / 7.4: Enter held through NEXT MISSION on a first
+// clear. Its auto-repeats on the world map must neither skip the flight nor press the
+// LAUNCH it lands on.
+function captureHeldEnter(browser, base, deviceName) {
+  return screensRun(browser, deviceName, 'held-enter', {}, async page => {
+    await gotoLevel(page, base, 0, FIRST_CLEAR_QUIET_SAVE);
+    await page.evaluate(() => window.__capture.end('victory'));
+    await expectAttr(page, '#results', 'phase', 'ready');
+    const focused = await page.evaluate(() => document.activeElement?.id);
+    if (focused !== 'results-next') throw new Error(`focus on ${focused} at ready, expected #results-next`);
+    await watchArrivals(page);
+    await page.waitForTimeout(RESULTS.actGuardMs + 100);
+    await page.keyboard.down('Enter');
+    await page.locator(MAP_READY).waitFor({ timeout: 10_000 });
+    await expectAttr(page, '#map-overworld', 'arrival', 'playing', 1_000);
+    const t0 = Date.now();
+    // Playwright sends repeat: true for a key that is already down.
+    for (let i = 0; i < 3; i++) await page.keyboard.down('Enter');
+    const read = await page.evaluate(() => ({ arrival: document.querySelector('#map-overworld').dataset.arrival,
+      leftFrom: performance.now() - window.__arrivalAt.playing }));
+    const readMs = Date.now() - t0;
+    await page.keyboard.up('Enter');
+    if (readMs > SKIP_DONE_MS) throw new Error(`the repeats and the read took ${readMs} ms; the harness was too slow to test the held key`);
+    const leftMs = ARRIVAL.totalMs - read.leftFrom;
+    if (leftMs < 2 * SKIP_DONE_MS) throw new Error(`only ${Math.round(leftMs)} ms of flight left at the repeats; the harness was too slow to test the held key`);
+    if (read.arrival !== 'playing') throw new Error(`arrival "${read.arrival}" after three held-Enter repeats, expected "playing"`);
+    await expectAttr(page, '#map-overworld', 'arrival', 'done');
+    // A repeat that pressed LAUNCH would have started the level.
+    if (await visible(page, '#hud-layer')) throw new Error('#hud-layer visible: a held-Enter repeat launched the mission');
+    await expectVisible(page, '#map-select', true, 0);
   });
 }
 
@@ -959,6 +1438,8 @@ function captureNoFonts(browser, base, deviceName, dir) {
     const longest = await longestLine(page, deviceName, 'no-fonts-longest', join(dir, '10h-story-longest-no-fonts.png'));
     out.files.push(...longest.files);
     out.layout.push(...longest.layout);
+    // The fallback face is wider than Orbitron: the worst-case results must still fit.
+    out.layout.push(...await worstCaseAudits(page, base, deviceName, 'no-fonts'));
   });
 }
 

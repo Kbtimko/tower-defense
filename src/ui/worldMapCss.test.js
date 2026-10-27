@@ -38,6 +38,13 @@ describe('world map CSS', () => {
     expect(bodiesFor('#featured-quote')).not.toMatch(/mask-image/);
   });
 
+  // Spec 5.7: the best run is quieter than the stars, painted from the theme.
+  it('paints the best-run tail with theme vars only (muted, no hex)', () => {
+    const body = bodiesFor('#featured-stars .fs-best');
+    expect(body).toMatch(/color\s*:\s*var\(--ui-text-muted\)/);
+    expect(body).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+  });
+
   // GameScene rewrites the label per result, but this is what shows before it does.
   it('the results button starts labelled with the verbatim "↩ World Map" copy', () => {
     const btn = html.match(/<button id="msg-btn"[^>]*>([^<]*)<\/button>/);

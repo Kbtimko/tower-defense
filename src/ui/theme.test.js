@@ -78,6 +78,20 @@ describe('contrast', () => {
   it.each(pairs)('%s >= 4.5', (_n, ink, face) => {
     expect(contrastRatio(ink, composite(face))).toBeGreaterThanOrEqual(4.5);
   });
+  // Results screen (roadmap 3.6, spec §6.2): ink is --ui-bevel-lo on the hue-filled
+  // banner and primary button, hue chip values on panel, NEW BEST currency on ink.
+  it.each([
+    ['results: ink on currency', s.bevelLo, PALETTE.currency],
+    ['results: ink on danger', s.bevelLo, PALETTE.danger],
+    ['results: currency chip value on panel', PALETTE.currency, PALETTE.panel],
+    ['results: danger chip value on panel', PALETTE.danger, PALETTE.panel],
+    ['results: text-muted label on panel', s.textMuted, PALETTE.panel],
+    ['results: text on panel', PALETTE.text, PALETTE.panel],
+    ['results: currency NEW BEST on ink', PALETTE.currency, s.bevelLo],
+    ['results: danger kicker on ink', PALETTE.danger, s.bevelLo],
+  ])('%s >= 4.5', (_n, ink, face) => {
+    expect(contrastRatio(ink, face)).toBeGreaterThanOrEqual(4.5);
+  });
   it('disabled text-dim on face-disabled >= 3', () => {
     expect(contrastRatio(s.textDim, s.faceDisabled)).toBeGreaterThanOrEqual(3);
   });
