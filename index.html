@@ -299,7 +299,9 @@
        paint lands on the kit button. The digit keeps the label face: Orbitron is
        16 px and up only, and the body face is narrow enough for any count. */
     #wave-btn { position: relative; --wave-ring: var(--ui-currency); }
-    #wave-btn.cd-on { padding-left: calc(64px * var(--hud-k)); }
+    /* Beside the ring the label wraps to three lines ("▶ Send / Wave 18 / (+42g)");
+       at the rail's 1.05 they overflow the 82-px face onto the bevel (iPhone, #51). */
+    #wave-btn.cd-on { padding-left: calc(64px * var(--hud-k)); line-height: 0.9; }
     #wave-btn.cd-warn { --wave-ring: var(--ui-danger); }
     #wave-btn.cd-on::before, #wave-btn.cd-on::after {
       position: absolute; left: calc(6px * var(--hud-k)); top: 50%;
