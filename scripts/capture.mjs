@@ -1322,41 +1322,88 @@ const waveSnapshot = page => page.evaluate(() => {
   };
 });
 
+// Game-time slack on every auto-send budget, on top of the data's own game time.
+// The budget clock is simMs, which keeps running through hit-stop's freezes while
+// countdownMs (and the wave queue) stand still: one freeze per HIT_STOP.cooldown at
+// most, each costing up to a whole frame under load. The countdown also starts a
+// frame after spawns finish. 5 s of game time covers both with room; it only sets
+// how long an overdue event takes to fail, never how slow the host may be.
+const AUTO_SEND_SLACK_MS = 5_000;
+let untilGameTimeCount = 0;
+
+// Resolves with `cond(arg)`'s first truthy return. `cond` runs in the page on every
+// frame, so what it returns is one frame's state. Bounded by GAME time, not wall
+// time, since a loaded host slows the game, not its own deadlines: it fails when
+// simMs runs `budgetMs` past the start of the wait (the event is overdue on the
+// game's clock), or when simMs stands still for STEP_TIMEOUT wall ms (the game
+// froze, paused or crashed). `cond` is shipped as source, so it must be self-contained.
+async function untilGameTime(page, cond, arg, { budgetMs, label }) {
+  const key = `__untilGameTime${++untilGameTimeCount}`;
+  const handle = await page.waitForFunction(([src, a, budget, stallMs, k]) => {
+    const now = performance.now();
+    const sim = window.__capture.simMs;
+    const s = window[k] ??= { cond: new Function(`return (${src})`)(), start: sim, last: sim, lastAt: now };
+    const hit = s.cond(a);
+    if (hit) { delete window[k]; return { hit }; }
+    if (sim !== s.last) { s.last = sim; s.lastAt = now; }
+    const over = sim - s.start > budget;
+    const stalled = now - s.lastAt >= stallMs;
+    if (!over && !stalled) return false;
+    delete window[k];
+    const btn = document.querySelector('#wave-btn');
+    return { fail: {
+      why: over ? `${Math.round(sim - s.start)} ms of game time passed (budget ${budget})` : `simMs stuck at ${Math.round(sim)} for ${Math.round(now - s.lastAt)} wall ms`,
+      countdownMs: window.__capture.countdownMs,
+      wave: document.querySelector('#stat-wave')?.textContent.trim(),
+      btn: btn ? `"${btn.textContent.trim()}" .${[...btn.classList].join('.')}` : 'missing',
+    } };
+  }, [cond.toString(), arg, budgetMs, STEP_TIMEOUT, key], { timeout: 0, polling: 'raf' });
+  const r = await handle.jsonValue();
+  if (r.fail) {
+    const f = r.fail;
+    throw new Error(`${label}: ${f.why}; countdownMs ${f.countdownMs === null ? 'null' : Math.round(f.countdownMs)}, #stat-wave "${f.wave}", #wave-btn ${f.btn}`);
+  }
+  return r.hit;
+}
+
 // Resolves with the button and counter on the first frame where countdownMs is
 // non-null and within (above, atMost], or exactly `equals`. Sampled inside the
 // predicate, not after it: with a second left, a separate read could land after
 // the wave sent.
-async function countdownSnapshot(page, { above = -Infinity, atMost = Infinity, equals = null }, timeout) {
-  const handle = await page.waitForFunction(([lo, hi, eq]) => {
+function countdownSnapshot(page, { above = -Infinity, atMost = Infinity, equals = null }, budget) {
+  return untilGameTime(page, ([lo, hi, eq]) => {
     const c = window.__capture.countdownMs;
     if (c === null || (eq !== null ? c !== eq : !(c > lo && c <= hi))) return false;
     const btn = document.querySelector('#wave-btn');
     return { countdownMs: c, wave: document.querySelector('#stat-wave').textContent.trim(), label: btn.textContent.trim(), cdOn: btn.classList.contains('cd-on') };
-  }, [above, atMost, equals], { timeout, polling: 'raf' });
-  return handle.jsonValue();
+  }, [above, atMost, equals], budget);
 }
 
 // Spec "Harness": a debug level sends a wave on its own only with ?autosend=1, so
 // every other capture is deterministic. (a) proves the countdown sends the next wave;
 // (b), the same level with auto-send off, proves (a)'s 2/10 came from the countdown;
 // (c) audits the longest real label beside the ring (LONGEST_LABEL, near-full bonus).
-// Waits key on game-time countdownMs, not simMs, which grows during hit-stop.
+// Conditions key on countdownMs, which stops during hit-stop; budgets run on simMs,
+// which doesn't, plus AUTO_SEND_SLACK_MS (see untilGameTime).
 function captureAutoSend(browser, base, deviceName, dir) {
   return screensRun(browser, deviceName, 'auto-send', {}, async (page, out) => {
     const waves = MAP_WAVES[0].length;
-    const sendBy = (lastSpawnMs(MAP_WAVES[0][0]) + countdownMsFor(MAPS[0])) * 2 + STEP_TIMEOUT;
+    // Game time from Send Wave 1 to the countdown's zero.
+    const sendBy = lastSpawnMs(MAP_WAVES[0][0]) + countdownMsFor(MAPS[0]) + AUTO_SEND_SLACK_MS;
 
     // (a) Wave 2 is still unsent with a second left, then sends itself.
     await gotoLevel(page, base, 0, AUTO_SEND_SAVE, 1, { autosend: '1' });
-    const a = await countdownSnapshot(page, { atMost: 1000 }, sendBy);
+    const a = await countdownSnapshot(page, { atMost: 1000 }, { budgetMs: sendBy, label: '(a) countdown never reached 1000 ms' });
     if (a.wave !== `1/${waves}`) throw new Error(`(a) #stat-wave "${a.wave}" with ${a.countdownMs} ms left, expected "1/${waves}"`);
     if (!a.cdOn) throw new Error(`(a) #wave-btn lacks .cd-on with ${a.countdownMs} ms left`);
     if (!/^▶ Send Wave 2/.test(a.label)) throw new Error(`(a) #wave-btn "${a.label}", expected /^▶ Send Wave 2/`);
-    await expectText(page, '#stat-wave', `2/${waves}`);
+    // At most the 1000 ms left at (a)'s snapshot until the send.
+    await untilGameTime(page, w => document.querySelector('#stat-wave').textContent.trim() === w, `2/${waves}`,
+      { budgetMs: 1000 + AUTO_SEND_SLACK_MS, label: `(a) #stat-wave never "2/${waves}" after the countdown ran out` });
 
     // (b) Control: auto-send off, the countdown expires and nothing sends.
     await gotoLevel(page, base, 0, AUTO_SEND_SAVE, 1, { autosend: '0' });
-    await countdownSnapshot(page, { equals: 0 }, sendBy);
+    await countdownSnapshot(page, { equals: 0 }, { budgetMs: sendBy, label: '(b) countdown never reached 0' });
     await page.waitForTimeout(2000);
     const b = await waveSnapshot(page);
     if (b.wave !== `1/${waves}`) throw new Error(`(b) #stat-wave "${b.wave}" 2 s after the countdown expired with auto-send off, expected "1/${waves}"`);
@@ -1380,13 +1427,17 @@ function captureAutoSend(browser, base, deviceName, dir) {
     };
     // The first countdown frame: the label may already be 1 g under full, since the
     // label renders one tick after the countdownMs it is read with.
-    const c = await countdownSnapshot(page, { above: WAVE_COUNTDOWN.warnSec * 1000 }, lastSpawnMs(MAP_WAVES[L.mapId][L.sent - 1]) * 2 + STEP_TIMEOUT);
+    // Game time from Send Wave L.sent to its last spawn, where the countdown starts.
+    const c = await countdownSnapshot(page, { above: WAVE_COUNTDOWN.warnSec * 1000 },
+      { budgetMs: lastSpawnMs(MAP_WAVES[L.mapId][L.sent - 1]) + AUTO_SEND_SLACK_MS, label: '(c) countdown never started' });
     const m = new RegExp(`^▶ Send Wave ${L.wave} \\(\\+(\\d+)g\\)$`).exec(c.label);
     if (!m || +m[1] < L.bonus - 1 || +m[1] > L.bonus) {
       throw new Error(`(c) map ${L.mapId} wave ${L.sent} countdown shows "${c.label}" with ${Math.round(c.countdownMs)} ms left, expected "${L.label}" (bonus ${L.bonus - 1}..${L.bonus}); not the label the audit claims, or the harness was too slow to catch it near full`);
     }
     await shootAndAudit('auto-send-longest');
-    await until(() => hasClass(page, '#wave-btn', 'cd-warn'), Boolean, () => '#wave-btn never .cd-warn', countdownMsFor(MAPS[L.mapId]) + STEP_TIMEOUT);
+    // A full countdown bounds it: the wait starts after the first countdown frame.
+    await untilGameTime(page, () => document.querySelector('#wave-btn').classList.contains('cd-warn'), null,
+      { budgetMs: countdownMsFor(MAPS[L.mapId]) + AUTO_SEND_SLACK_MS, label: '(c) #wave-btn never .cd-warn' });
     await shootAndAudit('auto-send-warn');
   });
 }
