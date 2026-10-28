@@ -86,3 +86,14 @@ describe('MAPS', () => {
     });
   }
 });
+
+describe('MAPS waveCountdownSec', () => {
+  it('every waveCountdownSec is absent or an integer in (20, 120]', () => {
+    for (const map of MAPS) {
+      if (map.waveCountdownSec === undefined) continue;
+      expect(Number.isInteger(map.waveCountdownSec), `map ${map.id}`).toBe(true);
+      expect(map.waveCountdownSec, `map ${map.id}`).toBeGreaterThan(20);
+      expect(map.waveCountdownSec, `map ${map.id}`).toBeLessThanOrEqual(120);
+    }
+  });
+});
