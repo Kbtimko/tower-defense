@@ -204,6 +204,7 @@ export function simulateMap({
   let ticks = 0;
   let overlapSends = 0;   // sends made with enemies still on the board
   let boardClears = 0;    // clear bonuses paid for an empty board
+  let timeouts = 0;       // advances forced by the maxSecondsPerWave safety valve
 
   // ── Build phase: spend gold before each send ─────────────────────────────
   function build() {
@@ -306,7 +307,7 @@ export function simulateMap({
       blockedSeconds: Number(blockedSeconds.toFixed(2)), soldierDeaths,
       heroBlockedSeconds: Number(heroBlockedSeconds.toFixed(2)), heroDeaths,
       heroDamageDealt, heroLevel: heroUnit?.level ?? 0,
-      overlapSends, boardClears, waveLog,
+      overlapSends, boardClears, timeouts, waveLog,
     };
   }
 
@@ -493,7 +494,7 @@ export function simulateMap({
     // spawn. The modelled player never calls early: it sends only at zero.
     if (countdown) {
       if (shouldStartCountdown({
-        isEarlyEligible: waveMgr.isEarlyEligible, done: waveMgr.done,
+        spawnsDone: !waveMgr.hasQueuedEnemies, done: waveMgr.done,
         currentWave: waveMgr.currentWave, startedFor: countdown.startedFor,
       })) {
         countdown.start(countdownMsFor(map), waveMgr.currentWave);
@@ -507,6 +508,7 @@ export function simulateMap({
     // anyway and move on; enemies still alive carry into the next wave, and a
     // timed-out final wave still counts as won.
     if (sinceSend >= maxSecondsPerWave) {
+      timeouts++;
       gold += clearBonus;
       if (sends === waves.length) return result(true);
       send();

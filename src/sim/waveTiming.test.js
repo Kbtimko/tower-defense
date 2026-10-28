@@ -8,6 +8,7 @@ import { bestStrategy, CANDIDATE_STRATEGIES, strategyLabel, strategyPlan } from 
 import { findWinMultiplier } from './deficit.js';
 import { MAPS } from '../data/maps.js';
 import { MAP_WAVES } from '../data/waves.js';
+import { ENEMY_DEFS } from '../data/enemies.js';
 import golden from './__fixtures__/legacyGolden.json';
 
 const pick = (obj, keys) => Object.fromEntries(keys.map(k => [k, obj[k]]));
@@ -58,6 +59,7 @@ describe("waveTiming 'onClear' reproduces the pre-#51 simulator", () => {
     expect(r.won).toBe(true);
     expect(r.livesRemaining).toBe(30);
     expect(r.waveLog.map(e => e.timedOut)).toEqual([true, true]);
+    expect(r.timeouts).toBe(2);     // proves the counter the countdown tests hold at 0 can count
     expect(r.goldFinal).toBe(corridor.startGold + 2 * 38);
     expect(r.waveLog[1].overlapped).toBe(1);
   });
@@ -75,6 +77,7 @@ describe("waveTiming 'countdown'", () => {
     const map = { ...MAPS[0], waveCountdownSec: 30 };
     const r = simulateMap({ map, waves: MAP_WAVES[0], buildPlan: plan, dt });
     expect(r.waveLog.length).toBeGreaterThan(2);
+    expect(r.timeouts).toBe(0);
     for (let n = 0; n + 1 < r.waveLog.length; n++) {
       const gap = r.waveLog[n + 1].sentAtMs - r.waveLog[n].spawnsDoneAtMs;
       // Never early, and late by less than one tick: a countdown ticked on its
@@ -88,6 +91,7 @@ describe("waveTiming 'countdown'", () => {
     const map = { ...MAPS[0] };
     delete map.waveCountdownSec;
     const r = simulateMap({ map, waves: MAP_WAVES[0], buildPlan: plan });
+    expect(r.timeouts).toBe(0);
     expect(r.overlapSends).toBeGreaterThan(0);
     expect(r.waveLog.some(e => e.overlapped > 0)).toBe(true);
   });
@@ -110,19 +114,67 @@ describe("waveTiming 'countdown'", () => {
     expect(r.waveLog[1].overlapped).toBe(1);
     expect(r.kills).toBe(0);
     expect(r.boardClears).toBe(1);
+    expect(r.timeouts).toBe(0);
     expect(r.goldFinal).toBe(corridor.startGold + Math.round(38 * corridor.rewardMult));
   });
 
+  it('starts the countdown when the board clears on the spawns-done frame', () => {
+    // The hero stands on the spawn point with an absurd damageMult, so each
+    // one-drone wave dies on the tick it spawns: the queue empties and the
+    // board clears on the same frame, after which the wave is no longer
+    // active. The countdown must still start then (spec R3), so wave 2 goes
+    // out at spawnsDone + 20 s — not at the 240-s timeout, which would also
+    // pay a second bonus for the same clear.
+    const dt = 1 / 32;      // exact ticks, as in the 30-s test
+    const corridor = {
+      id: 96, name: 'Corridor', startGold: 100, startLives: 30,
+      rewardMult: 1, maxTierAllowed: 1,
+      waypoints: [[0, 0.5], [0.5, 0.5], [1, 0.5]],
+      towerSlots: [[0.5, 0.5]],
+    };
+    const waves = [
+      [{ type: 'drone', count: 1, interval: 900 }],
+      [{ type: 'drone', count: 1, interval: 900 }],
+    ];
+    const r = simulateMap({
+      map: corridor, waves, buildPlan: () => [], dt,
+      hero: { id: 'rael', progress: 0 }, damageMult: 1e6,
+    });
+    const [w1, w2] = r.waveLog;
+    expect(w1.spawnsDoneAtMs).toBe(dt * 1000);             // died on its spawn tick
+    expect(w1.rewardAliveAtSpawnsDone).toBe(0);
+    expect(w2.sentAtMs - w1.spawnsDoneAtMs).toBe(20000);
+    expect(r.timeouts).toBe(0);
+    expect(r.won).toBe(true);
+    expect(r.boardClears).toBe(2);
+    expect(r.goldFinal).toBe(corridor.startGold + 2 * 38 + 2 * ENEMY_DEFS.drone.reward);
+  });
+
+  it('never advances a shipped map by timeout', () => {
+    for (const map of MAPS) {
+      const waves = MAP_WAVES[map.id];
+      if (!waves) continue;
+      for (const s of CANDIDATE_STRATEGIES) {
+        expect(simulateMap({ map, waves, buildPlan: strategyPlan(s) }).timeouts, `${map.id}:${strategyLabel(s)}`).toBe(0);
+      }
+    }
+  });
+
   it('logs spawns-done reward before rewardMult, in both modes', () => {
-    // Wave 1 of map 0 is pure drones; everything spawned is alive at the last
-    // spawn unless already killed, so the sum is a whole multiple of 14.
+    // Wave 1 of map 0 is a single enemy type; everything spawned is alive at
+    // the last spawn unless already killed, so the sum is a whole multiple of
+    // that type's base reward (and rewardMult 0.35 would break the multiple).
+    const rewards = new Set(MAP_WAVES[0][0].map(g => ENEMY_DEFS[g.type].reward));
+    expect(rewards.size).toBe(1);
+    const [reward] = rewards;
     for (const waveTiming of ['onClear', 'countdown']) {
       const r = simulateMap({ map: MAPS[0], waves: MAP_WAVES[0], buildPlan: plan, waveTiming });
+      if (waveTiming === 'countdown') expect(r.timeouts).toBe(0);
       const first = r.waveLog[0];
       expect(first.sentAtMs).toBe(0);
       expect(first.spawnsDoneAtMs).toBeGreaterThan(0);
       expect(first.rewardAliveAtSpawnsDone).toBeGreaterThan(0);
-      expect(first.rewardAliveAtSpawnsDone % 14).toBe(0);
+      expect(first.rewardAliveAtSpawnsDone % reward).toBe(0);
     }
   });
 });
@@ -146,5 +198,19 @@ describe('bestStrategy forwards waveTiming', () => {
     const { best } = bestStrategy(map, MAP_WAVES[0], { waveTiming: 'onClear' });
     const want = golden[`${map.id}:${strategyLabel(best.strategy)}`];
     expect(legacyView(best.run, want)).toEqual(want);
+  });
+
+  it("probes every candidate's multiplier under 'onClear' too", () => {
+    // Field deleted so the 20-s default applies whatever Task 4 calibrates.
+    // Precondition: the two modes disagree on map 0's default strategy, so a
+    // multiplier probed in the wrong mode cannot match by coincidence.
+    const map = { ...MAPS[0] };
+    delete map.waveCountdownSec;
+    const waves = MAP_WAVES[0];
+    const probe = (strategy, waveTiming) =>
+      findWinMultiplier(map, waves, { buildPlan: strategyPlan(strategy), waveTiming });
+    expect(probe(CANDIDATE_STRATEGIES[0], 'countdown')).not.toBe(probe(CANDIDATE_STRATEGIES[0], 'onClear'));
+    const { results } = bestStrategy(map, waves, { waveTiming: 'onClear' });
+    for (const r of results) expect(r.multiplier).toBe(probe(r.strategy, 'onClear'));
   });
 });

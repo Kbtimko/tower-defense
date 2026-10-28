@@ -1,6 +1,7 @@
 import { WaveCountdown, countdownMsFor, shouldStartCountdown, lastSpawnMs } from './waveCountdown.js';
 import { WAVE_COUNTDOWN } from '../data/waveCountdown.js';
 import { MAP_WAVES } from '../data/waves.js';
+import { WaveManager } from './WaveManager.js';
 
 const started = (total = 20000, wave = 1) => {
   const c = new WaveCountdown();
@@ -66,8 +67,8 @@ describe('cancel / no re-arm', () => {
     c.cancel();
     expect(c.running).toBe(false);
     expect(c.startedFor).toBe(3);
-    expect(shouldStartCountdown({ isEarlyEligible: true, done: false, currentWave: 3, startedFor: c.startedFor })).toBe(false);
-    expect(shouldStartCountdown({ isEarlyEligible: true, done: false, currentWave: 4, startedFor: c.startedFor })).toBe(true);
+    expect(shouldStartCountdown({ spawnsDone: true, done: false, currentWave: 3, startedFor: c.startedFor })).toBe(false);
+    expect(shouldStartCountdown({ spawnsDone: true, done: false, currentWave: 4, startedFor: c.startedFor })).toBe(true);
   });
   it('cancelled countdown ignores ticks', () => {
     const c = started();
@@ -78,11 +79,27 @@ describe('cancel / no re-arm', () => {
 });
 
 describe('shouldStartCountdown', () => {
-  const base = { isEarlyEligible: true, done: false, currentWave: 1, startedFor: null };
-  it('starts when eligible', () => expect(shouldStartCountdown(base)).toBe(true));
+  const base = { spawnsDone: true, done: false, currentWave: 1, startedFor: null };
+  it('starts when the spawn queue is empty', () => expect(shouldStartCountdown(base)).toBe(true));
   it('no trigger when done (final wave)', () => expect(shouldStartCountdown({ ...base, done: true })).toBe(false));
   it('no trigger before wave 1 (currentWave 0)', () => expect(shouldStartCountdown({ ...base, currentWave: 0 })).toBe(false));
-  it('no trigger when not eligible', () => expect(shouldStartCountdown({ ...base, isEarlyEligible: false })).toBe(false));
+  it('no trigger while the wave is still spawning', () => expect(shouldStartCountdown({ ...base, spawnsDone: false })).toBe(false));
+  it('starts even when the board cleared on the spawns-done frame (wave already inactive)', () => {
+    // Derive both inputs from a real WaveManager in that state, so the trigger is fed
+    // what callers pass (!hasQueuedEnemies), not a hand-picked boolean.
+    const wm = new WaveManager([[{ type: 'drone', count: 1, interval: 900 }], [{ type: 'drone', count: 1, interval: 900 }]], { emit() {} });
+    wm.startWave();
+    wm.update(16);              // the lone drone spawns: queue empty
+    wm.active = false;          // _checkWaveComplete: board cleared the same frame
+    expect(wm.isEarlyEligible).toBe(false);
+    const inputs = { spawnsDone: !wm.hasQueuedEnemies, done: wm.done, currentWave: wm.currentWave };
+    expect(shouldStartCountdown({ ...inputs, startedFor: null })).toBe(true);
+    const c = new WaveCountdown();
+    c.start(20000, wm.currentWave);
+    expect(shouldStartCountdown({ ...inputs, startedFor: c.startedFor })).toBe(false);
+    c.cancel();
+    expect(shouldStartCountdown({ ...inputs, startedFor: c.startedFor })).toBe(false);
+  });
 });
 
 describe('displaySeconds / isWarning (E20)', () => {

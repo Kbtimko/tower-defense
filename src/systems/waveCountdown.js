@@ -9,9 +9,12 @@ export function countdownMsFor(map) {
   return (ok ? sec : WAVE_COUNTDOWN.defaultSec) * 1000;
 }
 
+// spawnsDone = !waveMgr.hasQueuedEnemies, deliberately NOT isEarlyEligible: the board can
+// clear on the very frame the queue empties, which marks the wave inactive before the
+// countdown runs, and the countdown must start then anyway (spec R3).
 // startedFor guards re-arming: a cancelled/finished countdown must not restart for the same wave.
-export function shouldStartCountdown({ isEarlyEligible, done, currentWave, startedFor }) {
-  return !!isEarlyEligible && !done && currentWave > 0 && startedFor !== currentWave;
+export function shouldStartCountdown({ spawnsDone, done, currentWave, startedFor }) {
+  return !!spawnsDone && !done && currentWave > 0 && startedFor !== currentWave;
 }
 
 // Mirrors WaveManager.startWave's delay accumulation: the last enemy spawns at the sum
