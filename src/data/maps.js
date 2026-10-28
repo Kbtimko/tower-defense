@@ -50,7 +50,7 @@ export const MAPS = [
     overworldArt: 'overworld_1_lunar_gate.png',
     rewardMult: 0.35,
     // waveCountdownSec = calibrated so auto-send overlap leaves sim difficulty no harder than send-on-clear (#51).
-    waveCountdownSec: 46,
+    waveCountdownSec: 41,
     unlockCost: 0,
     waveCount: 10,
     maxTierAllowed: 2,
@@ -277,7 +277,7 @@ export const MAPS = [
     overworldArt: 'overworld_7_the_void_frontier.png',
     rewardMult: 0.44,
     // waveCountdownSec = calibrated so auto-send overlap leaves sim difficulty no harder than send-on-clear (#51).
-    waveCountdownSec: 51,
+    waveCountdownSec: 46,
     unlockCost: 0,
     waveCount: 15,
     maxTierAllowed: 4,

@@ -12,6 +12,7 @@ import { goldCeiling, cheapestFullBoardCost, depthBoardCost, goldPerHp } from '.
 import { findWinMultiplier } from '../src/sim/deficit.js';
 import { bestStrategy, strategyLabel } from '../src/sim/strategy.js';
 import { verdict, COMFORT_CEILING, COMFORT_FLOOR } from '../src/sim/verdict.js';
+import { WAVE_COUNTDOWN } from '../src/data/waveCountdown.js';
 import { matchesBefore, afterSame } from '../src/sim/autosendMatch.js';
 
 const args = process.argv.slice(2);
@@ -56,10 +57,11 @@ const padL = (s, n) => String(s).padStart(n);
 console.log('\nSimulated combat — towers + tier upgrades + hero auto-attack + barracks soldiers');
 console.log('(blocking, melee and respawn), buying and upgrading by the damage a tower actually');
 console.log('lands against the enemies still to come. Waves auto-send after a per-map countdown');
-console.log('(map.waveCountdownSec, default 20 s); the modelled player never presses early. Each');
+console.log(`(map.waveCountdownSec, default ${WAVE_COUNTDOWN.defaultSec} s); the modelled player never presses early. Each`);
 console.log('map is played under 5 barracks strategies (opening x depth) and the best is');
-console.log('reported, as a player who retries a level would. Omits hero abilities, meta upgrades, soldier repositioning and the');
-console.log('send-wave-early bonus, so this model is still PESSIMISTIC.\n');
+console.log('reported, as a player who retries a level would. Omits hero abilities,');
+console.log('meta upgrades, soldier repositioning and the send-wave-early bonus, so this model is');
+console.log('still PESSIMISTIC.\n');
 console.log(pad('#', 3) + pad('Map', 22) + padL('waves', 7) + padL('lives', 8)
           + padL('gold', 7) + padL('towers', 8) + padL('leaked', 8) + padL('blocked', 9)
           + padL('heroDmg', 9) + padL('/mapHP', 8) + padL('heroLv', 8)
@@ -121,7 +123,7 @@ for (const { map, best } of rows) {
   const same = afterSame(map, waves, before.strategy);
   const ok = matchesBefore(before, best, map.startLives) && matchesBefore(before, same, map.startLives);
   if (!ok) mismatches++;
-  console.log(pad(map.id, 3) + pad(map.name, 22) + padL(map.waveCountdownSec ?? 20, 6)
+  console.log(pad(map.id, 3) + pad(map.name, 22) + padL(map.waveCountdownSec ?? WAVE_COUNTDOWN.defaultSec, 6)
             + padL(cell(map, before), 26) + padL(cell(map, best), 26) + padL(cell(map, same), 26)
             + padL(ok ? 'yes' : 'NO', 7));
 }

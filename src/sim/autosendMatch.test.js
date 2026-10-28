@@ -15,7 +15,7 @@ describe('matchesBefore', () => {
     expect(matchesBefore(r(1, 10), r(1, 8), 20)).toBe(false);
   });
   it('a harder verdict band is a mismatch', () => {
-    // 10 -> 5 lives of 20 is OK -> PUNISHING
+    // 6 -> 5 lives of 20 is OK -> PUNISHING (25% kept)
     expect(matchesBefore(r(1, 6), r(1, 5), 20)).toBe(false);
   });
   it('an easier map matches', () => {

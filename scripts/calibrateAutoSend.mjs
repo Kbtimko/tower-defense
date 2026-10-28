@@ -6,20 +6,19 @@
 // send-on-clear timing. Slow (minutes); never part of `npm test`. Progress goes
 // to stderr, the table to stdout, so `> file` captures just the table.
 //
-// Search: coarse 5-s steps 20..120; at the first coarse match refine at 1-s
-// resolution just below it; every candidate L must also match at L+1 and L+2
-// (the sim is not monotone — this rules out a lucky single point). L+1/L+2 are
-// only probes, so L itself never exceeds the 120-s cap.
+// Search: every whole second 20..120 (a coarse scan missed true minima, since the
+// sim is not monotone); a candidate L must also match at L+1 and L+2 to rule out
+// a lucky single point. L+1/L+2 are only probes, so L itself never exceeds 120.
 import { MAPS } from '../src/data/maps.js';
 import { MAP_WAVES } from '../src/data/waves.js';
 import { WAVE_COUNTDOWN } from '../src/data/waveCountdown.js';
-import { bestStrategy, strategyLabel } from '../src/sim/strategy.js';
+import { simulateMap } from '../src/sim/simulate.js';
+import { bestStrategy, strategyLabel, strategyPlan } from '../src/sim/strategy.js';
 import { verdict } from '../src/sim/verdict.js';
 import { matchesBefore, afterSame } from '../src/sim/autosendMatch.js';
 
 const MIN_L = WAVE_COUNTDOWN.defaultSec;
 const MAX_L = 120;
-const COARSE_STEP = 5;
 
 const args = process.argv.slice(2);
 const mapArg = args.indexOf('--map');
@@ -49,7 +48,13 @@ for (const map of targets) {
   const t0 = Date.now();
   log(`map ${map.id} (${map.name}): before (onClear)...`);
   const before = bestStrategy(map, waves, { waveTiming: 'onClear' }).best;
-  for (const e of before.run.waveLog) {
+  // Sample at the win multiplier: the 1x run of a losing map ends early and would
+  // drop its later waves from the median.
+  const sampleRun = simulateMap({
+    map, waves, buildPlan: strategyPlan(before.strategy),
+    damageMult: before.multiplier ?? 1, waveTiming: 'onClear',
+  });
+  for (const e of sampleRun.waveLog) {
     if (e.rewardAliveAtSpawnsDone != null) samples.push(0.5 * e.rewardAliveAtSpawnsDone);
   }
 
@@ -57,7 +62,7 @@ for (const map of targets) {
   const evalL = L => {
     if (!cache.has(L)) {
       const m = { ...map, waveCountdownSec: L };
-      const afterBest = bestStrategy(m, waves).best;
+      const afterBest = bestStrategy(m, waves, { waveTiming: 'countdown' }).best;
       const same = afterSame(m, waves, before.strategy);
       const match = matchesBefore(before, afterBest, map.startLives)
                  && matchesBefore(before, same, map.startLives);
@@ -69,11 +74,8 @@ for (const map of targets) {
   const stable = L => evalL(L).match && evalL(L + 1).match && evalL(L + 2).match;
 
   let chosen = null;
-  for (let c = MIN_L; c <= MAX_L && chosen === null; c += COARSE_STEP) {
-    if (!evalL(c).match) continue;
-    for (let L = Math.max(MIN_L, c - COARSE_STEP + 1); L <= c; L++) {
-      if (stable(L)) { chosen = L; break; }
-    }
+  for (let L = MIN_L; L <= MAX_L; L++) {
+    if (stable(L)) { chosen = L; break; }
   }
   results.push({ map, before, chosen, at: chosen === null ? null : cache.get(chosen), seconds: (Date.now() - t0) / 1000 });
   log(`map ${map.id}: ${chosen === null ? `NONE <=${MAX_L}` : `L=${chosen}`} in ${((Date.now() - t0) / 1000).toFixed(0)}s`);
