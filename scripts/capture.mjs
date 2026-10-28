@@ -41,7 +41,7 @@ import { countdownMsFor, lastSpawnMs } from '../src/systems/waveCountdown.js';
 import { WAVE_COUNTDOWN } from '../src/data/waveCountdown.js';
 import { layoutProblems, railProblems, railGeometryProblems, overlayProblems, minTouchFor, radialProblems, targetSizeProblems } from '../src/systems/layoutAudit.js';
 import { storyDialogProblems, longestPanel } from '../src/systems/storyDialogLayout.js';
-import { STORY_SEQUENCES, STORY_SPEAKERS, STORY_LOG_LABELS, epilogueKey, briefKey } from '../src/data/story.js';
+import { STORY_SEQUENCES, STORY_SPEAKERS, STORY_LOG_LABELS, STORY_PANELS, epilogueKey, briefKey } from '../src/data/story.js';
 import { STORY_DIALOG } from '../src/data/storyDialog.js';
 import { layoutClass, routeFrameFor, worldMapProblems } from '../src/systems/worldMapLayout.js';
 import { POINTER_FINE_QUERY, COMPACT_QUERY } from '../src/data/mobile.js';
@@ -1279,11 +1279,25 @@ function captureResultsGuard(browser, base, deviceName) {
 }
 
 // No story dialog in the way; neither level below has a between-wave banner on the
-// waves it waits through (map 0: waves 3, 7; map 9: waves 6, 12), so nothing holds a countdown.
+// waves it waits through (map 0: waves 3, 7; LONGEST_LABEL skips banner waves), so
+// nothing holds a countdown.
 const AUTO_SEND_SAVE = { version: 4, maps: noStars(), seenStoryBeats: ALL_BEATS_SEEN };
-// Tier 4 on every pad: the default build loses map 9 during wave 17's countdown, and a
-// lost level freezes the countdown before the warn colour.
-const FINAL_MAP_HOLD_BUILD = MAPS[FINAL_MAP].towerSlots.map((_, i) => {
+
+// Review Focus 3: the longest full-countdown label any shipped map can show, derived
+// from the data so a recalibration moves the audit with it. Wave n's countdown labels
+// wave n+1, so n runs 1..waves-1. Waves whose clear shows a banner are skipped: the
+// banner holds the countdown and the warn state would never come. Ties on length go
+// to the bigger bonus, then the bigger wave (more wide digits, fewer narrow 1s), then
+// the earliest map; the audit measures the real box either way.
+const fullBonus = map => Math.floor((countdownMsFor(map) / 1000) * WAVE_COUNTDOWN.goldPerSecond * (map.rewardMult ?? 1));
+const LONGEST_LABEL = MAPS.flatMap((map, mapId) => {
+  const bonus = fullBonus(map);
+  return MAP_WAVES[mapId].slice(1).map((_, i) => ({ mapId, sent: i + 1, wave: i + 2, bonus, label: `▶ Send Wave ${i + 2} (+${bonus}g)` }))
+    .filter(c => !STORY_PANELS[map.storyKey]?.waves?.[c.sent]);
+}).sort((a, b) => b.label.length - a.label.length || b.bonus - a.bonus || b.wave - a.wave || a.mapId - b.mapId)[0];
+// Tier 4 on every pad: a default build can lose the level during the long countdown,
+// and a lost level freezes the countdown before the warn colour.
+const LONGEST_LABEL_HOLD_BUILD = MAPS[LONGEST_LABEL.mapId].towerSlots.map((_, i) => {
   const types = Object.keys(TOWER_DEFS);
   return `${types[i % types.length]}@${i}:4${'ab'[i % 2]}`;
 }).join(',');
@@ -1325,7 +1339,7 @@ async function countdownSnapshot(page, { above = -Infinity, atMost = Infinity, e
 // Spec "Harness": a debug level sends a wave on its own only with ?autosend=1, so
 // every other capture is deterministic. (a) proves the countdown sends the next wave;
 // (b), the same level with auto-send off, proves (a)'s 2/10 came from the countdown;
-// (c) audits the longest real label beside the ring (map 9, wave 18, near-full bonus).
+// (c) audits the longest real label beside the ring (LONGEST_LABEL, near-full bonus).
 // Waits key on game-time countdownMs, not simMs, which grows during hit-stop.
 function captureAutoSend(browser, base, deviceName, dir) {
   return screensRun(browser, deviceName, 'auto-send', {}, async (page, out) => {
@@ -1350,7 +1364,8 @@ function captureAutoSend(browser, base, deviceName, dir) {
     if (b.cdOn) throw new Error('(b) #wave-btn still .cd-on at zero with auto-send off');
 
     // (c) Review Focus 3: the longest label, at its biggest bonus and again in the warn colour.
-    await gotoLevel(page, base, FINAL_MAP, AUTO_SEND_SAVE, 17, { autosend: '0', build: FINAL_MAP_HOLD_BUILD });
+    const L = LONGEST_LABEL;
+    await gotoLevel(page, base, L.mapId, AUTO_SEND_SAVE, L.sent, { autosend: '0', build: LONGEST_LABEL_HOLD_BUILD });
     const shootAndAudit = async label => {
       out.files.push(await shoot(page, join(dir, `${label}.png`)));
       const audited = await audit(page, deviceName, label, IN_GAME_TARGETS, RAIL_ONLY_TARGETS);
@@ -1363,9 +1378,15 @@ function captureAutoSend(browser, base, deviceName, dir) {
       }
       out.layout.push(audited);
     };
-    await countdownSnapshot(page, { above: WAVE_COUNTDOWN.warnSec * 1000 }, lastSpawnMs(MAP_WAVES[FINAL_MAP][16]) * 2 + STEP_TIMEOUT);
+    // The first countdown frame: the label may already be 1 g under full, since the
+    // label renders one tick after the countdownMs it is read with.
+    const c = await countdownSnapshot(page, { above: WAVE_COUNTDOWN.warnSec * 1000 }, lastSpawnMs(MAP_WAVES[L.mapId][L.sent - 1]) * 2 + STEP_TIMEOUT);
+    const m = new RegExp(`^▶ Send Wave ${L.wave} \\(\\+(\\d+)g\\)$`).exec(c.label);
+    if (!m || +m[1] < L.bonus - 1 || +m[1] > L.bonus) {
+      throw new Error(`(c) map ${L.mapId} wave ${L.sent} countdown shows "${c.label}" with ${Math.round(c.countdownMs)} ms left, expected "${L.label}" (bonus ${L.bonus - 1}..${L.bonus}); not the label the audit claims, or the harness was too slow to catch it near full`);
+    }
     await shootAndAudit('auto-send-longest');
-    await until(() => hasClass(page, '#wave-btn', 'cd-warn'), Boolean, () => '#wave-btn never .cd-warn', countdownMsFor(MAPS[FINAL_MAP]) + STEP_TIMEOUT);
+    await until(() => hasClass(page, '#wave-btn', 'cd-warn'), Boolean, () => '#wave-btn never .cd-warn', countdownMsFor(MAPS[L.mapId]) + STEP_TIMEOUT);
     await shootAndAudit('auto-send-warn');
   });
 }
