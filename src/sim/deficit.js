@@ -9,7 +9,10 @@
 // large figure means the omitted systems are carrying the whole campaign.
 import { simulateMap } from './simulate.js';
 
-export function findWinMultiplier(map, waves, { buildPlan, max = 8, tolerance = 0.05, waveTiming } = {}) {
+// The search ceiling; a map with no win at or below it reports multiplier null.
+export const WIN_MULTIPLIER_MAX = 8;
+
+export function findWinMultiplier(map, waves, { buildPlan, max = WIN_MULTIPLIER_MAX, tolerance = 0.05, waveTiming } = {}) {
   const wins = mult => simulateMap({ map, waves, buildPlan, damageMult: mult, waveTiming }).won;
 
   if (wins(1)) return 1;

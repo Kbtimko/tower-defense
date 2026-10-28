@@ -32,6 +32,9 @@
 //   * No early wave calls, so no send-wave-early bonus: gold income is the
 //     floor, not the ceiling. In 'countdown' mode (the shipped game) the next
 //     wave sends only when the countdown reaches zero.
+//   * The player dismisses every between-wave banner instantly, so the model
+//     never gets the countdown hold a real player gets while reading one (that
+//     hold only adds player time).
 //   * Tower tiers are honoured up to the map's maxTierAllowed, but Tier-4
 //     branch choice is not modelled (branch A is assumed) — so Rapid Response
 //     (4 soldiers, half respawn) never appears.

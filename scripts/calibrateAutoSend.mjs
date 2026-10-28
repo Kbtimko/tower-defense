@@ -16,6 +16,7 @@ import { simulateMap } from '../src/sim/simulate.js';
 import { bestStrategy, strategyLabel, strategyPlan } from '../src/sim/strategy.js';
 import { verdict } from '../src/sim/verdict.js';
 import { matchesBefore, afterSame } from '../src/sim/autosendMatch.js';
+import { WIN_MULTIPLIER_MAX } from '../src/sim/deficit.js';
 
 const MIN_L = WAVE_COUNTDOWN.defaultSec;
 const MAX_L = 120;
@@ -49,10 +50,12 @@ for (const map of targets) {
   log(`map ${map.id} (${map.name}): before (onClear)...`);
   const before = bestStrategy(map, waves, { waveTiming: 'onClear' }).best;
   // Sample at the win multiplier: the 1x run of a losing map ends early and would
-  // drop its later waves from the median.
+  // drop its later waves from the median. A map unwinnable even at the search
+  // ceiling (multiplier null) samples at the ceiling, which still reaches more
+  // waves than 1x would.
   const sampleRun = simulateMap({
     map, waves, buildPlan: strategyPlan(before.strategy),
-    damageMult: before.multiplier ?? 1, waveTiming: 'onClear',
+    damageMult: before.multiplier ?? WIN_MULTIPLIER_MAX, waveTiming: 'onClear',
   });
   for (const e of sampleRun.waveLog) {
     if (e.rewardAliveAtSpawnsDone != null) samples.push(0.5 * e.rewardAliveAtSpawnsDone);
