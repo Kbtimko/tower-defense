@@ -83,6 +83,9 @@ import { livesLostFor }       from '../systems/runRecord.js';
 import { resultsModel }       from '../systems/resultsModel.js';
 import { exitPayload }        from '../systems/missionExit.js';
 import { ResultsScreen }      from '../ui/ResultsScreen.js';
+import { WaveCountdown, countdownMsFor, shouldStartCountdown } from '../systems/waveCountdown.js';
+import { waveButtonView }     from '../systems/waveButtonView.js';
+import { WAVE_COUNTDOWN }     from '../data/waveCountdown.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const WAVE_CLEAR_BONUS   = 38;
@@ -115,6 +118,8 @@ function applyDebugCapture(scene) {
   });
   scene._repaintStaticLayers();
   scene._updateHUD();
+  // Captures must not depend on whether a wave sent itself: OFF unless ?autosend=1.
+  scene._autoSendOverride = scene._debug.autoSend === true;
   if (wave) {
     scene.waveMgr.currentWave = wave - 1;
     scene._startWave();
@@ -122,6 +127,9 @@ function applyDebugCapture(scene) {
   if (errors.length) console.warn('[capture] ignored:', errors.join('; '));
   window.__capture = {
     simMs: 0, enemies: 0, errors,
+    // Game-time ms left on the countdown (null when none runs): unlike simMs it
+    // stops during hit-stop, so auto-send waits key on it.
+    countdownMs: null,
     // Game-space positions, so the harness can click a tower to open its ring.
     towers: placed.map(t => ({ type: t.type, x: t.x, y: t.y })),
     // Jumps straight to a results screen without playing a level out; overrides
@@ -200,6 +208,12 @@ export default class GameScene extends Phaser.Scene {
       this.events,
     );
     this.waveMgr  = new WaveManager(MAP_WAVES[this.mapId] ?? MAP_WAVES[0], this.events);
+    this._countdown = new WaveCountdown();
+    // null = follow the Settings toggle; a debug level pins it (applyDebugCapture).
+    this._autoSendOverride = null;
+    // null forces the first render to rewrite every ring class/attr/style: the
+    // shutdown clone of #wave-btn carries the last level's.
+    this._waveBtnCache = null;
     this.storyMgr = new StoryManager(STORY_PANELS);
     this._storyDialog = new StoryDialogOverlay({ motion: () => this.game.registry.get('ambientMotion') !== false });
     this._results = new ResultsScreen({ motion: () => this.game.registry.get('ambientMotion') !== false });
@@ -682,6 +696,7 @@ export default class GameScene extends Phaser.Scene {
     if ((import.meta.env.DEV || import.meta.env.MODE === 'capture') && this._debug) {
       window.__capture.simMs += delta * this.speed;
       window.__capture.enemies = this.enemies.filter(e => !e.dead).length;
+      window.__capture.countdownMs = this._countdown.running ? this._countdown.remainingMs : null;
     }
     // Real delta and ahead of every early return: coins already in flight should
     // land (and the HUD pulse fire) through hit-stop and game over, not freeze.
@@ -716,6 +731,9 @@ export default class GameScene extends Phaser.Scene {
     this._areaEffects.update(dt, this.enemies);
     this._updateParticles(dt);
     this._checkWaveComplete();
+    // After the clear check, so a clear bonus lands first and a banner it shows
+    // holds the countdown before a zero this frame can send.
+    this._updateCountdown(dtMs);
     this.inspector?.refresh();
 
     this.gfx.clear();
@@ -728,16 +746,26 @@ export default class GameScene extends Phaser.Scene {
 
   // ─── Wave ──────────────────────────────────────────────────────────────────
 
-  _startWave() {
-    if (this.waveMgr.isEarlyEligible) {
-      const bonus = this._computeEarlyBonus();
+  // Same path for a press and an auto-send. The spawning guard is what stops a
+  // click landing just after an auto-send from sending a second wave.
+  _startWave({ auto = false } = {}) {
+    const wm = this.waveMgr;
+    if (wm.done || (wm.active && wm.hasQueuedEnemies)) return;
+    const cd = this._countdown;
+    if (!auto) {
+      const bonus = this._countdownBonus();
       if (bonus > 0) {
         this.economy.earn(bonus);
         this._toast(`+${bonus}g`);
       }
-    } else if (this.waveMgr.active) {
-      return;
     }
+    // Held means the banner is up; its text is about the wave that just cleared,
+    // and left up it would hold the next countdown too (spec S1).
+    if (cd.held) {
+      cd.resume();
+      this.storyMgr.hideBanner();
+    }
+    cd.cancel();
 
     const am = this.game.registry.get('audio');
     if (am) am.playSfx('wave-start');
@@ -766,6 +794,34 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  // Frame order: start (no tick that frame), else tick; auto-send; render.
+  _updateCountdown(dtMs) {
+    const cd = this._countdown;
+    const wm = this.waveMgr;
+    if (shouldStartCountdown({
+      spawnsDone: !wm.hasQueuedEnemies, done: wm.done, currentWave: wm.currentWave, startedFor: cd.startedFor,
+    })) {
+      // A banner the clear check showed this same frame has already asked to hold.
+      const held = cd.held;
+      cd.start(countdownMsFor(MAPS[this.mapId]), wm.currentWave);
+      if (held) cd.hold();
+    } else {
+      cd.tick(dtMs);
+    }
+    // A leak earlier this frame can end the game; update does not re-check.
+    if (cd.shouldAutoSend(this._autoSendOn()) && !this.over && !this.won) this._startWave({ auto: true });
+    this._renderWaveButton();
+  }
+
+  // Read live so a Settings change applies on the next frame (E9).
+  _autoSendOn() {
+    return this._autoSendOverride ?? (this.game.registry.get('autoSend') !== false);
+  }
+
+  _countdownBonus() {
+    return this._countdown.bonus({ goldPerSecond: WAVE_COUNTDOWN.goldPerSecond, rewardMult: this.rewardMult });
+  }
+
   _checkWaveComplete() {
     if (!this.waveMgr.active) return;
     if (this.waveMgr.hasQueuedEnemies || this.enemies.length > 0) return;
@@ -777,7 +833,11 @@ export default class GameScene extends Phaser.Scene {
       const map   = MAPS[this.mapId];
       const panel = this.storyMgr.getPanelForWave(map.storyKey, this.waveMgr.currentWave);
       if (panel) {
-        this.storyMgr.showBanner(panel, () => this._updateWaveButton());
+        this._countdown.hold();
+        this.storyMgr.showBanner(panel, () => {
+          this._countdown.resume();
+          this._updateWaveButton();
+        });
       } else {
         this._updateWaveButton();
       }
@@ -860,7 +920,6 @@ export default class GameScene extends Phaser.Scene {
         const am = this.game.registry.get('audio');
         if (am) am.setCombatActive(false);
       }
-      this._updateWaveButton();
     }
   }
 
@@ -1800,35 +1859,64 @@ export default class GameScene extends Phaser.Scene {
     this._refreshRadial();
   }
 
+  // State changes only: the preview rebuild is DOM-heavy, so the per-frame
+  // countdown path calls _renderWaveButton alone.
   _updateWaveButton() {
-    this._updateWaveButtonText();
+    this._renderWaveButton();
     this._refreshWavePreview();
   }
 
-  _updateWaveButtonText() {
+  // Runs every frame, so it writes only what changed since the last render.
+  // The cache starts empty, which makes the first render set or clear every
+  // field — including the ring residue the shutdown clone carries over.
+  _renderWaveButton() {
     const btn = document.getElementById('wave-btn');
     if (!btn) return;
-    if (this.waveMgr.done) {
-      btn.disabled = true; btn.textContent = 'All Waves Done';
-      return;
+    const wm = this.waveMgr;
+    const { label, disabled, ring } = waveButtonView({
+      done: wm.done,
+      spawning: wm.active && wm.hasQueuedEnemies,
+      currentWave: wm.currentWave,
+      countdown: this._countdown,
+      bonus: this._countdownBonus(),
+      warnMs: WAVE_COUNTDOWN.warnSec * 1000,
+    });
+    const q = WAVE_COUNTDOWN.ringQuantum;
+    const next = {
+      label, disabled,
+      ring: !!ring,
+      warn: !!ring?.warn,
+      secs: ring ? ring.secs : null,
+      cd: ring ? Math.round(ring.frac / q) : null,
+    };
+    const prev = this._waveBtnCache ?? {};
+    // Text is rewritten on a ring toggle too: fitLabels observes text, not
+    // class, and the ring changes the room the label has.
+    if (next.label !== prev.label || next.ring !== prev.ring) {
+      btn.textContent = label;
+      btn.disabled = disabled;
     }
-    if (this.waveMgr.active && this.waveMgr.isEarlyEligible) {
-      const bonus = this._computeEarlyBonus();
-      btn.disabled = false;
-      btn.textContent = bonus > 0
-        ? `▶ Send Wave ${this.waveMgr.currentWave + 1} (+${bonus}g)`
-        : `▶ Send Wave ${this.waveMgr.currentWave + 1}`;
-      return;
+    if (next.ring !== prev.ring) btn.classList.toggle('cd-on', next.ring);
+    if (next.warn !== prev.warn) {
+      btn.classList.toggle('cd-warn', next.warn);
+      if (!next.warn) btn.classList.remove('cd-tick');
     }
-    if (this.waveMgr.active) {
-      btn.disabled = true; btn.textContent = `Wave ${this.waveMgr.currentWave} in progress...`;
-      return;
+    if (next.secs !== prev.secs) {
+      if (next.secs === null) btn.removeAttribute('data-secs');
+      else btn.dataset.secs = String(next.secs);
+      if (next.warn && prev.secs != null && this.game.registry.get('ambientMotion') !== false) {
+        pulseClass(btn, 'cd-tick');
+      }
     }
-    btn.disabled = false; btn.textContent = `▶ Send Wave ${this.waveMgr.currentWave + 1}`;
+    if (next.cd !== prev.cd) {
+      if (next.cd === null) btn.style.removeProperty('--cd');
+      else btn.style.setProperty('--cd', String(next.cd * q));
+    }
+    this._waveBtnCache = next;
   }
 
   // The popover always describes the wave the button would send, so the two
-  // never disagree — including during an early-send window, where the button
+  // never disagree — including during a countdown, where the button
   // reads "Send Wave N+1". waveMgr.currentWave is the 0-based index of the
   // next wave to spawn (spawnWave reads it, then increments).
   _refreshWavePreview() {
@@ -1839,15 +1927,6 @@ export default class GameScene extends Phaser.Scene {
 
   _killReward(reward) {
     return Math.round(reward * this.killGoldMult * this.rewardMult);
-  }
-
-  _computeEarlyBonus() {
-    let sum = 0;
-    for (const e of this.enemies) {
-      if (e.dead) continue;
-      sum += (e.def && typeof e.def.reward === 'number') ? e.def.reward : 0;
-    }
-    return Math.floor(0.5 * sum * this.rewardMult);
   }
 
   // ─── Game end ──────────────────────────────────────────────────────────────

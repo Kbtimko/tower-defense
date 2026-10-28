@@ -33,6 +33,8 @@ vi.mock('../systems/AreaEffectsManager.js', () => ({ AreaEffectsManager: class {
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import GameScene from './GameScene.js';
+import { WaveCountdown } from '../systems/waveCountdown.js';
+import { WAVE_COUNTDOWN } from '../data/waveCountdown.js';
 
 function setupBtn() {
   while (document.body.firstChild) document.body.removeChild(document.body.firstChild);
@@ -41,16 +43,25 @@ function setupBtn() {
   document.body.appendChild(btn);
 }
 
-function makeScene({ isEarlyEligible = false, active = false, currentWave = 1, enemies = [], rewardMult = 1 } = {}) {
+const bonusFor = (ms, rm = 1) => Math.floor((ms / 1000) * WAVE_COUNTDOWN.goldPerSecond * rm);
+
+// countdownMs: a running countdown with that much left (null = none running).
+function makeScene({ active = false, hasQueuedEnemies = false, currentWave = 1, enemies = [], rewardMult = 1, countdownMs = null } = {}) {
   const startWaveSpy = vi.fn();
   const scene = Object.create(GameScene.prototype);
   scene.waveMgr = {
     done: false,
     active,
-    isEarlyEligible,
+    hasQueuedEnemies,
     currentWave,
     startWave: startWaveSpy,
   };
+  scene._countdown = new WaveCountdown();
+  if (countdownMs !== null) {
+    scene._countdown.start(WAVE_COUNTDOWN.defaultSec * 1000, currentWave);
+    scene._countdown.tick(WAVE_COUNTDOWN.defaultSec * 1000 - countdownMs);
+  }
+  scene.storyMgr = { hideBanner: vi.fn() };
   scene.enemies = enemies;
   scene.rewardMult = rewardMult;
   scene.economy = { earn: vi.fn() };
@@ -63,77 +74,95 @@ function makeScene({ isEarlyEligible = false, active = false, currentWave = 1, e
 
 beforeEach(setupBtn);
 
+// The early bonus is time-based (spec C1): seconds left on the countdown, not
+// the rewards of enemies still alive. The old alive-enemy cases are rewritten
+// on purpose — that behaviour was removed, not loosened.
 describe('GameScene._startWave', () => {
-  it('awards the bonus and toasts when isEarlyEligible with living enemies', () => {
+  it('awards the time bonus and toasts when a countdown is running', () => {
+    const scene = makeScene({ active: true, countdownMs: 12000 });
+    const expected = bonusFor(12000);
+    expect(expected).toBeGreaterThan(0);
+    GameScene.prototype._startWave.call(scene);
+    expect(scene.economy.earn).toHaveBeenCalledWith(expected);
+    expect(scene._toast).toHaveBeenCalledWith(`+${expected}g`);
+    expect(scene.waveMgr.startWave).toHaveBeenCalledTimes(1);
+    expect(scene._countdown.running).toBe(false);
+  });
+
+  it('does not award a bonus with no countdown running (wave 1, or after a clear)', () => {
+    const scene = makeScene({ active: false });
+    GameScene.prototype._startWave.call(scene);
+    expect(scene.economy.earn).not.toHaveBeenCalled();
+    expect(scene._toast).not.toHaveBeenCalled();
+    expect(scene.waveMgr.startWave).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT toast or earn when the bonus floors to zero', () => {
+    const scene = makeScene({ active: true, countdownMs: 100 });
+    expect(bonusFor(100)).toBe(0);
+    GameScene.prototype._startWave.call(scene);
+    expect(scene.economy.earn).not.toHaveBeenCalled();
+    expect(scene._toast).not.toHaveBeenCalled();
+    expect(scene.waveMgr.startWave).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT toast or earn for live enemies alone (no countdown running)', () => {
     const enemies = [
-      { def: { reward: 20 }, dead: false },
-      { def: { reward: 55 }, dead: false },
+      { def: { reward: 100 }, dead: false },
+      { def: { reward: 50 },  dead: false },
     ];
-    const scene = makeScene({ isEarlyEligible: true, active: true, enemies });
-    GameScene.prototype._startWave.call(scene);
-    expect(scene.economy.earn).toHaveBeenCalledWith(37);
-    expect(scene._toast).toHaveBeenCalledWith('+37g');
-    expect(scene.waveMgr.startWave).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not award a bonus when not earlyEligible (normal between-wave click)', () => {
-    const scene = makeScene({ isEarlyEligible: false, active: false });
+    const scene = makeScene({ active: true, enemies });
     GameScene.prototype._startWave.call(scene);
     expect(scene.economy.earn).not.toHaveBeenCalled();
     expect(scene._toast).not.toHaveBeenCalled();
     expect(scene.waveMgr.startWave).toHaveBeenCalledTimes(1);
   });
 
-  it('does NOT toast or earn when bonus would be zero (no living enemies)', () => {
-    const scene = makeScene({ isEarlyEligible: true, active: true, enemies: [] });
-    GameScene.prototype._startWave.call(scene);
+  it('an auto-send pays nothing even with time left', () => {
+    const scene = makeScene({ active: true, countdownMs: 12000 });
+    GameScene.prototype._startWave.call(scene, { auto: true });
     expect(scene.economy.earn).not.toHaveBeenCalled();
     expect(scene._toast).not.toHaveBeenCalled();
     expect(scene.waveMgr.startWave).toHaveBeenCalledTimes(1);
   });
 
-  it('does NOT toast or earn when only dead enemies remain (sum = 0)', () => {
-    const enemies = [
-      { def: { reward: 100 }, dead: true },
-      { def: { reward: 50 },  dead: true },
-    ];
-    const scene = makeScene({ isEarlyEligible: true, active: true, enemies });
+  it('does nothing while the current wave is still spawning', () => {
+    const playSfx = vi.fn();
+    const scene = makeScene({ active: true, hasQueuedEnemies: true });
+    scene.game.registry.get = () => ({ playSfx });
     GameScene.prototype._startWave.call(scene);
-    expect(scene.economy.earn).not.toHaveBeenCalled();
-    expect(scene._toast).not.toHaveBeenCalled();
-    expect(scene.waveMgr.startWave).toHaveBeenCalledTimes(1);
+    expect(scene.waveMgr.startWave).not.toHaveBeenCalled();
+    expect(playSfx).not.toHaveBeenCalled();
+    expect(scene._updateHUD).not.toHaveBeenCalled();
   });
 
-  it('passes through to waveMgr.startWave even when between waves (no early)', () => {
-    const scene = makeScene({ isEarlyEligible: false, active: false });
+  it('passes through to waveMgr.startWave between waves', () => {
+    const scene = makeScene({ active: false });
     GameScene.prototype._startWave.call(scene);
     expect(scene.waveMgr.startWave).toHaveBeenCalled();
   });
 
   it('plays wave-start SFX when audio manager is present', () => {
     const playSfx = vi.fn();
-    const scene = makeScene({ isEarlyEligible: false, active: false });
+    const scene = makeScene({ active: false });
     scene.game.registry.get = () => ({ playSfx });
     GameScene.prototype._startWave.call(scene);
     expect(playSfx).toHaveBeenCalledWith('wave-start');
   });
 
-  it('scales the early bonus by rewardMult', () => {
-    const enemies = [
-      { def: { reward: 20 }, dead: false },
-      { def: { reward: 55 }, dead: false },
-    ];
-    // sum = 75 -> floor(0.5 * 75 * 0.4) = floor(15) = 15
-    const scene = makeScene({ isEarlyEligible: true, active: true, enemies, rewardMult: 0.4 });
+  it('scales the time bonus by rewardMult', () => {
+    const scene = makeScene({ active: true, countdownMs: 12000, rewardMult: 0.4 });
+    const expected = bonusFor(12000, 0.4);
+    expect(expected).not.toBe(bonusFor(12000));
     GameScene.prototype._startWave.call(scene);
-    expect(scene.economy.earn).toHaveBeenCalledWith(15);
-    expect(scene._toast).toHaveBeenCalledWith('+15g');
+    expect(scene.economy.earn).toHaveBeenCalledWith(expected);
+    expect(scene._toast).toHaveBeenCalledWith(`+${expected}g`);
   });
 
   // The wave counter used to lag at the previous wave until the next kill:
   // nothing refreshed the HUD on a wave start that earned no gold.
   it('refreshes the HUD after advancing the wave', () => {
-    const scene = makeScene({ isEarlyEligible: false, active: false });
+    const scene = makeScene({ active: false });
     const order = [];
     scene.waveMgr.startWave = () => order.push('startWave');
     scene._updateHUD = () => order.push('hud');
