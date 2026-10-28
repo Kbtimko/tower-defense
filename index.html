@@ -291,6 +291,33 @@
     #tower-tooltip .ar-heavy { color: #fc6; }
     #tower-tooltip .ar-floor { color: #f66; font-weight: bold; }
     #wave-btn { font-size: calc(26px * var(--hud-k)); font-weight: bold; }
+    /* Auto-send countdown ring (#51). Pseudo-elements, never a child: fitLabels
+       fits a childless button by its text range, and textContent stays the plain
+       label. ::before is the arc masked to a donut; the digit is ::after because
+       that mask would cut it out of the hole too. GameScene drives cd-on/cd-warn/
+       cd-tick, data-secs and --cd (1 -> 0). The hue rides a custom property so no
+       paint lands on the kit button. The digit keeps the label face: Orbitron is
+       16 px and up only, and the body face is narrow enough for any count. */
+    #wave-btn { position: relative; --wave-ring: var(--ui-currency); }
+    #wave-btn.cd-on { padding-left: calc(64px * var(--hud-k)); }
+    #wave-btn.cd-warn { --wave-ring: var(--ui-danger); }
+    #wave-btn.cd-on::before, #wave-btn.cd-on::after {
+      position: absolute; left: calc(6px * var(--hud-k)); top: 50%;
+      width: calc(52px * var(--hud-k)); height: calc(52px * var(--hud-k));
+      margin-top: calc(-26px * var(--hud-k)); border-radius: 50%; pointer-events: none; }
+    #wave-btn.cd-on::before { content: '';
+      background: conic-gradient(var(--wave-ring) calc(var(--cd, 0) * 360deg), var(--ui-bevel-lo) 0);
+      -webkit-mask: radial-gradient(closest-side, transparent calc(100% - calc(6.5px * var(--hud-k))), black calc(100% - calc(6px * var(--hud-k))));
+      mask: radial-gradient(closest-side, transparent calc(100% - calc(6.5px * var(--hud-k))), black calc(100% - calc(6px * var(--hud-k)))); }
+    #wave-btn.cd-on::after { content: attr(data-secs);
+      display: flex; align-items: center; justify-content: center;
+      font-size: calc(24px * var(--hud-k)); font-weight: bold; line-height: 1; }
+    /* One small beat per whole second in the warn window; pulseClass restarts it. */
+    #wave-btn.cd-tick::before, #wave-btn.cd-tick::after { animation: wave-cd-tick 250ms ease-out; }
+    @keyframes wave-cd-tick { from { transform: scale(1.12); } to { transform: scale(1); } }
+    @media (prefers-reduced-motion: reduce) {
+      #wave-btn.cd-tick::before, #wave-btn.cd-tick::after { animation: none; }
+    }
     /* Radial menu (roadmap 3.3): geometry only, the kit paints. It covers the
        whole layer in game px; RadialMenu.js sets each button's centre as left/top,
        so the translate puts the circle on that point. Sizes are published by
