@@ -9,6 +9,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "balance": "node scripts/balance.mjs",
+    "calibrate:autosend": "node scripts/calibrateAutoSend.mjs",
     "assets": "node scripts/assets.mjs",
     "art": "node scripts/generate-art.mjs",
     "capture": "node scripts/capture.mjs",
