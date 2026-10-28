@@ -47,14 +47,14 @@ export function pickBest(results) {
   return results.reduce((best, r) => (compare(best, r) > 0 ? r : best));
 }
 
-export function bestStrategy(map, waves) {
+export function bestStrategy(map, waves, { waveTiming } = {}) {
   const results = CANDIDATE_STRATEGIES.map(strategy => {
     const buildPlan = strategyPlan(strategy);
-    const run = simulateMap({ map, waves, buildPlan });
+    const run = simulateMap({ map, waves, buildPlan, waveTiming });
     return {
       strategy,
       run,
-      multiplier: findWinMultiplier(map, waves, { buildPlan }),
+      multiplier: findWinMultiplier(map, waves, { buildPlan, waveTiming }),
       livesKept: run.livesRemaining / map.startLives,
       wavesSurvived: run.wavesSurvived,
     };

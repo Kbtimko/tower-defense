@@ -9,8 +9,8 @@
 // large figure means the omitted systems are carrying the whole campaign.
 import { simulateMap } from './simulate.js';
 
-export function findWinMultiplier(map, waves, { buildPlan, max = 8, tolerance = 0.05 } = {}) {
-  const wins = mult => simulateMap({ map, waves, buildPlan, damageMult: mult }).won;
+export function findWinMultiplier(map, waves, { buildPlan, max = 8, tolerance = 0.05, waveTiming } = {}) {
+  const wins = mult => simulateMap({ map, waves, buildPlan, damageMult: mult, waveTiming }).won;
 
   if (wins(1)) return 1;
   if (!wins(max)) return null;          // not winnable even at the ceiling
