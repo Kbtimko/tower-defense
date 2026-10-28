@@ -28,6 +28,10 @@ describe('waveButtonView', () => {
     expect(v.ring).toEqual({ secs: 10, frac: 0.5, warn: false });
   });
 
+  it('ring frac is the share REMAINING, not elapsed', () => {
+    expect(waveButtonView({ ...base, countdown: run(15000) }).ring.frac).toBe(0.75);
+  });
+
   it('running countdown with bonus 0 -> no (+…) suffix', () => {
     const v = waveButtonView({ ...base, countdown: run(10000), bonus: 0 });
     expect(v.label).toBe('▶ Send Wave 4');
