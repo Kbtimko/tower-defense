@@ -91,7 +91,8 @@ describe('shouldStartCountdown', () => {
     wm.startWave();
     wm.update(16);              // the lone drone spawns: queue empty
     wm.active = false;          // _checkWaveComplete: board cleared the same frame
-    expect(wm.isEarlyEligible).toBe(false);
+    // A trigger gated on `active` (spawning finished while the wave runs) misses this frame.
+    expect(wm.active && !wm.hasQueuedEnemies).toBe(false);
     const inputs = { spawnsDone: !wm.hasQueuedEnemies, done: wm.done, currentWave: wm.currentWave };
     expect(shouldStartCountdown({ ...inputs, startedFor: null })).toBe(true);
     const c = new WaveCountdown();
