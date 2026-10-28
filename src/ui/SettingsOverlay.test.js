@@ -40,11 +40,16 @@ function setupDom() {
   grade.type = 'checkbox';
   overlay.appendChild(grade);
 
+  const autoSend = document.createElement('input');
+  autoSend.id = 'auto-send';
+  autoSend.type = 'checkbox';
+  overlay.appendChild(autoSend);
+
   document.body.appendChild(overlay);
 }
 
 function makeGame(initial = true) {
-  const store = { ambientMotion: initial, mapGrade: initial, save: { setSettings: vi.fn() } };
+  const store = { ambientMotion: initial, mapGrade: initial, autoSend: initial, save: { setSettings: vi.fn() } };
   return {
     _store: store,
     registry: {
@@ -200,5 +205,26 @@ describe('SettingsOverlay', () => {
     cb.dispatchEvent(new Event('change', { bubbles: true }));
     expect(game.registry.get('mapGrade')).toBe(false);
     expect(game._store.save.setSettings).toHaveBeenCalledWith({ mapGrade: false });
+  });
+
+  // Both polarities: an unwired checkbox starts unchecked, so the false case
+  // alone would pass with no handler at all.
+  it('auto-send checkbox reflects the registry flag on open', () => {
+    const on = new SettingsOverlay(makeAm(), makeGame(true));
+    on.open();
+    expect(document.getElementById('auto-send').checked).toBe(true);
+    on.close();
+    new SettingsOverlay(makeAm(), makeGame(false)).open();
+    expect(document.getElementById('auto-send').checked).toBe(false);
+  });
+
+  it('toggling auto-send updates the registry and persists', () => {
+    const game = makeGame(true);
+    new SettingsOverlay(makeAm(), game).open();
+    const cb = document.getElementById('auto-send');
+    cb.checked = false;
+    cb.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(game.registry.get('autoSend')).toBe(false);
+    expect(game._store.save.setSettings).toHaveBeenCalledWith({ autoSend: false });
   });
 });

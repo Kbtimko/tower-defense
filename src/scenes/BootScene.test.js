@@ -11,8 +11,9 @@ import { BACKDROP_ART } from '../data/worldMap.js';
 vi.mock('phaser', () => ({
   default: { Scene: class { constructor() {} } },
 }));
+const savedSettings = vi.hoisted(() => ({ value: { ambientMotion: null } }));
 vi.mock('../systems/SaveManager.js', () => ({
-  SaveManager: class { getSettings() { return { ambientMotion: null }; } },
+  SaveManager: class { getSettings() { return { ...savedSettings.value }; } },
 }));
 vi.mock('../systems/fxTextures.js', () => ({ generateFxTextures() {} }));
 vi.mock('../ui/loadingBar.js', () => ({ attachLoadingBar() {} }));
@@ -166,3 +167,23 @@ describe('BootScene world-map backdrop probe (deferred asset, spec 4.4)', () => 
   });
 });
 // A filled slot (art dropped in): BootScene.backdrop.test.js.
+
+describe('BootScene autoSend registry seed (#51)', () => {
+  function seed(settings) {
+    savedSettings.value = settings;
+    const scene = new BootScene();
+    const set = new Map();
+    scene.game = { registry: { set: (k, v) => set.set(k, v) }, events: { on() {} } };
+    scene.load = { image() {}, spritesheet() {} };
+    try { scene.preload(); } finally { savedSettings.value = { ambientMotion: null }; }
+    return set.get('autoSend');
+  }
+
+  it('a save without the key seeds autoSend true', () => {
+    expect(seed({ ambientMotion: null })).toBe(true);
+  });
+
+  it('an explicit false seeds autoSend false', () => {
+    expect(seed({ ambientMotion: null, autoSend: false })).toBe(false);
+  });
+});

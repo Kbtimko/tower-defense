@@ -98,6 +98,7 @@ describe('SaveManager — v2 settings', () => {
       muted:     false,
       ambientMotion: null,
       mapGrade: null,
+      autoSend: true,
     });
   });
 
@@ -111,6 +112,7 @@ describe('SaveManager — v2 settings', () => {
       muted:     true,
       ambientMotion: null,
       mapGrade: null,
+      autoSend: true,
     });
     const env = JSON.parse(localStorage.getItem('lastlight_save'));
     expect(env.version).toBe(5);
@@ -150,7 +152,38 @@ describe('SaveManager — v2 settings', () => {
       muted:     false,
       ambientMotion: null,
       mapGrade: null,
+      autoSend: true,
     });
+  });
+});
+
+describe('SaveManager — autoSend setting (#51)', () => {
+  it('fresh save defaults autoSend to true', () => {
+    expect(new SaveManager().getSettings().autoSend).toBe(true);
+  });
+
+  it('a stored v5 envelope without autoSend loads it as true', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      version: 5,
+      maps: new Array(10).fill(0),
+      upgrades: [],
+      stats: { kills: 0, gamesPlayed: 0, victories: 0, defeats: 0, bestWave: 0 },
+      settings: { masterVol: 0.8, sfxVol: 1, musicVol: 0.6, muted: false, ambientMotion: null, mapGrade: null },
+      selectedHeroId: 'rael',
+      seenStoryBeats: {},
+      records: new Array(10).fill(null),
+    }));
+    expect(new SaveManager().getSettings().autoSend).toBe(true);
+  });
+
+  it('setSettings({ autoSend: false }) persists and keeps ambientMotion and muted', () => {
+    const sm = new SaveManager();
+    sm.setSettings({ muted: true, ambientMotion: false });
+    sm.setSettings({ autoSend: false });
+    const s = new SaveManager().getSettings();
+    expect(s.autoSend).toBe(false);
+    expect(s.muted).toBe(true);
+    expect(s.ambientMotion).toBe(false);
   });
 });
 
@@ -390,7 +423,8 @@ describe('SaveManager v5 — per-map records', () => {
     const { version: _v, ...fixtureRest } = v4();
     expect(version).toBe(5);
     expect(records).toEqual(NULL_RECORDS);
-    expect(rest).toEqual(fixtureRest);
+    // Settings merge onto defaults, so a pre-#51 save gains autoSend: true.
+    expect(rest).toEqual({ ...fixtureRest, settings: { ...fixtureRest.settings, autoSend: true } });
   });
 
   it('v1, v2 and v3 fixtures all land on v5 with null records', () => {
