@@ -40,7 +40,7 @@ bonus (Claude's call, below). The user saw that call and did not object.
 ## Decisions (the user's)
 
 1. **Countdown start.** The countdown for wave N+1 starts on the frame wave N's last
-   enemy spawns, which is the first frame `waveMgr.isEarlyEligible` is true. It keeps
+   enemy spawns, i.e. the first frame the spawn queue is empty (`!waveMgr.hasQueuedEnemies`), even if the board cleared that same frame (ruling during Task 3; `isEarlyEligible` also needs `active`, which `_checkWaveComplete` clears first). It keeps
    running whether or not wave N has cleared. At zero the next wave sends itself. Waves
    may overlap. This deliberately changes difficulty.
 2. **Length.** Set per map in `src/data/maps.js`, defaulting to **20 s** when a map leaves
@@ -264,7 +264,7 @@ Plain state, no Phaser, mirrors the `WaveManager` style:
 
 ```js
 export function countdownMsFor(map)                // positive finite map.waveCountdownSec*1000, else defaultSec*1000
-export function shouldStartCountdown({ isEarlyEligible, done, currentWave, startedFor }) // eligible && !done && currentWave>0 && startedFor !== currentWave
+export function shouldStartCountdown({ spawnsDone, done, currentWave, startedFor }) // spawnsDone && !done && currentWave>0 && startedFor !== currentWave
 export class WaveCountdown {
   start(totalMs, forWave)   // running, remaining = total, held = false, startedFor = forWave
   tick(dtMs)                // no-op unless running && !held; clamps at 0

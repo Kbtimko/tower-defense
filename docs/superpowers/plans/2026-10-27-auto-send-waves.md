@@ -45,7 +45,7 @@
 - Produces (exact):
   - `WAVE_COUNTDOWN` (frozen object, Global Constraints values; `goldPerSecond: 1.75` with a comment `// provisional — Task 4 calibrates`).
   - `countdownMsFor(map) → number` — `map.waveCountdownSec * 1000` when it is a positive finite number, else `WAVE_COUNTDOWN.defaultSec * 1000`.
-  - `shouldStartCountdown({ isEarlyEligible, done, currentWave, startedFor }) → boolean` — `isEarlyEligible && !done && currentWave > 0 && startedFor !== currentWave`.
+  - `shouldStartCountdown({ spawnsDone, done, currentWave, startedFor }) → boolean` — `spawnsDone && !done && currentWave > 0 && startedFor !== currentWave`.
   - `class WaveCountdown`: `start(totalMs, forWave)`, `tick(dtMs)`, `hold()`, `resume()`, `cancel()`; getters `running`, `held`, `remainingMs`, `totalMs`, `startedFor`, `displaySeconds` (`ceil(remainingMs/1000)`), `fraction` (via `cooldownFraction` from `src/systems/juiceMath.js`); methods `isWarning(warnMs)` (`0 < remaining ≤ warnMs`), `bonus({ goldPerSecond, rewardMult })` (`running ? floor(remainingMs/1000 × gps × rm) : 0`), `shouldAutoSend(enabled)` (`enabled && running && !held && remainingMs === 0`).
   - `cancel()` sets `running = false` and keeps `startedFor`, so the same wave never re-arms. `running` stays true at 0 (waiting-at-zero).
   - `lastSpawnMs(wave) → number` — the same delay accumulation as `WaveManager.startWave` (`src/systems/WaveManager.js:39-46`): sum of `interval` over every enemy except the last.
