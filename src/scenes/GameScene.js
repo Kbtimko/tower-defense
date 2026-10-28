@@ -1910,7 +1910,7 @@ export default class GameScene extends Phaser.Scene {
     }
     if (next.cd !== prev.cd) {
       if (next.cd === null) btn.style.removeProperty('--cd');
-      else btn.style.setProperty('--cd', String(next.cd * q));
+      else btn.style.setProperty('--cd', (next.cd * q).toFixed(3));
     }
     this._waveBtnCache = next;
   }

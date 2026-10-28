@@ -397,6 +397,21 @@ describe('button render', () => {
     styleObs.disconnect();
   });
 
+  it('writes --cd with at most 3 decimals, never float noise', () => {
+    const scene = sendAndSpawnAll(frameScene());
+    scene._autoSendOverride = false;
+    const btn = $('wave-btn');
+    const seen = new Set();
+    for (let t = 0; t < TOTAL_MS; t += 100) {
+      scene.update(0, 100);
+      const v = btn.style.getPropertyValue('--cd');
+      if (v !== '') seen.add(v);
+    }
+    expect(seen.size).toBeGreaterThan(10);
+    // ringQuantum 0.005 needs 3 decimals; String(k * 0.005) gives 0.17500000000000002.
+    for (const v of seen) expect(v).toMatch(/^[01](\.\d{1,3})?$/);
+  });
+
   it('turns the ring red in the warn window and ticks once per whole second', () => {
     const scene = sendAndSpawnAll(frameScene({ registry: { ambientMotion: true } }));
     const btn = $('wave-btn');
