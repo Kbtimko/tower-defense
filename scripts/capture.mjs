@@ -15,7 +15,8 @@
 // <device>/screens/, using the first of --maps for the level shots. The victory and
 // arrival always use map 0: only a fresh save's frontier mission flies the ship.
 // It also runs the world map with fonts blocked and with one node's art blocked on
-// every device, and with reduced motion on desktop1440 and iphone.
+// every device, and with reduced motion on desktop1440 and iphone. Debug levels never
+// send a wave on their own unless ?autosend=1; the auto-send run proves that one does.
 // Output: .art-cache/captures/<device>/map<N>-w<W>.png (+ .mp4 with --video)
 // and .art-cache/captures/report.json listing console errors per capture.
 // --wave defaults to the middle wave of each map; --build defaults to one of
@@ -34,7 +35,10 @@ import { chromium, devices } from 'playwright';
 import { DEVICES } from './captureDevices.mjs';
 import { MAPS } from '../src/data/maps.js';
 import { MAP_WAVES } from '../src/data/waves.js';
+import { TOWER_DEFS } from '../src/data/towers.js';
 import { defaultCaptureBuild } from '../src/systems/debugCapture.js';
+import { countdownMsFor, lastSpawnMs } from '../src/systems/waveCountdown.js';
+import { WAVE_COUNTDOWN } from '../src/data/waveCountdown.js';
 import { layoutProblems, railProblems, railGeometryProblems, overlayProblems, minTouchFor, radialProblems, targetSizeProblems } from '../src/systems/layoutAudit.js';
 import { storyDialogProblems, longestPanel } from '../src/systems/storyDialogLayout.js';
 import { STORY_SEQUENCES, STORY_SPEAKERS, STORY_LOG_LABELS, epilogueKey, briefKey } from '../src/data/story.js';
@@ -596,6 +600,7 @@ async function captureScreens(browser, base, deviceName, opts) {
     () => captureMissingArt(browser, base, deviceName, dir),
     () => captureStoryGallery(browser, base, deviceName, dir),
     () => captureDoubleTapClose(browser, base, deviceName),
+    () => captureAutoSend(browser, base, deviceName, dir),
   ];
   if (deviceName === 'desktop') runs.push(() => captureZoomedStory(browser, base, deviceName, dir));
   if (!DEVICES[deviceName].hasTouch) runs.push(() => captureHeldEnter(browser, base, deviceName));
@@ -730,13 +735,17 @@ const seedSave = (page, save) => page.addInitScript(s => {
 
 // A capture-build level on a seeded save. The init script only fires on the URL
 // carrying its own token, so the game's later writes (and seedSave's one-shot) stand.
+// `extraParams` set (or override) query params, e.g. { autosend: '1' }.
 let seedCount = 0;
-async function gotoLevel(page, base, mapId, save, wave = 1) {
+async function gotoLevel(page, base, mapId, save, wave = 1, extraParams = {}) {
   const token = `s${++seedCount}`;
   await page.addInitScript(([t, s]) => {
     if (new URLSearchParams(location.search).get('capture-seed') === t) localStorage.setItem('lastlight_save', JSON.stringify(s));
   }, [token, save]);
-  await page.goto(`${base}${captureUrl(mapId, { wave }).path}&capture-seed=${token}`);
+  const url = new URL(base + captureUrl(mapId, { wave }).path);
+  for (const [k, v] of Object.entries(extraParams)) url.searchParams.set(k, v);
+  url.searchParams.set('capture-seed', token);
+  await page.goto(url.href);
   await page.waitForFunction(() => window.__capture, null, { timeout: 30_000 });
 }
 
@@ -1266,6 +1275,98 @@ function captureResultsGuard(browser, base, deviceName) {
     await expectAttr(page, '#results', 'phase', 'ready', 0);
     await tap(page, deviceName, '#results-next');
     await expectVisible(page, '#map-select', true, 5_000);
+  });
+}
+
+// No story dialog in the way; neither level below has a between-wave banner on the
+// waves it waits through (map 0: waves 3, 7; map 9: waves 6, 12), so nothing holds a countdown.
+const AUTO_SEND_SAVE = { version: 4, maps: noStars(), seenStoryBeats: ALL_BEATS_SEEN };
+// Tier 4 on every pad: the default build loses map 9 during wave 17's countdown, and a
+// lost level freezes the countdown before the warn colour.
+const FINAL_MAP_HOLD_BUILD = MAPS[FINAL_MAP].towerSlots.map((_, i) => {
+  const types = Object.keys(TOWER_DEFS);
+  return `${types[i % types.length]}@${i}:4${'ab'[i % 2]}`;
+}).join(',');
+
+// The wave button, wave counter and countdown read in one page task, so they agree:
+// separate reads could straddle the frame that sends the wave.
+const waveSnapshot = page => page.evaluate(() => {
+  const btn = document.querySelector('#wave-btn');
+  return {
+    countdownMs: window.__capture.countdownMs,
+    wave: document.querySelector('#stat-wave').textContent.trim(),
+    label: btn.textContent.trim(),
+    cdOn: btn.classList.contains('cd-on'),
+    // The digits are ::after content, so textContent is the label alone.
+    box: { scrollHeight: btn.scrollHeight, clientHeight: btn.clientHeight, scrollWidth: btn.scrollWidth, clientWidth: btn.clientWidth },
+    // Distinct line boxes of the label text, for the report.
+    lines: (() => {
+      const range = document.createRange();
+      range.selectNodeContents(btn);
+      return new Set([...range.getClientRects()].map(r => Math.round(r.top))).size;
+    })(),
+  };
+});
+
+// Resolves with the button and counter on the first frame where countdownMs is
+// non-null and within (above, atMost], or exactly `equals`. Sampled inside the
+// predicate, not after it: with a second left, a separate read could land after
+// the wave sent.
+async function countdownSnapshot(page, { above = -Infinity, atMost = Infinity, equals = null }, timeout) {
+  const handle = await page.waitForFunction(([lo, hi, eq]) => {
+    const c = window.__capture.countdownMs;
+    if (c === null || (eq !== null ? c !== eq : !(c > lo && c <= hi))) return false;
+    const btn = document.querySelector('#wave-btn');
+    return { countdownMs: c, wave: document.querySelector('#stat-wave').textContent.trim(), label: btn.textContent.trim(), cdOn: btn.classList.contains('cd-on') };
+  }, [above, atMost, equals], { timeout, polling: 'raf' });
+  return handle.jsonValue();
+}
+
+// Spec "Harness": a debug level sends a wave on its own only with ?autosend=1, so
+// every other capture is deterministic. (a) proves the countdown sends the next wave;
+// (b), the same level with auto-send off, proves (a)'s 2/10 came from the countdown;
+// (c) audits the longest real label beside the ring (map 9, wave 18, near-full bonus).
+// Waits key on game-time countdownMs, not simMs, which grows during hit-stop.
+function captureAutoSend(browser, base, deviceName, dir) {
+  return screensRun(browser, deviceName, 'auto-send', {}, async (page, out) => {
+    const waves = MAP_WAVES[0].length;
+    const sendBy = (lastSpawnMs(MAP_WAVES[0][0]) + countdownMsFor(MAPS[0])) * 2 + STEP_TIMEOUT;
+
+    // (a) Wave 2 is still unsent with a second left, then sends itself.
+    await gotoLevel(page, base, 0, AUTO_SEND_SAVE, 1, { autosend: '1' });
+    const a = await countdownSnapshot(page, { atMost: 1000 }, sendBy);
+    if (a.wave !== `1/${waves}`) throw new Error(`(a) #stat-wave "${a.wave}" with ${a.countdownMs} ms left, expected "1/${waves}"`);
+    if (!a.cdOn) throw new Error(`(a) #wave-btn lacks .cd-on with ${a.countdownMs} ms left`);
+    if (!/^▶ Send Wave 2/.test(a.label)) throw new Error(`(a) #wave-btn "${a.label}", expected /^▶ Send Wave 2/`);
+    await expectText(page, '#stat-wave', `2/${waves}`);
+
+    // (b) Control: auto-send off, the countdown expires and nothing sends.
+    await gotoLevel(page, base, 0, AUTO_SEND_SAVE, 1, { autosend: '0' });
+    await countdownSnapshot(page, { equals: 0 }, sendBy);
+    await page.waitForTimeout(2000);
+    const b = await waveSnapshot(page);
+    if (b.wave !== `1/${waves}`) throw new Error(`(b) #stat-wave "${b.wave}" 2 s after the countdown expired with auto-send off, expected "1/${waves}"`);
+    if (b.label !== '▶ Send Wave 2') throw new Error(`(b) #wave-btn "${b.label}", expected "▶ Send Wave 2"`);
+    if (b.cdOn) throw new Error('(b) #wave-btn still .cd-on at zero with auto-send off');
+
+    // (c) Review Focus 3: the longest label, at its biggest bonus and again in the warn colour.
+    await gotoLevel(page, base, FINAL_MAP, AUTO_SEND_SAVE, 17, { autosend: '0', build: FINAL_MAP_HOLD_BUILD });
+    const shootAndAudit = async label => {
+      out.files.push(await shoot(page, join(dir, `${label}.png`)));
+      const audited = await audit(page, deviceName, label, IN_GAME_TARGETS, RAIL_ONLY_TARGETS);
+      const s = await waveSnapshot(page);
+      const b = s.box;
+      console.log(`  ${label} ${deviceName}: "${s.label}" ${Math.round(s.countdownMs)} ms left, ${s.lines} line(s), scroll ${b.scrollWidth}x${b.scrollHeight} / client ${b.clientWidth}x${b.clientHeight}`);
+      // overflow is visible, so an overflowing label paints over the bevel rather than clipping.
+      if (b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1) {
+        audited.problems.push(`#wave-btn label "${s.label}" overflows its box (scroll ${b.scrollWidth}x${b.scrollHeight} > client ${b.clientWidth}x${b.clientHeight})`);
+      }
+      out.layout.push(audited);
+    };
+    await countdownSnapshot(page, { above: WAVE_COUNTDOWN.warnSec * 1000 }, lastSpawnMs(MAP_WAVES[FINAL_MAP][16]) * 2 + STEP_TIMEOUT);
+    await shootAndAudit('auto-send-longest');
+    await until(() => hasClass(page, '#wave-btn', 'cd-warn'), Boolean, () => '#wave-btn never .cd-warn', countdownMsFor(MAPS[FINAL_MAP]) + STEP_TIMEOUT);
+    await shootAndAudit('auto-send-warn');
   });
 }
 
@@ -1866,6 +1967,9 @@ const FLOW_ACTIONS = {
     await expectVisible(page, '#radial', false);
   },
   async 'send-wave'({ page, deviceName, exp }) {
+    // A wave that started on its own (auto-send is ON in a first run) would pass the
+    // checks below without the tap; step 05's check is ten steps back.
+    await expectText(page, '#stat-wave', exp.waveBefore);
     await tap(page, deviceName, '#wave-btn');
     await expectText(page, '#stat-wave', exp.waveAfter);
     // Mirror of step 18 under the same conditions: proves the map sample can differ,

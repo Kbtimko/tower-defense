@@ -1,5 +1,5 @@
 // Query-string hooks for the screenshot harness (scripts/capture.mjs):
-// ?debug=1&map=N&wave=W&hero=ID&build=archer@0:3,mage@4:4b
+// ?debug=1&map=N&wave=W&hero=ID&build=archer@0:3,mage@4:4b&autosend=1
 // Pure so the parsing rules are testable without a canvas; GameScene only
 // wires the result in.
 //
@@ -60,7 +60,11 @@ export function parseDebugParams(search, { maps, waves, towerTypes, heroes }) {
   }
   // The regex only admits tiers 1-4, so "ice@2:7" lands in "malformed" above.
 
-  return { mapId, wave, heroId, build, errors };
+  // Off by default so every capture behaves as before the countdown existed:
+  // the ring runs, but a wave only starts when the harness presses Send Wave.
+  const autoSend = params.get('autosend') === '1';
+
+  return { mapId, wave, heroId, build, errors, autoSend };
 }
 
 /**
