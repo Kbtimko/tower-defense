@@ -32,6 +32,13 @@ describe('parseDebugParams', () => {
     expect(parse('?debug=1&map=3&wave=2').wave).toBe(2);
   });
 
+  // Off unless asked for, so a capture never depends on whether a wave sent itself.
+  it('auto-send is off unless autosend=1', () => {
+    expect(parse('?debug=1').autoSend).toBe(false);
+    expect(parse('?debug=1&autosend=1').autoSend).toBe(true);
+    expect(parse('?debug=1&autosend=0').autoSend).toBe(false);
+  });
+
   it('keeps a known hero and falls back on an unknown one', () => {
     const other = HERO_ORDER[HERO_ORDER.length - 1];
     expect(parse(`?debug=1&hero=${other}`).heroId).toBe(other);

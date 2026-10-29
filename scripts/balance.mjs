@@ -11,24 +11,14 @@ import { TOWER_DEFS } from '../src/data/towers.js';
 import { goldCeiling, cheapestFullBoardCost, depthBoardCost, goldPerHp } from '../src/sim/economy.js';
 import { findWinMultiplier } from '../src/sim/deficit.js';
 import { bestStrategy, strategyLabel } from '../src/sim/strategy.js';
+import { verdict, COMFORT_CEILING, COMFORT_FLOOR } from '../src/sim/verdict.js';
+import { WAVE_COUNTDOWN } from '../src/data/waveCountdown.js';
+import { matchesBefore, afterSame } from '../src/sim/autosendMatch.js';
 
 const args = process.argv.slice(2);
 const verbose = args.includes('--verbose');
 const mapArg = args.indexOf('--map');
 const onlyMap = mapArg !== -1 ? Number(args[mapArg + 1]) : null;
-
-// A healthy map is won, but not comfortably: the player should finish having
-// lost some lives. All-lives-intact means the map never threatened them.
-const COMFORT_CEILING = 0.9;   // kept >90% of lives -> too easy
-const COMFORT_FLOOR   = 0.25;  // kept <25% of lives -> punishing
-
-function verdict(r, startLives) {
-  if (!r.won) return { tag: 'UNWINNABLE', note: `lost at wave ${r.wavesSurvived + 1}/${r.totalWaves}` };
-  const kept = r.livesRemaining / startLives;
-  if (kept >= COMFORT_CEILING) return { tag: 'TOO EASY', note: `kept ${(kept * 100).toFixed(0)}% of lives` };
-  if (kept <= COMFORT_FLOOR)   return { tag: 'PUNISHING', note: `kept ${(kept * 100).toFixed(0)}% of lives` };
-  return { tag: 'OK', note: `kept ${(kept * 100).toFixed(0)}% of lives` };
-}
 
 function suggest(r, map) {
   if (!r.won) {
@@ -55,9 +45,10 @@ const rows = [];
 for (const map of targets) {
   const waves = MAP_WAVES[map.id];
   if (!waves) { console.error(`map ${map.id} (${map.name}) has no waves — skipped`); continue; }
-  const { best } = bestStrategy(map, waves);
+  // The shipped game auto-sends after a per-map countdown, so the headline is countdown mode.
+  const { best } = bestStrategy(map, waves, { waveTiming: 'countdown' });
   const r = best.run;
-  rows.push({ map, r, strategy: best.strategy, v: { ...verdict(r, map.startLives), deficit: best.multiplier } });
+  rows.push({ map, r, strategy: best.strategy, best, v: { ...verdict(r, map.startLives), deficit: best.multiplier } });
 }
 
 const pad = (s, n) => String(s).padEnd(n);
@@ -65,10 +56,12 @@ const padL = (s, n) => String(s).padStart(n);
 
 console.log('\nSimulated combat — towers + tier upgrades + hero auto-attack + barracks soldiers');
 console.log('(blocking, melee and respawn), buying and upgrading by the damage a tower actually');
-console.log('lands against the enemies still to come. Each map is played under 5 barracks');
-console.log('strategies (opening x depth) and the best is reported, as a player who retries a');
-console.log('level would. Omits hero abilities, meta upgrades, soldier repositioning and the');
-console.log('send-wave-early bonus, so this model is still PESSIMISTIC.\n');
+console.log('lands against the enemies still to come. Waves auto-send after a per-map countdown');
+console.log(`(map.waveCountdownSec, default ${WAVE_COUNTDOWN.defaultSec} s); the modelled player never presses early. Each`);
+console.log('map is played under 5 barracks strategies (opening x depth) and the best is');
+console.log('reported, as a player who retries a level would. Omits hero abilities,');
+console.log('meta upgrades, soldier repositioning and the send-wave-early bonus, so this model is');
+console.log('still PESSIMISTIC.\n');
 console.log(pad('#', 3) + pad('Map', 22) + padL('waves', 7) + padL('lives', 8)
           + padL('gold', 7) + padL('towers', 8) + padL('leaked', 8) + padL('blocked', 9)
           + padL('heroDmg', 9) + padL('/mapHP', 8) + padL('heroLv', 8)
@@ -108,6 +101,33 @@ if (verbose) {
     }
   }
 }
+
+// ── Auto-send countdown ────────────────────────────────────────────────────
+// Each map's countdown is calibrated (scripts/calibrateAutoSend.mjs) so auto-send
+// is no harder than the old send-on-clear timing. "before" is the old timing;
+// "after" is the shipped countdown with the current data. match must hold for
+// BOTH the re-picked best strategy and the strategy that won "before" (spec S6).
+console.log('\nAuto-send countdown — old send-on-clear timing vs the shipped countdown.\n');
+console.log(pad('#', 3) + pad('Map', 22) + padL('L', 6)
+          + padL('before', 26) + padL('after', 26) + padL('afterSame', 26) + padL('match', 7));
+console.log('-'.repeat(120));
+const cell = (map, x) => {
+  const kept = Math.round((x.run.livesRemaining / map.startLives) * 100);
+  const m = x.multiplier === null ? '>8x' : `${x.multiplier}x`;
+  return `${m} ${kept}% ${verdict(x.run, map.startLives).tag}`;
+};
+let mismatches = 0;
+for (const { map, best } of rows) {
+  const waves = MAP_WAVES[map.id];
+  const before = bestStrategy(map, waves, { waveTiming: 'onClear' }).best;
+  const same = afterSame(map, waves, before.strategy);
+  const ok = matchesBefore(before, best, map.startLives) && matchesBefore(before, same, map.startLives);
+  if (!ok) mismatches++;
+  console.log(pad(map.id, 3) + pad(map.name, 22) + padL(map.waveCountdownSec ?? WAVE_COUNTDOWN.defaultSec, 6)
+            + padL(cell(map, before), 26) + padL(cell(map, best), 26) + padL(cell(map, same), 26)
+            + padL(ok ? 'yes' : 'NO', 7));
+}
+console.log(`  ${mismatches} map(s) harder than before\n`);
 
 // ── Blocking sensitivity ───────────────────────────────────────────────────
 // The default policy opens with one barracks, which costs 100 gold and a slot.

@@ -50,14 +50,23 @@ function stripPseudo(sel) {
     .trim();
 }
 
+// A class compounded onto another selector (#wave-btn.cd-on, .ui-btn.selected)
+// is a JS-toggled state static markup never wears, so a rule that matches
+// nothing as written is judged without those qualifiers. Otherwise
+// `#wave-btn.cd-on::before` would escape the walk.
+const dropStateClasses = (sel) => sel.replace(/(?<=[\w\])-])\.[\w-]+/g, '');
+
 function matchesRail(selector) {
   return selector.split(',').some((part) => {
     const sel = stripPseudo(part.trim());
     if (sel === '#hud-layer') return true;
-    let found;
-    try { found = [...doc.querySelectorAll(sel)]; } catch { return false; }
-    return found.some((el) => hud.contains(el) && el !== hud
-      && !el.closest('.wave-preview'));
+    const inRail = (s) => {
+      let found;
+      try { found = [...doc.querySelectorAll(s)]; } catch { return null; }
+      if (!found.length) return null;
+      return found.some((el) => hud.contains(el) && el !== hud && !el.closest('.wave-preview'));
+    };
+    return inRail(sel) ?? inRail(dropStateClasses(sel)) ?? false;
   });
 }
 
@@ -72,6 +81,11 @@ describe('rail CSS scales with --hud-k', () => {
   it('finds the radial rules', () => {
     const hits = (sel) => railRules.some((r) => r.selector.split(',').some((p) => stripPseudo(p.trim()) === sel));
     for (const sel of ['#radial', '#radial-hub', '.radial-item']) expect(hits(sel), sel).toBe(true);
+  });
+
+  // The countdown ring only exists under a JS-toggled class (#51).
+  it('walks state-qualified rules such as the countdown ring', () => {
+    expect(railRules.some((r) => r.selector.split(',').some((p) => p.trim() === '#wave-btn.cd-on::before'))).toBe(true);
   });
 
   it('never keeps a bare px length in a rail rule', () => {

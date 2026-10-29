@@ -76,7 +76,7 @@ function frameScene({ mapId = 0, lives = 1, startLives = 20, onFinalWave = true 
   });
   for (const m of ['_updateTowers', '_updateProjectiles', '_updateSoldiers', '_updateHero', '_updateSentries',
     '_updateParticles', '_drawPath', '_drawZones', '_drawSelectionRing', '_drawReticle', '_drawParticles',
-    '_fadeOutDeadEnemy', '_updateWaveButton', '_updateHUD']) scene[m] = vi.fn();
+    '_fadeOutDeadEnemy', '_updateWaveButton', '_updateHUD', '_updateCountdown']) scene[m] = vi.fn();
   scene._checkSoldierBlock = () => null;
   events.on('game:defeat', scene._onDefeat, scene);
   return scene;

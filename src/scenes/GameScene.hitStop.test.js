@@ -113,6 +113,7 @@ describe('GameScene hit-stop', () => {
     s.waveMgr = { update: vi.fn() };
     s._updateEnemies = s._updateTowers = s._updateProjectiles = s._updateSoldiers = vi.fn();
     s._updateHero = s._updateSentries = s._updateParticles = s._checkWaveComplete = vi.fn();
+    s._updateCountdown = vi.fn();
     s._drawPath = s._drawZones = s._drawParticles = vi.fn();
     s._areaEffects = { update: vi.fn() };
     s.gfx = { clear: vi.fn() };

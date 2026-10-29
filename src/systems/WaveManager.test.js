@@ -13,51 +13,14 @@ function tinyWaves() {
   ];
 }
 
-describe('WaveManager — isEarlyEligible', () => {
-  it('is false before any wave starts', () => {
-    const wm = new WaveManager(tinyWaves(), makeEmitter());
-    expect(wm.isEarlyEligible).toBe(false);
-  });
-
-  it('is false while the spawn queue still has entries', () => {
-    const wm = new WaveManager(
-      [[{ type: 'drone', count: 2, interval: 1000 }]],
-      makeEmitter(),
-    );
-    wm.startWave();
-    expect(wm._spawnQ.length).toBeGreaterThan(0);
-    expect(wm.isEarlyEligible).toBe(false);
-  });
-
-  it('is true once the spawn queue empties while active is still true', () => {
-    const wm = new WaveManager(
-      [[{ type: 'drone', count: 1, interval: 0 }]],
-      makeEmitter(),
-    );
-    wm.startWave();
-    // Drain the queue: one update tick is enough since interval is 0
-    wm.update(100);
-    expect(wm._spawnQ.length).toBe(0);
-    expect(wm.active).toBe(true);
-    expect(wm.isEarlyEligible).toBe(true);
-  });
-
-  it('is false again after active flips back to false (between waves)', () => {
-    const wm = new WaveManager(tinyWaves(), makeEmitter());
-    wm.startWave();
-    wm.update(100);
-    wm.active = false; // simulating GameScene._checkWaveComplete
-    expect(wm.isEarlyEligible).toBe(false);
-  });
-});
-
 describe('WaveManager — startWave permits early restart', () => {
-  it('allows a second startWave when isEarlyEligible is true', () => {
+  it('allows a second startWave once the spawn queue drains while the wave is active', () => {
     const emitter = makeEmitter();
     const wm = new WaveManager(tinyWaves(), emitter);
     wm.startWave();
     wm.update(100); // drain wave 1's spawn queue
-    expect(wm.isEarlyEligible).toBe(true);
+    expect(wm.active).toBe(true);
+    expect(wm.hasQueuedEnemies).toBe(false);
 
     wm.startWave(); // early-send wave 2
 

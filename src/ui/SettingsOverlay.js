@@ -62,6 +62,17 @@ export class SettingsOverlay {
       gradeCb.addEventListener('change', gradeHandler);
       this._listeners.push({ el: gradeCb, evt: 'change', fn: gradeHandler });
     }
+    const autoSendCb = document.getElementById('auto-send');
+    if (this._game && autoSendCb) {
+      autoSendCb.checked = this._game.registry.get('autoSend') !== false;
+      const autoSendHandler = (e) => {
+        const v = e.target.checked;
+        this._game.registry.set('autoSend', v);
+        this._game.registry.get('save')?.setSettings({ autoSend: v });
+      };
+      autoSendCb.addEventListener('change', autoSendHandler);
+      this._listeners.push({ el: autoSendCb, evt: 'change', fn: autoSendHandler });
+    }
     this._closeBtn.addEventListener('click', this._onClose);
     this._overlay.addEventListener('click', this._onBackdrop);
     document.addEventListener('keydown', this._onEsc);

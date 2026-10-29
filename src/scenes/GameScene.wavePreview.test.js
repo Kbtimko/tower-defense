@@ -26,8 +26,9 @@ vi.mock('phaser', () => ({
 import { describe, it, expect, beforeEach } from 'vitest';
 import GameScene from './GameScene.js';
 import { WavePreviewPopover } from '../ui/WavePreviewPopover.js';
+import { WaveCountdown } from '../systems/waveCountdown.js';
 
-// Minimal DOM: enough for _updateWaveButtonText (#wave-btn) and the popover
+// Minimal DOM: enough for _renderWaveButton (#wave-btn) and the popover
 // itself (#wave-btn-wrap / #wave-preview), matching the fixture
 // WavePreviewPopover.test.js already uses.
 function setupWaveDOM() {
@@ -84,6 +85,8 @@ function makeScene(waveMgr) {
   scene.waveMgr     = waveMgr;
   scene.enemies     = [];
   scene.rewardMult  = 1;
+  scene._countdown  = new WaveCountdown();
+  scene.game        = { registry: { get() { return null; } } };
   scene._wavePreview = new WavePreviewPopover();
   return scene;
 }
@@ -93,29 +96,30 @@ describe('GameScene wave preview wiring', () => {
   beforeEach(() => { dom = setupWaveDOM(); });
 
   it('describes wave 1 before any wave has started', () => {
-    const scene = makeScene({ done: false, active: false, isEarlyEligible: false, currentWave: 0 });
+    const scene = makeScene({ done: false, active: false, hasQueuedEnemies: false, currentWave: 0 });
     GameScene.prototype._updateWaveButton.call(scene);
     expect(dom.pop.querySelector('.wp-title').textContent).toContain('Wave 1');
   });
 
-  it('describes wave 4 during an early-send window, matching the button label', () => {
-    const scene = makeScene({ done: false, active: true, isEarlyEligible: true, currentWave: 3 });
+  it('describes wave 4 during a countdown, matching the button label', () => {
+    const scene = makeScene({ done: false, active: true, hasQueuedEnemies: false, currentWave: 3 });
+    scene._countdown.start(20000, 3);
     GameScene.prototype._updateWaveButton.call(scene);
     expect(dom.btn.textContent).toContain('Send Wave 4');
     expect(dom.pop.querySelector('.wp-title').textContent).toContain('Wave 4');
   });
 
   it('shows nothing at all — not an empty frame — once all waves are done', () => {
-    const scene = makeScene({ done: true, active: false, isEarlyEligible: false, currentWave: 10 });
+    const scene = makeScene({ done: true, active: false, hasQueuedEnemies: false, currentWave: 10 });
     GameScene.prototype._updateWaveButton.call(scene);
     expect(dom.pop.children.length).toBe(0);
     expect(dom.pop.classList.contains('shown')).toBe(false);
   });
 
   it('still opens on hover while #wave-btn is disabled', () => {
-    // active + not early-eligible is the window _updateWaveButtonText disables
-    // the button for ("Wave N in progress...").
-    const scene = makeScene({ done: false, active: true, isEarlyEligible: false, currentWave: 1 });
+    // active + still spawning is the window _renderWaveButton disables the
+    // button for ("Wave N in progress...").
+    const scene = makeScene({ done: false, active: true, hasQueuedEnemies: true, currentWave: 1 });
     GameScene.prototype._updateWaveButton.call(scene);
     expect(dom.btn.disabled).toBe(true);
 
@@ -127,7 +131,7 @@ describe('GameScene wave preview wiring', () => {
 describe('GameScene wave preview teardown', () => {
   it('destroys the popover on shutdown, leaving no wrap listener attached', () => {
     const dom = setupFullDOM();
-    const scene = makeScene({ done: false, active: false, isEarlyEligible: false, currentWave: 0 });
+    const scene = makeScene({ done: false, active: false, hasQueuedEnemies: false, currentWave: 0 });
 
     // Stub the parts of shutdown() unrelated to the wave preview, the same
     // way GameScene.shutdown.test.js's makeScene() does.

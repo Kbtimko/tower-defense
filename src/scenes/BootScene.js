@@ -45,6 +45,8 @@ export default class BootScene extends Phaser.Scene {
       webgl: this.game.renderer?.type === Phaser.WEBGL,
       touch: coarse,
     }));
+    // Only an explicit false opts out, so a missing key keeps the default on.
+    this.game.registry.set('autoSend', sm.getSettings().autoSend !== false);
     const am = getOrCreateAudioManager(this.game, sm);
     am.loadAssets(this);
     this.load.image('spark', 'particles/spark.png');
