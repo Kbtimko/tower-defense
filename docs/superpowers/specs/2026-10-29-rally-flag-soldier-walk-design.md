@@ -276,7 +276,7 @@ puts soldier placement back in the player's hands and makes it readable.
   current rally point (Decision 3, C8). At rest that is the same point as today.
 
 **Formation, render only: `src/systems/soldierFormation.js` (new)**
-- R11. `formationOffsets(count, dir, spacing)` returns `count` offsets `{dx, dy}`. Index 0 is
+- R11. `formationOffsets(count, dir, spacing, flankBackFrac)` returns `count` offsets `{dx, dy}`. Index 0 is
   `spacing` **ahead** along `dir`. Indices 1 and 2 flank it, `spacing` to each side along the
   normal and slightly behind. Any further index (tier 4B has 4, `src/data/towers.js:72`) fills
   in behind on alternating sides. The result is deterministic, with no randomness. For `dir` it
@@ -442,7 +442,7 @@ export function routeDots(path, from, to, spacingPx)   // points along the road,
 export function travelDir(path, progress, target)      // unit tangent toward target (upstream when equal)
 
 // src/systems/soldierFormation.js
-export function formationOffsets(count, dir, spacing)  // -> [{dx, dy}]
+export function formationOffsets(count, dir, spacing, flankBackFrac)  // -> [{dx, dy}]
 
 // src/systems/soldierCombat.js (S7)
 export function soldierCanBlock(soldier, enemy)        // !soldier.dead && !(soldier.disengageLeftPx > 0) && (!enemy.def.flying || soldier.canBlockFlyers)
