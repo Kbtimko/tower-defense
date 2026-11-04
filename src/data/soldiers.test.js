@@ -12,7 +12,7 @@ describe('soldier tunables', () => {
     expect(RALLY_FLAG).toEqual({
       fadeMs: 900, ghostAlpha: 0.6, routeDotSpacingPx: 10, routeDotRadius: 2, lineWidth: 2,
       poleHeight: 18, pennant: { w: 10, h: 7 }, depth: 10.6,
-      ok: PALETTE.accent, bad: PALETTE.danger,
+      ok: PALETTE.accent, bad: PALETTE.danger, halo: PALETTE.panel, haloPx: 2,
     });
   });
 
@@ -25,12 +25,14 @@ describe('soldier tunables', () => {
     expect(SOLDIER_MARCH.disengagePx).toBeGreaterThan(0);
     expect(RALLY_FLAG.fadeMs).toBeGreaterThanOrEqual(0);
     expect(RALLY_FLAG.lineWidth).toBeGreaterThan(0);
+    expect(RALLY_FLAG.haloPx).toBeGreaterThan(0);
     expect(SOLDIER_FORMATION.turnMs).toBeGreaterThan(0);
   });
 
   it('flag colours come from the palette', () => {
     expect(RALLY_FLAG.ok).toBe(PALETTE.accent);
     expect(RALLY_FLAG.bad).toBe(PALETTE.danger);
+    expect(RALLY_FLAG.halo).toBe(PALETTE.panel);
   });
 
   it('freezes every tunable', () => {

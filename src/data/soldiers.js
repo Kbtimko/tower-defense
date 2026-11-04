@@ -19,4 +19,7 @@ export const RALLY_FLAG = Object.freeze({
   fadeMs: 900, ghostAlpha: 0.6, routeDotSpacingPx: 10, routeDotRadius: 2, lineWidth: 2,
   poleHeight: 18, pennant: Object.freeze({ w: 10, h: 7 }), depth: 10.6,
   ok: PALETTE.accent, bad: PALETTE.danger,
+  // A dark outline haloPx wide under every rally mark: the danger red ghost all
+  // but vanished on map 0's red-orange ground without one (ruling 15).
+  halo: PALETTE.panel, haloPx: 2,
 });

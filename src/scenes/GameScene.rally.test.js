@@ -57,6 +57,7 @@ import { previewRange } from '../systems/rangePreview.js';
 
 const OK = hexToInt(RALLY_FLAG.ok);
 const BAD = hexToInt(RALLY_FLAG.bad);
+const HALO = hexToInt(RALLY_FLAG.halo);
 const FRAME_MS = 100;
 // Map 0, pad 0 at (696, 360): its squad rests near progress 0.548. These road
 // points sit inside (0.62, 0.50) and outside (0.40) its 130 px range; the pad
@@ -453,9 +454,11 @@ describe('rally overlay (R15, S1, S2, S5)', () => {
       }
       return out;
     };
-    expect(widthsBefore(overlay(s), 'strokeCircle')).toEqual([RALLY_FLAG.lineWidth]);
-    expect(widthsBefore(overlay(s), 'lineBetween')).toEqual([RALLY_FLAG.lineWidth]);
-    expect(widthsBefore(routeGfx(s), 'lineBetween')).toEqual([RALLY_FLAG.lineWidth]);
+    // Each stroke sits on its halo, which is haloPx wider on both sides (ruling 15).
+    const haloWidth = RALLY_FLAG.lineWidth + 2 * RALLY_FLAG.haloPx;
+    expect(widthsBefore(overlay(s), 'strokeCircle')).toEqual([haloWidth, RALLY_FLAG.lineWidth]);
+    expect(widthsBefore(overlay(s), 'lineBetween')).toEqual([haloWidth, RALLY_FLAG.lineWidth]);
+    expect(widthsBefore(routeGfx(s), 'lineBetween')).toEqual([haloWidth, RALLY_FLAG.lineWidth]);
     expect(dots(routeGfx(s)).length).toBeGreaterThan(0);
   });
 
@@ -748,5 +751,121 @@ describe('newest intent wins: arming a tower or an aim exits rally mode (ruling 
     expect(cancelShown()).toBe(true);
     frame(s);
     expect(sinceClear(overlay(s))).toEqual([]);
+  });
+});
+
+// Every mark since the last clear(), in draw order, with the style it was drawn in.
+function marks(g) {
+  let line = {}, fill = {};
+  const out = [];
+  for (const [m, ...a] of sinceClear(g)) {
+    if (m === 'lineStyle') line = { width: a[0], colour: a[1], alpha: a[2] };
+    else if (m === 'fillStyle') fill = { colour: a[0], alpha: a[1] };
+    else if (m === 'strokeCircle' || m === 'lineBetween') out.push({ m, a, ...line });
+    else if (m === 'fillCircle' || m === 'fillTriangle') out.push({ m, a, ...fill });
+  }
+  return out;
+}
+// Distance from p to the line through a-b, positive on the same side as `inside`.
+function edgeMargin(a, b, p, inside) {
+  const nx = -(b.y - a.y), ny = b.x - a.x;
+  const len = Math.hypot(nx, ny);
+  const side = Math.sign((inside.x - a.x) * nx + (inside.y - a.y) * ny);
+  return (side * ((p.x - a.x) * nx + (p.y - a.y) * ny)) / len;
+}
+const tri = (a) => [{ x: a[0], y: a[1] }, { x: a[2], y: a[3] }, { x: a[4], y: a[5] }];
+
+// The `colour` flag in `ms` sits on a halo drawn earlier: a pole stroke
+// haloPx wider all round, and a pennant whose every edge clears the colour one by haloPx.
+function expectFlagOnHalo(ms, colour, alpha) {
+  const pole = ms.findIndex(k => k.m === 'lineBetween' && k.colour === colour);
+  const pennant = ms.findIndex(k => k.m === 'fillTriangle' && k.colour === colour);
+  expect(pole).toBeGreaterThan(-1);
+  expect(pennant).toBeGreaterThan(-1);
+  const P = ms[pole], T = ms[pennant];
+  expect(P.width).toBe(RALLY_FLAG.lineWidth);
+  expect(P.alpha).toBe(alpha);
+  const h = RALLY_FLAG.haloPx;
+  const [x, base, , top] = P.a;
+  const haloPole = ms.findIndex(k => k.m === 'lineBetween' && k.colour === HALO);
+  expect(haloPole).toBeGreaterThan(-1);
+  expect(haloPole).toBeLessThan(pole);
+  expect(ms[haloPole]).toMatchObject({ width: RALLY_FLAG.lineWidth + 2 * h, alpha, a: [x, base + h, x, top - h] });
+
+  const haloPennant = ms.findIndex(k => k.m === 'fillTriangle' && k.colour === HALO);
+  expect(haloPennant).toBeGreaterThan(-1);
+  expect(haloPennant).toBeLessThan(pennant);
+  expect(ms[haloPennant].alpha).toBe(alpha);
+  const inner = tri(T.a), outer = tri(ms[haloPennant].a);
+  const centre = { x: (inner[0].x + inner[1].x + inner[2].x) / 3, y: (inner[0].y + inner[1].y + inner[2].y) / 3 };
+  for (let e = 0; e < 3; e++) {
+    const [a, b2] = [outer[e], outer[(e + 1) % 3]];
+    // Every colour vertex is inside each halo edge by at least haloPx.
+    for (const p of inner) expect(edgeMargin(a, b2, p, centre)).toBeGreaterThanOrEqual(h - 1e-9);
+  }
+}
+
+describe('rally visuals sit on a halo (ruling 15)', () => {
+  beforeEach(() => { localStorage.clear(); loadShippedDOM(); });
+
+  it('the range ring and the ghost flag draw their halo first, then the colour', () => {
+    const s = level();
+    const b = buildBarracks(s);
+    for (const [where, colour] of [[road(s, IN_RANGE), OK], [road(s, OUT_OF_RANGE), BAD], [OFF_ROAD, BAD]]) {
+      enterRally(s, b);
+      s._buildCursorX = where.x; s._buildCursorY = where.y;
+      frame(s);
+      const ms = marks(overlay(s));
+      const rings = ms.filter(k => k.m === 'strokeCircle');
+      expect(rings.map(k => k.a)).toEqual([[b.x, b.y, b.range], [b.x, b.y, b.range]]);
+      expect(rings[0]).toMatchObject({ colour: HALO, width: RALLY_FLAG.lineWidth + 2 * RALLY_FLAG.haloPx, alpha: RALLY_FLAG.ghostAlpha });
+      expect(rings[1]).toMatchObject({ width: RALLY_FLAG.lineWidth, alpha: RALLY_FLAG.ghostAlpha });
+      expectFlagOnHalo(ms, colour, RALLY_FLAG.ghostAlpha);
+      s._cancelMode();
+    }
+  });
+
+  it('the ring turns bad only while the ghost is on the road but out of range', () => {
+    const s = level();
+    const b = buildBarracks(s);
+    enterRally(s, b);
+    const ringAt = (pt) => {
+      s._buildCursorX = pt.x; s._buildCursorY = pt.y;
+      frame(s);
+      return marks(overlay(s)).filter(k => k.m === 'strokeCircle' && k.colour !== HALO).map(k => k.colour);
+    };
+    expect(ringAt(road(s, IN_RANGE))).toEqual([OK]);
+    expect(ringAt(road(s, OUT_OF_RANGE))).toEqual([BAD]);
+    expect(ringAt(OFF_ROAD)).toEqual([OK]);
+    expect(ringAt(road(s, IN_RANGE_BACK))).toEqual([OK]);
+  });
+
+  it('the route dots and the planted flag draw on halos, every halo before any colour', () => {
+    const s = level({ registry: {} });
+    const b = buildBarracks(s);
+    rallyTo(s, b, IN_RANGE);
+    frame(s);
+    const ms = marks(routeGfx(s));
+    const colourDots = ms.filter(k => k.m === 'fillCircle' && k.colour === OK);
+    const haloDots = ms.filter(k => k.m === 'fillCircle' && k.colour === HALO);
+    expect(colourDots.length).toBeGreaterThan(1);
+    expect(colourDots.every(k => k.a[2] === RALLY_FLAG.routeDotRadius && k.alpha === RALLY_FLAG.ghostAlpha)).toBe(true);
+    expect(haloDots.map(k => k.a)).toEqual(colourDots.map(k => [k.a[0], k.a[1], RALLY_FLAG.routeDotRadius + RALLY_FLAG.haloPx]));
+    expect(haloDots.every(k => k.alpha === RALLY_FLAG.ghostAlpha)).toBe(true);
+    const lastHalo = ms.map(k => k.colour).lastIndexOf(HALO);
+    const firstColour = ms.findIndex(k => k.colour !== HALO);
+    expect(lastHalo).toBeLessThan(firstColour);
+    expectFlagOnHalo(ms, OK, 1);
+  });
+
+  it('the fading flag fades its halo with it', () => {
+    const s = level({ registry: {} });
+    const b = buildBarracks(s);
+    rallyTo(s, b, IN_RANGE);
+    runUntilArrived(s, b);
+    frame(s);
+    const alpha = b.rallyFlag.fadeLeftMs / RALLY_FLAG.fadeMs;
+    expect(alpha).toBeLessThan(1);
+    expectFlagOnHalo(marks(routeGfx(s)), OK, alpha);
   });
 });

@@ -100,6 +100,28 @@ const PREVIEW_BAD        = 0x884444;
 const BUILD_HUB          = 'Build';
 const RALLY_OK           = hexToInt(RALLY_FLAG.ok);
 const RALLY_BAD          = hexToInt(RALLY_FLAG.bad);
+const RALLY_HALO         = hexToInt(RALLY_FLAG.halo);
+
+// The rally pennant: pole top, tip, and down the pole.
+function pennantCorners(x, top) {
+  const { w, h } = RALLY_FLAG.pennant;
+  return [{ x, y: top }, { x: x + w, y: top + h / 2 }, { x, y: top + h }];
+}
+
+// Push every edge of a triangle `d` px outward. Scaling about the incentre by
+// (r + d) / r moves each edge's tangent line from r to r + d, so the outline is
+// even all round; nudging the corners by d would leave the sharp tip bare.
+function growTriangle([A, B, C], d) {
+  const a = Math.hypot(B.x - C.x, B.y - C.y);
+  const b = Math.hypot(A.x - C.x, A.y - C.y);
+  const c = Math.hypot(A.x - B.x, A.y - B.y);
+  const per = a + b + c;
+  const ix = (a * A.x + b * B.x + c * C.x) / per;
+  const iy = (a * A.y + b * B.y + c * C.y) / per;
+  const r = Math.abs((B.x - A.x) * (C.y - A.y) - (C.x - A.x) * (B.y - A.y)) / per;
+  const k = (r + d) / r;
+  return [A, B, C].map(p => ({ x: ix + (p.x - ix) * k, y: iy + (p.y - iy) * k }));
+}
 
 // Every pool reduced to one line, so the audit can force the longest caption.
 function onlyLine(line) {
@@ -2316,17 +2338,21 @@ export default class GameScene extends Phaser.Scene {
 
   // Range ring plus a ghost flag at the snapped road point: OK colour when valid,
   // bad when out of range, and un-snapped at the cursor when off the road (S2).
+  // The ring turns bad too when the ghost is on the road but past it, so the
+  // ring itself says what is wrong (ruling 15).
   _drawRallyOverlay() {
     const g = this._rallyOverlayGfx;
     if (!g) return;
     g.clear();
     const b = this.rallyBarracks;
     if (!this.rallyMode || !b) return;
-    g.lineStyle(RALLY_FLAG.lineWidth, RALLY_OK, RALLY_FLAG.ghostAlpha);
-    g.strokeCircle(b.x, b.y, b.range);
     const x = this._buildCursorX;
     const y = this._buildCursorY;
     const t = this._rallyTarget(x, y);
+    g.lineStyle(RALLY_FLAG.lineWidth + 2 * RALLY_FLAG.haloPx, RALLY_HALO, RALLY_FLAG.ghostAlpha);
+    g.strokeCircle(b.x, b.y, b.range);
+    g.lineStyle(RALLY_FLAG.lineWidth, t.onRoad && !t.inRange ? RALLY_BAD : RALLY_OK, RALLY_FLAG.ghostAlpha);
+    g.strokeCircle(b.x, b.y, b.range);
     this._drawFlag(g, t.onRoad ? t.point : { x, y }, t.valid ? RALLY_OK : RALLY_BAD, RALLY_FLAG.ghostAlpha);
   }
 
@@ -2352,23 +2378,44 @@ export default class GameScene extends Phaser.Scene {
       if (walkers.length > 0) {
         // From the soldier farthest from the flag, so the route shows the whole remaining walk.
         const from = walkers.reduce((p, s) => (Math.abs(s.pathProgress - target) > Math.abs(p - target) ? s.pathProgress : p), target);
+        const route = routeDots(path, from, target, RALLY_FLAG.routeDotSpacingPx);
+        // Every halo before any colour, so no outline covers a neighbouring mark.
+        g.fillStyle(RALLY_HALO, RALLY_FLAG.ghostAlpha);
+        for (const d of route) g.fillCircle(d.x, d.y, RALLY_FLAG.routeDotRadius + RALLY_FLAG.haloPx);
+        this._drawFlagHalo(g, at, 1);
         g.fillStyle(RALLY_OK, RALLY_FLAG.ghostAlpha);
-        for (const d of routeDots(path, from, target, RALLY_FLAG.routeDotSpacingPx)) g.fillCircle(d.x, d.y, RALLY_FLAG.routeDotRadius);
-        this._drawFlag(g, at, RALLY_OK, 1);
+        for (const d of route) g.fillCircle(d.x, d.y, RALLY_FLAG.routeDotRadius);
+        this._drawFlagMarks(g, at, RALLY_OK, 1);
       } else {
         this._drawFlag(g, at, RALLY_OK, next.fadeLeftMs / RALLY_FLAG.fadeMs);
       }
     }
   }
 
-  // A pole standing on the road point with a pennant at its top.
-  _drawFlag(g, { x, y }, colour, alpha) {
+  // A pole standing on the road point with a pennant at its top, on its halo.
+  _drawFlag(g, pt, colour, alpha) {
+    this._drawFlagHalo(g, pt, alpha);
+    this._drawFlagMarks(g, pt, colour, alpha);
+  }
+
+  // The dark outline under a flag: haloPx clear of the pole and pennant all round.
+  _drawFlagHalo(g, { x, y }, alpha) {
+    const d = RALLY_FLAG.haloPx;
     const top = y - RALLY_FLAG.poleHeight;
-    const { w, h } = RALLY_FLAG.pennant;
+    g.lineStyle(RALLY_FLAG.lineWidth + 2 * d, RALLY_HALO, alpha);
+    g.lineBetween(x, y + d, x, top - d);
+    const [a, b, c] = growTriangle(pennantCorners(x, top), d);
+    g.fillStyle(RALLY_HALO, alpha);
+    g.fillTriangle(a.x, a.y, b.x, b.y, c.x, c.y);
+  }
+
+  _drawFlagMarks(g, { x, y }, colour, alpha) {
+    const top = y - RALLY_FLAG.poleHeight;
+    const [a, b, c] = pennantCorners(x, top);
     g.lineStyle(RALLY_FLAG.lineWidth, colour, alpha);
     g.lineBetween(x, y, x, top);
     g.fillStyle(colour, alpha);
-    g.fillTriangle(x, top, x + w, top + h / 2, x, top + h);
+    g.fillTriangle(a.x, a.y, b.x, b.y, c.x, c.y);
   }
 
   _redrawZones() {
