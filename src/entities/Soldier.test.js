@@ -231,6 +231,17 @@ describe('Soldier formation turns (ruling 9)', () => {
     expect(s._view.x).toBeCloseTo(S, 9);
   });
 
+  it('a soldier killed mid-march respawns straight into its rest slot (no ease)', () => {
+    const s = orderDownstream();
+    for (let i = 0; i < 3; i++) s.update(0.1); // marching: the lead is out front, downstream
+    expect(s._view.x).toBeCloseTo(S, 6);
+    s.takeDamage(1e9);
+    s.respawn(); // back at the rally point (0.9), at rest: the lead belongs upstream
+    s.update(0.001);
+    expect(s._view.x).toBeCloseTo(-S, 9);
+    expect(s._view.y).toBeCloseTo(0, 9);
+  });
+
   it('does not ease the very first layout (no spread-out animation on spawn)', () => {
     const [s] = makeSquad().soldiers;
     s.update(0.001);

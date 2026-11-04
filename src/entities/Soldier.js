@@ -99,6 +99,9 @@ export class Soldier extends Phaser.GameObjects.Container {
     this.dead         = false;
     this.hp           = this.maxHp;
     this.respawnTimer = 0;
+    // Snap into the rest slot like a fresh spawn; easing from the slot it fell
+    // in would slide a just-respawned soldier across the formation.
+    this._offset = null;
     if (this._sprite?.active) this._sprite.sprite.setVisible(true);
     else this._body.setVisible(true);
     this._redrawHpBar();
@@ -127,6 +130,8 @@ export class Soldier extends Phaser.GameObjects.Container {
     const target = this.barracks.soldierPathProgress;
     let walking = false;
     if (isMarching(this, target)) {
+      // Fast path only: soldierCanBlock (inside contactTest) is the authority and
+      // already refuses while disengaging; this just skips the enemy scan.
       const blocked = this.disengageLeftPx > 0 ? () => false : contactTest(this, enemies);
       const step = marchStep({
         progress: this.pathProgress, target, dt,

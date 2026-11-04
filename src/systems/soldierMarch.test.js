@@ -220,6 +220,24 @@ describe('routeDots', () => {
   it('from === to gives one point', () => {
     expect(routeDots(STRAIGHT, 0.4, 0.4, 10)).toHaveLength(1);
   });
+
+  it('matches pointAtProgress for every dot on a long multi-point road, both ways', () => {
+    // 300 vertices of uneven length, with a repeated vertex (a zero-length segment).
+    const road = [];
+    for (let i = 0; i < 300; i++) road.push({ x: i * 7 + (i % 5) * 3, y: 100 + 40 * Math.sin(i / 9) });
+    road.splice(150, 0, { ...road[150] });
+    const total = pathLength(road);
+    for (const [from, to, spacing] of [[0.03, 0.97, 10], [0.97, 0.03, 10], [0, 1, 4], [0.5, 0.2, 13], [0.49, 0.51, 10]]) {
+      const d = routeDots(road, from, to, spacing);
+      const n = d.length - 1;
+      expect(n).toBe(Math.max(1, Math.round((Math.abs(to - from) * total) / spacing)));
+      d.forEach((p, i) => {
+        const want = pointAtProgress(road, i === n ? to : from + ((to - from) * i) / n);
+        expect(Math.abs(p.x - want.x)).toBeLessThan(1e-9);
+        expect(Math.abs(p.y - want.y)).toBeLessThan(1e-9);
+      });
+    }
+  });
 });
 
 describe('travelDir', () => {

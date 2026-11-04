@@ -68,18 +68,37 @@ export function isMarching(soldier, target) {
 
 // Dots along the road from `from` to `to`, spaced by arc length (never the
 // chord, which would cut corners). Spacing is stretched slightly so the last
-// dot lands exactly on `to`.
+// dot lands exactly on `to`. Drawn every frame of a march, so the road is
+// walked once (dots are monotonic in arc length) rather than once per dot.
 export function routeDots(path, from, to, spacingPx) {
-  const total = pathLength(path);
+  // Cumulative arc length at each vertex, summed in pathLength's order.
+  const cum = [0];
+  for (let i = 0; i < path.length - 1; i++) {
+    cum.push(cum[i] + Math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y));
+  }
+  const total = cum[cum.length - 1];
   const lenPx = Math.abs(to - from) * total;
   if (lenPx <= 0 || spacingPx <= 0) return [pointAtProgress(path, from)];
-  // Even gaps of lenPx/round(lenPx/spacing) so the last dot hits `to`; this is
-  // within 1 px of spacingPx only for routes >= 5 spacings (shorter ones round coarsely).
+  // Even gaps of lenPx/n, n = round(lenPx/spacing), so the last dot hits `to`.
+  // lenPx/spacing is within 0.5 of n, so a gap is off spacingPx by at most
+  // spacingPx/(2n): coarse for a route only a spacing or two long.
   const n = Math.max(1, Math.round(lenPx / spacingPx));
-  const dots = [];
-  for (let i = 0; i <= n; i++) {
-    dots.push(pointAtProgress(path, i === n ? to : from + ((to - from) * i) / n));
+  const last = path.length - 2;
+  let seg = 0;
+  // The ends come from pointAtProgress itself so they sit bit-exactly on the
+  // soldier and the flag, which are placed by it; the interior differs by ulps.
+  const dots = [pointAtProgress(path, from)];
+  for (let i = 1; i < n; i++) {
+    const at = clamp01(from + ((to - from) * i) / n) * total;
+    // The first segment ending at or past `at`, as pointAtProgress picks it.
+    while (seg < last && at > cum[seg + 1]) seg++;
+    while (seg > 0 && at <= cum[seg]) seg--;
+    const a = path[seg], b = path[seg + 1];
+    const len = cum[seg + 1] - cum[seg];
+    const t = len > 0 ? Math.min(1, (at - cum[seg]) / len) : 0;
+    dots.push({ x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) });
   }
+  dots.push(pointAtProgress(path, to));
   return dots;
 }
 
