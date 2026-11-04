@@ -80,8 +80,9 @@ export function routeDots(path, from, to, spacingPx) {
   const lenPx = Math.abs(to - from) * total;
   if (lenPx <= 0 || spacingPx <= 0) return [pointAtProgress(path, from)];
   // Even gaps of lenPx/n, n = round(lenPx/spacing), so the last dot hits `to`.
-  // lenPx/spacing is within 0.5 of n, so a gap is off spacingPx by at most
-  // spacingPx/(2n): coarse for a route only a spacing or two long.
+  // From half a spacing up, lenPx/spacing is within 0.5 of n, so a gap is off
+  // spacingPx by at most spacingPx/(2n): coarse for a route only a spacing or two
+  // long. Shorter routes get n = 1, one gap of lenPx.
   const n = Math.max(1, Math.round(lenPx / spacingPx));
   const last = path.length - 2;
   let seg = 0;
