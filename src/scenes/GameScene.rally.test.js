@@ -52,6 +52,8 @@ import { isMarching } from '../systems/soldierMarch.js';
 import { MELEE_RANGE } from '../systems/soldierCombat.js';
 import { RALLY_FLAG, SOLDIER_MARCH } from '../data/soldiers.js';
 import { hexToInt } from '../ui/theme.js';
+import { TOWER_DEFS } from '../data/towers.js';
+import { previewRange } from '../systems/rangePreview.js';
 
 const OK = hexToInt(RALLY_FLAG.ok);
 const BAD = hexToInt(RALLY_FLAG.bad);
@@ -698,5 +700,53 @@ describe('E31: debug-built barracks', () => {
     frame(s);
     frame(s);
     expect(window.__capture.rally[0].marching).toBe(true);
+  });
+});
+
+describe('newest intent wins: arming a tower or an aim exits rally mode (ruling 16)', () => {
+  beforeEach(() => { localStorage.clear(); loadShippedDOM(); });
+
+  it('arming Archer in rally mode clears the rally, shows the build ring, and a pad tap builds', () => {
+    const s = level();
+    const b = buildBarracks(s);
+    s.economy.gold = 10000;
+    const target = b.soldierPathProgress;
+    enterRally(s, b);
+    expect(sinceClear(overlay(s)).length).toBeGreaterThan(0);
+    s._selectTowerType('archer', document.querySelector('.tower-btn[data-type="archer"]'));
+    expect(s.rallyMode).toBe(false);
+    expect(s.rallyBarracks).toBeNull();
+    expect(sinceClear(overlay(s))).toEqual([]);
+    expect(s.selectedType).toBe('archer');
+    expect(cancelShown()).toBe(true); // still armed: the build is what Cancel now drops
+
+    const pad = s.placementManager.getZones()[1];
+    s._buildCursorX = pad.cx; s._buildCursorY = pad.cy;
+    frame(s);
+    expect(sinceClear(overlay(s))).toEqual([]);
+    expect(sinceClear(s.gfx)).toContainEqual(['strokeCircle', pad.cx, pad.cy, previewRange(TOWER_DEFS.archer.range, s._towerRangeMult)]);
+
+    const before = toasts().length;
+    s._onTap(pad.cx, pad.cy);
+    expect(s.placementManager.getTowers().find(t => t.zoneIndex === 1)?.type).toBe('archer');
+    expect(b.soldierPathProgress).toBe(target);
+    expect(b.rallyFlag).toBeNull();
+    expect(toasts().length).toBe(before);
+  });
+
+  it('arming a hero aim in rally mode clears the rally', () => {
+    const s = level();
+    const b = buildBarracks(s);
+    s.hero.level = s.hero.def.stats.abilityUnlockLevels.w;
+    enterRally(s, b);
+    expect(sinceClear(overlay(s)).length).toBeGreaterThan(0);
+    s._onAbility({ slot: 'w' });
+    expect(s.aimMode).toBe(true);
+    expect(s.rallyMode).toBe(false);
+    expect(s.rallyBarracks).toBeNull();
+    expect(sinceClear(overlay(s))).toEqual([]);
+    expect(cancelShown()).toBe(true);
+    frame(s);
+    expect(sinceClear(overlay(s))).toEqual([]);
   });
 });

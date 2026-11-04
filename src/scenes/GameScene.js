@@ -1053,6 +1053,7 @@ export default class GameScene extends Phaser.Scene {
       if (this.hero.dead) return;
       if (this.hero._timers[slot] > 0) return;
       if (this.hero.level < this.hero.def.stats.abilityUnlockLevels[slot]) return;
+      this._leaveRallyMode();
       this._closeRadial();
       this.aimMode  = true;
       this._aimSlot = slot;
@@ -1539,6 +1540,16 @@ export default class GameScene extends Phaser.Scene {
     this._syncCancelButton();
   }
 
+  // Newest intent wins (ruling 16): arming a tower or an aim drops a pending
+  // rally, or the next tap would still go to the rally and the build would be
+  // silently ignored. Callers sync Cancel afterwards.
+  _leaveRallyMode() {
+    if (!this.rallyMode) return;
+    this.rallyMode = false;
+    this.rallyBarracks = null;
+    this._drawRallyOverlay();
+  }
+
   // Escape arrives here for every press; with no mode it must not swallow it,
   // so the inspector and overlays keep their own Escape handling.
   _onUiCancel() {
@@ -1558,6 +1569,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _selectTowerType(type, btn) {
+    this._leaveRallyMode();
     if (this.selectedType === type) {
       this.selectedType = null;
       this._deselectButtons();
