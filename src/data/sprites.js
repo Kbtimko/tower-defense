@@ -244,8 +244,9 @@ export const SPRITE_MANIFEST = [
   },
 
   // --- Units -------------------------------------------------------------
-  // The soldier holds a blocking post and the sentry is bolted down, so
-  // neither gets a move state — just idle and attack, like the towers.
+  // The soldier walks to its rally point: a `move` state is wired in
+  // Soldier.update and falls back to idle until a sheet is registered here.
+  // The sentry is bolted down — just idle and attack, like the towers.
   {
     category: 'soldier', type: 'default',
     scale: 0.36, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
