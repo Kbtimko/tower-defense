@@ -96,6 +96,27 @@ describe('Cancel button follows the active mode', () => {
     expect(cancelShown()).toBe(false);
   });
 
+  // C2: unlike reposition, a rally miss keeps the mode for an easy retry.
+  it('shows on rally entry and stays up after a miss', () => {
+    const barracks = { type: 'barracks', x: 500, y: 100, range: 130, soldierPathProgress: 0.5, setRallyPoint: vi.fn() };
+    const s = makeScene({
+      selectedTower: barracks,
+      placementManager: { getTowers: () => [barracks], getNearestSlot: () => null, getZones: () => [] },
+      pathMgr: {
+        isOnPath: () => true, getPathPoints: () => [{ x: 0, y: 0 }, { x: 1000, y: 0 }],
+        getNearestPathProgress: (x) => Math.min(1, Math.max(0, x / 1000)),
+      },
+    });
+    s._startRally();
+    expect(cancelShown()).toBe(true);
+    s._onTap(500, 300); // 300px off the road
+    expect(s._toast).toHaveBeenLastCalledWith('Rally on the road');
+    expect(cancelShown()).toBe(true);
+    s._onTap(450, 0);
+    expect(barracks.setRallyPoint).toHaveBeenCalledWith(0.45, undefined);
+    expect(cancelShown()).toBe(false);
+  });
+
   it('stays up after a placement because the build mode persists', () => {
     const s = makeScene({
       placementManager: {
@@ -145,6 +166,15 @@ describe('_cancelMode', () => {
     expect(s.repositionMode).toBe(false);
     expect(s.repositioningBarracks).toBeNull();
     expect(document.querySelectorAll('.tower-btn.selected').length).toBe(0);
+    expect(cancelShown()).toBe(false);
+  });
+
+  it('clears rally mode', () => {
+    const s = makeScene();
+    s.rallyMode = true; s.rallyBarracks = {};
+    s._cancelMode();
+    expect(s.rallyMode).toBe(false);
+    expect(s.rallyBarracks).toBeNull();
     expect(cancelShown()).toBe(false);
   });
 
