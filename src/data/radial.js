@@ -17,7 +17,7 @@ export const BUILD_START_ANGLE = -90;
 // Fixed per-slot angles keep muscle memory: a slot never moves with pad position.
 // 60 degrees between neighbours gives a chord equal to the ring radius, which
 // is wider than an item at both cell sizes (asserted in radialLayout.test.js).
-export const RING_ANGLES = { upgrade: -90, branchA: -120, branchB: -60, reposition: 180, sell: 90 };
+export const RING_ANGLES = { upgrade: -90, branchA: -120, branchB: -60, reposition: 180, sell: 90, rally: 0 };
 
 export function buildAngles(count) {
   return Array.from({ length: count }, (_, i) => BUILD_START_ANGLE + (360 / count) * i);
