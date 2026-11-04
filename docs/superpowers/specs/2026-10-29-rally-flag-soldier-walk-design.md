@@ -323,9 +323,9 @@ puts soldier placement back in the player's hands and makes it readable.
 - R19. New `src/data/soldiers.js`:
   ```js
   export const SOLDIER_MARCH     = Object.freeze({ speed: 60, substepPx: 15, disengagePx: 60 }); // px/s of road; substep ≤ MELEE_RANGE/2; disengage = 2×MELEE_RANGE (C15)
-  export const SOLDIER_FORMATION = Object.freeze({ spacingFrac: 0.55, fallbackSpacingPx: 9, flankBackFrac: 0.4 });
+  export const SOLDIER_FORMATION = Object.freeze({ spacingFrac: 0.55, fallbackSpacingPx: 9, flankBackFrac: 0.4, turnMs: 120 });  // turnMs: ruling 9
   export const WALK_BOB          = Object.freeze({ amplitudePx: 1.5, hz: 4 });
-  export const RALLY_FLAG        = Object.freeze({ fadeMs: 900, ghostAlpha: 0.6, routeDotSpacingPx: 10, routeDotRadius: 2,
+  export const RALLY_FLAG        = Object.freeze({ fadeMs: 900, ghostAlpha: 0.6, routeDotSpacingPx: 10, routeDotRadius: 2, lineWidth: 2,  /* lineWidth: ruling 12 */
                                                    poleHeight: 18, pennant: { w: 10, h: 7 }, depth: 10.6, ok: /* accent */, bad: /* danger */ });
   ```
   A data test asserts `substepPx ≤ MELEE_RANGE / 2`, `speed > 0` and `fadeMs ≥ 0`. `RING_ANGLES.rally = 0`
@@ -422,7 +422,7 @@ puts soldier placement back in the player's hands and makes it readable.
 | E33 | Zero-length tangent (duplicate path points) | formation `dir` falls back to `{-1, 0}`, no NaN | pure |
 | E34 | Reduced motion toggled mid-march | read live each frame; bob 0 next frame; flag removed on arrival | scene |
 | E35 | Default point after a Move is outside the new range | used anyway, the same rule as placement (R5) | note |
-| E36 | Rally barracks missing from towers (defensive) | mode cancelled on the next rally tap | scene |
+| E36 | Rally barracks missing from towers (defensive) | mode cancelled on the next frame (and on the next rally tap) — controller ruling 14 | scene |
 
 ## Design
 
