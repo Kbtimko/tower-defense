@@ -1,5 +1,5 @@
 // Pure mirror of GameScene._onTap's priority chain:
-//   aim -> reposition -> radial open -> tower -> inspect -> armed build ->
+//   aim -> reposition -> rally -> radial open -> tower -> inspect -> armed build ->
 //   free pad -> hero.
 // `closeRadial: true` marks every outcome that closes an open radial first.
 // openRing/openBuild carry no flag: they replace the radial (a retarget).
@@ -9,6 +9,8 @@
 // Caller contract:
 //  - state.aimSlot derives from aimMode/_aimSlot (slot 0 is valid, hence != null).
 //  - state.repositioning = repositionMode && repositioningBarracks.
+//  - state.rallying = rallyMode && rallyBarracks. Like reposition it beats an open
+//    radial and a tower hit (E25): the tap is a rally target, never a ring open.
 //  - state.heroDead = hero.dead.
 //  - state.radial = { kind: 'build'|'tower', target } while a radial is open, else null.
 //    A build target is the slot it opened on; a tower target is the tower.
@@ -16,10 +18,12 @@
 //  - hits.inspectable must come from a SIDE-EFFECT-FREE hit test: today's
 //    inspector.tryClickInspect pins while testing, so the caller runs it only when
 //    executing the `pin` action (same-target dismiss stays inside tryClickInspect).
-// `reposition` leaves the 60px snap / silent miss-cancel to the caller.
+// `reposition` leaves the 60px snap / silent miss-cancel to the caller; `rally`
+// leaves road projection and the range check to it too.
 export function resolveTap(state, hits) {
   if (state.aimSlot != null) return { type: 'fireAim', slot: state.aimSlot };
   if (state.repositioning) return { type: 'reposition' };
+  if (state.rallying) return { type: 'rally' };
   if (state.radial) return resolveWithRadial(state.radial, hits);
   if (hits.tower) return { type: 'openRing', tower: hits.tower, clearBuild: true };
   if (hits.inspectable) return { type: 'pin', target: hits.inspectable, closeRadial: true };
@@ -54,5 +58,5 @@ function resolveWithRadial(radial, hits) {
 }
 
 export function hasMode(state) {
-  return state.aimSlot != null || !!state.repositioning || !!state.selectedType || !!state.radial;
+  return state.aimSlot != null || !!state.repositioning || !!state.rallying || !!state.selectedType || !!state.radial;
 }
