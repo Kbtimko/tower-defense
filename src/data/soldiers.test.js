@@ -36,7 +36,7 @@ describe('soldier tunables', () => {
   });
 
   it('freezes every tunable', () => {
-    for (const t of [SOLDIER_MARCH, SOLDIER_FORMATION, WALK_BOB, RALLY_FLAG]) {
+    for (const t of [SOLDIER_MARCH, SOLDIER_FORMATION, WALK_BOB, RALLY_FLAG, RALLY_FLAG.pennant]) {
       expect(Object.isFrozen(t)).toBe(true);
     }
   });

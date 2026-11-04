@@ -28,6 +28,19 @@ describe('formationOffsets', () => {
     const d = { x: 1, y: 0 };
     const o = formationOffsets(4, d, S, FB);
     expect(dot(o[3], d)).toBeLessThan(dot(o[1], d));
+    // Left of the heading (+y for dir +x), half a spacing out: the side index 1 flanks.
+    expect(o[3].dy).toBeCloseTo(0.5 * S, 6);
+    expect(Math.sign(o[3].dy)).toBe(Math.sign(o[1].dy));
+  });
+
+  it('a fifth soldier sits opposite the fourth, one spacing further back', () => {
+    const d = { x: 1, y: 0 };
+    const o = formationOffsets(5, d, S, FB);
+    expect(o).toHaveLength(5);
+    expect(o[4].dy).toBeCloseTo(-o[3].dy, 6);
+    expect(o[4].dy).not.toBeCloseTo(0, 6);
+    expect(dot(o[4], d)).toBeCloseTo(dot(o[3], d) - S, 6);
+    expect(formationOffsets(4, d, S, FB)).toEqual(o.slice(0, 4));
   });
 
   it('is deterministic', () => {

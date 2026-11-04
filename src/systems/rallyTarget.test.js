@@ -55,4 +55,16 @@ describe('resolveRallyTarget', () => {
     expect(onEnd.onRoad).toBe(true);
     expect(onEnd.valid).toBe(true);
   });
+
+  it('E7: pointer before the path start clamps to progress 0', () => {
+    const r = resolveRallyTarget({ ...base, centre: { x: 0, y: 100 }, x: -50, y: 100 });
+    expect(r.progress).toBe(0);
+    expect(r.point.x).toBeCloseTo(0, 6);
+    expect(r.point.y).toBeCloseTo(100, 6);
+    expect(r.valid).toBe(false); // 50px before the start, tapRadius 30
+    const onStart = resolveRallyTarget({ ...base, centre: { x: 0, y: 100 }, x: -20, y: 100 });
+    expect(onStart.progress).toBe(0);
+    expect(onStart.onRoad).toBe(true);
+    expect(onStart.valid).toBe(true);
+  });
 });
