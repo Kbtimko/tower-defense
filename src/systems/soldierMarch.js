@@ -101,3 +101,13 @@ export function travelDir(path, progress, target) {
   if (!(len > 0)) return { x: -1, y: 0 };
   return { x: vx / len, y: vy / len };
 }
+
+// One frame of the planted flag's fade (S11, C13). Not arrived: untouched. The
+// first arrived frame starts the clock at fadeMs (0 under reduced motion) without
+// counting itself; later frames count down by the speed-scaled frame time.
+// Returns the next flag, or null once it should be removed.
+export function stepFlagFade(flag, { arrived, dtMs, fadeMs, reducedMotion }) {
+  if (!arrived) return flag;
+  const fadeLeftMs = flag.fadeLeftMs === null ? (reducedMotion ? 0 : fadeMs) : flag.fadeLeftMs - dtMs;
+  return fadeLeftMs <= 0 ? null : { ...flag, fadeLeftMs };
+}

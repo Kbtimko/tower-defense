@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { marchStep, contactTest, isEngaged, isMarching, routeDots, travelDir } from './soldierMarch.js';
+import { marchStep, contactTest, isEngaged, isMarching, routeDots, travelDir, stepFlagFade } from './soldierMarch.js';
 import { MELEE_RANGE } from './soldierCombat.js';
 import { pointAtProgress, pathLength } from './pathGeometry.js';
 
@@ -248,5 +248,45 @@ describe('travelDir', () => {
   });
   it('degenerate path -> {-1, 0}', () => {
     expect(travelDir([{ x: 5, y: 5 }], 0.3, 0.6)).toEqual({ x: -1, y: 0 });
+  });
+});
+
+describe('stepFlagFade', () => {
+  const opts = (over = {}) => ({ arrived: true, dtMs: 100, fadeMs: 900, reducedMotion: false, ...over });
+  const planted = () => ({ progress: 0.4, fadeLeftMs: null });
+
+  it('leaves a flag alone while the squad is still marching', () => {
+    const f = planted();
+    expect(stepFlagFade(f, opts({ arrived: false }))).toBe(f);
+    const fading = { progress: 0.4, fadeLeftMs: 300 };
+    expect(stepFlagFade(fading, opts({ arrived: false }))).toBe(fading);
+  });
+
+  it('starts the fade at fadeMs on the first arrived frame, without counting that frame', () => {
+    expect(stepFlagFade(planted(), opts())).toEqual({ progress: 0.4, fadeLeftMs: 900 });
+  });
+
+  it('does not mutate the flag it was given', () => {
+    const f = planted();
+    stepFlagFade(f, opts());
+    expect(f).toEqual({ progress: 0.4, fadeLeftMs: null });
+  });
+
+  it('counts down by dtMs after that', () => {
+    expect(stepFlagFade({ progress: 0.4, fadeLeftMs: 900 }, opts({ dtMs: 250 }))).toEqual({ progress: 0.4, fadeLeftMs: 650 });
+  });
+
+  it('removes the flag once the fade reaches zero or below', () => {
+    expect(stepFlagFade({ progress: 0.4, fadeLeftMs: 100 }, opts({ dtMs: 100 }))).toBeNull();
+    expect(stepFlagFade({ progress: 0.4, fadeLeftMs: 50 }, opts({ dtMs: 100 }))).toBeNull();
+    expect(stepFlagFade({ progress: 0.4, fadeLeftMs: 101 }, opts({ dtMs: 100 }))).toEqual({ progress: 0.4, fadeLeftMs: 1 });
+  });
+
+  it('under reduced motion removes the flag on the arrival frame', () => {
+    expect(stepFlagFade(planted(), opts({ reducedMotion: true }))).toBeNull();
+  });
+
+  it('with fadeMs 0 removes the flag on the arrival frame', () => {
+    expect(stepFlagFade(planted(), opts({ fadeMs: 0 }))).toBeNull();
   });
 });

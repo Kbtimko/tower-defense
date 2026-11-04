@@ -101,6 +101,7 @@ describe('Cancel button follows the active mode', () => {
     const barracks = { type: 'barracks', x: 500, y: 100, range: 130, soldierPathProgress: 0.5, setRallyPoint: vi.fn() };
     const s = makeScene({
       selectedTower: barracks,
+      enemies: [],
       placementManager: { getTowers: () => [barracks], getNearestSlot: () => null, getZones: () => [] },
       pathMgr: {
         isOnPath: () => true, getPathPoints: () => [{ x: 0, y: 0 }, { x: 1000, y: 0 }],
@@ -113,7 +114,9 @@ describe('Cancel button follows the active mode', () => {
     expect(s._toast).toHaveBeenLastCalledWith('Rally on the road');
     expect(cancelShown()).toBe(true);
     s._onTap(450, 0);
-    expect(barracks.setRallyPoint).toHaveBeenCalledWith(0.45, undefined);
+    // The live enemy list itself, so engaged soldiers get their disengage window.
+    expect(barracks.setRallyPoint).toHaveBeenCalledWith(0.45, s.enemies);
+    expect(barracks.setRallyPoint.mock.calls[0][1]).toBe(s.enemies);
     expect(cancelShown()).toBe(false);
   });
 

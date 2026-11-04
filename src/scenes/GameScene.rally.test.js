@@ -38,6 +38,12 @@ vi.mock('../entities/Enemy.js', () => ({
 vi.mock('../systems/AmbientBackgroundLayer.js', () => ({
   AmbientBackgroundLayer: class { update() {} destroy() {} },
 }));
+// The shipped lineWidth equals routeDotRadius (both 2), so a stroke drawn with the
+// wrong one would look identical; one px apart here the test can tell them apart.
+vi.mock('../data/soldiers.js', async (importOriginal) => {
+  const real = await importOriginal();
+  return { ...real, RALLY_FLAG: Object.freeze({ ...real.RALLY_FLAG, lineWidth: real.RALLY_FLAG.routeDotRadius + 1 }) };
+});
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { loadShippedDOM, liveScene, startLevel } from './gameSceneHarness.js';
@@ -257,6 +263,18 @@ describe('rally mode (R2-R4, E24, E36)', () => {
     expect(cancelShown()).toBe(false);
   });
 
+  it('E36: a rally barracks that is gone cancels the mode on the next frame, with no tap', () => {
+    const s = level();
+    const b = buildBarracks(s);
+    enterRally(s, b);
+    s.placementManager.towers = s.placementManager.towers.filter(t => t !== b);
+    frame(s);
+    expect(s.rallyMode).toBe(false);
+    expect(s.rallyBarracks).toBeNull();
+    expect(sinceClear(overlay(s))).toEqual([]);
+    expect(cancelShown()).toBe(false);
+  });
+
   it('E29: the level ending in rally mode hides Cancel', () => {
     const s = level();
     const b = buildBarracks(s);
@@ -418,6 +436,27 @@ describe('rally overlay (R15, S1, S2, S5)', () => {
     expect(sinceClear(overlay(s))).toEqual([]);
   });
 
+  it('the range ring and every flag pole stroke at RALLY_FLAG.lineWidth', () => {
+    const s = level();
+    const b = buildBarracks(s);
+    rallyTo(s, b, IN_RANGE);
+    frame(s);
+    enterRally(s, b);
+    const widthsBefore = (g, method) => {
+      let width = null;
+      const out = [];
+      for (const [m, ...a] of sinceClear(g)) {
+        if (m === 'lineStyle') width = a[0];
+        if (m === method) out.push(width);
+      }
+      return out;
+    };
+    expect(widthsBefore(overlay(s), 'strokeCircle')).toEqual([RALLY_FLAG.lineWidth]);
+    expect(widthsBefore(overlay(s), 'lineBetween')).toEqual([RALLY_FLAG.lineWidth]);
+    expect(widthsBefore(routeGfx(s), 'lineBetween')).toEqual([RALLY_FLAG.lineWidth]);
+    expect(dots(routeGfx(s)).length).toBeGreaterThan(0);
+  });
+
   it('the ghost opens on the current rally point, then follows the cursor in the right colour', () => {
     const s = level();
     const b = buildBarracks(s);
@@ -494,6 +533,102 @@ describe('route and planted flag (R16, S11)', () => {
     rallyTo(s, b, IN_RANGE);
     frame(s);
     expect(flags(routeGfx(s))).toHaveLength(1);
+    runUntilArrived(s, b);
+    expect(b.rallyFlag).toBeNull();
+    expect(sinceClear(routeGfx(s))).toEqual([]);
+  });
+});
+
+describe('spec edge cases in the scene (E4, E9, E10/E14e, E34)', () => {
+  beforeEach(() => { localStorage.clear(); loadShippedDOM(); });
+
+  it('E4: a rally onto the current point does not march; the flag plants, fades and goes', () => {
+    const s = level({ registry: {} });
+    const b = buildBarracks(s);
+    const here = road(s, b.soldierPathProgress);
+    expect(Math.hypot(here.x - b.x, here.y - b.y)).toBeGreaterThanOrEqual(22); // not a tap on the barracks
+    const start = b.soldiers.map(sd => ({ x: sd.x, y: sd.y }));
+    enterRally(s, b);
+    s._onTap(here.x, here.y);
+    expect(s.rallyMode).toBe(false);
+    expect(b.rallyFlag).not.toBeNull();
+    frame(s);
+    expect(marching(b)).toBe(false);
+    for (const [i, sd] of b.soldiers.entries()) {
+      expect(Math.hypot(sd.x - start[i].x, sd.y - start[i].y)).toBeLessThan(1e-6);
+    }
+    expect(dots(routeGfx(s))).toEqual([]);
+    expect(b.rallyFlag.fadeLeftMs).toBe(RALLY_FLAG.fadeMs);
+    expect(flags(routeGfx(s))).toHaveLength(1);
+    for (let i = 0; i < Math.ceil(RALLY_FLAG.fadeMs / FRAME_MS); i++) frame(s);
+    expect(b.rallyFlag).toBeNull();
+    expect(flags(routeGfx(s))).toEqual([]);
+  });
+
+  it('E9: a Move mid-march retargets from where the squad stands and disengages an engaged soldier', () => {
+    const s = level();
+    const b = buildBarracks(s);
+    rallyTo(s, b, IN_RANGE);
+    for (let i = 0; i < 5; i++) frame(s);
+    const mid = b.soldiers.map(sd => sd.pathProgress);
+    enemyNear(s, b.soldiers[0]);
+    expect(b.soldiers.every(sd => sd.disengageLeftPx === 0)).toBe(true);
+    const pad = s.placementManager.getZones()[3];
+    s._openRing(b);
+    s._onRadialActivate(s.radial._items.find(i => i.id === 'reposition'));
+    s._onTap(pad.cx, pad.cy);
+    const target = s.pathMgr.getNearestPathProgress(pad.cx, pad.cy);
+    expect(b.zoneIndex).toBe(3);
+    expect(b.soldierPathProgress).toBe(target);
+    expect(target).toBeLessThan(mid[0]); // the new point is back the way they came
+    expect(b.soldiers.map(sd => sd.pathProgress)).toEqual(mid);
+    expect(b.soldiers.every(sd => sd.disengageLeftPx === SOLDIER_MARCH.disengagePx)).toBe(true);
+    frame(s);
+    // Walked away from the enemy beside it instead of halting on it.
+    for (const [i, sd] of b.soldiers.entries()) {
+      expect((mid[i] - sd.pathProgress) * b.totalLength).toBeCloseTo(SOLDIER_MARCH.speed * FRAME_MS / 1000, 6);
+    }
+  });
+
+  it('E10/E14e: an upgrade mid-march rebuilds live soldiers where they stand and they keep walking; the dead appear at the target', () => {
+    const s = level();
+    const b = buildBarracks(s);
+    s.economy.gold = 10000;
+    rallyTo(s, b, IN_RANGE);
+    for (let i = 0; i < 5; i++) frame(s);
+    b.soldiers[2].takeDamage(1e9);
+    expect(b.soldiers[2].dead).toBe(true);
+    const mid = b.soldiers[0].pathProgress;
+    const before = [...b.soldiers];
+    s._openRing(b);
+    s._onRadialActivate(s.radial._items.find(i => i.id === 'upgrade'));
+    expect(b.level).toBe(2);
+    expect(b.soldiers.some(sd => before.includes(sd))).toBe(false);
+    const target = b.soldierPathProgress;
+    expect(b.soldiers.map(sd => sd.pathProgress)).toEqual(
+      b.soldiers.map((_, i) => (i < 2 ? mid : target)),
+    );
+    expect(marching(b)).toBe(true);
+    frame(s);
+    for (const sd of b.soldiers.slice(0, 2)) {
+      expect((sd.pathProgress - mid) * b.totalLength).toBeCloseTo(SOLDIER_MARCH.speed * FRAME_MS / 1000, 6);
+    }
+    expect(b.soldiers.slice(2).every(sd => sd.pathProgress === target)).toBe(true);
+  });
+
+  it('E34: reduced motion switched on mid-march applies next frame and drops the flag on arrival', () => {
+    const registry = {};
+    const s = level({ registry });
+    const b = buildBarracks(s);
+    rallyTo(s, b, IN_RANGE);
+    for (let i = 0; i < 3; i++) frame(s);
+    const lead = b.soldiers[0];
+    const bob = () => lead._view.y - lead._offset.dy;
+    expect(Math.abs(bob())).toBeGreaterThan(0.01); // full motion: the walk bob is on
+    registry.ambientMotion = false;
+    frame(s);
+    expect(marching(b)).toBe(true);
+    expect(bob()).toBe(0);
     runUntilArrived(s, b);
     expect(b.rallyFlag).toBeNull();
     expect(sinceClear(routeGfx(s))).toEqual([]);

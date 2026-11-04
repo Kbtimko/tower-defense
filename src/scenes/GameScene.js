@@ -88,7 +88,7 @@ import { waveButtonView }     from '../systems/waveButtonView.js';
 import { WAVE_COUNTDOWN }     from '../data/waveCountdown.js';
 import { RALLY_FLAG }         from '../data/soldiers.js';
 import { resolveRallyTarget } from '../systems/rallyTarget.js';
-import { isMarching, routeDots } from '../systems/soldierMarch.js';
+import { isMarching, routeDots, stepFlagFade } from '../systems/soldierMarch.js';
 import { pointAtProgress }    from '../systems/pathGeometry.js';
 import { hexToInt }           from '../ui/theme.js';
 
@@ -755,6 +755,8 @@ export default class GameScene extends Phaser.Scene {
     this._areaEffects.update(dt, this.enemies);
     this._updateParticles(dt);
     this._checkWaveComplete();
+    // A rally barracks that left the board (E36) ends the mode now, not on the next tap.
+    if (this.rallyMode && !this.placementManager.getTowers().includes(this.rallyBarracks)) this._cancelMode();
     // After the clear check, so a clear bonus lands first and a banner it shows
     // holds the countdown before a zero this frame can send.
     this._updateCountdown(dtMs);
@@ -2308,7 +2310,7 @@ export default class GameScene extends Phaser.Scene {
     g.clear();
     const b = this.rallyBarracks;
     if (!this.rallyMode || !b) return;
-    g.lineStyle(RALLY_FLAG.routeDotRadius, RALLY_OK, RALLY_FLAG.ghostAlpha);
+    g.lineStyle(RALLY_FLAG.lineWidth, RALLY_OK, RALLY_FLAG.ghostAlpha);
     g.strokeCircle(b.x, b.y, b.range);
     const x = this._buildCursorX;
     const y = this._buildCursorY;
@@ -2331,28 +2333,27 @@ export default class GameScene extends Phaser.Scene {
       const target = b.soldierPathProgress;
       const at = pointAtProgress(path, target);
       const walkers = b.soldiers.filter(s => isMarching(s, target));
+      // S11: "arrived" is every live soldier at the flag.
+      const next = stepFlagFade(flag, { arrived: walkers.length === 0, dtMs, fadeMs: RALLY_FLAG.fadeMs, reducedMotion });
+      b.rallyFlag = next;
+      if (!next) continue;
       if (walkers.length > 0) {
         // From the soldier farthest from the flag, so the route shows the whole remaining walk.
         const from = walkers.reduce((p, s) => (Math.abs(s.pathProgress - target) > Math.abs(p - target) ? s.pathProgress : p), target);
         g.fillStyle(RALLY_OK, RALLY_FLAG.ghostAlpha);
         for (const d of routeDots(path, from, target, RALLY_FLAG.routeDotSpacingPx)) g.fillCircle(d.x, d.y, RALLY_FLAG.routeDotRadius);
         this._drawFlag(g, at, RALLY_OK, 1);
-        continue;
+      } else {
+        this._drawFlag(g, at, RALLY_OK, next.fadeLeftMs / RALLY_FLAG.fadeMs);
       }
-      // S11: every live soldier is at the flag; the clock starts on this first frame.
-      if (flag.fadeLeftMs === null) flag.fadeLeftMs = reducedMotion ? 0 : RALLY_FLAG.fadeMs;
-      else flag.fadeLeftMs -= dtMs;
-      if (flag.fadeLeftMs <= 0) { b.rallyFlag = null; continue; }
-      this._drawFlag(g, at, RALLY_OK, flag.fadeLeftMs / RALLY_FLAG.fadeMs);
     }
   }
 
-  // A pole standing on the road point with a pennant at its top. The pole uses
-  // the route's dot radius as its stroke so the whole rally kit reads as one weight.
+  // A pole standing on the road point with a pennant at its top.
   _drawFlag(g, { x, y }, colour, alpha) {
     const top = y - RALLY_FLAG.poleHeight;
     const { w, h } = RALLY_FLAG.pennant;
-    g.lineStyle(RALLY_FLAG.routeDotRadius, colour, alpha);
+    g.lineStyle(RALLY_FLAG.lineWidth, colour, alpha);
     g.lineBetween(x, y, x, top);
     g.fillStyle(colour, alpha);
     g.fillTriangle(x, top, x + w, top + h / 2, x, top + h);

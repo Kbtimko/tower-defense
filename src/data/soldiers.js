@@ -15,7 +15,8 @@ export const SOLDIER_FORMATION = Object.freeze({
 export const WALK_BOB = Object.freeze({ amplitudePx: 1.5, hz: 4 });
 
 export const RALLY_FLAG = Object.freeze({
-  fadeMs: 900, ghostAlpha: 0.6, routeDotSpacingPx: 10, routeDotRadius: 2,
+  // lineWidth: the range ring and flag pole strokes.
+  fadeMs: 900, ghostAlpha: 0.6, routeDotSpacingPx: 10, routeDotRadius: 2, lineWidth: 2,
   poleHeight: 18, pennant: Object.freeze({ w: 10, h: 7 }), depth: 10.6,
   ok: PALETTE.accent, bad: PALETTE.danger,
 });

@@ -10,7 +10,7 @@ describe('soldier tunables', () => {
     expect(SOLDIER_FORMATION).toEqual({ spacingFrac: 0.55, fallbackSpacingPx: 9, flankBackFrac: 0.4, turnMs: 120 });
     expect(WALK_BOB).toEqual({ amplitudePx: 1.5, hz: 4 });
     expect(RALLY_FLAG).toEqual({
-      fadeMs: 900, ghostAlpha: 0.6, routeDotSpacingPx: 10, routeDotRadius: 2,
+      fadeMs: 900, ghostAlpha: 0.6, routeDotSpacingPx: 10, routeDotRadius: 2, lineWidth: 2,
       poleHeight: 18, pennant: { w: 10, h: 7 }, depth: 10.6,
       ok: PALETTE.accent, bad: PALETTE.danger,
     });
@@ -24,6 +24,7 @@ describe('soldier tunables', () => {
     expect(SOLDIER_MARCH.speed).toBeGreaterThan(0);
     expect(SOLDIER_MARCH.disengagePx).toBeGreaterThan(0);
     expect(RALLY_FLAG.fadeMs).toBeGreaterThanOrEqual(0);
+    expect(RALLY_FLAG.lineWidth).toBeGreaterThan(0);
     expect(SOLDIER_FORMATION.turnMs).toBeGreaterThan(0);
   });
 
