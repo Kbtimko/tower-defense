@@ -13,6 +13,12 @@ vi.mock('phaser', () => ({
   }
 }));
 
+// A spy that still runs the real layout, so call counts show when it is recomputed.
+vi.mock('../systems/soldierFormation.js', async (importOriginal) => {
+  const real = await importOriginal();
+  return { formationOffsets: vi.fn(real.formationOffsets) };
+});
+
 import { Soldier } from './Soldier.js';
 import { SOLDIER_FORMATION, WALK_BOB } from '../data/soldiers.js';
 import { formationOffsets } from '../systems/soldierFormation.js';
@@ -193,5 +199,69 @@ describe('Soldier march animation (R14)', () => {
     const spy = withSpySprite(b.soldiers[0]);
     b.soldiers[0].update(0.016);
     expect(spy.facings.at(-1)).toBeLessThan(0);
+  });
+});
+
+describe('Soldier formation turns (ruling 9)', () => {
+  const S = SOLDIER_FORMATION.fallbackSpacingPx;
+  // Lead at rest sits one spacing upstream (-S); ordered downstream it belongs at +S.
+  const orderDownstream = () => {
+    const b = makeSquad();
+    b.soldiers[0].update(0.02);
+    expect(b.soldiers[0]._view.x).toBeCloseTo(-S);
+    b.soldierPathProgress = 0.9;
+    return b.soldiers[0];
+  };
+
+  it('eases the flip part-way on a short frame and lands by turnMs', () => {
+    const s = orderDownstream();
+    const stepMs = SOLDIER_FORMATION.turnMs / 6;
+    s.update(stepMs / 1000);
+    expect(s._view.x).toBeGreaterThan(-S + 0.1);
+    expect(s._view.x).toBeLessThan(S - 0.1);
+    for (let i = 0; i < 4; i++) s.update(stepMs / 1000);
+    expect(s._view.x).toBeLessThan(S - 0.1); // 5/6 of turnMs: not there yet
+    s.update(stepMs / 1000);
+    expect(s._view.x).toBeCloseTo(S, 6);
+  });
+
+  it('snaps in one frame under reduced motion', () => {
+    const s = orderDownstream();
+    s.update(0.001, [], { reducedMotion: true });
+    expect(s._view.x).toBeCloseTo(S, 9);
+  });
+
+  it('does not ease the very first layout (no spread-out animation on spawn)', () => {
+    const [s] = makeSquad().soldiers;
+    s.update(0.001);
+    expect(s._view.x).toBeCloseTo(-S, 9);
+  });
+});
+
+describe('Soldier layout cost (minor 1)', () => {
+  it('recomputes the formation while marching or when the squad changes, not every frame at rest', () => {
+    const b = makeSquad();
+    const [s] = b.soldiers;
+    s.update(0.016);
+    formationOffsets.mockClear();
+    for (let i = 0; i < 5; i++) s.update(0.016);
+    expect(formationOffsets).not.toHaveBeenCalled();
+    b.soldiers.push(makeSquad().soldiers[0]);
+    s.update(0.016);
+    expect(formationOffsets).toHaveBeenCalledTimes(1);
+    b.soldierPathProgress = 0.9;
+    s.update(0.016);
+    s.update(0.016);
+    expect(formationOffsets).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('Soldier outside its squad list (minor 2)', () => {
+  it('draws with no offset instead of throwing', () => {
+    const b = makeSquad();
+    const stray = b.soldiers.pop();
+    expect(() => stray.update(0.016)).not.toThrow();
+    expect(stray._view.x).toBe(0);
+    expect(stray._view.y).toBe(0);
   });
 });

@@ -194,4 +194,24 @@ describe('Barracks._rebuildSoldiers', () => {
     expect(b.soldiers.map(s => s.pathProgress)).toEqual([...old, 0.9]);
     expect(b.soldiers[3].x).toBeCloseTo(pointAtProgress(PATH, 0.9).x);
   });
+
+  it('keeps each live soldier\'s disengage window across an upgrade', () => {
+    const { b, scene } = makeBarracks();
+    const chaser = enemyOn(b.soldiers[0]);
+    b.setRallyPoint(0.9, [chaser]);
+    frames(b, 3, [chaser]);
+    b.soldiers[2].takeDamage(1e6);
+    b.soldiers[2].disengageLeftPx = 50; // stale value: a dead soldier must never hand on a window
+    const left = b.soldiers[0].disengageLeftPx;
+    expect(left).toBeCloseTo(SOLDIER_MARCH.disengagePx - 18);
+    b.upgrade(4, 'B');
+    b._rebuildSoldiers(scene, PATH);
+    expect(b.soldiers.map(s => s.disengageLeftPx)).toEqual([left, left, 0, 0]);
+    const from = b.soldiers[0].pathProgress;
+    for (let i = 0; i < 3; i++) {
+      chaser.x = b.soldiers[0].x; // still in contact: only the window lets it walk on
+      b.soldiers[0].update(DT, [chaser]);
+    }
+    expect(b.soldiers[0].pathProgress).toBeGreaterThan(from);
+  });
 });

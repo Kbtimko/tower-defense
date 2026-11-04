@@ -7,7 +7,7 @@ import { MELEE_RANGE } from '../systems/soldierCombat.js';
 describe('soldier tunables', () => {
   it('holds the specified values', () => {
     expect(SOLDIER_MARCH).toEqual({ speed: 60, substepPx: 15, disengagePx: 60 });
-    expect(SOLDIER_FORMATION).toEqual({ spacingFrac: 0.55, fallbackSpacingPx: 9, flankBackFrac: 0.4 });
+    expect(SOLDIER_FORMATION).toEqual({ spacingFrac: 0.55, fallbackSpacingPx: 9, flankBackFrac: 0.4, turnMs: 120 });
     expect(WALK_BOB).toEqual({ amplitudePx: 1.5, hz: 4 });
     expect(RALLY_FLAG).toEqual({
       fadeMs: 900, ghostAlpha: 0.6, routeDotSpacingPx: 10, routeDotRadius: 2,
@@ -24,6 +24,7 @@ describe('soldier tunables', () => {
     expect(SOLDIER_MARCH.speed).toBeGreaterThan(0);
     expect(SOLDIER_MARCH.disengagePx).toBeGreaterThan(0);
     expect(RALLY_FLAG.fadeMs).toBeGreaterThanOrEqual(0);
+    expect(SOLDIER_FORMATION.turnMs).toBeGreaterThan(0);
   });
 
   it('flag colours come from the palette', () => {

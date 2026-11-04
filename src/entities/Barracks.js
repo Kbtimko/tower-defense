@@ -3,7 +3,7 @@ import { Soldier } from './Soldier.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { SOLDIER_MARCH } from '../data/soldiers.js';
 import { pathLength } from '../systems/pathGeometry.js';
-import { contactTest } from '../systems/soldierMarch.js';
+import { isEngaged } from '../systems/soldierMarch.js';
 
 export class Barracks extends Tower {
   constructor(scene, { type, x, y, def, zoneIndex, modifiers = {} }) {
@@ -36,10 +36,7 @@ export class Barracks extends Tower {
   // order onto its own spot is no move at all, so it keeps holding the line.
   setRallyPoint(progress, enemies = []) {
     for (const s of this.soldiers) {
-      if (progress === s.pathProgress) continue;
-      // Engagement is judged as if no window were open, without touching the soldier.
-      const probe = { dead: s.dead, canBlockFlyers: s.canBlockFlyers, disengageLeftPx: 0, x: s.x, y: s.y };
-      if (contactTest(probe, enemies)({ x: s.x, y: s.y })) s.disengageLeftPx = SOLDIER_MARCH.disengagePx;
+      if (progress !== s.pathProgress && isEngaged(s, enemies)) s.disengageLeftPx = SOLDIER_MARCH.disengagePx;
     }
     this.soldierPathProgress = progress;
     this.rallyFlag = { progress, fadeLeftMs: null };
@@ -52,12 +49,16 @@ export class Barracks extends Tower {
   }
 
   // An upgrade mid-march must not snap the squad to the flag: live soldiers
-  // rebuild where they stand and keep walking, the dead (and any new extra) at the target.
+  // rebuild where they stand and keep walking (and keep any disengage window,
+  // or they'd halt on the enemy they were leaving); the dead and any new extra
+  // appear at the target with no window.
   _rebuildSoldiers(scene, pathPoints) {
     const spawnProgress = this.soldiers.map(s => (s.dead ? this.soldierPathProgress : s.pathProgress));
+    const windows       = this.soldiers.map(s => (s.dead ? 0 : s.disengageLeftPx));
     for (const s of this.soldiers) s.destroy();
     this.soldiers = [];
     this.spawnSoldiers(scene, pathPoints, spawnProgress);
+    this.soldiers.forEach((s, i) => { s.disengageLeftPx = windows[i] ?? 0; });
   }
 
   destroy() {

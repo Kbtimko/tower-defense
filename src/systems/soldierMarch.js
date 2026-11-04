@@ -53,6 +53,15 @@ export function contactTest(soldier, enemies) {
     && Math.hypot(point.x - e.x, point.y - e.y) < MELEE_RANGE);
 }
 
+// In contact as if no disengage window were open — what an order checks to
+// decide who needs one. Object.create reads every other field (and getter)
+// through the soldier itself, so it can't drift from soldierCanBlock, and the
+// soldier is never written.
+export function isEngaged(soldier, enemies) {
+  const probe = Object.create(soldier, { disengageLeftPx: { value: 0 } });
+  return contactTest(probe, enemies)({ x: soldier.x, y: soldier.y });
+}
+
 export function isMarching(soldier, target) {
   return !soldier.dead && soldier.pathProgress !== target;
 }

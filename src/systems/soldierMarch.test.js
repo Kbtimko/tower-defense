@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { marchStep, contactTest, isMarching, routeDots, travelDir } from './soldierMarch.js';
+import { marchStep, contactTest, isEngaged, isMarching, routeDots, travelDir } from './soldierMarch.js';
 import { MELEE_RANGE } from './soldierCombat.js';
 import { pointAtProgress, pathLength } from './pathGeometry.js';
 
@@ -149,6 +149,29 @@ describe('contactTest', () => {
   });
   it('disengaging soldier -> false', () => {
     expect(contactTest({ ...soldier, disengageLeftPx: 30 }, [near])({ x: 0, y: 0 })).toBe(false);
+  });
+});
+
+describe('isEngaged', () => {
+  const near = { x: 10, y: 0, dead: false, def: {} };
+  it('judges contact as if no disengage window were open, without touching the soldier', () => {
+    const s = { x: 0, y: 0, dead: false, disengageLeftPx: 30 };
+    expect(isEngaged(s, [near])).toBe(true);
+    expect(s.disengageLeftPx).toBe(30);
+    expect(Object.keys(s)).toEqual(['x', 'y', 'dead', 'disengageLeftPx']);
+  });
+  it('false out of range, when dead, or against a flyer it cannot block', () => {
+    expect(isEngaged({ x: 100, y: 0, dead: false }, [near])).toBe(false);
+    expect(isEngaged({ x: 0, y: 0, dead: true }, [near])).toBe(false);
+    const fly = { ...near, def: { flying: true } };
+    expect(isEngaged({ x: 0, y: 0, dead: false }, [fly])).toBe(false);
+    expect(isEngaged({ x: 0, y: 0, dead: false, canBlockFlyers: true }, [fly])).toBe(true);
+  });
+  it('reads blocking fields through the prototype (a Phaser Container), not just own properties', () => {
+    // A copy of own properties would drop canBlockFlyers and miss this flyer.
+    class Unit { get canBlockFlyers() { return true; } }
+    const u = Object.assign(new Unit(), { x: 0, y: 0, dead: false, disengageLeftPx: 60 });
+    expect(isEngaged(u, [{ ...near, def: { flying: true } }])).toBe(true);
   });
 });
 

@@ -6,8 +6,10 @@ import { PALETTE } from './theme.js';
 // an enemy's melee window between checks.
 export const SOLDIER_MARCH = Object.freeze({ speed: 60, substepPx: 15, disengagePx: 60 });
 
+// turnMs: a formation that changes heading (march start, arrival, reversal)
+// swings into its new layout over this long instead of jumping a body-width.
 export const SOLDIER_FORMATION = Object.freeze({
-  spacingFrac: 0.55, fallbackSpacingPx: 9, flankBackFrac: 0.4,
+  spacingFrac: 0.55, fallbackSpacingPx: 9, flankBackFrac: 0.4, turnMs: 120,
 });
 
 export const WALK_BOB = Object.freeze({ amplitudePx: 1.5, hz: 4 });

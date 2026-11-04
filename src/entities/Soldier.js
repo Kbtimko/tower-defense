@@ -35,6 +35,8 @@ export class Soldier extends Phaser.GameObjects.Container {
     this.totalLength     = pathLength(pathPoints);
     this.disengageLeftPx = 0;
     this._walkS          = 0; // seconds spent walking this march, drives the bob phase
+    this._offset         = null; // eased formation offset; null until the first layout
+    this._layoutKey      = null; // inputs the cached target offset was computed from
 
     // Everything drawn lives in _view so the formation offset and bob move only
     // the picture; this container stays on the logical road point that
@@ -141,24 +143,57 @@ export class Soldier extends Phaser.GameObjects.Container {
   }
 
   _layout(dt, walking, reducedMotion) {
-    // Travel tangent while marching, upstream (where enemies come from) at rest (S4).
-    const dir = travelDir(this.pathPoints, this.pathProgress, this.barracks.soldierPathProgress);
-    const size = this._sprite?.active ? this._sprite.getDisplaySize() : null;
-    const spacing = size ? SOLDIER_FORMATION.spacingFrac * size.width : SOLDIER_FORMATION.fallbackSpacingPx;
-    const squad = this.barracks.soldiers;
-    const offset = formationOffsets(squad.length, dir, spacing, SOLDIER_FORMATION.flankBackFrac)[squad.indexOf(this)];
+    const layout = this._targetLayout();
+    const dir = layout.dir;
+
+    // Linear move-toward at 2|offset|/turnMs: a full reversal (the largest
+    // change a rigid formation can make, offset -> -offset) lands in exactly
+    // turnMs, and smaller swings sooner. The first layout, reduced motion and a
+    // stray soldier (no slot, zero offset, so no rate to ease at) snap.
+    const to = layout.offset;
+    if (!this._offset || reducedMotion || layout.index < 0) {
+      this._offset = { dx: to.dx, dy: to.dy };
+    } else {
+      const ex = to.dx - this._offset.dx;
+      const ey = to.dy - this._offset.dy;
+      const gap = Math.hypot(ex, ey);
+      const maxStep = (2 * Math.hypot(to.dx, to.dy) * dt * 1000) / SOLDIER_FORMATION.turnMs;
+      if (gap <= maxStep) this._offset = { dx: to.dx, dy: to.dy };
+      else this._offset = { dx: this._offset.dx + (ex / gap) * maxStep, dy: this._offset.dy + (ey / gap) * maxStep };
+    }
 
     this._walkS = walking ? this._walkS + dt : 0;
     const bob = walking && !reducedMotion
       ? WALK_BOB.amplitudePx * Math.sin(2 * Math.PI * WALK_BOB.hz * this._walkS)
       : 0;
-    this._view.x = offset.dx;
-    this._view.y = offset.dy + bob;
+    this._view.x = this._offset.dx;
+    this._view.y = this._offset.dy + bob;
 
     // Re-asserted every frame, as Hero does, so 'move' resumes after an attack one-shot.
     this._sprite?.setState(walking ? 'move' : 'idle');
     // The tangent is a unit vector; scale it to the px covered by one sub-step so
     // the pixel deadzone keeps a near-vertical road from mirroring the art.
     this._sprite?.setFacing(facingDirX(dir.x * SOLDIER_MARCH.substepPx));
+  }
+
+  // Heading and formation slot, recomputed only when an input changes: at rest
+  // nothing does, so an idle squad skips the path walk in travelDir every frame.
+  _targetLayout() {
+    const target = this.barracks.soldierPathProgress;
+    const size = this._sprite?.active ? this._sprite.getDisplaySize() : null;
+    const spacing = size ? SOLDIER_FORMATION.spacingFrac * size.width : SOLDIER_FORMATION.fallbackSpacingPx;
+    const squad = this.barracks.soldiers;
+    const index = squad.indexOf(this);
+    const k = this._layoutKey;
+    if (k && k.progress === this.pathProgress && k.target === target && k.spacing === spacing
+        && k.count === squad.length && k.index === index) return k;
+    // Travel tangent while marching, upstream (where enemies come from) at rest (S4).
+    const dir = travelDir(this.pathPoints, this.pathProgress, target);
+    // A soldier missing from its squad list draws on its road point rather than throwing.
+    const offset = index < 0
+      ? { dx: 0, dy: 0 }
+      : formationOffsets(squad.length, dir, spacing, SOLDIER_FORMATION.flankBackFrac)[index];
+    this._layoutKey = { progress: this.pathProgress, target, spacing, count: squad.length, index, dir, offset };
+    return this._layoutKey;
   }
 }
