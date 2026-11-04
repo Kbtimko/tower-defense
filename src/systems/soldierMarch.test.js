@@ -4,8 +4,10 @@ import { MELEE_RANGE } from './soldierCombat.js';
 import { pointAtProgress, pathLength } from './pathGeometry.js';
 
 const STRAIGHT = [{ x: 0, y: 0 }, { x: 400, y: 0 }];
-// 200 px east then 200 px south: total 400, corner at progress 0.5.
-const L = [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 200 }];
+// 100 px east then 300 px south: total 400, corner at progress 0.25. Unequal legs
+// so a point-index stepper (corner at 0.5) disagrees with arc length.
+const L = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 300 }];
+const BENT = [{ x: 0, y: 0 }, { x: 130, y: 47 }, { x: 210, y: 190 }, { x: 333, y: 251 }];
 const never = () => false;
 const base = (path, over = {}) => ({
   progress: 0, target: 1, dt: 1, speed: 60, totalLength: pathLength(path),
@@ -24,12 +26,12 @@ describe('marchStep', () => {
 
   it('measures distance in arc length across a corner (L path)', () => {
     // start 20 px before the corner, walk 60 px: 20 east + 40 south
-    const r = marchStep(base(L, { progress: 180 / 400, dt: 1 }));
+    const r = marchStep(base(L, { progress: 80 / 400, dt: 1 }));
     const p = pointAtProgress(L, r.progress);
-    expect(p.x).toBeCloseTo(200, 6);
+    expect(p.x).toBeCloseTo(100, 6);
     expect(p.y).toBeCloseTo(40, 6);
     expect(r.walkedPx).toBeCloseTo(60, 6);
-    expect(arc(L, 180 / 400, r.progress)).toBeCloseTo(60, 6);
+    expect(arc(L, 80 / 400, r.progress)).toBeCloseTo(60, 6);
   });
 
   it('E5: target within one step lands exactly with no overshoot', () => {
@@ -43,6 +45,32 @@ describe('marchStep', () => {
     const r = marchStep(base(STRAIGHT, { progress: 0.5, target: 0 }));
     expect(r.progress * 400).toBeCloseTo(200 - 60, 6);
     expect(r.arrived).toBe(false);
+  });
+
+  it('E7: exact landing on the road ends (target 1 and target 0)', () => {
+    const end = marchStep(base(STRAIGHT, { progress: 0.99, target: 1 }));
+    expect(end.progress).toBe(1);
+    expect(end.arrived).toBe(true);
+    const start = marchStep(base(STRAIGHT, { progress: 0.01, target: 0 }));
+    expect(start.progress).toBe(0);
+    expect(start.arrived).toBe(true);
+  });
+
+  it('out-of-range target can still arrive at the clamped end', () => {
+    const r = marchStep(base(STRAIGHT, { progress: 0.99, target: 5, dt: 10 }));
+    expect(r.progress).toBe(1);
+    expect(r.arrived).toBe(true);
+  });
+
+  it('landing exactly on a blocked target point keeps progress === target (no float drift)', () => {
+    const total = pathLength(BENT);
+    const target = 0.0055;
+    const tp = pointAtProgress(BENT, target);
+    const blocked = (pt) => Math.hypot(pt.x - tp.x, pt.y - tp.y) < 1e-6;
+    const r = marchStep({ progress: 0, target, dt: 1, speed: 1e4, totalLength: total, substepPx: 15, path: BENT, blocked });
+    expect(r.halted).toBe(true);
+    expect(r.progress).toBe(target);
+    expect(r.arrived).toBe(true);
   });
 
   it('E7: clamps progress to [0, 1]', () => {
@@ -68,7 +96,6 @@ describe('marchStep', () => {
       calls.push(pt);
       return Math.hypot(pt.x - enemy.x, pt.y - enemy.y) < MELEE_RANGE;
     };
-    // soldier at x=100, enemy 20 px ahead -> already in range? use x=60 (60 px away)
     const r = marchStep(base(STRAIGHT, { progress: 60 / 400, dt: 0.4, speed: 200, blocked }));
     const end = pointAtProgress(STRAIGHT, r.progress);
     expect(r.halted).toBe(true);
@@ -145,13 +172,21 @@ describe('routeDots', () => {
     }
   });
   it('follows the road around a corner, not the chord', () => {
-    const d = routeDots(L, 0.25, 0.75, 10);
-    // some dot must sit near the corner (200,0); chord from (100,0) to (200,100) would not
-    expect(d.some(p => Math.hypot(p.x - 200, p.y) < 6)).toBe(true);
-    // every dot lies on the road (east leg y=0, or south leg x=200)
-    expect(d.every(p => Math.abs(p.y) < 1e-6 || Math.abs(p.x - 200) < 1e-6)).toBe(true);
-    // arc spacing (not chord) is ~10 px, so ~20 dots for 200 px of road
-    expect(d.length).toBeGreaterThanOrEqual(20);
+    const d = routeDots(L, 0.1, 0.9, 10);
+    // some dot must sit near the corner (100,0); a chord would cut across it
+    expect(d.some(p => Math.hypot(p.x - 100, p.y) < 6)).toBe(true);
+    // every dot lies on the road (east leg y=0, or south leg x=100)
+    expect(d.every(p => Math.abs(p.y) < 1e-6 || Math.abs(p.x - 100) < 1e-6)).toBe(true);
+    // arc spacing (not chord) is ~10 px, so ~32 dots for 320 px of road
+    expect(d.length).toBeGreaterThanOrEqual(32);
+  });
+  it('short route: evenly spaced, first = from, last = to', () => {
+    // 25 px at spacing 10 -> round(2.5) = 3 gaps of 25/3 (the +-1 px rule is for routes >= 5 spacings)
+    const d = routeDots(STRAIGHT, 0.1, 0.1 + 25 / 400, 10);
+    expect(d[0].x).toBeCloseTo(40, 6);
+    expect(d[d.length - 1].x).toBeCloseTo(65, 6);
+    const gaps = d.slice(1).map((p, i) => Math.hypot(p.x - d[i].x, p.y - d[i].y));
+    for (const g of gaps) expect(Math.abs(g - gaps[0])).toBeLessThan(1e-6);
   });
   it('reversed when to < from', () => {
     const d = routeDots(STRAIGHT, 0.9, 0.1, 10);
@@ -169,6 +204,16 @@ describe('travelDir', () => {
     expect(travelDir(L, 0.1, 0.9)).toEqual({ x: 1, y: 0 });
     const d = travelDir(L, 0.8, 0.9);
     expect(d.x).toBeCloseTo(0, 6); expect(d.y).toBeCloseTo(1, 6);
+  });
+  it('road ends: upstream/downstream unit vectors on the L fixture', () => {
+    const near = (d, x, y) => { expect(d.x).toBeCloseTo(x, 6); expect(d.y).toBeCloseTo(y, 6); };
+    near(travelDir(L, 0, 0), -1, 0);   // upstream of the start = west
+    near(travelDir(L, 1, 1), 0, -1);   // upstream of the end = north
+    near(travelDir(L, 0, 1), 1, 0);    // start heading downstream = east
+    near(travelDir(L, 1, 0), 0, -1);   // end heading upstream = north
+    // start of a south-bound road: upstream is north, not the degenerate {-1, 0}
+    const SOUTH = [{ x: 5, y: 0 }, { x: 5, y: 100 }];
+    near(travelDir(SOUTH, 0, 0), 0, -1);
   });
   it('reversed toward a lower target', () => {
     const d = travelDir(STRAIGHT, 0.5, 0.1);

@@ -37,10 +37,11 @@ export function marchStep({ progress, target, dt, speed, totalLength, substepPx,
     if (blocked(pointAtProgress(path, p))) { halted = true; break; }
   }
 
-  // Land exactly on the target when the whole remaining distance was covered.
-  const arrivedFully = !halted && reach === toGo;
-  const next = arrivedFully ? clamp01(target) : clamp01((startPx + dir * walked) / totalLength);
-  return { progress: next, arrived: next === target, halted, walkedPx: walked };
+  // Land exactly on the target whenever the whole distance was walked, blocked or
+  // not: recomputing from px can miss it by an ulp and strand the soldier "marching".
+  const goal = clamp01(target);
+  const next = walked === toGo ? goal : clamp01((startPx + dir * walked) / totalLength);
+  return { progress: next, arrived: next === goal, halted, walkedPx: walked };
 }
 
 // R8: a soldier is held by a live enemy it can block within MELEE_RANGE.
@@ -63,6 +64,8 @@ export function routeDots(path, from, to, spacingPx) {
   const total = pathLength(path);
   const lenPx = Math.abs(to - from) * total;
   if (lenPx <= 0 || spacingPx <= 0) return [pointAtProgress(path, from)];
+  // Even gaps of lenPx/round(lenPx/spacing) so the last dot hits `to`; this is
+  // within 1 px of spacingPx only for routes >= 5 spacings (shorter ones round coarsely).
   const n = Math.max(1, Math.round(lenPx / spacingPx));
   const dots = [];
   for (let i = 0; i <= n; i++) {
