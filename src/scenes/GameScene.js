@@ -86,6 +86,11 @@ import { ResultsScreen }      from '../ui/ResultsScreen.js';
 import { WaveCountdown, countdownMsFor, shouldStartCountdown } from '../systems/waveCountdown.js';
 import { waveButtonView }     from '../systems/waveButtonView.js';
 import { WAVE_COUNTDOWN }     from '../data/waveCountdown.js';
+import { RALLY_FLAG }         from '../data/soldiers.js';
+import { resolveRallyTarget } from '../systems/rallyTarget.js';
+import { isMarching, routeDots, stepFlagFade } from '../systems/soldierMarch.js';
+import { pointAtProgress }    from '../systems/pathGeometry.js';
+import { hexToInt }           from '../ui/theme.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const WAVE_CLEAR_BONUS   = 38;
@@ -93,6 +98,30 @@ const WAVE_CLEAR_BONUS   = 38;
 const PREVIEW_OK         = 0xffd700;
 const PREVIEW_BAD        = 0x884444;
 const BUILD_HUB          = 'Build';
+const RALLY_OK           = hexToInt(RALLY_FLAG.ok);
+const RALLY_BAD          = hexToInt(RALLY_FLAG.bad);
+const RALLY_HALO         = hexToInt(RALLY_FLAG.halo);
+
+// The rally pennant: pole top, tip, and down the pole.
+function pennantCorners(x, top) {
+  const { w, h } = RALLY_FLAG.pennant;
+  return [{ x, y: top }, { x: x + w, y: top + h / 2 }, { x, y: top + h }];
+}
+
+// Push every edge of a triangle `d` px outward. Scaling about the incentre by
+// (r + d) / r moves each edge's tangent line from r to r + d, so the outline is
+// even all round; nudging the corners by d would leave the sharp tip bare.
+function growTriangle([A, B, C], d) {
+  const a = Math.hypot(B.x - C.x, B.y - C.y);
+  const b = Math.hypot(A.x - C.x, A.y - C.y);
+  const c = Math.hypot(A.x - B.x, A.y - B.y);
+  const per = a + b + c;
+  const ix = (a * A.x + b * B.x + c * C.x) / per;
+  const iy = (a * A.y + b * B.y + c * C.y) / per;
+  const r = Math.abs((B.x - A.x) * (C.y - A.y) - (C.x - A.x) * (B.y - A.y)) / per;
+  const k = (r + d) / r;
+  return [A, B, C].map(p => ({ x: ix + (p.x - ix) * k, y: iy + (p.y - iy) * k }));
+}
 
 // Every pool reduced to one line, so the audit can force the longest caption.
 function onlyLine(line) {
@@ -268,6 +297,9 @@ export default class GameScene extends Phaser.Scene {
     // Reposition mode state
     this.repositionMode        = false;
     this.repositioningBarracks = null;
+    // Rally mode state (the barracks whose squad the next road tap sends)
+    this.rallyMode             = false;
+    this.rallyBarracks         = null;
 
     // The map renders between the HUD rails; scroll stays 0, so world coords are
     // unchanged and only the viewport moves. The background colour (solid
@@ -300,6 +332,11 @@ export default class GameScene extends Phaser.Scene {
     // Idle pad glow lives under the unit band: on gfx it would tint towers and
     // units standing on or near a pad.
     this._padGlow = this.add.graphics().setDepth(PAD_GLOW.depth);
+    // Rally visuals sit above the pads and below the unit band, so soldiers walk
+    // over their own route. The overlay (range ring + ghost) is created second so
+    // it draws over a route at the same depth.
+    this._rallyRouteGfx   = this.add.graphics().setDepth(RALLY_FLAG.depth);
+    this._rallyOverlayGfx = this.add.graphics().setDepth(RALLY_FLAG.depth);
 
     this._setupRoad(map);
 
@@ -674,6 +711,10 @@ export default class GameScene extends Phaser.Scene {
     this._coinFx = null;
     this._padGlow?.destroy();
     this._padGlow = null;
+    this._rallyRouteGfx?.destroy();
+    this._rallyRouteGfx = null;
+    this._rallyOverlayGfx?.destroy();
+    this._rallyOverlayGfx = null;
     this._waveBanner = null;
     if (this.shakeCtl)      this.shakeCtl.destroy();
     for (const s of this._sentries) s.destroy();
@@ -697,6 +738,11 @@ export default class GameScene extends Phaser.Scene {
       window.__capture.simMs += delta * this.speed;
       window.__capture.enemies = this.enemies.filter(e => !e.dead).length;
       window.__capture.countdownMs = this._countdown.running ? this._countdown.remainingMs : null;
+      window.__capture.rally = this.placementManager.getTowers().filter(t => t.type === 'barracks').map(b => ({
+        target:   b.soldierPathProgress,
+        marching: b.soldiers.some(s => isMarching(s, b.soldierPathProgress)),
+        soldiers: b.soldiers.map(s => ({ progress: s.pathProgress, dead: s.dead })),
+      }));
     }
     // Real delta and ahead of every early return: coins already in flight should
     // land (and the HUD pulse fire) through hit-stop and game over, not freeze.
@@ -731,6 +777,8 @@ export default class GameScene extends Phaser.Scene {
     this._areaEffects.update(dt, this.enemies);
     this._updateParticles(dt);
     this._checkWaveComplete();
+    // A rally barracks that left the board (E36) ends the mode now, not on the next tap.
+    if (this.rallyMode && !this.placementManager.getTowers().includes(this.rallyBarracks)) this._cancelMode();
     // After the clear check, so a clear bonus lands first and a banner it shows
     // holds the countdown before a zero this frame can send.
     this._updateCountdown(dtMs);
@@ -742,6 +790,8 @@ export default class GameScene extends Phaser.Scene {
     this._drawSelectionRing();
     this._drawReticle();
     this._drawParticles();
+    this._drawRallyOverlay();
+    this._drawRallyRoutes(dtMs);
   }
 
   // ─── Wave ──────────────────────────────────────────────────────────────────
@@ -863,7 +913,11 @@ export default class GameScene extends Phaser.Scene {
           this._dealDamage(enemy, blocker.damage, false, { source: soldierSource(blocker) });
           blocker.attackTimer = 1 / blocker.attackRate;
           blocker._sprite?.setState('attack');
-          this.particleSpawner?.spawnMuzzleFlash(blocker.x, blocker.y, SOLDIER_MUZZLE);
+          // At the drawn soldier: the formation offset moves the picture off the road point.
+          if (this.particleSpawner) {
+            const at = blocker.drawnPosition();
+            this.particleSpawner.spawnMuzzleFlash(at.x, at.y, SOLDIER_MUZZLE);
+          }
         }
         if (enemy.dead) continue;
         continue;
@@ -966,10 +1020,13 @@ export default class GameScene extends Phaser.Scene {
     return null;
   }
 
+  // After _updateEnemies: a march halts on this frame's enemy positions, and the
+  // block that follows lands on the next frame's _updateEnemies.
   _updateSoldiers(dt) {
+    const reducedMotion = this.game.registry.get('ambientMotion') === false;
     for (const tower of this.placementManager.getTowers()) {
       if (tower.type !== 'barracks') continue;
-      for (const soldier of tower.soldiers) soldier.update(dt);
+      for (const soldier of tower.soldiers) soldier.update(dt, this.enemies, { reducedMotion });
     }
   }
 
@@ -1018,6 +1075,7 @@ export default class GameScene extends Phaser.Scene {
       if (this.hero.dead) return;
       if (this.hero._timers[slot] > 0) return;
       if (this.hero.level < this.hero.def.stats.abilityUnlockLevels[slot]) return;
+      this._leaveRallyMode();
       this._closeRadial();
       this.aimMode  = true;
       this._aimSlot = slot;
@@ -1384,6 +1442,7 @@ export default class GameScene extends Phaser.Scene {
     return {
       aimSlot:       this.aimMode ? this._aimSlot : null,
       repositioning: !!(this.repositionMode && this.repositioningBarracks),
+      rallying:      !!(this.rallyMode && this.rallyBarracks),
       selectedType:  this.selectedType,
       heroDead:      !!this.hero?.dead,
       radial:        this.radial?.isOpen ? { kind: this.radial.kind, target: this.radial.target } : null,
@@ -1410,6 +1469,7 @@ export default class GameScene extends Phaser.Scene {
     switch (action.type) {
       case 'fireAim':     this._triggerAimAbility(mx, my); break;
       case 'reposition':  this._repositionTo(mx, my); break;
+      case 'rally':       this._rallyTo(mx, my); break;
       case 'openRing':    this._openRing(action.tower); break;
       case 'openBuild':   this._openBuild(action.slot); break;
       // tryClickInspect agrees with inspectableAt (same hit test), so a pin
@@ -1447,7 +1507,29 @@ export default class GameScene extends Phaser.Scene {
     zones[slot.slotIndex].occupied = true;
     barracks.zoneIndex = slot.slotIndex;
     barracks.setPosition(slot.x, slot.y);
+    // The squad walks to the new pad's road point rather than staying behind.
+    barracks.setRallyPoint(this.pathMgr.getNearestPathProgress(slot.x, slot.y), this.enemies);
     this._repaintStaticLayers();
+  }
+
+  // A miss toasts and stays in the mode (C2); the barracks itself, Cancel or
+  // Escape exits. Only a valid road point inside the range plants the flag.
+  _rallyTo(mx, my) {
+    const barracks = this.rallyBarracks;
+    if (!this.placementManager.getTowers().includes(barracks)) { this._cancelMode(); return; }
+    if (Math.hypot(barracks.x - mx, barracks.y - my) < TAP_TOWER_RADIUS) { this._cancelMode(); return; }
+    const t = this._rallyTarget(mx, my);
+    if (!t.onRoad) { this._toast('Rally on the road'); return; }
+    if (!t.inRange) { this._toast('Too far — rally inside the ring'); return; }
+    barracks.setRallyPoint(t.progress, this.enemies);
+    this._cancelMode();
+  }
+
+  _rallyTarget(x, y) {
+    const b = this.rallyBarracks;
+    return resolveRallyTarget({
+      x, y, pathMgr: this.pathMgr, centre: { x: b.x, y: b.y }, range: b.range, tapRadius: TAP_PATH_RADIUS,
+    });
   }
 
   _placeAt(slot, type) {
@@ -1472,8 +1554,22 @@ export default class GameScene extends Phaser.Scene {
     if (wasAiming) this.game.events.emit('hero:aim-cancel');
     this.repositionMode = false;
     this.repositioningBarracks = null;
+    this.rallyMode = false;
+    this.rallyBarracks = null;
+    // Redrawn here, not only in update(), so a cancel while paused clears it.
+    this._drawRallyOverlay();
     this._closeRadial();
     this._syncCancelButton();
+  }
+
+  // Newest intent wins (ruling 16): arming a tower or an aim drops a pending
+  // rally, or the next tap would still go to the rally and the build would be
+  // silently ignored. Callers sync Cancel afterwards.
+  _leaveRallyMode() {
+    if (!this.rallyMode) return;
+    this.rallyMode = false;
+    this.rallyBarracks = null;
+    this._drawRallyOverlay();
   }
 
   // Escape arrives here for every press; with no mode it must not swallow it,
@@ -1495,6 +1591,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _selectTowerType(type, btn) {
+    this._leaveRallyMode();
     if (this.selectedType === type) {
       this.selectedType = null;
       this._deselectButtons();
@@ -1663,6 +1760,7 @@ export default class GameScene extends Phaser.Scene {
       case 'branchB':    this._upgradeSelectedTower(item.branch); break;
       case 'sell':       this._sellSelectedTower(); break;
       case 'reposition': this._startReposition(); break;
+      case 'rally':      this._startRally(); break;
     }
   }
 
@@ -1774,6 +1872,10 @@ export default class GameScene extends Phaser.Scene {
         this._tooltipHeader(tt, 'Move');
         this._tooltipLine(tt, 'Then tap a free pad to move this barracks there.');
         break;
+      case 'rally':
+        this._tooltipHeader(tt, 'Rally');
+        this._tooltipLine(tt, 'Then tap the road inside the ring to send the squad there.');
+        break;
     }
     return tt;
   }
@@ -1832,6 +1934,23 @@ export default class GameScene extends Phaser.Scene {
     this._redrawZones();
     // _repositionTo snaps the tap to the nearest free pad and moves the barracks there.
     this._toast('Tap a free pad to move the barracks there');
+  }
+
+  _startRally() {
+    const barracks = this.selectedTower;
+    if (barracks?.type !== 'barracks') return;
+    this._closeRadial();
+    this.rallyMode = true;
+    this.rallyBarracks = barracks;
+    // S1: the ghost opens on the squad's current rally point; the next in-map
+    // pointer event moves the cursor and the ghost follows it from there.
+    const here = pointAtProgress(this.pathMgr.getPathPoints(), barracks.soldierPathProgress);
+    this._buildCursorX = here.x;
+    this._buildCursorY = here.y;
+    this._syncCancelButton();
+    // Drawn now as well as per frame: under a user pause update() does not run (S5).
+    this._drawRallyOverlay();
+    this._toast('Tap the road inside the ring to rally the squad');
   }
 
   _toggleSpeed() {
@@ -2215,6 +2334,88 @@ export default class GameScene extends Phaser.Scene {
       this.gfx.lineStyle(2, p.color, p.alpha);
       this.gfx.strokeCircle(p.x, p.y, p.radius);
     }
+  }
+
+  // Range ring plus a ghost flag at the snapped road point: OK colour when valid,
+  // bad when out of range, and un-snapped at the cursor when off the road (S2).
+  // The ring turns bad too when the ghost is on the road but past it, so the
+  // ring itself says what is wrong (ruling 15).
+  _drawRallyOverlay() {
+    const g = this._rallyOverlayGfx;
+    if (!g) return;
+    g.clear();
+    const b = this.rallyBarracks;
+    if (!this.rallyMode || !b) return;
+    const x = this._buildCursorX;
+    const y = this._buildCursorY;
+    const t = this._rallyTarget(x, y);
+    g.lineStyle(RALLY_FLAG.lineWidth + 2 * RALLY_FLAG.haloPx, RALLY_HALO, RALLY_FLAG.ghostAlpha);
+    g.strokeCircle(b.x, b.y, b.range);
+    g.lineStyle(RALLY_FLAG.lineWidth, t.onRoad && !t.inRange ? RALLY_BAD : RALLY_OK, RALLY_FLAG.ghostAlpha);
+    g.strokeCircle(b.x, b.y, b.range);
+    this._drawFlag(g, t.onRoad ? t.point : { x, y }, t.valid ? RALLY_OK : RALLY_BAD, RALLY_FLAG.ghostAlpha);
+  }
+
+  // Derived from barracks state every frame (S10), so a sold barracks leaves
+  // nothing behind. The fade runs on the speed-scaled frame time, not _runMs,
+  // which stands still until wave 1 is sent.
+  _drawRallyRoutes(dtMs) {
+    const g = this._rallyRouteGfx;
+    if (!g) return;
+    g.clear();
+    const path = this.pathMgr.getPathPoints();
+    const reducedMotion = this.game.registry.get('ambientMotion') === false;
+    for (const b of this.placementManager.getTowers()) {
+      const flag = b.rallyFlag;
+      if (b.type !== 'barracks' || !flag) continue;
+      const target = b.soldierPathProgress;
+      const at = pointAtProgress(path, target);
+      const walkers = b.soldiers.filter(s => isMarching(s, target));
+      // S11: "arrived" is every live soldier at the flag.
+      const next = stepFlagFade(flag, { arrived: walkers.length === 0, dtMs, fadeMs: RALLY_FLAG.fadeMs, reducedMotion });
+      b.rallyFlag = next;
+      if (!next) continue;
+      if (walkers.length > 0) {
+        // From the soldier farthest from the flag, so the route shows the whole remaining walk.
+        const from = walkers.reduce((p, s) => (Math.abs(s.pathProgress - target) > Math.abs(p - target) ? s.pathProgress : p), target);
+        const route = routeDots(path, from, target, RALLY_FLAG.routeDotSpacingPx);
+        // Every halo before any colour, so no outline covers a neighbouring mark.
+        g.fillStyle(RALLY_HALO, RALLY_FLAG.ghostAlpha);
+        for (const d of route) g.fillCircle(d.x, d.y, RALLY_FLAG.routeDotRadius + RALLY_FLAG.haloPx);
+        this._drawFlagHalo(g, at, 1);
+        g.fillStyle(RALLY_OK, RALLY_FLAG.ghostAlpha);
+        for (const d of route) g.fillCircle(d.x, d.y, RALLY_FLAG.routeDotRadius);
+        this._drawFlagMarks(g, at, RALLY_OK, 1);
+      } else {
+        this._drawFlag(g, at, RALLY_OK, next.fadeLeftMs / RALLY_FLAG.fadeMs);
+      }
+    }
+  }
+
+  // A pole standing on the road point with a pennant at its top, on its halo.
+  _drawFlag(g, pt, colour, alpha) {
+    this._drawFlagHalo(g, pt, alpha);
+    this._drawFlagMarks(g, pt, colour, alpha);
+  }
+
+  // The dark outline under a flag: haloPx clear of the pole and pennant all round.
+  _drawFlagHalo(g, { x, y }, alpha) {
+    const d = RALLY_FLAG.haloPx;
+    const top = y - RALLY_FLAG.poleHeight;
+    g.lineStyle(RALLY_FLAG.lineWidth + 2 * d, RALLY_HALO, alpha);
+    g.lineBetween(x, y + d, x, top - d);
+    const [a, b, c] = growTriangle(pennantCorners(x, top), d);
+    g.fillStyle(RALLY_HALO, alpha);
+    g.fillTriangle(a.x, a.y, b.x, b.y, c.x, c.y);
+  }
+
+  _drawFlagMarks(g, { x, y }, colour, alpha) {
+    const top = y - RALLY_FLAG.poleHeight;
+    const [a, b, c] = pennantCorners(x, top);
+    g.lineStyle(RALLY_FLAG.lineWidth, colour, alpha);
+    g.lineBetween(x, y, x, top);
+    g.fillStyle(colour, alpha);
+    g.fillTriangle(a.x, a.y, b.x, b.y, c.x, c.y);
   }
 
   _redrawZones() {

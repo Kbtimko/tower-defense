@@ -1,6 +1,9 @@
 import { Tower } from './Tower.js';
 import { Soldier } from './Soldier.js';
 import { TOWER_DEFS } from '../data/towers.js';
+import { SOLDIER_MARCH } from '../data/soldiers.js';
+import { pathLength } from '../systems/pathGeometry.js';
+import { isEngaged } from '../systems/soldierMarch.js';
 
 export class Barracks extends Tower {
   constructor(scene, { type, x, y, def, zoneIndex, modifiers = {} }) {
@@ -9,13 +12,18 @@ export class Barracks extends Tower {
     this.soldiers            = [];
     this.soldierPathProgress = 0.5;
     this.soldierStats        = def.soldierStats.tier1;
+    this.rallyFlag           = null;
   }
 
-  spawnSoldiers(scene, pathPoints) {
+  // spawnProgress[i] overrides where soldier i appears (a mid-march rebuild);
+  // anyone without an entry starts on the rally point.
+  spawnSoldiers(scene, pathPoints, spawnProgress = null) {
+    this.pathPoints  = pathPoints;
+    this.totalLength = pathLength(pathPoints);
     for (let i = 0; i < this.soldierStats.count; i++) {
       this.soldiers.push(new Soldier(scene, {
         barracks:     this,
-        pathProgress: this.soldierPathProgress,
+        pathProgress: spawnProgress?.[i] ?? this.soldierPathProgress,
         pathPoints,
         soldierStats: this.soldierStats,
         modifiers:    this._modifiers,
@@ -23,11 +31,15 @@ export class Barracks extends Tower {
     }
   }
 
-  repositionSoldiers(newProgress, pathPoints) {
-    this.soldierPathProgress = newProgress;
-    for (const soldier of this.soldiers) {
-      soldier.setPathProgress(newProgress, pathPoints);
+  // An order, not a teleport: soldiers walk there in update(). Anyone already
+  // fighting gets a disengage window so the fight can't pin it in place; an
+  // order onto its own spot is no move at all, so it keeps holding the line.
+  setRallyPoint(progress, enemies = []) {
+    for (const s of this.soldiers) {
+      if (progress !== s.pathProgress && isEngaged(s, enemies)) s.disengageLeftPx = SOLDIER_MARCH.disengagePx;
     }
+    this.soldierPathProgress = progress;
+    this.rallyFlag = { progress, fadeLeftMs: null };
   }
 
   upgrade(tier, branch = null) {
@@ -36,10 +48,17 @@ export class Barracks extends Tower {
     this.soldierStats = TOWER_DEFS.barracks.soldierStats[key] ?? this.soldierStats;
   }
 
+  // An upgrade mid-march must not snap the squad to the flag: live soldiers
+  // rebuild where they stand and keep walking (and keep any disengage window,
+  // or they'd halt on the enemy they were leaving); the dead and any new extra
+  // appear at the target with no window.
   _rebuildSoldiers(scene, pathPoints) {
+    const spawnProgress = this.soldiers.map(s => (s.dead ? this.soldierPathProgress : s.pathProgress));
+    const windows       = this.soldiers.map(s => (s.dead ? 0 : s.disengageLeftPx));
     for (const s of this.soldiers) s.destroy();
     this.soldiers = [];
-    this.spawnSoldiers(scene, pathPoints);
+    this.spawnSoldiers(scene, pathPoints, spawnProgress);
+    this.soldiers.forEach((s, i) => { s.disengageLeftPx = windows[i] ?? 0; });
   }
 
   destroy() {

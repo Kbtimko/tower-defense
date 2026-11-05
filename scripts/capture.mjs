@@ -17,6 +17,7 @@
 // It also runs the world map with fonts blocked and with one node's art blocked on
 // every device, and with reduced motion on desktop1440 and iphone. Debug levels never
 // send a wave on their own unless ?autosend=1; the auto-send run proves that one does.
+// The rally run sends a barracks squad along the road with real input (#48).
 // Output: .art-cache/captures/<device>/map<N>-w<W>.png (+ .mp4 with --video)
 // and .art-cache/captures/report.json listing console errors per capture.
 // --wave defaults to the middle wave of each map; --build defaults to one of
@@ -46,7 +47,10 @@ import { STORY_SEQUENCES, STORY_SPEAKERS, STORY_LOG_LABELS, STORY_PANELS, epilog
 import { STORY_DIALOG } from '../src/data/storyDialog.js';
 import { layoutClass, routeFrameFor, worldMapProblems } from '../src/systems/worldMapLayout.js';
 import { POINTER_FINE_QUERY, COMPACT_QUERY } from '../src/data/mobile.js';
-import { CONFIRM_WINDOW_MS } from '../src/data/input.js';
+import { CONFIRM_WINDOW_MS, TAP_TOWER_RADIUS } from '../src/data/input.js';
+import { SOLDIER_MARCH } from '../src/data/soldiers.js';
+import { PathManager } from '../src/systems/PathManager.js';
+import { pathLength, pointAtProgress } from '../src/systems/pathGeometry.js';
 import { WORLD_WIDTH, WORLD_HEIGHT, MIN_TOUCH_PX } from '../src/data/layout.js';
 import { TITLE } from '../src/data/title.js';
 import { ARRIVAL } from '../src/data/worldMap.js';
@@ -57,7 +61,7 @@ import { longestResultLine } from '../src/systems/resultsModel.js';
 import { resultsTimeline } from '../src/systems/resultsTimeline.js';
 import { mergeRecord } from '../src/systems/runRecord.js';
 import { formatDuration } from '../src/utils/display.js';
-import { stepsFor, shotName, worldToPagePoint, flowExpectations, summarizeFlow, freePad, padWorldPoint, buildStates } from '../src/systems/deviceFlow.js';
+import { stepsFor, shotName, worldToPagePoint, flowExpectations, summarizeFlow, freePad, padWorldPoint, buildStates, pickPads } from '../src/systems/deviceFlow.js';
 
 const OUT_DIR   = '.art-cache/captures';
 const DIST_DIR  = '.art-cache/capture-dist';
@@ -602,6 +606,7 @@ async function captureScreens(browser, base, deviceName, opts) {
     () => captureStoryGallery(browser, base, deviceName, dir),
     () => captureDoubleTapClose(browser, base, deviceName),
     () => captureAutoSend(browser, base, deviceName, dir),
+    () => captureRally(browser, base, deviceName, dir),
   ];
   if (deviceName === 'desktop') runs.push(() => captureZoomedStory(browser, base, deviceName, dir));
   if (!DEVICES[deviceName].hasTouch) runs.push(() => captureHeldEnter(browser, base, deviceName));
@@ -1465,6 +1470,140 @@ function captureAutoSend(browser, base, deviceName, dir) {
     await untilGameTime(page, () => document.querySelector('#wave-btn').classList.contains('cd-warn'), null,
       { gameMs: countdownMsFor(MAPS[L.mapId]), label: '(c) #wave-btn never .cd-warn' });
     await shootAndAudit('auto-send-warn');
+  });
+}
+
+// R20 (#48): map 0 with one tier-1 barracks and no wave, so no enemy can halt the
+// march. Road points come from the PathManager the game builds, so a tap on one
+// snaps onto itself. A fresh context has no meta upgrades: the ring is the def range.
+const RALLY_MAP = 0;
+const RALLY_ITEM = '.radial-item[data-id="rally"]';
+const RALLY_TOO_FAR = 'Too far — rally inside the ring';
+const RALLY_STEP_PX = 5;
+// Each side of the default point needs this much in-range road to count as covered.
+const RALLY_MIN_SIDE_PX = 60;
+// The out-of-range point sits this far past the ring, so its ghost is clearly red.
+const RALLY_OUT_MARGIN_PX = 30;
+// Tap points stay this far inside the board, clear of any rail or HUD overlay.
+const RALLY_EDGE_PX = 60;
+// A tap must snap back onto the point it aimed at, not onto a nearby stretch of road.
+const RALLY_SNAP_PX = 2;
+
+// The most central pad whose ring covers road on both sides of its default point.
+// The march goes to the far end of the longer side; the ghost and the out-of-range
+// point are on the other side.
+function rallyPlan() {
+  const map = MAPS[RALLY_MAP];
+  const pm = new PathManager(map.waypoints, map.towerSlots, WORLD_WIDTH, WORLD_HEIGHT);
+  const path = pm.getPathPoints();
+  const total = pathLength(path);
+  const range = TOWER_DEFS.barracks.range;
+  for (const pad of pickPads(map, map.towerSlots.length)) {
+    const centre = padWorldPoint(map, pad);
+    const p0 = pm.getNearestPathProgress(centre.x, centre.y);
+    const onRoad = px => p0 + px / total >= 0 && p0 + px / total <= 1;
+    const at = px => pointAtProgress(path, p0 + px / total);
+    const dist = px => Math.hypot(at(px).x - centre.x, at(px).y - centre.y);
+    const side = dir => {
+      let inPx = 0;
+      while (onRoad(inPx + dir * RALLY_STEP_PX) && dist(inPx + dir * RALLY_STEP_PX) <= range) inPx += dir * RALLY_STEP_PX;
+      let outPx = inPx;
+      while (onRoad(outPx) && dist(outPx) < range + RALLY_OUT_MARGIN_PX) outPx += dir * RALLY_STEP_PX;
+      return { inPx, outPx: onRoad(outPx) ? outPx : null };
+    };
+    const [a, b] = [side(-1), side(1)];
+    if (Math.min(Math.abs(a.inPx), Math.abs(b.inPx)) < RALLY_MIN_SIDE_PX) continue;
+    const [far, near] = Math.abs(a.inPx) >= Math.abs(b.inPx) ? [a, b] : [b, a];
+    if (near.outPx === null) continue;
+    const marchPx = far.inPx - Math.sign(far.inPx) * RALLY_STEP_PX;
+    const points = { ghost: near.inPx / 2, out: near.outPx, march: marchPx };
+    const usable = Object.values(points).every(px => {
+      const q = at(px);
+      return q.x >= RALLY_EDGE_PX && q.x <= WORLD_WIDTH - RALLY_EDGE_PX && q.y >= RALLY_EDGE_PX && q.y <= WORLD_HEIGHT - RALLY_EDGE_PX
+        && dist(px) > TAP_TOWER_RADIUS && Math.abs(pm.getNearestPathProgress(q.x, q.y) - (p0 + px / total)) * total < RALLY_SNAP_PX;
+    });
+    if (!usable) continue;
+    return { pad, centre, ghost: at(points.ghost), out: at(points.out), march: at(marchPx), marchArcPx: Math.abs(marchPx) };
+  }
+  throw new Error(`map ${RALLY_MAP}: no pad whose barracks ring covers road on both sides of its rally point`);
+}
+
+const twoFrames = page => page.evaluate(() => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res))));
+const toastTexts = page => page.evaluate(() => [...document.querySelectorAll('.game-toast')].map(el => el.textContent));
+
+// Points the ghost at a page point: a mouse hovers, a finger holds. `to` moves it
+// (a held finger drags), `release` commits a tap where it is now.
+async function aimPointer(page, deviceName, { x, y }) {
+  if (!DEVICES[deviceName].hasTouch) {
+    await page.mouse.move(x, y);
+    return {
+      to: p => page.mouse.move(p.x, p.y),
+      release: async () => { await page.mouse.down(); await page.mouse.up(); },
+    };
+  }
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+  return {
+    to: p => cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: p.x, y: p.y }] }),
+    release: async () => {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await cdp.detach();
+    },
+  };
+}
+
+// R20 (a)-(e): open the barracks ring, enter rally mode, aim inside and outside the
+// ring, then rally and watch the squad walk there (game time) and stop on the flag.
+function captureRally(browser, base, deviceName, dir) {
+  return screensRun(browser, deviceName, 'rally', {}, async (page, out) => {
+    const plan = rallyPlan();
+    // No `wave`: an enemy on the road would halt the march at an unpredictable point.
+    const params = new URLSearchParams({ debug: '1', map: String(RALLY_MAP), build: `barracks@${plan.pad}:1` });
+    await page.goto(`${base}/?${params}`);
+    await page.waitForFunction(() => window.__capture, null, { timeout: 30_000 });
+
+    // (a) The ring, audited, then Rally.
+    await tapGamePoint(page, deviceName, plan.centre.x, plan.centre.y);
+    radialItem(await expectRadial(page, 'tower'), 'rally');
+    out.layout.push(await radialAudit(page, deviceName, 'rally-ring'));
+    await tap(page, deviceName, RALLY_ITEM);
+    await expectVisible(page, '#cancel-btn');
+
+    // (b) Inside the ring.
+    const pointer = await aimPointer(page, deviceName, await gamePagePoint(page, plan.ghost.x, plan.ghost.y));
+    await twoFrames(page);
+    out.files.push(await shoot(page, join(dir, 'rally-ghost.png')));
+
+    // (c) Outside it; the release is a miss, which keeps the mode armed (C2).
+    await pointer.to(await gamePagePoint(page, plan.out.x, plan.out.y));
+    await twoFrames(page);
+    out.files.push(await shoot(page, join(dir, 'rally-ghost-out.png')));
+    if ((await toastTexts(page)).includes(RALLY_TOO_FAR)) throw new Error(`(c) "${RALLY_TOO_FAR}" toast up before the release`);
+    await pointer.release();
+    await until(() => toastTexts(page), t => t.includes(RALLY_TOO_FAR), t => `(c) toasts [${t.join(' | ')}] after an out-of-range release, expected "${RALLY_TOO_FAR}"`);
+    await expectVisible(page, '#cancel-btn', true, 0);
+
+    // (d) A valid tap at the far end of the ring: the squad walks, it doesn't teleport.
+    const [before] = await page.evaluate(() => window.__capture.rally);
+    await tapGamePoint(page, deviceName, plan.march.x, plan.march.y);
+    await untilGameTime(page, () => window.__capture.rally[0]?.marching === true, null,
+      { gameMs: 0, label: '(d) the squad never marched after a valid rally tap' });
+    const walkMs = (plan.marchArcPx / SOLDIER_MARCH.speed) * 1000;
+    // Mid-walk for the shot, so the route, the flag and the moving squad all show.
+    await untilGameTime(page, from => {
+      const r = window.__capture.rally[0];
+      return r.marching && r.soldiers.filter(s => !s.dead).every(s => Math.abs(s.progress - from) >= Math.abs(r.target - from) / 2);
+    }, before.target, { gameMs: walkMs / 2, label: '(d) the squad never got halfway to the flag' });
+    out.files.push(await shoot(page, join(dir, 'rally-march.png')));
+
+    // (e) Arrived: every soldier on the flag, and the mode ended with the valid tap.
+    const done = await untilGameTime(page, () => {
+      const r = window.__capture.rally[0];
+      return r.marching === false && r;
+    }, null, { gameMs: walkMs, label: '(e) the squad never arrived at the flag' });
+    const off = done.soldiers.filter(s => s.dead || s.progress !== done.target);
+    if (off.length) throw new Error(`(e) ${off.length} soldier(s) off the flag at ${done.target}: ${JSON.stringify(off)}`);
+    await expectVisible(page, '#cancel-btn', false, 0);
   });
 }
 
