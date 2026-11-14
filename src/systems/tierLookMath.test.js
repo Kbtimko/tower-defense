@@ -16,6 +16,9 @@ describe('expectedTowerLook', () => {
   ])('level %s branch %s', (level, branch, want) => {
     expect(expectedTowerLook(level, branch)).toEqual(want);
   });
+  it('level 4 with no branch equals the T3 row', () => {
+    expect(expectedTowerLook(4, null)).toEqual(expectedTowerLook(3, null));
+  });
   it('reads scale from the table', () => {
     expect(expectedTowerLook(3, null).scale).toBe(TIER_SCALE.tower.t3);
   });
@@ -137,7 +140,15 @@ describe('ellipseDashes', () => {
     const p = ellipseDashes({ ...base, phase: 0.5 / 12 });
     const first = p[0][0];
     const ang = Math.atan2(first.y / base.ry, first.x / base.rx);
-    expect(ang).toBeCloseTo((2 * Math.PI * 0.5) / 12 / 12, 8);
+    expect(ang).toBeCloseTo((2 * Math.PI * 0.5) / 12, 8);
+  });
+  it('phase 1/dashes advances the pattern by one slot', () => {
+    const a = ellipseDashes({ ...base, phase: 1 / 12 });
+    const b = ellipseDashes(base);
+    for (let j = 0; j < 11; j++) {
+      expect(a[j][0].x).toBeCloseTo(b[j + 1][0].x, 8);
+      expect(a[j][0].y).toBeCloseTo(b[j + 1][0].y, 8);
+    }
   });
   it('each dash spans duty/dashes of a turn', () => {
     const arc = ellipseDashes(base)[0];

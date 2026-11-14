@@ -4,6 +4,7 @@ import { tierVariant } from './spriteKeys.js';
 // Pure maths for the tier marks (#49). Must not import src/ui/: the Node
 // capture harness imports this module too.
 
+const PIPS_BY_VARIANT = { t1: 1, t2: 2, t3: 3, t4a: 'A', t4b: 'B' };
 const frac = (x) => x - Math.floor(x);
 // Cosine-shaped so t=0 sits at the rest end of every cycle.
 const wave = (tSec, periodS) => (1 - Math.cos((2 * Math.PI * tSec) / periodS)) / 2;
@@ -15,9 +16,7 @@ export function expectedTowerLook(level, branch) {
   let ring = null;
   if (variant === 't4a') ring = 'solid';
   else if (variant === 't4b') ring = 'dashed';
-  let pips = level;
-  if (variant === 't4a') pips = 'A';
-  else if (variant === 't4b') pips = 'B';
+  const pips = PIPS_BY_VARIANT[variant];
   return {
     scale: TIER_SCALE.tower[variant],
     core: marked,
@@ -63,7 +62,8 @@ export function ellipseDashes({ cx = 0, cy = 0, rx, ry, dashes, duty, phase, seg
   const span = (2 * Math.PI * duty) / dashes;
   const out = [];
   for (let j = 0; j < dashes; j++) {
-    const start = (2 * Math.PI * (j + ph)) / dashes;
+    // One unit of phase is one full lap, so phase = t / spin.periodS laps once per period.
+    const start = 2 * Math.PI * (j / dashes + ph);
     const arc = [];
     for (let s = 0; s <= segPerDash; s++) {
       const a = start + (span * s) / segPerDash;
