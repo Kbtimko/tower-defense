@@ -483,6 +483,29 @@ describe('EntitySprite tier variants', () => {
     expect(es.groundSpec()).toMatchObject({ footY: 34, width: 40 });
   });
 
+  it('setVariant re-applies the variant anchor, scale, foot and shadow at the current tier, in either order (C1, R2)', () => {
+    const MAGE = 'sprite-tower-mage-idle';
+    const g4a = shadowSpec({ footY: 34, width: 40 });
+    const run = (steps) => {
+      const scene = makeVariantScene([MAGE, `${MAGE}-t4a`]);
+      const c = makeContainer();
+      const es = new EntitySprite(c, scene, { category: 'tower', type: 'mage' });
+      steps(es);
+      return { s: scene.sprite, shadow: c.children[0] };
+    };
+    const check = ({ s, shadow }) => {
+      expect(s.setOrigin).toHaveBeenLastCalledWith(0.5, 0.6);
+      expect(s.scaleX).toBeCloseTo(0.8 * 1.4);
+      expect(s.scaleY).toBeCloseTo(0.8 * 1.4);
+      expect(s.y).toBeCloseTo((1 - 1.4) * 34);
+      expect(shadow.y).toBeCloseTo(g4a.y);
+      expect(shadow.w).toBeCloseTo(g4a.width * 1.4);
+      expect(shadow.h).toBeCloseTo(g4a.height * 1.4);
+    };
+    check(run((es) => { es.setTierScale(1.4); es.setVariant('t4a'); }));
+    check(run((es) => { es.setVariant('t4a'); es.setTierScale(1.4); }));
+  });
+
   it('a generated variant texture with no manifest variant entry keeps the base defs', () => {
     const scene = makeVariantScene([BASE, `${BASE}-t2`]);
     new EntitySprite(makeContainer(), scene, { category: 'tower', type: 'archer', variant: 't2' });
