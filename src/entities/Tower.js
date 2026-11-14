@@ -5,6 +5,9 @@ import { unitDepth } from '../systems/grounding.js';
 import { setBaseFireRate } from '../systems/fireRateMods.js';
 import { popScale } from '../systems/juiceMath.js';
 import { FONTS } from '../data/theme.js';
+import { TowerTierLook } from '../systems/TowerTierLook.js';
+import { tierVariant } from '../systems/spriteKeys.js';
+import { TIER_SCALE } from '../data/tierLooks.js';
 
 export class Tower extends Phaser.GameObjects.Container {
   constructor(scene, { type, x, y, def, zoneIndex, modifiers = {} }) {
@@ -43,6 +46,42 @@ export class Tower extends Phaser.GameObjects.Container {
     // _redraw ran before the sprite existed, so the fallback disc is on the
     // canvas; redraw now that `_sprite.active` is known. The tier ring stays.
     if (this._sprite.active) { this._redraw(); this._icon.setVisible(false); }
+    this._look = new TowerTierLook(this, scene, { type, sprite: this._sprite });
+    this._applyTier();
+  }
+
+  // Variant and scale first: the look caches the ground it reads in setTier.
+  _applyTier() {
+    const v = tierVariant(this.level, this.branch);
+    this._sprite.setVariant(v);
+    this._sprite.setTierScale(TIER_SCALE.tower[v]);
+    this._look.setTier(this.level, this.branch);
+  }
+
+  updateLook(tSec, reduced) {
+    this._look.updateLook(tSec, reduced);
+  }
+
+  footY() {
+    return this._look.ground().footY;
+  }
+
+  // The drawn centre (S6): muzzle flash and projectiles leave the art, while
+  // targeting still measures from x/y.
+  muzzlePoint() {
+    return { x: this.x, y: this.y + this._sprite.pivotOffsetY() };
+  }
+
+  // Read from the live sprite rather than pivotOffsetY(), so a non-zero drift
+  // means the art really left its foot (R19).
+  lookSnapshot() {
+    const footY = this.footY();
+    const s = this._sprite.tierScale();
+    const footDriftPx = this._sprite.active ? this._sprite.sprite.y + footY * s - footY : 0;
+    return {
+      type: this.type, level: this.level, branch: this.branch,
+      ...this._look.snapshot(), scale: s, footDriftPx,
+    };
   }
 
   _redraw() {
@@ -76,6 +115,7 @@ export class Tower extends Phaser.GameObjects.Container {
     if (tierDef.fireRate     !== undefined) setBaseFireRate(this, tierDef.fireRate);
     if (tierDef.pierce       !== undefined) this.pierce       = tierDef.pierce;
     this._redraw();
+    this._applyTier();
   }
 
   // `pop` is a BUILD_POP/UPGRADE_POP block; passing data (not a string tag)
@@ -86,7 +126,7 @@ export class Tower extends Phaser.GameObjects.Container {
   }
 
   // Driven by GameScene._updateTowers (towers have no update of their own).
-  // Squashing the sprite keeps the manifest scale; (1, 1) restores it exactly.
+  // Squashing the sprite keeps the manifest and tier scale; (1, 1) restores it exactly.
   updatePop(dt) {
     if (!this._pop) return;
     this._popT += dt;

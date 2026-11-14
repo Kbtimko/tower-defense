@@ -22,13 +22,25 @@ import { findBlockingSoldier } from '../systems/soldierCombat.js';
 import { isMarching } from '../systems/soldierMarch.js';
 import { pointAtProgress } from '../systems/pathGeometry.js';
 
-const makeGraphics = () => ({
-  clear() {}, fillStyle() {}, fillCircle() {}, fillRect() {}, lineStyle() {}, strokeCircle() {},
-  strokeRect() {}, setVisible() { return this; },
+// Chainable, because the tower's tier marks (TowerTierLook) chain their calls.
+const makeGraphics = () => {
+  const g = { setVisible() { return g; } };
+  for (const m of ['clear', 'fillStyle', 'fillCircle', 'fillRect', 'lineStyle', 'strokeCircle',
+                   'strokeRect', 'fillRoundedRect', 'strokeRoundedRect']) g[m] = () => g;
+  return g;
+};
+const makeImage = () => {
+  const img = { destroy() {} };
+  for (const m of ['setTint', 'setBlendMode', 'setDisplaySize', 'setPosition', 'setAlpha',
+                   'setVisible']) img[m] = () => img;
+  return img;
+};
+const makeText = () => ({
+  setOrigin() { return this; }, setVisible() { return this; }, setText() { return this; },
+  setPosition() { return this; }, destroy() {},
 });
-const makeText = () => ({ setOrigin() { return this; }, setVisible() { return this; } });
 const makeScene = () => ({
-  add: { graphics: makeGraphics, text: makeText, existing() {} },
+  add: { graphics: makeGraphics, text: makeText, image: makeImage, existing() {} },
 });
 
 // A straight 600 px road: progress 0.1 = 60 px, so the 60 px/s march covers 0.1 a second.
