@@ -1,5 +1,6 @@
 import { TIER_SCALE, TIER_CORE, TIER_EMBERS } from '../data/tierLooks.js';
 import { tierVariant } from './spriteKeys.js';
+import { SHADOW } from '../data/grounding.js';
 
 // Pure maths for the tier marks (#49). Must not import src/ui/: the Node
 // capture harness imports this module too.
@@ -72,4 +73,21 @@ export function ellipseDashes({ cx = 0, cy = 0, rx, ry, dashes, duty, phase, seg
     out.push(arc);
   }
   return out;
+}
+
+// Pad-fit guards (R25): two towers on neighbouring pads must not stack their
+// contact shadows (at the map's cap scale) or their T4 rings (at peak breath).
+export function footprintClash(a, b, s) {
+  const W = ((a.width + b.width) / 2) * s * SHADOW.widthRatio;
+  const dx = b.x - a.x;
+  const dy = (b.y + b.footY) - (a.y + a.footY);
+  return (dx / W) ** 2 + (dy / (SHADOW.heightRatio * W)) ** 2 < 1;
+}
+
+// Rings are centred on the foot, not the pad, so footY shifts the vertical gap.
+export function ringCrossing(a, b, ring) {
+  const k = ring.breathe.scale;
+  const dx = b.x - a.x;
+  const dy = (b.y + b.footY) - (a.y + a.footY);
+  return (dx / (2 * ring.rx * k)) ** 2 + (dy / (2 * ring.ry * k)) ** 2 < 1;
 }
