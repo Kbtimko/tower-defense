@@ -36,7 +36,7 @@ export const TIER_RING = deepFreeze({
 
 export const TIER_PIPS = deepFreeze({
   radius: 2.5, gapPx: 2, outlinePx: 1.5, outline: PALETTE.panel, minY: 22, gapBelowFootPx: 4,
-  badge: { fontPx: 11, padX: 2, padY: 1, ink: PALETTE.panel },
+  badge: { fontPx: 11, padX: 2, padY: 1, cornerPx: 3, ink: PALETTE.panel },
 });
 
 // Stand-in ground spec for the Graphics fallback body; height is the drawn
