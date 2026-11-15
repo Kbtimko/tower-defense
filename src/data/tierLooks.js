@@ -22,10 +22,12 @@ export const TIER_CORE = deepFreeze({
   fromTier: 2, sizeFrac: 0.5, hotFrac: 0.4, periodS: 1.1, alpha: [0.65, 1], stillAlpha: 1,
 });
 
+// sizePx is the display box of the 16-px soft `fx-ember` dot, whose bright core is a fraction of it: it must
+// include the halo (4 px was near-invisible; the picked mockup drew a 4-px dot plus a 4-px glow).
 // startFrac: embers start this fraction of drawn height above the foot (plan P2).
 export const TIER_EMBERS = deepFreeze({
   fromTier: 3, count: 3, periodS: 1.8, xFrac: [-0.34, 0.08, 0.38], riseFrac: 0.85,
-  sizePx: 4, fadeInFrac: 0.15, stillRiseFrac: 0.38, stillAlpha: 0.8, startFrac: 0.25,
+  sizePx: 10, fadeInFrac: 0.15, stillRiseFrac: 0.38, stillAlpha: 0.8, startFrac: 0.25,
 });
 
 export const TIER_RING = deepFreeze({
