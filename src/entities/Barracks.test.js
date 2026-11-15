@@ -26,7 +26,7 @@ import { pointAtProgress } from '../systems/pathGeometry.js';
 const makeGraphics = () => {
   const g = { setVisible() { return g; } };
   for (const m of ['clear', 'fillStyle', 'fillCircle', 'fillRect', 'lineStyle', 'strokeCircle',
-                   'strokeRect', 'fillRoundedRect', 'strokeRoundedRect']) g[m] = () => g;
+                   'strokeRect', 'fillRoundedRect', 'strokeRoundedRect', 'setScale']) g[m] = () => g;
   return g;
 };
 const makeImage = () => {

@@ -10,10 +10,19 @@ import { marchStep, contactTest, isMarching, travelDir } from '../systems/soldie
 import { formationOffsets } from '../systems/soldierFormation.js';
 import { facingDirX } from '../systems/facing.js';
 import { SOLDIER_MARCH, SOLDIER_FORMATION, WALK_BOB } from '../data/soldiers.js';
+import { tierVariant } from '../systems/spriteKeys.js';
+import { TIER_SCALE, SOLDIER_FALLBACK_BODY, SOLDIER_SHIELD } from '../data/tierLooks.js';
+import { getSpriteConfig } from '../data/sprites.js';
+import { hexToInt, mixHex } from '../ui/theme.js';
 
 // The Graphics fallback body has no radius; 9 keeps the no-art bar's top edge at
 // y=-17, just over the drawn head, where it always sat.
 const FALLBACK_BAR_RADIUS = 9;
+// Bottom of the fallback body's drawn rect: its foot, the pivot it grows from (P4).
+const FALLBACK_FOOT_Y = 4;
+
+// The mockup's kite polygon as fractions of the shield's width and height.
+const SHIELD_KITE = [[0.5, 0], [1, 0.18], [0.92, 0.7], [0.5, 1], [0.08, 0.7], [0, 0.18]];
 
 export class Soldier extends Phaser.GameObjects.Container {
   constructor(scene, { barracks, pathProgress, pathPoints, soldierStats, modifiers = {} }) {
@@ -38,6 +47,14 @@ export class Soldier extends Phaser.GameObjects.Container {
     this._offset         = null; // eased formation offset; null until the first layout
     this._layoutKey      = null; // inputs the cached target offset was computed from
 
+    // Read once (C7): an upgrade rebuilds the squad, and respawn reuses this
+    // object, so the look carries over without re-reading the barracks.
+    const config = getSpriteConfig('soldier', 'default');
+    this._variant   = tierVariant(barracks.level, barracks.branch);
+    this._tierScale = TIER_SCALE.soldier[this._variant];
+    // Last non-zero facing; the unflipped art faces its manifest baseFacing.
+    this._faceSign  = config?.baseFacing === 'left' ? -1 : 1;
+
     // Everything drawn lives in _view so the formation offset and bob move only
     // the picture; this container stays on the logical road point that
     // blocking, the repair heal and the depth sort all read.
@@ -52,19 +69,65 @@ export class Soldier extends Phaser.GameObjects.Container {
 
     this._drawBody();
     this._sprite = new EntitySprite(this._view, scene, {
-      category: 'soldier', type: 'default', initialState: 'idle',
+      category: 'soldier', type: 'default', initialState: 'idle', variant: this._variant,
     });
+    this._sprite.setTierScale(this._tierScale);
     if (this._sprite.active) this._body.setVisible(false);
+    // Real Vanguard art is expected to carry its own shield (S9).
+    this._shield = this._variant === SOLDIER_SHIELD.variant && !config?.variants?.[SOLDIER_SHIELD.variant]
+      ? this._makeShield(scene)
+      : null;
     this.setPathProgress(pathProgress, pathPoints);
   }
 
   _drawBody() {
+    const { fill, stroke } = SOLDIER_FALLBACK_BODY[this._variant];
+    const s = this._tierScale;
     this._body.clear();
-    this._body.fillStyle(0x4caf50, 1);
+    this._body.fillStyle(fill, 1);
     this._body.fillCircle(0, -8, 4);
     this._body.fillRect(-3, -4, 6, 8);
-    this._body.lineStyle(1, 0x81c784, 1);
+    this._body.lineStyle(1, stroke, 1);
     this._body.strokeCircle(0, -8, 4);
+    this._body.setScale(s);
+    this._body.y = (1 - s) * FALLBACK_FOOT_Y; // keeps the foot where it was (S10)
+  }
+
+  // Drawn with its bottom-centre on the origin so position and scale pivot at the foot.
+  _makeShield(scene) {
+    const { w, h, top, bottom, outline, footLiftPx } = SOLDIER_SHIELD;
+    const pts = SHIELD_KITE.map(([fx, fy]) => ({ x: (fx - 0.5) * w, y: (fy - 1) * h, t: fy }));
+    const colour = (p) => hexToInt(mixHex(top, bottom, p.t));
+    const g = scene.add.graphics();
+    // WebGL colours a fillPoints polygon per earcut triangle by vertex order, not
+    // by height, so a gradient over it comes out patchy. A fan of triangles
+    // with each vertex sampled from the gradient renders it exactly.
+    for (let i = 1; i < pts.length - 1; i++) {
+      const [a, b, c] = [pts[0], pts[i], pts[i + 1]];
+      g.fillGradientStyle(colour(a), colour(b), colour(c), colour(c), 1);
+      g.fillTriangle(a.x, a.y, b.x, b.y, c.x, c.y);
+    }
+    g.lineStyle(1, hexToInt(outline), 1);
+    g.strokePoints(pts, true, true);
+    const foot = this._sprite.active ? this._sprite.groundSpec().footY : FALLBACK_FOOT_Y;
+    g.setPosition(0, foot - footLiftPx);
+    this._view.addAt(g, this._view.getIndex(this._hpBar)); // over the body, under the HP bar
+    this._faceShield(g);
+    return g;
+  }
+
+  // The shield sits on the soldier's front, so it mirrors with the facing (E19, E20).
+  _faceShield(g) {
+    g.setPosition(SOLDIER_SHIELD.dx * this._faceSign, g.y);
+    g.setScale(this._tierScale * this._faceSign, this._tierScale);
+  }
+
+  lookSnapshot() {
+    return {
+      level: this.barracks.level, branch: this.barracks.branch,
+      key: this._sprite.resolvedKey('idle'), scale: this._tierScale,
+      shield: !!this._shield && this._shield.visible, dead: this.dead,
+    };
   }
 
   _redrawHpBar() {
@@ -87,6 +150,7 @@ export class Soldier extends Phaser.GameObjects.Container {
       this.disengageLeftPx = 0;
       this._body.setVisible(false);
       if (this._sprite?.active) this._sprite.sprite.setVisible(false);
+      this._shield?.setVisible(false); // never floats over a dead soldier (R16b)
       this._hpBar.clear();
       return;
     }
@@ -104,6 +168,7 @@ export class Soldier extends Phaser.GameObjects.Container {
     this._offset = null;
     if (this._sprite?.active) this._sprite.sprite.setVisible(true);
     else this._body.setVisible(true);
+    this._shield?.setVisible(true);
     this._redrawHpBar();
   }
 
@@ -178,7 +243,10 @@ export class Soldier extends Phaser.GameObjects.Container {
     this._sprite?.setState(walking ? 'move' : 'idle');
     // The tangent is a unit vector; scale it to the px covered by one sub-step so
     // the pixel deadzone keeps a near-vertical road from mirroring the art.
-    this._sprite?.setFacing(facingDirX(dir.x * SOLDIER_MARCH.substepPx));
+    const face = facingDirX(dir.x * SOLDIER_MARCH.substepPx);
+    if (face !== 0) this._faceSign = Math.sign(face);
+    this._sprite?.setFacing(face);
+    if (this._shield) this._faceShield(this._shield);
   }
 
   // Heading and formation slot, recomputed only when an input changes: at rest
