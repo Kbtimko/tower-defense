@@ -1652,21 +1652,6 @@ function tierLooksPlan() {
   });
 }
 
-// The capture build exposes no game object (window.__game is dev-only) and Phaser 3
-// keeps no list of games, so borrow it from the next scene step through the global
-// Phaser namespace, then put the step back.
-const exposeGame = page => page.evaluate(() => new Promise((res, rej) => {
-  const proto = window.Phaser?.Scenes?.Systems?.prototype;
-  if (!proto) { rej(new Error('window.Phaser.Scenes.Systems missing: no way to reach the game')); return; }
-  const step = proto.step;
-  proto.step = function (...args) {
-    proto.step = step;
-    window.__tierGame = this.game;
-    res();
-    return step.apply(this, args);
-  };
-}));
-
 const readLooks = page => page.evaluate(() => ({ looks: window.__capture.looks, simMs: window.__capture.simMs }));
 // The first looks after a frame that ran past `simMs`, so a frozen game can't pass for a still one.
 const looksAfter = (page, simMs, label) => until(() => readLooks(page), s => s.simMs > simMs,
@@ -1748,10 +1733,10 @@ async function soldier4aHueProblems(page, looks) {
   const s = looks.soldiers.find(x => tierVariant(x.level, x.branch) === 't4a' && !x.dead);
   if (!s) return ['R26: no live 4A soldier'];
   const r = await page.evaluate(key => {
-    const game = window.__tierGame;
-    const sys = game.scene.getScene('GameScene').sys;
+    const scene = window.__game;
+    const sys = scene.sys;
     sys.pause();
-    const frame = game.textures.get(key).get(0);
+    const frame = scene.textures.get(key).get(0);
     const c = document.createElement('canvas');
     c.width = frame.cutWidth;
     c.height = frame.cutHeight;
@@ -1782,9 +1767,10 @@ function tierLooksRun(browser, base, deviceName, dir, { still }) {
       const params = new URLSearchParams({ debug: '1', map: String(TIER_LOOKS_MAP), build: batch.build });
       await page.goto(`${base}/?${params}`);
       await page.waitForFunction(() => window.__capture?.looks, null, { timeout: 30_000 });
-      await exposeGame(page);
+      // GameScene's shutdown nulls it, so each load waits for the new level's scene.
+      await page.waitForFunction(() => window.__game, null, { timeout: 30_000 });
       const reg = await page.evaluate(() => {
-        const r = window.__tierGame.registry;
+        const r = window.__game.registry;
         return { failed: r.get('soldierTierFailed'), spriteKeys: r.get('spriteKeys'), ambientMotion: r.get('ambientMotion') };
       });
       if (!Array.isArray(reg.failed) || reg.failed.length) fail([`soldierTierFailed ${JSON.stringify(reg.failed)}, expected []`]);
@@ -1793,7 +1779,7 @@ function tierLooksRun(browser, base, deviceName, dir, { still }) {
       const { errors } = await page.evaluate(() => ({ errors: window.__capture.errors }));
       if (errors.length) fail([`build errors: ${errors.join('; ')}`]);
 
-      // Two frames past the first looks: the first is written before any mark is posed.
+      // `a` is one frame past the first looks, which is written before updateLook poses any mark.
       const first = await looksAfter(page, -1, name);
       const a = await looksAfter(page, first.simMs, name);
       fail(tierLookProblems(a.looks, batch, reg.spriteKeys));

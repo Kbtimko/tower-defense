@@ -409,7 +409,7 @@ export default class GameScene extends Phaser.Scene {
       this._storyDialog.play(briefId, () => this.saveMgr.markBeatSeen(briefId));
     }
 
-    if (import.meta.env.DEV) window.__game = this;
+    if (import.meta.env.DEV || import.meta.env.MODE === 'capture') window.__game = this;
     if ((import.meta.env.DEV || import.meta.env.MODE === 'capture') && this._debug) applyDebugCapture(this);
   }
 
@@ -703,7 +703,7 @@ export default class GameScene extends Phaser.Scene {
     // Before the clone below replaces the anchors, so detach hides a shown hint.
     this._hintDetachers?.forEach(detach => detach());
     this._hintDetachers = [];
-    if (import.meta.env.DEV) window.__game = null;
+    if (import.meta.env.DEV || import.meta.env.MODE === 'capture') window.__game = null;
     this.game.events.off('ui:ability', this._onAbility, this);
     this.game.events.off('ui:pause-toggle', this._onPauseToggle, this);
     this.game.events.off('ui:cancel', this._onUiCancel, this);
