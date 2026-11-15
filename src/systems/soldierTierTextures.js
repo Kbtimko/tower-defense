@@ -22,9 +22,13 @@ export function generateSoldierTierTextures(scene, registeredKeys) {
       const baseKey = spriteTextureKey(SOLDIER.category, SOLDIER.type, state);
       if (!registeredKeys.includes(baseKey)) continue;
       const key = variantTextureKey(SOLDIER.category, SOLDIER.type, state, variant);
-      // Real tier art already under this key wins (E14); this guard also makes a
-      // second boot pass a no-op (E11).
-      if (textures.exists(key)) continue;
+      // Real tier art already under this key wins (E14); this guard also stops a
+      // second boot pass regenerating (E11). That pass still reports the key: the
+      // boot scan does not find generated keys, and spriteKeys must keep them.
+      if (textures.exists(key)) {
+        if (!registeredKeys.includes(key)) added.push(key);
+        continue;
+      }
 
       let ct = null;
       try {

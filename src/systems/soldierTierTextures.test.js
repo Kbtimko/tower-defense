@@ -77,18 +77,22 @@ describe('generateSoldierTierTextures', () => {
 
   it('E14: a variant key that already exists (real art) is skipped', () => {
     const { scene } = makeScene({ existing: [vKey('idle', 't4a')] });
-    const { added } = generateSoldierTierTextures(scene, [base('idle')]);
+    // Loaded real art is in the boot scan's list already, so it is not re-reported.
+    const { added } = generateSoldierTierTextures(scene, [base('idle'), vKey('idle', 't4a')]);
     expect(added).not.toContain(vKey('idle', 't4a'));
     expect(added).toHaveLength(VARIANTS.length - 1);
     expect(scene.textures.createCanvas).not.toHaveBeenCalledWith(vKey('idle', 't4a'), expect.anything(), expect.anything());
   });
 
-  it('E11: a second call (RETRY / re-entry) adds nothing and makes no canvas', () => {
+  // The boot scan does not find generated keys, so a second pass must re-report
+  // them or spriteKeys would lose them and soldiers fall back to base art.
+  it('E11: a second call (RETRY / re-entry) re-reports the keys but makes no canvas', () => {
     const { scene } = makeScene();
-    generateSoldierTierTextures(scene, [base('idle'), base('attack')]);
+    const first = generateSoldierTierTextures(scene, [base('idle'), base('attack')]);
     const made = scene.textures.createCanvas.mock.calls.length;
     const second = generateSoldierTierTextures(scene, [base('idle'), base('attack')]);
-    expect(second).toEqual({ added: [], failed: [] });
+    expect(second).toEqual({ added: first.added, failed: [] });
+    expect(second.added).toHaveLength(VARIANTS.length * 2);
     expect(scene.textures.createCanvas.mock.calls.length).toBe(made);
   });
 
