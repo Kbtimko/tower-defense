@@ -62,6 +62,8 @@ describe('tier-look pad fit (R25)', () => {
         if (u.y === l.y) minRow = Math.min(minRow, Math.abs(u.x - l.x));
       }
     }
+    // Infinity would pass the bound vacuously if no same-row pair were found.
+    expect(Number.isFinite(minRow)).toBe(true);
     expect(2 * TIER_RING.rx * TIER_RING.breathe.scale).toBeLessThanOrEqual(minRow);
   });
 });
