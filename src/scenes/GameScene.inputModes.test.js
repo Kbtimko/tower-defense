@@ -62,6 +62,7 @@ function makeScene(overrides = {}) {
     _repaintStaticLayers: vi.fn(),
     _redrawZones: vi.fn(),
     _playTowerPop: vi.fn(),
+    _drawTierRings: vi.fn(),
     _toast: vi.fn(),
   }, overrides);
   return scene;

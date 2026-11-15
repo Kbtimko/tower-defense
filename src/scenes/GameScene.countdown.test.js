@@ -85,7 +85,7 @@ function frameScene({ registry = {}, realStory = false } = {}) {
   });
   for (const m of ['_updateTowers', '_updateProjectiles', '_updateSoldiers', '_updateHero', '_updateSentries',
     '_updateParticles', '_drawPath', '_drawZones', '_drawSelectionRing', '_drawReticle', '_drawParticles',
-    '_fadeOutDeadEnemy', '_updateHUD']) scene[m] = vi.fn();
+    '_fadeOutDeadEnemy', '_updateHUD', '_updateTowerLooks', '_drawTierRings']) scene[m] = vi.fn();
   scene._checkSoldierBlock = () => null;
   events.on('game:defeat', scene._onDefeat, scene);
   scene.audio = audio;
