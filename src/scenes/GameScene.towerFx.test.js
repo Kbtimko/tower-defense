@@ -90,6 +90,7 @@ describe('GameScene._upgradeSelectedTower', () => {
       selectedTower: tower, mapId: 0,
       placementManager: { upgradeTower: vi.fn(() => true) },
       _playTowerPop: vi.fn(), _refreshRadial: vi.fn(), _toast: vi.fn(), _drawTierRings: vi.fn(),
+      _updateTowerLooks: vi.fn(),
     };
     proto._upgradeSelectedTower.call(ctx);
     expect(ctx._playTowerPop).toHaveBeenCalledWith(tower, UPGRADE_POP);
