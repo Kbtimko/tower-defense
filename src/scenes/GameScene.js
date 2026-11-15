@@ -1921,6 +1921,9 @@ export default class GameScene extends Phaser.Scene {
     this._playTowerPop(tower, UPGRADE_POP);
     this._refreshRadial();
     this._drawTierRings();
+    // update() is stopped under the user pause and new embers start hidden, so
+    // pose them now (E24). The frozen _fxTime leaves the other towers as they were.
+    this._updateTowerLooks();
   }
 
   // `pop` is BUILD_POP/UPGRADE_POP: the ring burst always plays, the scale pop

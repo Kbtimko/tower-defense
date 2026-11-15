@@ -45,8 +45,8 @@ vi.mock('../systems/AmbientBackgroundLayer.js', () => ({
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import GameScene from './GameScene.js';
 import { loadShippedDOM, liveScene, startLevel } from './gameSceneHarness.js';
-import { TIER_RING, towerAccent } from '../data/tierLooks.js';
-import { ringBreath, ellipseDashes, expectedTowerLook } from '../systems/tierLookMath.js';
+import { TIER_RING, TIER_CORE, TIER_EMBERS, towerAccent } from '../data/tierLooks.js';
+import { ringBreath, ellipseDashes, expectedTowerLook, corePulse, emberPose } from '../systems/tierLookMath.js';
 
 const proto = GameScene.prototype;
 
@@ -201,13 +201,17 @@ describe('ring layer redraws on board changes', () => {
       selectedTower: { level: 1, type: 'archer', x: 0, y: 0 }, mapId: 0,
       placementManager: { upgradeTower: vi.fn(() => true) },
       _playTowerPop: vi.fn(), _refreshRadial: vi.fn(), _toast: vi.fn(), _drawTierRings: vi.fn(),
+      _updateTowerLooks: vi.fn(),
     };
     proto._upgradeSelectedTower.call(ctx);
     expect(ctx._drawTierRings).toHaveBeenCalledTimes(1);
+    expect(ctx._updateTowerLooks).toHaveBeenCalledTimes(1);
     ctx._drawTierRings.mockClear();
+    ctx._updateTowerLooks.mockClear();
     ctx.placementManager.upgradeTower = vi.fn(() => false);
     proto._upgradeSelectedTower.call(ctx);
     expect(ctx._drawTierRings).not.toHaveBeenCalled();
+    expect(ctx._updateTowerLooks).not.toHaveBeenCalled();
   });
 
   it('_placeAt redraws', () => {
@@ -336,6 +340,59 @@ describe('live level: ring layer, frame loop and __capture.looks', () => {
     const [a, b] = window.__capture.looks.towers;
     expect(a.ringPhase).toBe(ringBreath(t, TIER_RING, false).k);
     expect(b.ringPhase).toBe(t / TIER_RING.spin.periodS);
+  });
+
+  // E24: update() is stopped under the user pause, so the upgrade itself must pose
+  // the new marks. Images keep real alpha/position so an unposed ember shows as
+  // alpha 0 at (0, 0).
+  it('E24: a paused upgrade poses the new core and embers at once, at the frozen _fxTime', () => {
+    const images = [];
+    const image = () => {
+      const state = { x: 0, y: 0, alpha: 1 };
+      const proxy = new Proxy(state, {
+        get(t, prop) {
+          if (prop === 'setPosition') return (x, y) => { t.x = x; t.y = y; return proxy; };
+          if (prop === 'setAlpha') return (a) => { t.alpha = a; return proxy; };
+          if (prop in t) return t[prop];
+          if (prop === 'then') return undefined;
+          return () => proxy;
+        },
+      });
+      images.push(proxy);
+      return proxy;
+    };
+    const scene = liveScene({ registry: { ambientMotion: true } });
+    scene.add = new Proxy({}, { get: (t, prop) => (prop === 'graphics' ? () => recGfx() : prop === 'image' ? image : () => gameObject()) });
+    startLevel(scene, {
+      mapId: 4, heroId: 'rael',
+      debug: { mapId: 4, heroId: 'rael', build: [{ type: 'archer', slot: 0, tier: 1, branch: null }], wave: null, errors: [], autoSend: false },
+    });
+    scene.economy.earn(100000);
+    // Not a multiple of any period, so a posed core differs from the default alpha 1.
+    scene._fxTime = 0.37;
+    const archer = byType(scene, 'archer');
+    scene.selectedTower = archer;
+
+    scene._upgradeSelectedTower();
+    const look = archer._look;
+    expect(archer.level).toBe(2);
+    const core = corePulse(0.37, TIER_CORE, false);
+    expect(core).not.toBe(1);
+    expect(look._glow.alpha).toBeCloseTo(core, 9);
+    expect(look._hot.alpha).toBeCloseTo(core, 9);
+
+    scene._upgradeSelectedTower();
+    expect(archer.level).toBe(3);
+    expect(look._embers).toHaveLength(TIER_EMBERS.count);
+    look._embers.forEach((e, i) => {
+      const p = emberPose(0.37, i, TIER_EMBERS, look._ground, false);
+      expect(e.alpha).toBeGreaterThan(0);
+      expect([e.x, e.y]).not.toEqual([0, 0]);
+      expect(e.x).toBeCloseTo(p.dx, 9);
+      expect(e.y).toBeCloseTo(p.dy, 9);
+      expect(e.alpha).toBeCloseTo(p.alpha, 9);
+    });
+    expect(images.length).toBeGreaterThan(0);
   });
 
   it('keyExists asks the texture manager about the resolved key; a null key never exists', () => {
