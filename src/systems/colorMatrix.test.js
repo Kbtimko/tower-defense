@@ -29,16 +29,17 @@ describe('colorMatrix', () => {
   // for input (200,100,50), rounded half-up. Behavioural tests above can't see a mistyped coefficient.
   const rgb = (a) => [...a.slice(0, 3)];
   it('saturate 2 -> (255,82,0)', () => {
-    // R and B leave 0..255 and clamp; G = 200*-.213 + 100*1.0 ... = 82.3
+    // R and B leave 0..255 and clamp; G = 200*-.213 + 100*1.285 + 50*-.072 = 82.3
     expect(rgb(applyColorStages(px(200, 100, 50, 255), filterStages({ saturate: 2 })))).toEqual([255, 82, 0]);
   });
+  // saturate 0.5 keeps all rows unclamped.
+  it('saturate 0.5 -> (159,109,84)', () => {
+    expect(rgb(applyColorStages(px(200, 100, 50, 255), filterStages({ saturate: 0.5 })))).toEqual([159, 109, 84]);
+  });
+  // 90deg zeroes every cos term and 180deg zeroes every sin term.
   it('hue-rotate 90 -> (50,146,35)', () => {
     // cos 90deg = 0, sin = 1, so only the sin terms of the spec matrix remain
     expect(rgb(applyColorStages(px(200, 100, 50, 255), filterStages({ hueRotate: 90 })))).toEqual([50, 146, 35]);
-  });
-  // 90deg zeroes every cos term and 180deg zeroes every sin term; saturate 0.5 keeps all rows unclamped.
-  it('saturate 0.5 -> (159,109,84)', () => {
-    expect(rgb(applyColorStages(px(200, 100, 50, 255), filterStages({ saturate: 0.5 })))).toEqual([159, 109, 84]);
   });
   it('hue-rotate 180 -> (35,135,185)', () => {
     expect(rgb(applyColorStages(px(200, 100, 50, 255), filterStages({ hueRotate: 180 })))).toEqual([35, 135, 185]);
