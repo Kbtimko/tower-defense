@@ -116,8 +116,22 @@ TINTS = {
 }
 
 
+# Entities whose shipped sheets cannot be rebuilt from the cached reference
+# (no facing / --keep-debris combination reproduces them). `--all` skips them
+# so a bulk rebuild cannot overwrite the shipped pixels; naming one explicitly
+# still builds it, e.g. after a new reference is applied.
+NOT_REPRODUCIBLE = {
+    'enemy_drone': 'shipped sheets do not match the cached reference under any '
+                   'facing/--keep-debris combination',
+}
+
+
 def load_facing(path=FACING_FILE):
-    return json.loads(Path(path).read_text()) if Path(path).exists() else {}
+    # A missing table must fail loudly: silently falling back to {} would
+    # mirror every entity, which is the exact mistake the table prevents.
+    if not Path(path).exists():
+        sys.exit(f'facing table missing: {path}')
+    return json.loads(Path(path).read_text())
 
 
 def parse_name(name):
@@ -314,7 +328,12 @@ def main():
     facing = load_facing()
     if args.all:
         # `*_*.png` also matches variants (tower_archer.t4a.png).
-        names = sorted({p.stem for p in args.ref_dir.glob('*_*.png')})
+        names = []
+        for n in sorted(p.stem for p in args.ref_dir.glob('*_*.png')):
+            if n in NOT_REPRODUCIBLE:
+                print(f'  {n}: SKIP in --all ({NOT_REPRODUCIBLE[n]}); name it explicitly to build')
+            else:
+                names.append(n)
     else:
         names = args.names
     if not names:
