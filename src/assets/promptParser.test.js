@@ -288,7 +288,8 @@ describe('parseSpritePrompts entity-id agreement', () => {
 
   it('covers every hero, tower and enemy exactly once', () => {
     const md = readFileSync('public/assets/sprites/PROMPTS.md', 'utf8');
-    const got = parseSpritePrompts(md).map(p => `${p.category}/${p.type}`);
+    // Variant bullets (archer.t4a) share their base's type, so only base bullets count here.
+    const got = parseSpritePrompts(md).filter(p => !p.variant).map(p => `${p.category}/${p.type}`);
     expect(new Set(got).size).toBe(got.length);            // no duplicates
     for (const t of Object.keys(TOWER_DEFS)) expect(got).toContain(`tower/${t}`);
     for (const h of Object.keys(HEROES))     expect(got).toContain(`hero/${h}`);
@@ -345,5 +346,51 @@ describe('the real PROMPTS.md yields a usable subject for every entity', () => {
       expect(p.subject, `${p.category}/${p.type}`).not.toMatch(/assets\/sprites/);
       expect(p.subject.length, `${p.category}/${p.type}`).toBeGreaterThan(30);
     }
+  });
+});
+
+describe('parseSpritePrompts variants', () => {
+  it('parses a variant bullet with the runtime type and the variant key', () => {
+    const md = [
+      '### (c) Towers',
+      '',
+      '- **archer.t4a** — `#8B4513` brown: `tall dark-iron crossbow emplacement with glowing runes`',
+    ].join('\n');
+    expect(parseSpritePrompts(md)).toEqual([
+      { category: 'tower', type: 'archer', variant: 't4a', subject: 'tall dark-iron crossbow emplacement with glowing runes' },
+    ]);
+  });
+
+  it('lets a fenced variant prompt beat an inline span', () => {
+    const md = [
+      '### (c) Towers',
+      '',
+      '- **archer.t4b** — output `assets/sprites/towers/`',
+      '  ```',
+      '  rapid repeating crossbow turret',
+      '  ```',
+    ].join('\n');
+    const [got] = parseSpritePrompts(md);
+    expect(got.variant).toBe('t4b');
+    expect(got.subject).toBe('rapid repeating crossbow turret');
+  });
+
+  it('maps a soldier variant to category soldier, type default', () => {
+    const md = [
+      '### (d) Heroes / Soldiers / Sentries',
+      '',
+      '- **soldier.t4a** — `armoured rifle soldier in gold plate`',
+    ].join('\n');
+    expect(parseSpritePrompts(md)).toEqual([
+      { category: 'soldier', type: 'default', variant: 't4a', subject: 'armoured rifle soldier in gold plate' },
+    ]);
+  });
+
+  it('leaves base bullets without a variant field', () => {
+    // The real file now carries archer.t4a; check the base bullets by dropping variants first.
+    const bases = parseSpritePrompts(spriteMd.replace(/^- \*\*\w+\.t\d\w*\*\*.*$/gm, ''));
+    expect(bases.length).toBeGreaterThan(0);
+    for (const p of bases) expect(p.variant, `${p.category}/${p.type}`).toBeUndefined();
+    expect(parseSpritePrompts(spriteMd).filter(p => p.variant).map(p => `${p.type}.${p.variant}`)).toEqual(['archer.t4a']);
   });
 });

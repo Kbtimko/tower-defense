@@ -1,0 +1,8 @@
+{
+  "batch": "smoke",
+  "candidates": 3,
+  "assets": [
+    { "kind": "sprite", "entity": "tower_cannon" },
+    { "kind": "sprite", "entity": "tower_archer", "variant": "t4a", "init": "base", "strength": 0.45 }
+  ]
+}

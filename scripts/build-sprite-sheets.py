@@ -24,6 +24,7 @@ at that size.
 Requires: pip3 install 'rembg[cli]' onnxruntime pillow numpy scipy
 """
 import argparse
+import json
 import math
 import sys
 from pathlib import Path
@@ -41,12 +42,16 @@ SPRITE_ROOT = ROOT / 'assets-src' / 'sprites'
 # Output directory per category. These names are what PROMPTS.md documents and
 # what SPRITE_MANIFEST paths point at — do not "tidy" the singular `sentry`.
 OUT_DIRS = {
-    'enemy':   SPRITE_ROOT / 'enemies',
-    'tower':   SPRITE_ROOT / 'towers',
-    'hero':    SPRITE_ROOT / 'heroes',
-    'soldier': SPRITE_ROOT / 'soldiers',
-    'sentry':  SPRITE_ROOT / 'sentry',
+    'enemy':   Path('enemies'),
+    'tower':   Path('towers'),
+    'hero':    Path('heroes'),
+    'soldier': Path('soldiers'),
+    'sentry':  Path('sentry'),
 }
+
+# Which way each reference faces lives in data, not in the operator's memory:
+# a rebuild with the wrong --no-mirror silently flips every sheet.
+FACING_FILE = Path(__file__).resolve().parent / 'art' / 'facing.json'
 
 # Which states each category gets, and the default cell size. Towers are static
 # emplacements, so their idle is a single frame; heroes walk the path, so they
@@ -109,6 +114,46 @@ TINTS = {
     ('soldier', 'default'):  (0x4c, 0xaf, 0x50),
     ('sentry',  'default'):  (0xff, 0x99, 0x33),
 }
+
+
+# Entities whose shipped sheets cannot be rebuilt from the cached reference
+# (no facing / --keep-debris combination reproduces them). `--all` skips them
+# so a bulk rebuild cannot overwrite the shipped pixels; naming one explicitly
+# still builds it, e.g. after a new reference is applied.
+NOT_REPRODUCIBLE = {
+    'enemy_drone': 'shipped sheets do not match the cached reference under any '
+                   'facing/--keep-debris combination',
+}
+
+
+def load_facing(path=FACING_FILE):
+    # A missing table must fail loudly: silently falling back to {} would
+    # mirror every entity, which is the exact mistake the table prevents.
+    if not Path(path).exists():
+        sys.exit(f'facing table missing: {path}')
+    return json.loads(Path(path).read_text())
+
+
+def parse_name(name):
+    """`tower_archer.t4a` -> ('tower', 'archer', 't4a'). The variant is split
+    on '.', so `soldier_default` stays a plain type."""
+    category, _, rest = name.partition('_')
+    etype, _, variant = rest.partition('.')
+    return category, etype, variant or None
+
+
+def mirror_for(name, facing):
+    """Exact key, then the base entity (variants inherit), then `default`."""
+    base = name.split('.')[0]
+    for key in (name, base):
+        if key in facing:
+            return bool(facing[key])
+    return bool(facing.get('default', True))
+
+
+def sheet_path(out_root, category, etype, variant, state):
+    stem = f'{etype}_{variant}' if variant else etype
+    return Path(out_root) / OUT_DIRS[category] / f'{stem}_{state}.png'
 
 
 def largest_component(rgba, min_alpha=24):
@@ -216,17 +261,23 @@ def build_death(ref, out_path, tint, cell=64, frames=6, seed=7, ease=2.4,
     return sheet
 
 
+def static_cell(ref, cell):
+    """The centred, fitted first frame. Split out so normalize.py's
+    preview shows exactly what the real sheet's frame would be."""
+    big = cell * SS
+    ref = _fit(ref, big)
+    cellim = Image.new('RGBA', (big, big), (0, 0, 0, 0))
+    cellim.paste(ref, (round((big - ref.width) / 2), round((big - ref.height) / 2)), ref)
+    return cellim.resize((cell, cell), Image.LANCZOS)
+
+
 def build_idle_static(ref, out_path, cell=64):
     """A single centred cell. Towers are emplacements and do not breathe.
 
     `frames: 1` is handled by EntitySprite.setState via setTexture rather than
     an animation, and a static state is a legal default to revert to after a
     one-shot — only a single-frame ONE-SHOT is broken (no animationcomplete)."""
-    big = cell * SS
-    ref = _fit(ref, big)
-    cellim = Image.new('RGBA', (big, big), (0, 0, 0, 0))
-    cellim.paste(ref, (round((big - ref.width) / 2), round((big - ref.height) / 2)), ref)
-    sheet = cellim.resize((cell, cell), Image.LANCZOS)
+    sheet = static_cell(ref, cell)
     sheet.save(out_path)
     return sheet
 
@@ -268,23 +319,39 @@ def main():
     ap.add_argument('--all', action='store_true', help='every reference present')
     ap.add_argument('--cell', type=int, default=None,
                     help='override the cell size for every entity built')
-    ap.add_argument('--no-mirror', action='store_true',
-                    help='reference already faces right')
+    ap.add_argument('--ref-dir', type=Path, default=REF_DIR,
+                    help='where the references live (default .art-cache/sprites)')
+    ap.add_argument('--out-root', type=Path, default=SPRITE_ROOT,
+                    help='sheet output root (default assets-src/sprites)')
+    ap.add_argument('--mirror', dest='mirror', action='store_true', default=None,
+                    help='force a flip, overriding scripts/art/facing.json')
+    ap.add_argument('--no-mirror', dest='mirror', action='store_false',
+                    help='reference already faces right; overrides facing.json')
     ap.add_argument('--keep-debris', action='store_true',
                     help='skip largest-component isolation (subject is several blobs)')
     args = ap.parse_args()
 
-    names = sorted(p.stem for p in REF_DIR.glob('*_*.png')) if args.all else args.names
+    facing = load_facing()
+    if args.all:
+        # `*_*.png` also matches variants (tower_archer.t4a.png).
+        names = []
+        for n in sorted(p.stem for p in args.ref_dir.glob('*_*.png')):
+            if n in NOT_REPRODUCIBLE:
+                print(f'  {n}: SKIP in --all ({NOT_REPRODUCIBLE[n]}); name it explicitly to build')
+            else:
+                names.append(n)
+    else:
+        names = args.names
     if not names:
-        sys.exit(f'nothing to build; put references in {REF_DIR} via '
+        sys.exit(f'nothing to build; put references in {args.ref_dir} via '
                  f'`npm run art -- --kind sprite`')
 
     for name in names:
-        category, _, etype = name.partition('_')
+        category, etype, variant = parse_name(name)
         if category not in PLAN:
             print(f'  {name}: SKIP (unknown category {category!r})')
             continue
-        ref_path = REF_DIR / f'{name}.png'
+        ref_path = args.ref_dir / f'{name}.png'
         if not ref_path.exists():
             print(f'  {name}: SKIP (no reference at {ref_path})')
             continue
@@ -292,18 +359,19 @@ def main():
         states = STATE_OVERRIDES.get((category, etype), PLAN[category]['states'])
         cell = args.cell or CELL_OVERRIDES.get((category, etype), PLAN[category]['cell'])
         tint = TINTS.get((category, etype), (255, 255, 255))
-        out_dir = OUT_DIRS[category]
+        out_dir = sheet_path(args.out_root, category, etype, variant, 'x').parent
         out_dir.mkdir(parents=True, exist_ok=True)
 
         ref = cutout(ref_path, keep_largest=not args.keep_debris)
         # Author facing RIGHT; the renderer mirrors via flipX. FLUX drew every
         # enemy facing left whatever the prompt said, so flip by default and
-        # pass --no-mirror for a reference that already faces right.
-        if not args.no_mirror:
+        # record a reference that already faces right as false in facing.json.
+        mirror = args.mirror if args.mirror is not None else mirror_for(name, facing)
+        if mirror:
             ref = ref.transpose(Image.FLIP_LEFT_RIGHT)
 
         for st in states:
-            out_path = out_dir / f'{etype}_{st}.png'
+            out_path = sheet_path(args.out_root, category, etype, variant, st)
             if st == 'move':
                 build_move(ref, out_path, cell=cell,
                            hover=(category, etype) in HOVER)

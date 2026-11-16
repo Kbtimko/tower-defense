@@ -1,3 +1,5 @@
+import { SPRITE_VARIANTS } from './spriteVariants.js';
+
 // Declarative entity-art manifest. Tunables live here (no Phaser import).
 //
 // Each entry maps an entity category+type to per-state art. A state is either:
@@ -34,8 +36,9 @@
 // Tier variants (#49): an entry may also declare per-tier art, keyed t2, t3,
 // t4a or t4b. BootScene loads each declared state under
 // sprite-<category>-<type>-<state>-<variant>; scale/anchor/ground override
-// the entry's own for that variant. None are declared yet — declaring one
-// whose PNG is missing logs a boot 404, which fails captures.
+// the entry's own for that variant. Variants are declared in the generated
+// spriteVariants.js (written by `npm run art:apply`), merged in below —
+// declaring one whose PNG is missing logs a boot 404, which fails captures.
 //   variants: {
 //     t4a: { scale?, anchor?, ground?,
 //            states: { idle: { path, frameWidth, frameHeight, frames, frameRate } } },
@@ -43,7 +46,7 @@
 // Soldier tier keys a manifest doesn't fill are generated at boot by
 // recolouring the base sheets (src/systems/soldierTierTextures.js); declared
 // art that loaded always wins over the generated copy.
-export const SPRITE_MANIFEST = [
+const BASE_SPRITE_MANIFEST = [
   // Veth Drone — ground, def.radius 9. The 64px cell renders at ~38px. That is
   // deliberately larger than the Graphics circle it replaced: at the original
   // ~27px a drone read as an indistinct speck next to 52-99px towers.
@@ -283,6 +286,18 @@ export const SPRITE_MANIFEST = [
     },
   },
 ];
+
+// Tier-variant art is declared in the GENERATED spriteVariants.js (written by
+// the art apply step) so the hand-written manifest above never needs editing.
+// Pure: returns new entries for matches, never mutates the input.
+export function mergeVariants(manifest, variants) {
+  return manifest.map(entry => {
+    const extra = variants[`${entry.category}/${entry.type}`];
+    return extra ? { ...entry, variants: { ...entry.variants, ...extra } } : entry;
+  });
+}
+
+export const SPRITE_MANIFEST = mergeVariants(BASE_SPRITE_MANIFEST, SPRITE_VARIANTS);
 
 // Look up the manifest entry for an entity, or null if none is registered.
 export function getSpriteConfig(category, type) {

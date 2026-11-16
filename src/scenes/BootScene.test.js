@@ -12,6 +12,9 @@ import { SOLDIER_RECOLOR } from '../data/tierLooks.js';
 vi.mock('phaser', () => ({
   default: { Scene: class { constructor() {} } },
 }));
+// The live spriteVariants.js fills up as `npm run art:apply` declares tier art, and
+// this suite is part of apply's gate; every variant here is declared by the test.
+vi.mock('../data/spriteVariants.js', () => ({ SPRITE_VARIANTS: {} }));
 const savedSettings = vi.hoisted(() => ({ value: { ambientMotion: null } }));
 vi.mock('../systems/SaveManager.js', () => ({
   SaveManager: class { getSettings() { return { ...savedSettings.value }; } },

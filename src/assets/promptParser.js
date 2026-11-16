@@ -111,7 +111,7 @@ export function parseFencedSection(md, heading) {
   return null;
 }
 
-// Per-entity sprite prompts:  - **type** — <metadata>: followed by a fenced
+// Per-entity sprite prompts:  - **type** — (or **type.variant** —) <metadata>: followed by a fenced
 // block (or an inline `backtick` prompt). The category comes from the enclosing
 // "### (x) Enemies / Towers / Heroes" heading; soldier and sentry live under
 // the heroes heading but are their own categories.
@@ -133,9 +133,10 @@ export function parseSpritePrompts(md) {
     }
     if (!category) continue;
 
-    const bullet = line.match(/^-\s+\*\*([a-z0-9_]+)\*\*\s*[—-]\s*(.*)$/i);
+    const bullet = line.match(/^-\s+\*\*([a-z0-9_]+)(?:\.([a-z0-9]+))?\*\*\s*[—-]\s*(.*)$/i);
     if (!bullet) continue;
     const type = bullet[1];
+    const variant = bullet[2];   // tier-variant key, e.g. "t4a"; validated downstream
 
     // Fenced form wins whenever there is a fence. The bullet's metadata may
     // wrap onto continuation lines before it opens. The scan stops at any
@@ -156,7 +157,7 @@ export function parseSpritePrompts(md) {
       // between them. Take the last long span: barracks ends with a
       // "(no `attack`)" aside. This heuristic cannot distinguish a prompt from
       // a documented output path, which is why a fence takes precedence.
-      const spans = bullet[2].split('`').filter((_, k) => k % 2 === 1);
+      const spans = bullet[3].split('`').filter((_, k) => k % 2 === 1);
       subject = spans.filter(x => x.length >= 15).pop() ?? null;
     }
     if (!subject) continue;
@@ -168,6 +169,7 @@ export function parseSpritePrompts(md) {
     out.push({
       category: isUnit ? type : category,
       type: isUnit ? 'default' : type,
+      ...(variant ? { variant } : {}),
       subject: cleanSubject(subject),
     });
   }

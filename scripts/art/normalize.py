@@ -3,6 +3,7 @@
 
     python3 scripts/art/normalize.py            # all sheets
     python3 scripts/art/normalize.py --only tower/cannon enemy/titan
+    python3 scripts/art/normalize.py --only tower/archer.t4a   # one tier variant
 
 Reads the ORIGINAL sheets from assets-src/sprites/ (what build-sprite-sheets.py
 writes) and writes the shipped sheets to public/assets/sprites/. Always
@@ -10,7 +11,8 @@ reading originals is what makes it idempotent: running it twice produces the
 same files, and no pass is ever applied on top of itself.
 
 Per entity, tone parameters are computed once from its base state and applied
-to every state, so idle, attack and death stay the same colour. Per frame:
+to every state, so idle, attack and death stay the same colour. A tier variant
+reuses its BASE entity's parameters so the tiers of one tower stay one family. Per frame:
   1. edge cleanup  - drop near-transparent fringe; remove stray specks
                      (not on death frames, whose debris is intentional)
   2. tone          - lift luminance / contrast / saturation into the art
@@ -26,6 +28,7 @@ re-measured `ground` metrics for sprites.js.
 Requires: pip3 install pillow numpy scipy
 """
 import argparse
+import importlib.util
 import json
 import subprocess
 import sys
@@ -39,6 +42,12 @@ ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = ROOT / 'assets-src'
 OUT_ROOT = ROOT / 'public'
 REVIEW = ROOT / '.art-cache' / 'review'
+
+# The builder's hyphenated filename can't be imported normally. Its fit logic
+# is reused so a preview frame is what the real sheet's first frame would be.
+_spec = importlib.util.spec_from_file_location('build_sheets', ROOT / 'scripts' / 'build-sprite-sheets.py')
+_bs = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_bs)
 
 # --- Art bible numbers (docs/art-bible.md §3, §5) ------------------------------
 OUTLINE_RGB = np.array([0x0b, 0x10, 0x20], dtype=np.float32) / 255
@@ -195,63 +204,119 @@ def measure_ground(a, fw, fh, anchor_y, scale):
     return round((max(bottoms) - fh * anchor_y) * scale, 1), round(float(np.median(widths)) * scale, 1)
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--only', nargs='*', help='category/type pairs, e.g. tower/cannon')
-    args = ap.parse_args()
-    manifest = load_manifest()
-    REVIEW.mkdir(parents=True, exist_ok=True)
-    tiles = []
-    clipped = []
+def _params_for(rgb, a, category, key=None):
+    if key in SKIP_TONE:
+        return dict(gamma=1.0, mean=0.0, gain=1.0, sat=1.0)
+    return tone_params(rgb, a, category)
 
-    for entry in manifest:
-        key = f"{entry['category']}/{entry['type']}"
-        if args.only and key not in args.only:
+
+def _read(path):
+    return np.asarray(Image.open(path).convert('RGBA'), dtype=np.float32) / 255
+
+
+def _to_image(arr):
+    return Image.fromarray((arr * 255 + 0.5).astype(np.uint8), 'RGBA')
+
+
+def process_frame(rgb, a, params, keep_debris, scale):
+    """cleanup -> tone -> rim light -> outline for one frame. Also returns the
+    pre-outline stats so navy doesn't skew the reported tone."""
+    width = OUTLINE_DISPLAY_PX / scale
+    a = cleanup(a, keep_debris)
+    rgb = apply_tone(rgb, params)
+    rgb = rim_light(rgb, a, max(1, round(1 / scale)))
+    tone_after = stats(rgb, a)
+    rgb, a = outline(rgb, a, width)
+    return rgb, a, tone_after
+
+
+def preview_frame(cut_rgba, entry, *, tone_params=None):
+    """The entity's first frame as the real sheet would build it, restyled.
+    `tone_params` pins the tone (e.g. a base entity's); else the frame's own."""
+    first = next(iter(entry['states'].values()))
+    frame = np.asarray(_bs.static_cell(cut_rgba, first['frameWidth']), dtype=np.float32) / 255
+    rgb, a = frame[..., :3], frame[..., 3]
+    params = tone_params or _params_for(rgb, a, entry['category'],
+                                       f"{entry['category']}/{entry['type']}")
+    rgb, a, _ = process_frame(rgb, a, params, False, entry.get('scale', 1))
+    return _to_image(np.dstack([rgb, a]))
+
+
+def _normalize_states(key, category, states, params, scale, anchor_y, src_root, out_root,
+                      tiles, clipped):
+    """Restyle one set of states; returns its ground record or None if the
+    first state's source is missing."""
+    ground = None
+    for n, (state, d) in enumerate(states.items()):
+        src = src_root / d['path'].removeprefix('assets/')
+        dst = out_root / d['path']
+        if not src.exists():
+            print(f'  ! {key} {state}: missing {src}')
             continue
-        scale = entry.get('scale', 1)
-        anchor_y = entry.get('anchor', {}).get('y', 0.5)
-        width = OUTLINE_DISPLAY_PX / scale
-        rim_offset = max(1, round(1 / scale))
-        states = list(entry['states'].items())
-
-        params = None
+        img = _read(src)
+        fw, fh = d['frameWidth'], d['frameHeight']
+        out = np.zeros_like(img)
         tone_after = None
-        for state, d in states:
-            src = SRC_ROOT / d['path'].removeprefix('assets/')
-            dst = OUT_ROOT / d['path']
-            if not src.exists():
-                print(f'  ! {key} {state}: missing {src.relative_to(ROOT)}')
-                continue
-            img = np.asarray(Image.open(src).convert('RGBA'), dtype=np.float32) / 255
-            fw, fh = d['frameWidth'], d['frameHeight']
-            if params is None:   # base state sets the tone for every state
-                first = next(frames_of(img, fw, fh))
-                params = (dict(gamma=1.0, mean=0.0, gain=1.0, sat=1.0) if key in SKIP_TONE
-                          else tone_params(img[first][..., :3], img[first][..., 3], entry['category']))
-            out = np.zeros_like(img)
-            for sl in frames_of(img, fw, fh):
-                rgb, a = img[sl][..., :3], img[sl][..., 3]
-                a = cleanup(a, keep_debris=(state == 'death'))
-                rgb = apply_tone(rgb, params)
-                rgb = rim_light(rgb, a, rim_offset)
-                if tone_after is None:
-                    tone_after = stats(rgb, a)   # before the outline, so navy doesn't skew it
-                rgb, a = outline(rgb, a, width)
-                out[sl][..., :3], out[sl][..., 3] = rgb, a
-                edge = lambda m: np.concatenate([m[0], m[-1], m[:, 0], m[:, -1]])
-                if (edge(a) > 0.5).any() and not (edge(img[sl][..., 3]) > 0.5).any():
-                    clipped.append(f'{key} {state}')
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            Image.fromarray((out * 255 + 0.5).astype(np.uint8), 'RGBA').save(dst, optimize=True)
-            if state == states[0][0]:
-                before = Image.open(src).convert('RGBA').crop((0, 0, fw, fh))
-                after = Image.fromarray((out[:fh, :fw] * 255 + 0.5).astype(np.uint8), 'RGBA')
-                tiles.append((key, before, after))
-                foot, w = measure_ground(out[..., 3], fw, fh, anchor_y, scale)
-                s0, s1 = stats(img[:fh, :fw, :3], img[:fh, :fw, 3]), tone_after
-                print(f'  {key:18} lum {s0[0]:.2f}->{s1[0]:.2f}  contrast {s0[1]:.2f}->{s1[1]:.2f}  '
-                      f'sat {s0[2]:.2f}->{s1[2]:.2f}   ground {{ footY: {foot}, width: {w} }}')
+        for sl in frames_of(img, fw, fh):
+            rgb, a, ta = process_frame(img[sl][..., :3], img[sl][..., 3], params,
+                                       state == 'death', scale)
+            if tone_after is None:
+                tone_after = ta
+            out[sl][..., :3], out[sl][..., 3] = rgb, a
+            edge = lambda m: np.concatenate([m[0], m[-1], m[:, 0], m[:, -1]])
+            if (edge(a) > 0.5).any() and not (edge(img[sl][..., 3]) > 0.5).any():
+                clipped.append(f'{key} {state}')
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        _to_image(out).save(dst, optimize=True)
+        if n == 0:
+            tiles.append((key, Image.open(src).convert('RGBA').crop((0, 0, fw, fh)),
+                          _to_image(out[:fh, :fw])))
+            foot, w = measure_ground(out[..., 3], fw, fh, anchor_y, scale)
+            ground = {'footY': foot, 'width': w}
+            s0, s1 = stats(img[:fh, :fw, :3], img[:fh, :fw, 3]), tone_after
+            print(f'  {key:18} lum {s0[0]:.2f}->{s1[0]:.2f}  contrast {s0[1]:.2f}->{s1[1]:.2f}  '
+                  f'sat {s0[2]:.2f}->{s1[2]:.2f}   ground {{ footY: {foot}, width: {w} }}')
+    return ground
 
+
+def normalize_entry(entry, *, only_variants=None, include_base=True, src_root, out_root,
+                    tiles=None, clipped=None):
+    """Normalise an entry's base states (if include_base) and its variants
+    (all, or just `only_variants`). Variants take the BASE's first-state tone,
+    computed even when only a variant is requested."""
+    tiles = [] if tiles is None else tiles
+    clipped = [] if clipped is None else clipped
+    category = entry['category']
+    key = f"{category}/{entry['type']}"
+    scale = entry.get('scale', 1)
+    anchor_y = entry.get('anchor', {}).get('y', 0.5)
+    variants = entry.get('variants', {})
+    if only_variants is not None:
+        variants = {v: variants[v] for v in only_variants}
+
+    d0 = next(iter(entry['states'].values()))
+    base_src = src_root / d0['path'].removeprefix('assets/')
+    if not base_src.exists():
+        print(f'  ! {key}: missing {base_src}')
+        return []
+    img = _read(base_src)
+    first = next(frames_of(img, d0['frameWidth'], d0['frameHeight']))
+    params = _params_for(img[first][..., :3], img[first][..., 3], category, key)
+
+    records = []
+    jobs = ([(key, entry['states'], scale, anchor_y)] if include_base else []) + [
+        (f'{key}.{v}', vd['states'], vd.get('scale', scale),
+         vd.get('anchor', entry.get('anchor', {})).get('y', 0.5))
+        for v, vd in variants.items()]
+    for k, states, sc, ay in jobs:
+        ground = _normalize_states(k, category, states, params, sc, ay, src_root, out_root,
+                                   tiles, clipped)
+        if ground is not None:
+            records.append({'key': k, 'ground': ground})
+    return records
+
+
+def write_contact_sheet(tiles):
     # Contact sheet: before | after per entity, on the dark ground the art is judged on.
     T = 128
     cols = 4
@@ -267,7 +332,36 @@ def main():
             for j, im in enumerate((b, a)):
                 sheet.alpha_composite(im.resize((T, T), Image.NEAREST), (x + j * T, y))
     sheet.save(REVIEW / 'normalize-contact.png')
-    print(f'\ncontact sheet: {(REVIEW / "normalize-contact.png").relative_to(ROOT)}')
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--only', nargs='*',
+                    help='tower/archer (base only) or tower/archer.t4a (that variant only)')
+    ap.add_argument('--src-root', type=Path, default=SRC_ROOT)
+    ap.add_argument('--out-root', type=Path, default=OUT_ROOT)
+    ap.add_argument('--ground-json', type=Path, help='write the measured ground records here')
+    args = ap.parse_args(argv)
+    manifest = load_manifest()
+    REVIEW.mkdir(parents=True, exist_ok=True)
+    tiles, clipped, records = [], [], []
+
+    for entry in manifest:
+        key = f"{entry['category']}/{entry['type']}"
+        kw = {}
+        if args.only:
+            wanted = set(args.only)
+            vs = [v for v in entry.get('variants', {}) if f'{key}.{v}' in wanted]
+            if key not in wanted and not vs:
+                continue
+            kw = dict(only_variants=vs, include_base=key in wanted)
+        records += normalize_entry(entry, src_root=args.src_root, out_root=args.out_root,
+                                   tiles=tiles, clipped=clipped, **kw)
+
+    write_contact_sheet(tiles)
+    print(f'\ncontact sheet: {REVIEW / "normalize-contact.png"}')
+    if args.ground_json:
+        args.ground_json.write_text(json.dumps(records, indent=2) + '\n')
     if clipped:
         print('outline touches the cell edge (art may be cropped):', ', '.join(sorted(set(clipped))))
     return 0
