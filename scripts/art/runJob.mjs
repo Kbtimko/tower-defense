@@ -126,6 +126,8 @@ export async function runJob({
   if (todo.length === 0) { log('\nNothing to generate — every asset already has its candidates.\n'); return 0; }
 
   let usePort = null;
+  let generated = 0;
+  let failed = 0;
   if (!fake) {
     const ports = candidatePorts(port ? Number(port) : null);
     usePort = await discoverPort(ports);
@@ -142,7 +144,7 @@ export async function runJob({
     if (fake) base = await fakeBase(repoRoot, asset);
     else if (mode === 'img2img') {
       initB64 = await loadInit(repoRoot, cacheDir, asset);
-      if (!initB64) { log(`  ERROR: no init image for ${asset.assetId} (neither reference nor shipped sheet); skipping`); continue; }
+      if (!initB64) { log(`  ERROR: no init image for ${asset.assetId} (neither reference nor shipped sheet); skipping`); failed += plan.length; continue; }
     }
 
     for (const c of plan) {
@@ -166,9 +168,9 @@ export async function runJob({
           if (assetMode === 'txt2img') {
             res = await post(usePort, '/sdapi/v1/txt2img', txt2imgBody({ prompt: asset.prompt, seed: c.seed }));
           }
-          if (!res.ok) { console.log(`FAILED (HTTP ${res.status})`); continue; }
+          if (!res.ok) { console.log(`FAILED (HTTP ${res.status})`); failed++; continue; }
           const b64 = res.json?.images?.[0] ?? res.json?.image;
-          if (!b64) { console.log('FAILED (no image in response)'); continue; }
+          if (!b64) { console.log('FAILED (no image in response)'); failed++; continue; }
           writeFileSync(pngPath, Buffer.from(b64.replace(/^data:image\/\w+;base64,/, ''), 'base64'));
         }
         // json last: a png without it is an interrupted write and gets redone.
@@ -177,11 +179,14 @@ export async function runJob({
           prompt: asset.prompt, createdAt: new Date().toISOString(),
         }, null, 2));
         console.log('ok');
+        generated++;
       } catch (err) {
         console.log(`FAILED (${err.message})`);
+        failed++;
       }
     }
   }
-  log(`\nDone. Candidates are under ${join(cacheDir, 'candidates', job.batch)}\n`);
-  return 0;
+  // Non-zero on any failure: Task 7 chains the prepare step on this exit code.
+  log(`\n${generated} generated, ${failed} failed. Candidates are under ${join(cacheDir, 'candidates', job.batch)}\n`);
+  return failed ? 1 : 0;
 }

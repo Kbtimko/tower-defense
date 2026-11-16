@@ -1,14 +1,14 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createServer } from 'node:http';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, copyFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, copyFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { runJob } from './runJob.mjs';
 
 // Never the real Draw Things: every request goes to a stub on an ephemeral port.
-let server, port, requests, img2imgStatus, tmp, tinyB64;
+let server, port, requests, img2imgStatus, txt2imgStatus = 200, tmp, tinyB64;
 
 const solid = (w, h, c) => sharp({ create: { width: w, height: h, channels: 3, background: c } }).png();
 
@@ -20,6 +20,7 @@ beforeAll(async () => {
     req.on('end', () => {
       requests.push({ url: req.url, body: JSON.parse(data || '{}') });
       if (req.url === '/sdapi/v1/img2img' && img2imgStatus !== 200) { res.statusCode = img2imgStatus; res.end('no'); return; }
+      if (req.url === '/sdapi/v1/txt2img' && txt2imgStatus !== 200) { res.statusCode = txt2imgStatus; res.end('boom'); return; }
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ images: [tinyB64] }));
     });
@@ -103,6 +104,69 @@ describe('runJob against a stub server', () => {
     expect([info.width, info.height]).toEqual([1024, 1024]);
     const px = (x, y) => [...data.subarray((y * 1024 + x) * info.channels, (y * 1024 + x) * info.channels + 3)];
     expect(px(1000, 512)).toEqual([255, 0, 0]);   // whole strip would put blue here
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('returns non-zero and logs the failure count when some candidates fail', async () => {
+    requests = []; img2imgStatus = 200; txt2imgStatus = 500;
+    const root = makeRepo({});
+    mkdirSync(join(root, 'cache/sprites'), { recursive: true });
+    await solid(64, 64, { r: 9, g: 9, b: 9 }).toFile(join(root, 'cache/sprites/tower_archer.png'));
+    const logs = [];
+    const code = await runJob({ repoRoot: root, batch: 't', cache: join(root, 'cache'), port, log: m => logs.push(m) });
+    txt2imgStatus = 200;
+    expect(code).toBe(1);
+    expect(logs.some(l => l.includes('3 generated, 3 failed'))).toBe(true);   // variant (img2img) ok, cannon (txt2img) fails
+    rmSync(root, { recursive: true, force: true });
+  });
+});
+
+describe('runJob --fake / --dry-run / resume / reroll', () => {
+  const run = (root, extra = {}) => runJob({ repoRoot: root, batch: 't', cache: join(root, 'cache'), log: () => {}, ...extra });
+  const dir = (root, id) => join(root, 'cache/candidates/t', id);
+  const ls = (root, id) => readdirSync(dir(root, id)).sort();
+  const ids = ['tower_cannon', 'tower_archer.t4a'];
+
+  it('writes png+json pairs with mode fake and never contacts a server', async () => {
+    requests = [];
+    const root = makeRepo({});
+    expect(await run(root, { fake: true })).toBe(0);
+    for (const id of ids) {
+      expect(ls(root, id)).toEqual(['0.json', '0.png', '1.json', '1.png', '2.json', '2.png']);
+      expect(metas(root, id).map(m => m.mode)).toEqual(['fake', 'fake', 'fake']);
+    }
+    expect(requests).toEqual([]);
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('regenerates only the interrupted (last) index whose json is missing', async () => {
+    const root = makeRepo({});
+    await run(root, { fake: true });
+    const before = readFileSync(join(dir(root, 'tower_cannon'), '0.png'));
+    // An interrupted run leaves the LAST png without its json.
+    rmSync(join(dir(root, 'tower_cannon'), '2.json'));
+    await run(root, { fake: true });
+    expect(ls(root, 'tower_cannon')).toEqual(['0.json', '0.png', '1.json', '1.png', '2.json', '2.png']);
+    expect(metas(root, 'tower_cannon').map(m => [m.index, m.round, m.seed])).toEqual([[0, 0, 77021], [1, 0, 77022], [2, 0, 77023]]);
+    expect(readFileSync(join(dir(root, 'tower_cannon'), '0.png')).equals(before)).toBe(true);
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('a reroll adds round 1 (indices 3-5) for the listed asset only', async () => {
+    const root = makeRepo({});
+    await run(root, { fake: true });
+    const picks = join(root, 'picks.json');
+    writeFileSync(picks, JSON.stringify({ reroll: ['tower_cannon'] }));
+    await run(root, { fake: true, reroll: picks });
+    expect(metas(root, 'tower_cannon').map(m => [m.index, m.round])).toEqual([[0, 0], [1, 0], [2, 0], [3, 1], [4, 1], [5, 1]]);
+    expect(ls(root, 'tower_archer.t4a')).toHaveLength(6);
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('dry-run writes nothing', async () => {
+    const root = makeRepo({});
+    expect(await run(root, { fake: true, dryRun: true })).toBe(0);
+    expect(existsSync(join(root, 'cache'))).toBe(false);
     rmSync(root, { recursive: true, force: true });
   });
 });
