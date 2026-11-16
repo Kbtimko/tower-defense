@@ -7,6 +7,7 @@ import { spriteTextureKey } from '../systems/spriteKeys.js';
 import { backgroundUrl } from '../systems/backgroundAsset.js';
 import { BACKGROUND_VARIANTS } from '../data/backgroundAssets.js';
 import { BACKDROP_ART } from '../data/worldMap.js';
+import { SOLDIER_RECOLOR } from '../data/tierLooks.js';
 
 vi.mock('phaser', () => ({
   default: { Scene: class { constructor() {} } },
@@ -185,5 +186,91 @@ describe('BootScene autoSend registry seed (#51)', () => {
 
   it('an explicit false seeds autoSend false', () => {
     expect(seed({ ambientMotion: null, autoSend: false })).toBe(false);
+  });
+});
+
+describe('BootScene soldier tier textures (#49 R2, R15)', () => {
+  const SOLDIER = SPRITE_MANIFEST.find(e => e.category === 'soldier' && e.type === 'default');
+  const TIER_SUFFIX = /-t(1|2|3|4a|4b)$/;
+
+  function run(existing, { variants, failGet = false } = {}) {
+    const scene = new BootScene();
+    const set = new Map();
+    const loaded = [];
+    const keys = new Set(existing);
+    scene.game = { registry: { set: (k, v) => set.set(k, v) }, events: { on() {} } };
+    scene.load = {
+      image: (key, path) => loaded.push({ key, path }),
+      spritesheet: (key, path, cfg) => loaded.push({ key, path, cfg }),
+    };
+    scene.textures = {
+      exists: key => keys.has(key),
+      get: () => {
+        if (failGet) throw new Error('no source');
+        return { getSourceImage: () => ({ width: 96, height: 48 }) };
+      },
+      createCanvas: (key, w, h) => {
+        keys.add(key);
+        return { draw() {}, getData: () => ({ data: new Uint8ClampedArray(w * h * 4) }), putData() {}, refresh() {} };
+      },
+      addSpriteSheet() {},
+      remove: key => keys.delete(key),
+    };
+    scene.scene = { start() {} };
+    if (variants) SOLDIER.variants = variants;
+    try {
+      scene.preload();
+      scene.create();
+    } finally {
+      delete SOLDIER.variants;
+    }
+    return { set, loaded };
+  }
+
+  const baseKeys = () => SPRITE_MANIFEST.flatMap(e =>
+    Object.keys(e.states ?? {}).map(st => spriteTextureKey(e.category, e.type, st)));
+
+  it('queues no variant load while the manifest declares none (no boot 404)', () => {
+    const { loaded } = run([]);
+    expect(loaded.filter(l => TIER_SUFFIX.test(l.key))).toEqual([]);
+  });
+
+  it('appends the generated soldier keys AFTER the scanned manifest keys', () => {
+    const scanned = baseKeys();
+    const { set } = run(scanned);
+    const keys = set.get('spriteKeys');
+    expect(keys.slice(0, scanned.length)).toEqual(scanned);
+    const generated = keys.slice(scanned.length);
+    expect(generated.length).toBe(Object.keys(SOLDIER_RECOLOR).length * Object.keys(SOLDIER.states).length);
+    expect(generated.every(k => k.startsWith('sprite-soldier-default-') && TIER_SUFFIX.test(k))).toBe(true);
+    expect(set.get('soldierTierFailed')).toEqual([]);
+  });
+
+  it('surfaces a failed generation in the registry and keeps only the scanned keys', () => {
+    const scanned = baseKeys();
+    const { set } = run(scanned, { failGet: true });
+    expect(set.get('spriteKeys')).toEqual(scanned);
+    expect(set.get('soldierTierFailed')).toHaveLength(Object.keys(SOLDIER_RECOLOR).length * Object.keys(SOLDIER.states).length);
+  });
+
+  it('loads a declared variant state under its variant key and records it when it loaded (E14: no generated copy)', () => {
+    const def = { path: 'assets/sprites/soldiers/default_idle_t4a.png', frameWidth: 48, frameHeight: 48, frames: 6, frameRate: 8 };
+    const vKey = 'sprite-soldier-default-idle-t4a';
+    const scanned = baseKeys();
+    const { loaded, set } = run([...scanned, vKey], { variants: { t4a: { states: { idle: def } } } });
+
+    expect(loaded.find(l => l.key === vKey)).toEqual({ key: vKey, path: def.path, cfg: { frameWidth: 48, frameHeight: 48 } });
+    const keys = set.get('spriteKeys');
+    expect(keys.filter(k => k === vKey)).toHaveLength(1);
+    expect(keys.indexOf(vKey)).toBeLessThan(scanned.length + 1);
+  });
+
+  it('E15: a declared variant that failed to load is filled by generation', () => {
+    const def = { path: 'assets/sprites/soldiers/missing.png', frameWidth: 48, frameHeight: 48, frames: 6 };
+    const vKey = 'sprite-soldier-default-idle-t4a';
+    const scanned = baseKeys();
+    const { set } = run(scanned, { variants: { t4a: { states: { idle: def } } } });
+    const keys = set.get('spriteKeys');
+    expect(keys.indexOf(vKey)).toBeGreaterThanOrEqual(scanned.length);
   });
 });

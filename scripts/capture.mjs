@@ -62,6 +62,11 @@ import { resultsTimeline } from '../src/systems/resultsTimeline.js';
 import { mergeRecord } from '../src/systems/runRecord.js';
 import { formatDuration } from '../src/utils/display.js';
 import { stepsFor, shotName, worldToPagePoint, flowExpectations, summarizeFlow, freePad, padWorldPoint, buildStates, pickPads } from '../src/systems/deviceFlow.js';
+import { expectedTowerLook, footprintClash } from '../src/systems/tierLookMath.js';
+import { resolveSpriteKey, tierVariant, variantTextureKey } from '../src/systems/spriteKeys.js';
+import { meanHue, hueDistance, rgbToHue } from '../src/systems/colorMatrix.js';
+import { TIER_SCALE, SOLDIER_4A_HUE } from '../src/data/tierLooks.js';
+import { SPRITE_MANIFEST } from '../src/data/sprites.js';
 
 const OUT_DIR   = '.art-cache/captures';
 const DIST_DIR  = '.art-cache/capture-dist';
@@ -607,10 +612,14 @@ async function captureScreens(browser, base, deviceName, opts) {
     () => captureDoubleTapClose(browser, base, deviceName),
     () => captureAutoSend(browser, base, deviceName, dir),
     () => captureRally(browser, base, deviceName, dir),
+    () => captureTierLooks(browser, base, deviceName, dir),
   ];
   if (deviceName === 'desktop') runs.push(() => captureZoomedStory(browser, base, deviceName, dir));
   if (!DEVICES[deviceName].hasTouch) runs.push(() => captureHeldEnter(browser, base, deviceName));
-  if (REDUCED_MOTION_DEVICES.has(deviceName)) runs.push(() => captureReducedMotion(browser, base, deviceName, dir));
+  if (REDUCED_MOTION_DEVICES.has(deviceName)) {
+    runs.push(() => captureReducedMotion(browser, base, deviceName, dir));
+    runs.push(() => captureTierLooksStill(browser, base, deviceName, dir));
+  }
   // One at a time: each run times a live animation, so they must not share the CPU.
   for (const run of runs) {
     const r = await run();
@@ -1605,6 +1614,198 @@ function captureRally(browser, base, deviceName, dir) {
     if (off.length) throw new Error(`(e) ${off.length} soldier(s) off the flag at ${done.target}: ${JSON.stringify(off)}`);
     await expectVisible(page, '#cancel-btn', false, 0);
   });
+}
+
+// Tier looks (#49, spec R20-R22, R26). Map 9 caps at T4, so every tier fits one board.
+const TIER_LOOKS_MAP = 9;
+const TIER_LOOKS_BATCHES = [['archer', 'mage'], ['cannon', 'ice'], ['sniper', 'barracks']];
+const TIER_LOOKS_TIERS = ['1', '2', '3', '4a', '4b'];
+// Real time, not game time: the tier marks run on _fxTime, which is real seconds.
+const TIER_LOOKS_GAP_MS = 300;
+const LOOK_EPS = 1e-6;
+// World px round a tower's pad: T4 art and embers above, ring and pips below.
+const TIER_CROP = { halfW: 44, up: 92, down: 64 };
+
+const hexHue = hex => rgbToHue(parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16));
+
+// Pads are taken most-central first (clear of the rails on every device) and kept
+// only when no tower pairing at the T4 scale stacks contact shadows with a kept pad.
+// Every batch reuses the same 10 pads.
+function tierLooksPlan() {
+  const map = MAPS[TIER_LOOKS_MAP];
+  const kinds = SPRITE_MANIFEST.filter(e => e.category === 'tower');
+  const s = TIER_SCALE.tower.t4a;
+  const at = (pad, k) => ({ ...padWorldPoint(map, pad), footY: k.ground.footY, width: k.ground.width });
+  const clash = (p, q) => kinds.some(ka => kinds.some(kb => footprintClash(at(p, ka), at(q, kb), s)));
+  const pads = [];
+  for (const pad of pickPads(map, map.towerSlots.length)) {
+    if (!pads.some(p => clash(p, pad))) pads.push(pad);
+  }
+  const need = 2 * TIER_LOOKS_TIERS.length;
+  if (pads.length < need) throw new Error(`map ${TIER_LOOKS_MAP}: only ${pads.length} pads clear of each other at scale ${s}, need ${need}`);
+  return TIER_LOOKS_BATCHES.map(types => {
+    const towers = types.flatMap((type, t) => TIER_LOOKS_TIERS.map((tier, i) => ({
+      type, tier, pad: pads[t * TIER_LOOKS_TIERS.length + i],
+      level: Number(tier[0]), branch: tier[1] ? tier[1].toUpperCase() : null,
+    })));
+    return { types, towers, build: towers.map(t => `${t.type}@${t.pad}:${t.tier}`).join(',') };
+  });
+}
+
+const readLooks = page => page.evaluate(() => ({ looks: window.__capture.looks, simMs: window.__capture.simMs }));
+// The first looks after a frame that ran past `simMs`, so a frozen game can't pass for a still one.
+const looksAfter = (page, simMs, label) => until(() => readLooks(page), s => s.simMs > simMs,
+  s => `${label}: simMs stuck at ${s.simMs}, no frame ran`);
+
+// (a)-(c) on one snapshot; every problem in one message.
+function tierLookProblems(looks, batch, spriteKeys) {
+  const problems = [];
+  const id = t => `${t.type} L${t.level}${t.branch ?? ''}`;
+  const want = batch.towers.map(id).sort();
+  const got = looks.towers.map(id).sort();
+  if (JSON.stringify(want) !== JSON.stringify(got)) problems.push(`towers [${got.join(', ')}], expected [${want.join(', ')}]`);
+  for (const t of looks.towers) {
+    const exp = expectedTowerLook(t.level, t.branch);
+    const off = ['core', 'embers', 'ring', 'pips'].filter(k => t[k] !== exp[k]);
+    if (Math.abs(t.scale - exp.scale) > LOOK_EPS) off.push('scale');
+    if (off.length) problems.push(`(a) ${id(t)} ${off.map(k => `${k} ${JSON.stringify(t[k])} != ${JSON.stringify(exp[k])}`).join(', ')}`);
+    if (!(Math.abs(t.footDriftPx) < LOOK_EPS)) problems.push(`(a) ${id(t)} footDriftPx ${t.footDriftPx}, expected 0`);
+  }
+  const t4 = batch.towers.filter(t => t.level === 4);
+  const rings = looks.towers.filter(t => t.ring !== null);
+  if (rings.length !== t4.length) problems.push(`(b) ${rings.length} rings, expected ${t4.length} (one per T4 tower)`);
+  for (const p of t4) {
+    const live = looks.towers.find(t => t.type === p.type && t.level === 4 && t.branch === p.branch);
+    const ring = p.branch === 'A' ? 'solid' : 'dashed';
+    if (live && live.ring !== ring) problems.push(`(b) ${id(live)} ring ${live.ring}, expected ${ring}`);
+  }
+  const variants = new Set();
+  for (const s of looks.soldiers) {
+    const v = tierVariant(s.level, s.branch);
+    variants.add(v);
+    const key = resolveSpriteKey('soldier', 'default', 'idle', v, spriteKeys);
+    if (s.key !== key) problems.push(`(c) ${v} soldier key ${s.key}, expected ${key}`);
+    // T1 has no -t1 key (E42); every other tier has a generated one, so a boot that
+    // made none must fail here rather than agree with its own base-key fallback.
+    const tierKey = variantTextureKey('soldier', 'default', 'idle', v);
+    if (v !== 't1' && key !== tierKey) problems.push(`(c) ${v} soldier key resolves to ${key}, expected the tier key ${tierKey}`);
+    if (s.keyExists !== true) problems.push(`(c) ${v} soldier key ${s.key} has no texture`);
+    if (Math.abs(s.scale - TIER_SCALE.soldier[v]) > LOOK_EPS) problems.push(`(c) ${v} soldier scale ${s.scale}, expected ${TIER_SCALE.soldier[v]}`);
+    const shield = v === 't4a' && !s.dead;
+    if (s.shield !== shield) problems.push(`(c) ${v} soldier${s.dead ? ' (dead)' : ''} shield ${s.shield}, expected ${shield}`);
+  }
+  const squads = batch.towers.filter(t => t.type === 'barracks').map(t => tierVariant(t.level, t.branch));
+  const missing = squads.filter(v => !variants.has(v));
+  if (missing.length) problems.push(`(c) no soldiers at ${missing.join(', ')}`);
+  if (!squads.length && looks.soldiers.length) problems.push(`(c) ${looks.soldiers.length} soldiers with no barracks built`);
+  return problems;
+}
+
+// (d), moving: some ember and some ring moved between the snapshots.
+function motionProblems(a, b) {
+  const pairs = a.towers.map((t, i) => [t, b.towers[i]]);
+  const embers = pairs.some(([p, q]) => p.emberDy.some((y, j) => Math.abs(y - q.emberDy[j]) > LOOK_EPS));
+  const rings = pairs.some(([p, q]) => p.ringPhase !== null && Math.abs(p.ringPhase - q.ringPhase) > LOOK_EPS);
+  const problems = [];
+  if (!embers) problems.push(`(d) no emberDy changed in ${TIER_LOOKS_GAP_MS}+ ms`);
+  if (!rings) problems.push(`(d) no ringPhase changed in ${TIER_LOOKS_GAP_MS}+ ms`);
+  return problems;
+}
+
+// (d), still: the two snapshots are identical.
+function stillProblems(a, b) {
+  const i = a.towers.findIndex((t, n) => JSON.stringify(t) !== JSON.stringify(b.towers[n]));
+  if (i >= 0) return [`(d) ${a.towers[i].type} L${a.towers[i].level}${a.towers[i].branch ?? ''} moved under reduced motion: ${JSON.stringify(a.towers[i])} -> ${JSON.stringify(b.towers[i])}`];
+  if (JSON.stringify(a) !== JSON.stringify(b)) return ['(d) looks changed under reduced motion (soldiers)'];
+  return [];
+}
+
+async function worldClip(page, { left, top, right, bottom }) {
+  const pointerFine = await page.evaluate(q => matchMedia(q).matches, POINTER_FINE_QUERY);
+  const box = await page.locator(GAME_CANVAS).boundingBox();
+  const a = worldToPagePoint({ x: Math.max(0, left), y: Math.max(0, top) }, box, { pointerFine });
+  const b = worldToPagePoint({ x: Math.min(WORLD_WIDTH, right), y: Math.min(WORLD_HEIGHT, bottom) }, box, { pointerFine });
+  return { x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y };
+}
+
+// R26: in a frozen frame, the live 4A soldier's idle texture reads blue, not slow-cyan.
+async function soldier4aHueProblems(page, looks) {
+  const s = looks.soldiers.find(x => tierVariant(x.level, x.branch) === 't4a' && !x.dead);
+  if (!s) return ['R26: no live 4A soldier'];
+  const r = await page.evaluate(key => {
+    const scene = window.__game;
+    const sys = scene.sys;
+    sys.pause();
+    const frame = scene.textures.get(key).get(0);
+    const c = document.createElement('canvas');
+    c.width = frame.cutWidth;
+    c.height = frame.cutHeight;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(frame.source.image, frame.cutX, frame.cutY, frame.cutWidth, frame.cutHeight, 0, 0, frame.cutWidth, frame.cutHeight);
+    return { paused: sys.isPaused(), rgba: Array.from(ctx.getImageData(0, 0, c.width, c.height).data) };
+  }, s.key);
+  if (!r.paused) return ['R26: GameScene did not pause'];
+  const { target, avoid, maxTargetDeg, minAvoidDeg } = SOLDIER_4A_HUE;
+  const hue = meanHue(r.rgba, 0.2);
+  if (hue === null) return [`R26: ${s.key} has no saturated opaque pixels`];
+  const problems = [];
+  const toTarget = hueDistance(hue, hexHue(target));
+  const toAvoid = hueDistance(hue, hexHue(avoid));
+  if (toTarget > maxTargetDeg) problems.push(`R26: ${s.key} mean hue ${hue.toFixed(1)} is ${toTarget.toFixed(1)} deg from ${target} (max ${maxTargetDeg})`);
+  if (toAvoid < minAvoidDeg) problems.push(`R26: ${s.key} mean hue ${hue.toFixed(1)} is ${toAvoid.toFixed(1)} deg from slow ${avoid} (min ${minAvoidDeg})`);
+  return problems;
+}
+
+// R20 / R21: one page load per batch, no `wave`, so the board stays quiet.
+function tierLooksRun(browser, base, deviceName, dir, { still }) {
+  const label = still ? 'tier-looks-still' : 'tier-looks';
+  const contextOptions = still ? { reducedMotion: 'reduce' } : {};
+  return screensRun(browser, deviceName, label, { contextOptions }, async (page, out) => {
+    for (const batch of tierLooksPlan()) {
+      const name = batch.types.join('-');
+      const fail = problems => { if (problems.length) throw new Error(`${name}: ${problems.join('; ')}`); };
+      const params = new URLSearchParams({ debug: '1', map: String(TIER_LOOKS_MAP), build: batch.build });
+      await page.goto(`${base}/?${params}`);
+      await page.waitForFunction(() => window.__capture?.looks, null, { timeout: 30_000 });
+      // GameScene's shutdown nulls it, so each load waits for the new level's scene.
+      await page.waitForFunction(() => window.__game, null, { timeout: 30_000 });
+      const reg = await page.evaluate(() => {
+        const r = window.__game.registry;
+        return { failed: r.get('soldierTierFailed'), spriteKeys: r.get('spriteKeys'), ambientMotion: r.get('ambientMotion') };
+      });
+      if (!Array.isArray(reg.failed) || reg.failed.length) fail([`soldierTierFailed ${JSON.stringify(reg.failed)}, expected []`]);
+      // Without this, a run with motion on would pass the identical check by luck of timing.
+      if (still && reg.ambientMotion !== false) fail([`ambientMotion ${reg.ambientMotion}, expected false under reducedMotion: 'reduce'`]);
+      const { errors } = await page.evaluate(() => ({ errors: window.__capture.errors }));
+      if (errors.length) fail([`build errors: ${errors.join('; ')}`]);
+
+      // `a` is one frame past the first looks, which is written before updateLook poses any mark.
+      const first = await looksAfter(page, -1, name);
+      const a = await looksAfter(page, first.simMs, name);
+      fail(tierLookProblems(a.looks, batch, reg.spriteKeys));
+      await page.waitForTimeout(TIER_LOOKS_GAP_MS);
+      const b = await looksAfter(page, a.simMs, name);
+      fail(tierLookProblems(b.looks, batch, reg.spriteKeys));
+      fail(still ? stillProblems(a.looks, b.looks) : motionProblems(a.looks, b.looks));
+
+      out.files.push(await shoot(page, join(dir, `tiers-${still ? 'still-' : ''}${name}.png`)));
+      if (still || deviceName !== 'desktop1440') continue;
+      for (const t of batch.towers) {
+        const p = padWorldPoint(MAPS[TIER_LOOKS_MAP], t.pad);
+        const clip = await worldClip(page, { left: p.x - TIER_CROP.halfW, right: p.x + TIER_CROP.halfW, top: p.y - TIER_CROP.up, bottom: p.y + TIER_CROP.down });
+        out.files.push(await shoot(page, join(dir, `tier-${t.type}-${t.tier}.png`), { clip }));
+      }
+      if (batch.types.includes('barracks')) fail(await soldier4aHueProblems(page, b.looks));
+    }
+  });
+}
+
+function captureTierLooks(browser, base, deviceName, dir) {
+  return tierLooksRun(browser, base, deviceName, dir, { still: false });
+}
+
+function captureTierLooksStill(browser, base, deviceName, dir) {
+  return tierLooksRun(browser, base, deviceName, dir, { still: true });
 }
 
 // Spec 12.2: RETRY restarts the same map as a normal level: wave 1, full lives, no

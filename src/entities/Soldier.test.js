@@ -6,6 +6,8 @@ vi.mock('phaser', () => ({
       Container: class {
         constructor() { this.x = 0; this.y = 0; this.visible = true; this.list = []; }
         add(child) { this.list.push(...[].concat(child)); return this; }
+        addAt(child, i) { this.list.splice(i, 0, child); return this; }
+        getIndex(child) { return this.list.indexOf(child); }
         setDepth() { return this; }
         setVisible(v) { this.visible = v; return this; }
       }
@@ -19,14 +21,31 @@ vi.mock('../systems/soldierFormation.js', async (importOriginal) => {
   return { formationOffsets: vi.fn(real.formationOffsets) };
 });
 
+// A spy over the real manifest so one test can declare real 4A art.
+vi.mock('../data/sprites.js', async (importOriginal) => {
+  const real = await importOriginal();
+  return { ...real, getSpriteConfig: vi.fn(real.getSpriteConfig) };
+});
+
 import { Soldier } from './Soldier.js';
 import { SOLDIER_FORMATION, WALK_BOB } from '../data/soldiers.js';
 import { formationOffsets } from '../systems/soldierFormation.js';
+import { getSpriteConfig } from '../data/sprites.js';
 
-const makeGraphics = () => ({
-  clear() {}, fillStyle() {}, fillCircle() {}, fillRect() {}, lineStyle() {}, strokeCircle() {},
-  setVisible() { return this; },
-});
+// Records what was drawn and where the Graphics sits, so the tier look can be read back.
+const makeGraphics = () => {
+  const g = {
+    calls: [], x: 0, y: 0, scaleX: 1, scaleY: 1, visible: true,
+    setVisible(v) { g.visible = v; return g; },
+    setScale(x, y = x) { g.scaleX = x; g.scaleY = y; return g; },
+    setPosition(x, y) { g.x = x; g.y = y; return g; },
+  };
+  for (const m of ['clear', 'fillStyle', 'fillCircle', 'fillRect', 'lineStyle', 'strokeCircle',
+                   'fillGradientStyle', 'fillTriangle', 'fillPoints', 'strokePoints']) {
+    g[m] = (...args) => { g.calls.push([m, ...args]); return g; };
+  }
+  return g;
+};
 const makeScene = () => ({
   add: { graphics: () => makeGraphics(), existing: () => {} },
 });
@@ -274,5 +293,177 @@ describe('Soldier outside its squad list (minor 2)', () => {
     expect(() => stray.update(0.016)).not.toThrow();
     expect(stray._view.x).toBe(0);
     expect(stray._view.y).toBe(0);
+  });
+});
+
+describe('Soldier tier look (R16, R16b, S9, S10)', () => {
+  const BASE_KEYS = ['sprite-soldier-default-idle', 'sprite-soldier-default-attack'];
+  const CELL = 48; // soldier frame width (src/data/sprites.js)
+  // Real displayWidth follows the scale, so getDisplaySize() carries the tier scale.
+  const makeSprite = () => ({
+    x: 0, y: 0, scaleX: 1, scaleY: 1, flipX: false, visible: true,
+    displayWidth: CELL, displayHeight: CELL,
+    setOrigin() { return this; },
+    setScale(x, y = x) {
+      this.scaleX = x; this.scaleY = y;
+      this.displayWidth = CELL * Math.abs(x); this.displayHeight = CELL * Math.abs(y);
+      return this;
+    },
+    setFlipX(f) { this.flipX = f; return this; },
+    setVisible(v) { this.visible = v; return this; },
+    setTexture() {}, play() {}, on() {}, once() {}, destroy() {},
+  });
+  const makeImage = () => {
+    const img = { destroy() {} };
+    for (const m of ['setPosition', 'setDisplaySize', 'setAlpha', 'setVisible']) img[m] = () => img;
+    return img;
+  };
+  const artScene = (spriteKeys) => ({
+    add: { graphics: () => makeGraphics(), sprite: makeSprite, image: makeImage, existing() {} },
+    anims: { exists: () => true, create() {}, generateFrameNumbers: () => [] },
+    textures: { exists: () => true },
+    game: { registry: { get: () => spriteKeys } },
+  });
+  const STATS = { hp: 50, damage: 5, respawnDuration: 8, canBlockFlyers: false };
+
+  function squad({ level = 1, branch = null, keys = null, path = ROAD, at = 0.5 } = {}) {
+    const barracks = { level, branch, soldierPathProgress: at, soldiers: [] };
+    const scene = keys ? artScene(keys) : makeScene();
+    barracks.soldiers.push(new Soldier(scene, { barracks, pathProgress: at, pathPoints: path, soldierStats: STATS }));
+    return { barracks, s: barracks.soldiers[0] };
+  }
+  const lastFill = (g) => g.calls.filter(c => c[0] === 'fillStyle').at(-1)[1];
+
+  it('takes the tier variant key and the tier scale on the art', () => {
+    const { s } = squad({ level: 3, keys: [...BASE_KEYS, 'sprite-soldier-default-idle-t3'] });
+    expect(s._sprite.active).toBe(true);
+    expect(s._sprite.resolvedKey('idle')).toMatch(/-t3$/);
+    expect(s._sprite.sprite.scaleX).toBeCloseTo(0.36 * 1.2, 9);
+  });
+
+  it('E12: with no art the fallback body takes the tier colour and grows from its foot', () => {
+    const { s } = squad({ level: 4, branch: 'B' });
+    expect(s._sprite.active).toBe(false);
+    expect(lastFill(s._body)).toBe(0xffd34d);
+    expect(s._body.scaleX).toBeCloseTo(1.3, 9);
+    expect(s._body.scaleY).toBeCloseTo(1.3, 9);
+    expect(s._body.y).toBeCloseTo((1 - 1.3) * 4, 9);
+  });
+
+  it('T1 keeps the old green body at full size', () => {
+    const { s } = squad();
+    expect(lastFill(s._body)).toBe(0x4caf50);
+    expect(s._body.scaleX).toBe(1);
+    expect(s._body.y).toBeCloseTo(0, 9);
+  });
+
+  describe('S9: the 4A shield', () => {
+    it('only Vanguard (4A) carries one', () => {
+      expect(squad({ level: 4, branch: 'A' }).s._shield).not.toBeNull();
+      expect(squad({ level: 4, branch: 'A', keys: BASE_KEYS }).s._shield).not.toBeNull();
+      expect(squad({ level: 4, branch: 'B' }).s._shield).toBeNull();
+      expect(squad({ level: 3 }).s._shield).toBeNull();
+    });
+
+    it('is left to the art when the manifest declares real 4A art', () => {
+      const real = getSpriteConfig.getMockImplementation();
+      getSpriteConfig.mockImplementation((c, t) => {
+        const cfg = real(c, t);
+        return c === 'soldier' ? { ...cfg, variants: { t4a: {} } } : cfg;
+      });
+      try {
+        expect(squad({ level: 4, branch: 'A' }).s._shield).toBeNull();
+      } finally {
+        getSpriteConfig.mockImplementation(real);
+      }
+    });
+
+    it('draws in _view above the sprite and body, below the HP bar', () => {
+      const { s } = squad({ level: 4, branch: 'A', keys: BASE_KEYS });
+      const at = (o) => s._view.list.indexOf(o);
+      expect(at(s._shield)).toBeGreaterThan(at(s._sprite.sprite));
+      expect(at(s._shield)).toBeGreaterThan(at(s._body));
+      expect(at(s._shield)).toBe(at(s._hpBar) - 1);
+    });
+
+    it('stands on the foot (art ground line, or the fallback body bottom), scaled by the tier', () => {
+      const art = squad({ level: 4, branch: 'A', keys: BASE_KEYS }).s;
+      expect(art._shield.y).toBeCloseTo(8.6 - 2.4, 9);
+      expect(art._shield.x).toBeCloseTo(3.6, 9);
+      expect(art._shield.scaleX).toBeCloseTo(1.3, 9);
+      expect(art._shield.scaleY).toBeCloseTo(1.3, 9);
+      const fallback = squad({ level: 4, branch: 'A' }).s;
+      expect(fallback._shield.y).toBeCloseTo(4 - 2.4, 9);
+    });
+
+    it('is a gradient kite drawn with its bottom on its own origin', () => {
+      const { s } = squad({ level: 4, branch: 'A' });
+      const ys = s._shield.calls.filter(c => c[0] === 'fillTriangle').flatMap(c => [c[2], c[4], c[6]]);
+      expect(ys.length).toBeGreaterThan(0);
+      expect(Math.max(...ys)).toBeCloseTo(0, 9);
+      expect(Math.min(...ys)).toBeCloseTo(-7.5, 9);
+      const grads = s._shield.calls.filter(c => c[0] === 'fillGradientStyle');
+      const colours = new Set(grads.flatMap(c => c.slice(1, 5)));
+      expect(colours.has(0xcfe8ff)).toBe(true); // top
+      expect(colours.has(0x6fb6ff)).toBe(true); // bottom
+      expect(s._shield.calls.some(c => c[0] === 'strokePoints')).toBe(true);
+    });
+  });
+
+  for (const keys of [BASE_KEYS, null]) {
+    const label = keys ? 'with art' : 'in the fallback';
+    it(`E19/E20: the shield mirrors to the front ${label}, and a deadzone frame keeps the side`, () => {
+      // Road runs left then turns straight down: x=600 -> 0 at y=0, then y=0 -> 600 at x=0.
+      const L = [{ x: 600, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 600 }];
+      const { barracks, s } = squad({ level: 4, branch: 'A', keys, path: L, at: 0.25 });
+      expect(s._shield.x).toBeGreaterThan(0); // default: faces right
+      barracks.soldierPathProgress = 0.75;
+      s.update(0.1); // marching left
+      expect(s._shield.scaleX).toBeLessThan(0);
+      expect(s._shield.x).toBeLessThan(0);
+      s.setPathProgress(0.6, L); // on the vertical leg: facingDirX gives 0
+      s.update(0.1);
+      expect(s._shield.scaleX).toBeCloseTo(-1.3, 9);
+      expect(s._shield.x).toBeCloseTo(-3.6, 9);
+    });
+
+    it(`E41: the shield hides on death and shows on respawn ${label}`, () => {
+      const { s } = squad({ level: 4, branch: 'A', keys });
+      s.takeDamage(999);
+      expect(s._shield.visible).toBe(false);
+      expect(s.lookSnapshot()).toMatchObject({ shield: false, dead: true });
+      s.respawn();
+      expect(s._shield.visible).toBe(true);
+      expect(s.lookSnapshot()).toMatchObject({ shield: true, dead: false });
+    });
+  }
+
+  it('E17: dying and respawning keeps the look built for the barracks tier', () => {
+    const { barracks, s } = squad({ level: 3, keys: [...BASE_KEYS, 'sprite-soldier-default-idle-t3'] });
+    // A barracks change that did not rebuild this soldier must not restyle it.
+    barracks.level = 4; barracks.branch = 'B';
+    s.takeDamage(999);
+    s.respawn();
+    s.update(0.016);
+    expect(s._variant).toBe('t3');
+    expect(s._sprite.tierScale()).toBe(1.2);
+    expect(s._sprite.sprite.scaleX).toBeCloseTo(0.36 * 1.2, 9);
+    expect(s._sprite.resolvedKey('idle')).toBe('sprite-soldier-default-idle-t3');
+    expect(s.lookSnapshot().key).toBe('sprite-soldier-default-idle-t3');
+  });
+
+  it('lookSnapshot reports the tier, key, scale and shield', () => {
+    const { s } = squad({ level: 4, branch: 'A', keys: BASE_KEYS });
+    expect(s.lookSnapshot()).toEqual({
+      level: 4, branch: 'A', key: 'sprite-soldier-default-idle', scale: 1.3, shield: true, dead: false,
+    });
+  });
+
+  it('E16: formation spacing grows with the tier display width', () => {
+    const t1 = squad({ keys: BASE_KEYS }).s;
+    const t4 = squad({ level: 4, branch: 'B', keys: BASE_KEYS }).s;
+    const t1Width = t1._sprite.getDisplaySize().width;
+    expect(t1Width).toBeCloseTo(CELL * 0.36, 9);
+    expect(t4._targetLayout().spacing).toBeCloseTo(SOLDIER_FORMATION.spacingFrac * 1.3 * t1Width, 9);
   });
 });

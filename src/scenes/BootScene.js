@@ -4,7 +4,7 @@ import { getOrCreateAudioManager } from '../systems/AudioManager.js';
 import { MAPS } from '../data/maps.js';
 import { resolveAmbientMotion } from '../systems/AmbientBackgroundLayer.js';
 import { SPRITE_MANIFEST } from '../data/sprites.js';
-import { spriteTextureKey } from '../systems/spriteKeys.js';
+import { spriteTextureKey, variantTextureKey } from '../systems/spriteKeys.js';
 import { STORY_SPEAKERS } from '../data/story.js';
 import { portraitPath, registerPortraits } from '../systems/portraitFallback.js';
 import { backgroundUrl, pickBackgroundVariant, mapCssWidth } from '../systems/backgroundAsset.js';
@@ -15,6 +15,7 @@ import { MAP_WAVES } from '../data/waves.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { HERO_ORDER } from '../data/heroes.js';
 import { generateFxTextures } from '../systems/fxTextures.js';
+import { generateSoldierTierTextures } from '../systems/soldierTierTextures.js';
 import { BACKDROP_ART } from '../data/worldMap.js';
 
 // Existence probe only: the world map draws the art on its own 2D canvas.
@@ -76,13 +77,21 @@ export default class BootScene extends Phaser.Scene {
     // Preload entity sprite art declared in the manifest. Missing files log a
     // 404 but don't crash (same as map backdrops). Keys whose PNG is absent
     // simply never register, so the entity keeps its Graphics fallback.
+    // Declared tier variants (#49 R2) load under their variant key the same way.
+    const loadState = (key, def) => {
+      if (def.frames && def.frames > 1) {
+        this.load.spritesheet(key, def.path, { frameWidth: def.frameWidth, frameHeight: def.frameHeight });
+      } else {
+        this.load.image(key, def.path);
+      }
+    };
     for (const entry of SPRITE_MANIFEST) {
       for (const [state, def] of Object.entries(entry.states ?? {})) {
-        const key = spriteTextureKey(entry.category, entry.type, state);
-        if (def.frames && def.frames > 1) {
-          this.load.spritesheet(key, def.path, { frameWidth: def.frameWidth, frameHeight: def.frameHeight });
-        } else {
-          this.load.image(key, def.path);
+        loadState(spriteTextureKey(entry.category, entry.type, state), def);
+      }
+      for (const [variant, vdef] of Object.entries(entry.variants ?? {})) {
+        for (const [state, def] of Object.entries(vdef.states ?? {})) {
+          loadState(variantTextureKey(entry.category, entry.type, state, variant), def);
         }
       }
     }
@@ -101,8 +110,19 @@ export default class BootScene extends Phaser.Scene {
         const key = spriteTextureKey(entry.category, entry.type, state);
         if (this.textures.exists(key)) registeredSpriteKeys.push(key);
       }
+      for (const [variant, vdef] of Object.entries(entry.variants ?? {})) {
+        for (const state of Object.keys(vdef.states ?? {})) {
+          const key = variantTextureKey(entry.category, entry.type, state, variant);
+          if (this.textures.exists(key)) registeredSpriteKeys.push(key);
+        }
+      }
     }
-    this.game.registry.set('spriteKeys', registeredSpriteKeys);
+    // After the scan: loaded tier art already exists, so generation skips it (E14);
+    // a declared variant that 404'd gets the generated copy instead (E15).
+    // Failures are surfaced here, not logged: a console warning fails captures.
+    const soldierTiers = generateSoldierTierTextures(this, registeredSpriteKeys);
+    this.game.registry.set('spriteKeys', [...registeredSpriteKeys, ...soldierTiers.added]);
+    this.game.registry.set('soldierTierFailed', soldierTiers.failed);
 
     // Same idea for portraits, but the consumer is a DOM <img> rather than a
     // Phaser texture, so the load above is purely an existence probe.

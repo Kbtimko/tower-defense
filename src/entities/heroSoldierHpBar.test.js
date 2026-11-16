@@ -28,7 +28,7 @@ function recordingGraphics() {
     fillStyle(c, a = 1) { g._color = c; g._alpha = a; },
     fillRect(x, y, w, h) { g.rects.push({ x, y, w, h, color: g._color, alpha: g._alpha }); },
     fillCircle() {}, lineStyle() {}, strokeCircle() {}, strokeRect() {},
-    setVisible() { return g; },
+    setVisible() { return g; }, setScale() { return g; },
   });
   return g;
 }

@@ -91,6 +91,9 @@ import { resolveRallyTarget } from '../systems/rallyTarget.js';
 import { isMarching, routeDots, stepFlagFade } from '../systems/soldierMarch.js';
 import { pointAtProgress }    from '../systems/pathGeometry.js';
 import { hexToInt }           from '../ui/theme.js';
+import { TIER_RING, towerAccent } from '../data/tierLooks.js';
+import { ringBreath, ellipseDashes } from '../systems/tierLookMath.js';
+import { tierVariant } from '../systems/spriteKeys.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const WAVE_CLEAR_BONUS   = 38;
@@ -173,6 +176,16 @@ function applyDebugCapture(scene) {
       return result === 'victory' ? scene._onVictory() : scene._onDefeat();
     },
   };
+}
+
+// One pose feeds both the T4 ring stroke and __capture.looks, so a capture
+// reports exactly what is on screen. Keyed on the tier variant, as the sprite
+// and expectedTowerLook are, so all three agree on an odd branch. Null below T4.
+function tierRingPose(t, fxTime, reducedMotion) {
+  const v = tierVariant(t.level, t.branch);
+  if (v === 't4a') return { ring: 'solid', ...ringBreath(fxTime, TIER_RING, reducedMotion) };
+  if (v === 't4b') return { ring: 'dashed', phase: reducedMotion ? 0 : fxTime / TIER_RING.spin.periodS };
+  return null;
 }
 
 export default class GameScene extends Phaser.Scene {
@@ -332,6 +345,9 @@ export default class GameScene extends Phaser.Scene {
     // Idle pad glow lives under the unit band: on gfx it would tint towers and
     // units standing on or near a pad.
     this._padGlow = this.add.graphics().setDepth(PAD_GLOW.depth);
+    // T4 rings sit on the ground between pad glow and the rally route. Inside a
+    // Y-sorted tower container they would paint over a unit standing behind it.
+    this._tierRingGfx = this.add.graphics().setDepth(TIER_RING.depth);
     // Rally visuals sit above the pads and below the unit band, so soldiers walk
     // over their own route. The overlay (range ring + ghost) is created second so
     // it draws over a route at the same depth.
@@ -393,7 +409,7 @@ export default class GameScene extends Phaser.Scene {
       this._storyDialog.play(briefId, () => this.saveMgr.markBeatSeen(briefId));
     }
 
-    if (import.meta.env.DEV) window.__game = this;
+    if (import.meta.env.DEV || import.meta.env.MODE === 'capture') window.__game = this;
     if ((import.meta.env.DEV || import.meta.env.MODE === 'capture') && this._debug) applyDebugCapture(this);
   }
 
@@ -687,7 +703,7 @@ export default class GameScene extends Phaser.Scene {
     // Before the clone below replaces the anchors, so detach hides a shown hint.
     this._hintDetachers?.forEach(detach => detach());
     this._hintDetachers = [];
-    if (import.meta.env.DEV) window.__game = null;
+    if (import.meta.env.DEV || import.meta.env.MODE === 'capture') window.__game = null;
     this.game.events.off('ui:ability', this._onAbility, this);
     this.game.events.off('ui:pause-toggle', this._onPauseToggle, this);
     this.game.events.off('ui:cancel', this._onUiCancel, this);
@@ -711,6 +727,8 @@ export default class GameScene extends Phaser.Scene {
     this._coinFx = null;
     this._padGlow?.destroy();
     this._padGlow = null;
+    this._tierRingGfx?.destroy();
+    this._tierRingGfx = null;
     this._rallyRouteGfx?.destroy();
     this._rallyRouteGfx = null;
     this._rallyOverlayGfx?.destroy();
@@ -743,6 +761,7 @@ export default class GameScene extends Phaser.Scene {
         marching: b.soldiers.some(s => isMarching(s, b.soldierPathProgress)),
         soldiers: b.soldiers.map(s => ({ progress: s.pathProgress, dead: s.dead })),
       }));
+      window.__capture.looks = this._lookCapture();
     }
     // Real delta and ahead of every early return: coins already in flight should
     // land (and the HUD pulse fire) through hit-stop and game over, not freeze.
@@ -792,6 +811,8 @@ export default class GameScene extends Phaser.Scene {
     this._drawParticles();
     this._drawRallyOverlay();
     this._drawRallyRoutes(dtMs);
+    this._updateTowerLooks();
+    this._drawTierRings();
   }
 
   // ─── Wave ──────────────────────────────────────────────────────────────────
@@ -1328,9 +1349,11 @@ export default class GameScene extends Phaser.Scene {
       if (best) {
         const am = this.game.registry.get('audio');
         if (am) am.playSfx(towerFireSfxKey(tower.type, tower.branch, SFX_KEYS));
-        if (this.particleSpawner) this.particleSpawner.spawnMuzzleFlash(tower.x, tower.y, tower.type, tower.level, tower.branch);
+        // Shots leave the drawn art, which a tier scale lifts off the pad (S6).
+        const m = tower.muzzlePoint();
+        if (this.particleSpawner) this.particleSpawner.spawnMuzzleFlash(m.x, m.y, tower.type, tower.level, tower.branch);
         this.projectiles.push(this._projectilePool.acquire({
-          x: tower.x, y: tower.y, target: best,
+          x: m.x, y: m.y, target: best,
           damage: tower.damage, splashRadius: tower.splashRadius,
           pierce: tower.pierce, slowFactor: tower.slow,
           color: PROJ_COLORS[tower.type] ?? 0xffffff,
@@ -1510,6 +1533,7 @@ export default class GameScene extends Phaser.Scene {
     // The squad walks to the new pad's road point rather than staying behind.
     barracks.setRallyPoint(this.pathMgr.getNearestPathProgress(slot.x, slot.y), this.enemies);
     this._repaintStaticLayers();
+    this._drawTierRings();
   }
 
   // A miss toasts and stays in the mode (C2); the barracks itself, Cancel or
@@ -1541,6 +1565,7 @@ export default class GameScene extends Phaser.Scene {
       tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(slot.x, slot.y);
       tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
     }
+    this._drawTierRings();
   }
 
   // ─── Modes (build / aim / reposition) ──────────────────────────────────────
@@ -1895,6 +1920,10 @@ export default class GameScene extends Phaser.Scene {
     }
     this._playTowerPop(tower, UPGRADE_POP);
     this._refreshRadial();
+    this._drawTierRings();
+    // update() is stopped under the user pause and new embers start hidden, so
+    // pose them now (E24). The frozen _fxTime leaves the other towers as they were.
+    this._updateTowerLooks();
   }
 
   // `pop` is BUILD_POP/UPGRADE_POP: the ring burst always plays, the scale pop
@@ -1922,6 +1951,7 @@ export default class GameScene extends Phaser.Scene {
     const refund = this.placementManager.sellTower(tower);
     this._playSellFx(x, y, refund);
     this._repaintStaticLayers();
+    this._drawTierRings();
   }
 
   _startReposition() {
@@ -2416,6 +2446,55 @@ export default class GameScene extends Phaser.Scene {
     g.lineBetween(x, y, x, top);
     g.fillStyle(colour, alpha);
     g.fillTriangle(a.x, a.y, b.x, b.y, c.x, c.y);
+  }
+
+  // ─── Tier looks (#49) ──────────────────────────────────────────────────────
+
+  // Outside _updateTowers' fireRate loop so the barracks animates too (E26).
+  _updateTowerLooks() {
+    const reducedMotion = this.game.registry.get('ambientMotion') === false;
+    for (const t of this.placementManager.getTowers()) t.updateLook(this._fxTime, reducedMotion);
+  }
+
+  // Also called from the board-change handlers: update() stops under a user
+  // pause but the scene still renders, so a paused upgrade or sale shows at once.
+  _drawTierRings() {
+    const g = this._tierRingGfx;
+    g.clear();
+    const reducedMotion = this.game.registry.get('ambientMotion') === false;
+    const { rx, ry, spin } = TIER_RING;
+    for (const t of this.placementManager.getTowers()) {
+      const pose = tierRingPose(t, this._fxTime, reducedMotion);
+      if (!pose) continue;
+      // On the foot, not the pad centre: the same point the pips measure from (R6).
+      const cx = t.x, cy = t.y + t.footY();
+      if (pose.ring === 'solid') {
+        g.lineStyle(TIER_RING.lineWidth, towerAccent(t.type), pose.alpha);
+        g.strokeEllipse(cx, cy, 2 * rx * pose.k, 2 * ry * pose.k);
+        continue;
+      }
+      g.lineStyle(TIER_RING.lineWidth, towerAccent(t.type), TIER_RING.alpha);
+      const dashes = ellipseDashes({ cx, cy, rx, ry, dashes: spin.dashes, duty: spin.duty, phase: pose.phase });
+      for (const points of dashes) g.strokePoints(points, false);
+    }
+  }
+
+  // ringPhase is whichever value the ring animates (breath k for A, lap phase
+  // for B), so a reduced-motion frame repeats it exactly (R19).
+  _lookCapture() {
+    const reducedMotion = this.game.registry.get('ambientMotion') === false;
+    const towers = this.placementManager.getTowers();
+    return {
+      towers: towers.map(t => {
+        const pose = tierRingPose(t, this._fxTime, reducedMotion);
+        const ringPhase = pose ? (pose.ring === 'solid' ? pose.k : pose.phase) : null;
+        return { ...t.lookSnapshot(), ring: pose?.ring ?? null, ringPhase };
+      }),
+      soldiers: towers.filter(t => t.type === 'barracks').flatMap(b => b.soldiers.map(s => {
+        const l = s.lookSnapshot();
+        return { ...l, keyExists: l.key != null && this.textures.exists(l.key) };
+      })),
+    };
   }
 
   _redrawZones() {

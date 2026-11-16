@@ -44,6 +44,7 @@ const makeCtx = (overrides = {}) => ({
   _repaintStaticLayers: vi.fn(),
   _playTowerPop: vi.fn(),
   _playSellFx: vi.fn(),
+  _drawTierRings: vi.fn(),
   _closeRadial: vi.fn(),
   _openRing: vi.fn(),
   _deselectButtons: vi.fn(),

@@ -65,7 +65,7 @@ describe('GameScene tower hooks', () => {
     const ctx = {
       selectedTower: tower,
       placementManager: { sellTower: vi.fn(() => 36) },
-      _playSellFx: vi.fn(), _repaintStaticLayers: vi.fn(), _closeRadial: vi.fn(),
+      _playSellFx: vi.fn(), _repaintStaticLayers: vi.fn(), _closeRadial: vi.fn(), _drawTierRings: vi.fn(),
     };
     proto._sellSelectedTower.call(ctx);
     expect(ctx.placementManager.sellTower).toHaveBeenCalledWith(tower);
@@ -89,7 +89,8 @@ describe('GameScene._upgradeSelectedTower', () => {
     const ctx = {
       selectedTower: tower, mapId: 0,
       placementManager: { upgradeTower: vi.fn(() => true) },
-      _playTowerPop: vi.fn(), _refreshRadial: vi.fn(), _toast: vi.fn(),
+      _playTowerPop: vi.fn(), _refreshRadial: vi.fn(), _toast: vi.fn(), _drawTierRings: vi.fn(),
+      _updateTowerLooks: vi.fn(),
     };
     proto._upgradeSelectedTower.call(ctx);
     expect(ctx._playTowerPop).toHaveBeenCalledWith(tower, UPGRADE_POP);

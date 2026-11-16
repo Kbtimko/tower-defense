@@ -30,6 +30,19 @@
 //                frameWidth: 48, frameHeight: 48, frames: 5, frameRate: 12 },
 //     },
 //   },
+//
+// Tier variants (#49): an entry may also declare per-tier art, keyed t2, t3,
+// t4a or t4b. BootScene loads each declared state under
+// sprite-<category>-<type>-<state>-<variant>; scale/anchor/ground override
+// the entry's own for that variant. None are declared yet — declaring one
+// whose PNG is missing logs a boot 404, which fails captures.
+//   variants: {
+//     t4a: { scale?, anchor?, ground?,
+//            states: { idle: { path, frameWidth, frameHeight, frames, frameRate } } },
+//   },
+// Soldier tier keys a manifest doesn't fill are generated at boot by
+// recolouring the base sheets (src/systems/soldierTierTextures.js); declared
+// art that loaded always wins over the generated copy.
 export const SPRITE_MANIFEST = [
   // Veth Drone — ground, def.radius 9. The 64px cell renders at ~38px. That is
   // deliberately larger than the Graphics circle it replaced: at the original

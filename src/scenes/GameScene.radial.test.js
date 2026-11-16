@@ -120,6 +120,8 @@ function makeScene({ gold = 500, mapId = TIER2_MAP, mods = {} } = {}) {
     game: { events: { emit: vi.fn(), on: vi.fn(), off: vi.fn() }, registry: { get: (k) => (k === 'ambientMotion' ? false : null) } },
     _previewGfx: fakeGfx(),
     _commitStats: vi.fn(),
+    _drawTierRings: vi.fn(),
+    _updateTowerLooks: vi.fn(),
   });
   scene._wireSceneEvents();
   scene._createRadial();
