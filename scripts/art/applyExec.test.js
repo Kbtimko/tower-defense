@@ -1,0 +1,234 @@
+// @vitest-environment node
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, copyFileSync, existsSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import sharp from 'sharp';
+import { executeSteps } from './applyExec.mjs';
+import { prepareApply } from './apply.mjs';
+import { planApply, parseSpriteVariants } from '../../src/assets/applyPlan.js';
+import { SPRITE_MANIFEST } from '../../src/data/sprites.js';
+
+const REPO = process.cwd();
+let tmp, cache, paths;
+
+beforeEach(() => {
+  tmp = mkdtempSync(join(tmpdir(), 'apply-'));
+  cache = join(tmp, 'cache');
+  paths = {
+    spritesPath: join(tmp, 'sprites.js'),
+    variantsPath: join(tmp, 'spriteVariants.js'),
+    facingPath: join(tmp, 'facing.json'),
+  };
+  copyFileSync(join(REPO, 'src/data/sprites.js'), paths.spritesPath);
+  copyFileSync(join(REPO, 'src/data/spriteVariants.js'), paths.variantsPath);
+  copyFileSync(join(REPO, 'scripts/art/facing.json'), paths.facingPath);
+});
+afterEach(() => rmSync(tmp, { recursive: true, force: true }));
+
+const solid = (w, h) => sharp({ create: { width: w, height: h, channels: 3, background: { r: 9, g: 80, b: 9 } } }).png();
+const snapshot = () => Object.fromEntries(Object.entries(paths).map(([k, p]) => [k, readFileSync(p)]));
+
+const cannon = { assetId: 'tower_cannon', kind: 'sprite', category: 'tower', type: 'cannon', entity: 'tower_cannon', mirror: true, keepDebris: false };
+const archerT4a = { assetId: 'tower_archer.t4a', kind: 'sprite', category: 'tower', type: 'archer', variant: 't4a', entity: 'tower_archer', mirror: false, keepDebris: false };
+const outpost = { assetId: 'overworld_0_outpost_sigma', kind: 'overworld', id: 'overworld_0_outpost_sigma' };
+
+async function candidate(assetId, index) {
+  const dir = join(cache, 'candidates', 'b', assetId);
+  mkdirSync(dir, { recursive: true });
+  await solid(1024, 1024).toFile(join(dir, `${index}.png`));
+}
+const planFor = (assets, picks, flip = []) => planApply({
+  picks: { batch: 'b', picks, flip, reroll: [] },
+  job: { batch: 'b', assets },
+  metas: Object.fromEntries(Object.entries(picks).map(([id, i]) => [id, { [i]: { mode: 'txt2img', round: 0 } }])),
+  cache, manifest: SPRITE_MANIFEST, timestamp: 'TS', refExists: existsSync,
+  facing: JSON.parse(readFileSync(paths.facingPath, 'utf8')),
+});
+
+// Stands in for Python and npm: normalize writes the ground json it was asked for.
+function stubRun({ failOn } = {}) {
+  const calls = [];
+  const run = async (cmd) => {
+    calls.push(cmd);
+    if (failOn && failOn(cmd)) return { code: 1, output: 'Traceback: boom' };
+    const gi = cmd.indexOf('--ground-json');
+    if (gi !== -1) {
+      const key = cmd[cmd.indexOf('--only') + 1];
+      writeFileSync(cmd[gi + 1], JSON.stringify([{ key, ground: { footY: 30.5, width: 33 } }]));
+    }
+    return { code: 0, output: 'ok' };
+  };
+  return { run, calls };
+}
+const isNormalize = cmd => cmd[1] === 'scripts/art/normalize.py';
+
+describe('executeSteps', () => {
+  it('installs a base and a flipped variant pick and runs the checks', async () => {
+    mkdirSync(join(cache, 'sprites'), { recursive: true });
+    await solid(64, 64).toFile(join(cache, 'sprites/tower_cannon.png'));
+    const oldRef = readFileSync(join(cache, 'sprites/tower_cannon.png'));
+    await candidate('tower_cannon', 0);
+    await candidate('tower_archer.t4a', 1);
+    const steps = planFor([cannon, archerT4a], { tower_cannon: 0, 'tower_archer.t4a': 1 }, ['tower_archer.t4a']);
+    const { run, calls } = stubRun();
+
+    const res = await executeSteps(steps, { repoRoot: tmp, ...paths, run });
+    expect(res.ok).toBe(true);
+    expect(res.log).toHaveLength(steps.length);
+
+    expect(readFileSync(join(cache, 'sprites/backup/tower_cannon-TS.png'))).toEqual(oldRef);
+    expect(readFileSync(join(cache, 'sprites/tower_cannon.png')))
+      .toEqual(readFileSync(join(cache, 'candidates/b/tower_cannon/0.png')));
+    expect(existsSync(join(cache, 'sprites/tower_archer.t4a.png'))).toBe(true);
+
+    expect(readFileSync(paths.spritesPath, 'utf8')).toMatch(
+      /type: 'cannon',\n.*\n {4}ground: \{ footY: 30\.5, width: 33\.0 \},/);
+    const variants = parseSpriteVariants(readFileSync(paths.variantsPath, 'utf8'));
+    expect(variants['tower/archer'].t4a.ground).toEqual({ footY: 30.5, width: 33 });
+    expect(Object.keys(variants['tower/archer'].t4a)).toEqual(['ground', 'states']);
+    expect(variants['tower/archer'].t4a.states.idle.path).toBe('assets/sprites/towers/archer_t4a_idle.png');
+
+    const facingText = readFileSync(paths.facingPath, 'utf8');
+    const facing = JSON.parse(facingText);
+    expect(facing['tower_archer.t4a']).toBe(true);
+    expect(Object.keys(facing)[0]).toBe('default');
+    expect(Object.keys(facing).slice(1)).toEqual([...Object.keys(facing).slice(1)].sort());
+    expect(facingText).toBe(`${JSON.stringify(facing, null, 2)}\n`);
+
+    expect(calls.map(c => c.slice(0, 3).join(' '))).toEqual([
+      'python3 scripts/build-sprite-sheets.py tower_cannon',
+      'python3 scripts/art/normalize.py --only',
+      'python3 scripts/build-sprite-sheets.py tower_archer.t4a',
+      'python3 scripts/art/normalize.py --only',
+      'npm run assets',
+      'npm test',
+    ]);
+  });
+
+  it('writing the same variant twice leaves spriteVariants.js byte-identical', async () => {
+    const steps = planFor([archerT4a], { 'tower_archer.t4a': 0 }).filter(s => s.op === 'writeVariant');
+    const { run } = stubRun();
+    expect((await executeSteps(steps, { repoRoot: tmp, ...paths, run })).ok).toBe(true);
+    const first = readFileSync(paths.variantsPath);
+    expect((await executeSteps(steps, { repoRoot: tmp, ...paths, run })).ok).toBe(true);
+    expect(readFileSync(paths.variantsPath)).toEqual(first);
+  });
+
+  it('keeps other variant entries when writing one', async () => {
+    writeFileSync(paths.variantsPath, readFileSync(paths.variantsPath, 'utf8').replace('= {};',
+      '= {\n  "tower/mage": {\n    "t2": {\n      "states": {}\n    }\n  }\n};'));
+    const steps = planFor([archerT4a], { 'tower_archer.t4a': 0 }).filter(s => s.op === 'writeVariant');
+    await executeSteps(steps, { repoRoot: tmp, ...paths, run: stubRun().run });
+    expect(Object.keys(parseSpriteVariants(readFileSync(paths.variantsPath, 'utf8')))).toEqual(['tower/archer', 'tower/mage']);
+  });
+
+  it('rolls back the data files when normalize fails, keeping the image outputs', async () => {
+    await candidate('tower_archer.t4a', 1);
+    const steps = planFor([archerT4a], { 'tower_archer.t4a': 1 }, ['tower_archer.t4a']);
+    expect(steps.map(s => s.op)).toContain('writeVariant');
+    expect(steps.map(s => s.op)).toContain('setFacing');
+    const before = snapshot();
+    const { run, calls } = stubRun({ failOn: isNormalize });
+
+    const res = await executeSteps(steps, { repoRoot: tmp, ...paths, run });
+    expect(res.ok).toBe(false);
+    expect(res.failedStep).toBe(steps.find(s => s.op === 'run' && isNormalize(s.cmd)));
+    expect(res.log.join('\n')).toContain('Traceback: boom');
+    expect(calls.some(c => c[0] === 'npm')).toBe(false);
+    expect(snapshot()).toEqual(before);
+    expect(existsSync(join(cache, 'sprites/tower_archer.t4a.png'))).toBe(true);
+  });
+
+  it('fails and rolls back when the ground json lacks the entry', async () => {
+    await candidate('tower_cannon', 0);
+    const steps = planFor([cannon], { tower_cannon: 0 });
+    const before = snapshot();
+    const run = async (cmd) => {
+      const gi = cmd.indexOf('--ground-json');
+      if (gi !== -1) writeFileSync(cmd[gi + 1], '[]');
+      return { code: 0, output: '' };
+    };
+    const res = await executeSteps(steps, { repoRoot: tmp, ...paths, run });
+    expect(res.ok).toBe(false);
+    expect(res.failedStep.op).toBe('setGround');
+    expect(res.log.join('\n')).toContain('no ground for tower/cannon');
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('rolls back when a check fails after the data files changed', async () => {
+    await candidate('tower_cannon', 0);
+    const steps = planFor([cannon], { tower_cannon: 0 });
+    const before = snapshot();
+    const res = await executeSteps(steps, { repoRoot: tmp, ...paths, run: stubRun({ failOn: c => c[1] === 'test' }).run });
+    expect(res.ok).toBe(false);
+    expect(res.failedStep).toEqual({ op: 'check', cmd: ['npm', 'test'] });
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('resizes an overworld pick into public/ at the exact expected size', async () => {
+    await candidate('overworld_0_outpost_sigma', 0);
+    const steps = planFor([outpost], { overworld_0_outpost_sigma: 0 });
+    const res = await executeSteps(steps, { repoRoot: tmp, ...paths, run: stubRun().run });
+    expect(res.ok).toBe(true);
+    const meta = await sharp(join(tmp, 'public/assets/overworld/overworld_0_outpost_sigma.png')).metadata();
+    expect([meta.width, meta.height, meta.format]).toEqual([512, 512, 'png']);
+  });
+});
+
+describe('prepareApply', () => {
+  // A throwaway repo: the real PROMPTS.md files plus a job, so the CLI layer runs end to end.
+  function makeRepo(assets) {
+    for (const d of ['sprites', 'overworld', 'portraits']) {
+      mkdirSync(join(tmp, 'public/assets', d), { recursive: true });
+      copyFileSync(join(REPO, `public/assets/${d}/PROMPTS.md`), join(tmp, `public/assets/${d}/PROMPTS.md`));
+    }
+    mkdirSync(join(tmp, 'scripts/art/jobs'), { recursive: true });
+    copyFileSync(paths.facingPath, join(tmp, 'scripts/art/facing.json'));
+    writeFileSync(join(tmp, 'scripts/art/jobs/b.json'), JSON.stringify({ batch: 'b', assets }));
+  }
+  async function fakeCandidate(assetId, index, mode = 'txt2img') {
+    await candidate(assetId, index);
+    writeFileSync(join(cache, 'candidates/b', assetId, `${index}.json`),
+      JSON.stringify({ index, round: 0, seed: 1, mode, prompt: 'p', createdAt: 'x' }));
+  }
+  const JOB = [{ kind: 'sprite', entity: 'tower_cannon' }, { kind: 'overworld', id: 'overworld_0_outpost_sigma' }];
+
+  it('plans a valid picks file', async () => {
+    makeRepo(JOB);
+    await fakeCandidate('tower_cannon', 0);
+    const r = prepareApply({ repoRoot: tmp, picks: { batch: 'b', picks: { tower_cannon: 0 }, flip: [], reroll: [] }, cache, timestamp: 'TS' });
+    expect(r.errors).toEqual([]);
+    expect(r.steps.map(s => s.op)).toEqual(['copy', 'run', 'run', 'setGround', 'check', 'check']);
+  });
+
+  it('a picks file whose index was removed gives errors and no steps', async () => {
+    makeRepo(JOB);
+    await fakeCandidate('tower_cannon', 0);
+    const r = prepareApply({ repoRoot: tmp, picks: { batch: 'b', picks: { tower_cannon: 1 }, flip: [], reroll: [] }, cache, timestamp: 'TS' });
+    expect(r.errors).toEqual(['tower_cannon: no candidate #1']);
+    expect(r.steps).toEqual([]);
+  });
+
+  it('an empty picks file says there is nothing to apply', () => {
+    makeRepo(JOB);
+    const r = prepareApply({ repoRoot: tmp, picks: { batch: 'b', picks: {}, flip: [], reroll: [] }, cache, timestamp: 'TS' });
+    expect(r).toEqual({ errors: [], steps: [], message: 'Nothing to apply: picks.json picks no assets.' });
+  });
+
+  it('reports a fake pick as an error unless allowFake', async () => {
+    makeRepo(JOB);
+    await fakeCandidate('tower_cannon', 0, 'fake');
+    const picks = { batch: 'b', picks: { tower_cannon: 0 }, flip: [], reroll: [] };
+    const r = prepareApply({ repoRoot: tmp, picks, cache, timestamp: 'TS' });
+    expect(r.errors).toEqual(['tower_cannon #0 is a fake candidate; pass --allow-fake to apply it anyway']);
+    expect(r.steps).toEqual([]);
+    expect(prepareApply({ repoRoot: tmp, picks, cache, timestamp: 'TS', allowFake: true }).steps.length).toBe(6);
+  });
+
+  it('reports a batch with no job file', () => {
+    makeRepo(JOB);
+    const r = prepareApply({ repoRoot: tmp, picks: { batch: 'nope', picks: {} }, cache, timestamp: 'TS' });
+    expect(r.errors).toEqual([`no job file for batch "nope" at ${join(tmp, 'scripts/art/jobs/nope.json')}`]);
+  });
+});

@@ -13,6 +13,7 @@
     "assets": "node scripts/assets.mjs",
     "art": "node scripts/generate-art.mjs",
     "art:review": "node scripts/art/review.mjs",
+    "art:apply": "node scripts/art/apply.mjs",
     "capture": "node scripts/capture.mjs",
     "matrix": "node scripts/capture.mjs --flow",
     "optimize-assets": "node scripts/optimize-assets.mjs"
