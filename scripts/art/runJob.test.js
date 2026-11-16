@@ -60,7 +60,7 @@ describe('runJob against a stub server', () => {
     mkdirSync(join(root, 'cache/sprites'), { recursive: true });
     await solid(64, 64, { r: 9, g: 9, b: 9 }).toFile(join(root, 'cache/sprites/tower_archer.png'));
     const logs = [];
-    const code = await runJob({ repoRoot: root, batch: 't', cache: join(root, 'cache'), port, log: m => logs.push(m) });
+    const code = await runJob({ repoRoot: root, batch: 't', cache: join(root, 'cache'), port, noPrepare: true, log: m => logs.push(m) });
     expect(code).toBe(0);
 
     const hits = requests.filter(r => r.body.prompt?.includes('twin bows'));
@@ -82,7 +82,7 @@ describe('runJob against a stub server', () => {
     const root = makeRepo({ strength: 0.5 });
     mkdirSync(join(root, 'cache/sprites'), { recursive: true });
     await solid(64, 64, { r: 9, g: 9, b: 9 }).toFile(join(root, 'cache/sprites/tower_archer.png'));
-    await runJob({ repoRoot: root, batch: 't', cache: join(root, 'cache'), port, log: () => {} });
+    await runJob({ repoRoot: root, batch: 't', cache: join(root, 'cache'), port, noPrepare: true, log: () => {} });
     const hits = requests.filter(r => r.body.prompt?.includes('twin bows'));
     expect(hits.map(h => h.url)).toEqual(Array(3).fill('/sdapi/v1/img2img'));
     expect(hits[0].body.denoising_strength).toBe(0.5);
@@ -98,7 +98,7 @@ describe('runJob against a stub server', () => {
     const strip = await sharp({ create: { width: 192, height: 96, channels: 3, background: { r: 0, g: 0, b: 255 } } })
       .composite([{ input: await solid(96, 96, { r: 255, g: 0, b: 0 }).toBuffer(), left: 0, top: 0 }]).png().toBuffer();
     writeFileSync(join(root, 'assets-src/sprites/towers/archer_idle.png'), strip);
-    await runJob({ repoRoot: root, batch: 't', cache: join(root, 'cache'), port, log: () => {} });
+    await runJob({ repoRoot: root, batch: 't', cache: join(root, 'cache'), port, noPrepare: true, log: () => {} });
     const init = requests.find(r => r.url === '/sdapi/v1/img2img').body.init_images[0];
     const { data, info } = await sharp(Buffer.from(init, 'base64')).raw().toBuffer({ resolveWithObject: true });
     expect([info.width, info.height]).toEqual([1024, 1024]);
@@ -113,7 +113,7 @@ describe('runJob against a stub server', () => {
     mkdirSync(join(root, 'cache/sprites'), { recursive: true });
     await solid(64, 64, { r: 9, g: 9, b: 9 }).toFile(join(root, 'cache/sprites/tower_archer.png'));
     const logs = [];
-    const code = await runJob({ repoRoot: root, batch: 't', cache: join(root, 'cache'), port, log: m => logs.push(m) });
+    const code = await runJob({ repoRoot: root, batch: 't', cache: join(root, 'cache'), port, noPrepare: true, log: m => logs.push(m) });
     txt2imgStatus = 200;
     expect(code).toBe(1);
     expect(logs.some(l => l.includes('3 generated, 3 failed'))).toBe(true);   // variant (img2img) ok, cannon (txt2img) fails
@@ -122,7 +122,7 @@ describe('runJob against a stub server', () => {
 });
 
 describe('runJob --fake / --dry-run / resume / reroll', () => {
-  const run = (root, extra = {}) => runJob({ repoRoot: root, batch: 't', cache: join(root, 'cache'), log: () => {}, ...extra });
+  const run = (root, extra = {}) => runJob({ repoRoot: root, batch: 't', cache: join(root, 'cache'), log: () => {}, noPrepare: true, ...extra });
   const dir = (root, id) => join(root, 'cache/candidates/t', id);
   const ls = (root, id) => readdirSync(dir(root, id)).sort();
   const ids = ['tower_cannon', 'tower_archer.t4a'];
@@ -167,6 +167,28 @@ describe('runJob --fake / --dry-run / resume / reroll', () => {
     const root = makeRepo({});
     expect(await run(root, { fake: true, dryRun: true })).toBe(0);
     expect(existsSync(join(root, 'cache'))).toBe(false);
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('runs prepare after generation, and a failing prepare exits non-zero but keeps the candidates', async () => {
+    const root = makeRepo({});
+    const calls = [];
+    const logs = [];
+    const code = await run(root, {
+      fake: true, noPrepare: false, log: m => logs.push(m),
+      runPrepare: async a => { calls.push(a); return 1; },
+    });
+    expect(code).toBe(1);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].batch).toBe('t');
+    expect(calls[0].cache).toBe(join(root, 'cache'));
+    expect(ls(root, 'tower_cannon')).toHaveLength(6);
+    expect(logs.some(l => l.includes('Review-image prep failed'))).toBe(true);
+    // a successful prepare is a zero exit; --no-prepare and --dry-run never call it
+    expect(await run(root, { fake: true, noPrepare: false, runPrepare: async () => 0 })).toBe(0);
+    const never = async () => { throw new Error('must not run'); };
+    expect(await run(root, { fake: true, noPrepare: true, runPrepare: never })).toBe(0);
+    expect(await run(root, { fake: true, noPrepare: false, dryRun: true, runPrepare: never })).toBe(0);
     rmSync(root, { recursive: true, force: true });
   });
 });

@@ -3,6 +3,7 @@
 // process.exit; it returns the exit code instead.
 import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { spawn } from 'node:child_process';
 import sharp from 'sharp';
 import { promptSources, resolveJob } from '../../src/assets/artJob.js';
 import { cacheRoot, candidateDir, readExisting, planCandidates } from '../../src/assets/candidates.js';
@@ -74,9 +75,23 @@ async function loadInit(repoRoot, cache, asset) {
   return buf.toString('base64');
 }
 
+// Cutouts + game-size previews for the review page. Python because rembg and the
+// styling pass live there. Resolves to the child's exit code.
+function spawnPrepare({ repoRoot, cache, batch, log }) {
+  return new Promise((resolve) => {
+    const child = spawn('python3', ['scripts/art/prepare_review.py', '--cache', cache, '--batch', batch],
+      { cwd: repoRoot });
+    const relay = (d) => { for (const line of String(d).split('\n')) if (line) log(`  ${line}`); };
+    child.stdout.on('data', relay);
+    child.stderr.on('data', relay);
+    child.on('error', (err) => { log(`  could not start python3: ${err.message}`); resolve(1); });
+    child.on('close', (code) => resolve(code ?? 1));
+  });
+}
+
 export async function runJob({
   repoRoot, batch, candidates, fake = false, reroll = null, cache, port,
-  dryRun = false, noPrepare = false, log = console.log,   // noPrepare: wired up when the prepare step lands
+  dryRun = false, noPrepare = false, runPrepare = spawnPrepare, log = console.log,
 }) {
   const jobPath = join(repoRoot, 'scripts/art/jobs', `${batch}.json`);
   if (!existsSync(jobPath)) { log(`No job file at ${jobPath}`); return 1; }
@@ -122,8 +137,22 @@ export async function runJob({
     return 0;
   }
 
+  // A prepare failure never deletes candidates; it only makes the run exit non-zero.
+  // It also runs when nothing was generated, so a batch whose earlier prepare died
+  // can be finished by re-running.
+  const prepare = async () => {
+    if (noPrepare) return 0;
+    log('\nPreparing review images...');
+    const code = await runPrepare({ repoRoot, cache: cacheDir, batch: job.batch, log });
+    if (code !== 0) log(`Review-image prep failed (exit ${code}); the candidates are kept. Fix and re-run to retry.`);
+    return code;
+  };
+
   const todo = plans.filter(p => p.plan.length > 0);
-  if (todo.length === 0) { log('\nNothing to generate — every asset already has its candidates.\n'); return 0; }
+  if (todo.length === 0) {
+    log('\nNothing to generate — every asset already has its candidates.\n');
+    return (await prepare()) === 0 ? 0 : 1;
+  }
 
   let usePort = null;
   let generated = 0;
@@ -186,7 +215,7 @@ export async function runJob({
       }
     }
   }
-  // Non-zero on any failure: Task 7 chains the prepare step on this exit code.
   log(`\n${generated} generated, ${failed} failed. Candidates are under ${join(cacheDir, 'candidates', job.batch)}\n`);
-  return failed ? 1 : 0;
+  const prepared = await prepare();
+  return failed || prepared !== 0 ? 1 : 0;
 }
