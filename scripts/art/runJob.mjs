@@ -15,12 +15,21 @@ import { makeFakeCandidate } from './fakeCandidate.mjs';
 
 const read = (repoRoot, rel) => readFileSync(join(repoRoot, rel), 'utf8');
 
-function loadFacing(repoRoot) {
+// Shared with the review page so both resolve a job against the same prompts.
+export function loadPromptSources(repoRoot) {
+  return promptSources({
+    spriteMd: read(repoRoot, 'public/assets/sprites/PROMPTS.md'),
+    overworldMd: read(repoRoot, 'public/assets/overworld/PROMPTS.md'),
+    portraitMd: read(repoRoot, 'public/assets/portraits/PROMPTS.md'),
+  });
+}
+
+export function loadFacing(repoRoot) {
   const p = join(repoRoot, 'scripts/art/facing.json');
   return existsSync(p) ? JSON.parse(readFileSync(p, 'utf8')) : {};
 }
 
-function readMetas(dir, log) {
+export function readMetas(dir, log) {
   const names = existsSync(dir) ? readdirSync(dir) : [];
   const metas = {};
   for (const n of names) {
@@ -98,12 +107,7 @@ export async function runJob({
   const raw = JSON.parse(readFileSync(jobPath, 'utf8'));
   if (candidates !== undefined && candidates !== null) raw.candidates = candidates;
 
-  const sources = promptSources({
-    spriteMd: read(repoRoot, 'public/assets/sprites/PROMPTS.md'),
-    overworldMd: read(repoRoot, 'public/assets/overworld/PROMPTS.md'),
-    portraitMd: read(repoRoot, 'public/assets/portraits/PROMPTS.md'),
-  });
-  const { job, errors } = resolveJob(raw, sources, { facing: loadFacing(repoRoot) });
+  const { job, errors } = resolveJob(raw, loadPromptSources(repoRoot), { facing: loadFacing(repoRoot) });
   if (errors.length) {
     log(`Job "${batch}" has ${errors.length} error(s):`);
     for (const e of errors) log(`  - ${e}`);
