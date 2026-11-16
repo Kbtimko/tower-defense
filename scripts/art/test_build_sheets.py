@@ -12,6 +12,21 @@ bs = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bs)
 
 
+class IdleStatic(unittest.TestCase):
+    def test_saved_sheet_is_static_cell(self):
+        from PIL import Image
+        import numpy as np
+        ref = Image.new('RGBA', (90, 50), (0, 0, 0, 0))
+        ref.paste(Image.new('RGBA', (60, 40), (200, 80, 40, 255)), (10, 5))
+        with tempfile.TemporaryDirectory() as t:
+            out = Path(t) / 'idle.png'
+            returned = bs.build_idle_static(ref, out, cell=64)
+            saved = Image.open(out).convert('RGBA')
+        self.assertEqual(saved.size, (64, 64))
+        np.testing.assert_array_equal(np.asarray(saved), np.asarray(bs.static_cell(ref, 64)))
+        np.testing.assert_array_equal(np.asarray(returned), np.asarray(saved))
+
+
 class ParseName(unittest.TestCase):
     def test_base(self):
         self.assertEqual(bs.parse_name('tower_archer'), ('tower', 'archer', None))

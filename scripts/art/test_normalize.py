@@ -135,6 +135,13 @@ class PreviewFrame(unittest.TestCase):
         navy = (px[..., 3] > 200) & (np.abs(px[..., :3].astype(int) - [0x0b, 0x10, 0x20]).sum(-1) < 12)
         self.assertTrue(navy.any())
 
+    def test_skip_tone_entity_is_not_toned_in_preview(self):
+        cut = Image.new('RGBA', (100, 100), (200, 200, 200, 255))
+        with mock.patch.object(nz, 'SKIP_TONE', {'tower/archer'}):
+            skipped = np.asarray(nz.preview_frame(cut, ENTRY))
+        toned = np.asarray(nz.preview_frame(cut, ENTRY))
+        self.assertGreater(skipped[32, 32, 0], toned[32, 32, 0])
+
     def test_given_tone_params_are_used(self):
         cut = Image.new('RGBA', (100, 100), (150, 150, 150, 255))
         dark = dict(gamma=3.0, mean=0.2, gain=1.0, sat=1.0)

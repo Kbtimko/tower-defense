@@ -236,7 +236,8 @@ def preview_frame(cut_rgba, entry, *, tone_params=None):
     first = next(iter(entry['states'].values()))
     frame = np.asarray(_bs.static_cell(cut_rgba, first['frameWidth']), dtype=np.float32) / 255
     rgb, a = frame[..., :3], frame[..., 3]
-    params = tone_params or _params_for(rgb, a, entry['category'])
+    params = tone_params or _params_for(rgb, a, entry['category'],
+                                       f"{entry['category']}/{entry['type']}")
     rgb, a, _ = process_frame(rgb, a, params, False, entry.get('scale', 1))
     return _to_image(np.dstack([rgb, a]))
 
