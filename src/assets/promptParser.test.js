@@ -169,6 +169,26 @@ describe('buildPrompt', () => {
   it('does not double up punctuation or whitespace', () => {
     expect(buildPrompt('Style.  ', '  subject.')).toBe('Style. subject.');
   });
+
+  it('substitutes the subject into a {subject} slot', () => {
+    expect(buildPrompt('sprite of {subject}, flat background', 'a cannon'))
+      .toBe('sprite of a cannon, flat background');
+  });
+
+  it('trims the subject before substituting', () => {
+    expect(buildPrompt('sprite of {subject}, flat background', '  a cannon. '))
+      .toBe('sprite of a cannon, flat background');
+  });
+
+  it('replaces only the first slot and never re-scans the subject', () => {
+    expect(buildPrompt('{subject} and {subject}', 'x {subject}'))
+      .toBe('x {subject} and {subject}');
+  });
+
+  it('treats $ patterns in the subject literally', () => {
+    expect(buildPrompt('sprite of {subject}.', "a $& and $' cannon"))
+      .toBe("sprite of a $& and $' cannon.");
+  });
 });
 
 
