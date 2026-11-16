@@ -8,6 +8,8 @@ For every sprite asset in the job and every candidate that lacks them, writes
                    draws it, cropped to its bbox (shown large on the review page)
   <i>.preview.png  the game-size, art-bible-styled cell (shown at real size on
                    a map pad: that, not the raw render, decides whether it reads)
+  <i>.cut.json     {"mirror": bool} as shown, so apply anchors a Flip to what the
+                   user saw rather than to a facing.json an earlier apply changed
 
 Idempotent (existing files are kept, so the slow cutout never reruns), and one
 bad candidate does not stop the rest: exits 1 at the end if any failed.
@@ -86,7 +88,10 @@ def prepare(cache, batch, job_path=None, src_root=None):
             print(f'! {asset_id}: base art missing, previewing with its own tone')
         for i in _candidate_indexes(adir):
             cut_p, prev_p = adir / f'{i}.cut.png', adir / f'{i}.preview.png'
-            if cut_p.exists() and prev_p.exists():
+            cutj_p = adir / f'{i}.cut.json'
+            # The json is written last: a cut without it was interrupted, or made
+            # before the mirror was recorded, and is redone.
+            if cut_p.exists() and prev_p.exists() and cutj_p.exists():
                 continue
             try:
                 cut = _bs.cutout(adir / f'{i}.png', keep_largest=not a.get('keepDebris', False))
@@ -94,6 +99,7 @@ def prepare(cache, batch, job_path=None, src_root=None):
                     cut = cut.transpose(Image.FLIP_LEFT_RIGHT)
                 cut.save(cut_p)
                 nz.preview_frame(cut, entry, tone_params=params).save(prev_p)
+                cutj_p.write_text(json.dumps({'mirror': bool(mirror)}) + '\n')
                 print(f'  {asset_id} #{i}: ok')
             except Exception:
                 traceback.print_exc()

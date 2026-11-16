@@ -37,7 +37,10 @@ function groundFrom(fromJson, key) {
   return rec.ground;
 }
 
-export async function executeSteps(steps, { repoRoot, spritesPath, variantsPath, facingPath, run, onLog = () => {} }) {
+export async function executeSteps(steps, {
+  repoRoot, spritesPath, variantsPath, facingPath, run, onLog = () => {},
+  signals = process, exit = code => process.exit(code),
+}) {
   const runCmd = run ?? (cmd => spawnCapture(cmd, repoRoot));
   const abs = p => resolve(repoRoot, p);
   const log = [];
@@ -66,6 +69,7 @@ export async function executeSteps(steps, { repoRoot, spritesPath, variantsPath,
       await sharp(abs(s.from)).resize(s.width, s.height, { fit: 'fill' }).png().toFile(abs(s.to));
     },
     run: async (s) => {
+      say(`running: ${s.cmd.join(' ')} …`);
       const { code, output } = await runCmd(s.cmd);
       if (code !== 0) throw new Error(`exit ${code}\n${output}`);
     },
@@ -98,17 +102,30 @@ export async function executeSteps(steps, { repoRoot, spritesPath, variantsPath,
   };
   handlers.check = handlers.run;
 
-  for (const step of steps) {
-    say(describeStep(step));
-    try {
-      const handler = handlers[step.op];
-      if (!handler) throw new Error(`unknown step op "${step.op}"`);
-      await handler(step);
-    } catch (err) {
-      say(`  FAILED: ${err.message}`);
-      restore();
-      return { ok: false, failedStep: step, log };
+  // Ctrl-C during the long checks would otherwise leave the data files
+  // half-applied; the terminal sends it to the child commands too.
+  const onInterrupt = () => {
+    restore();
+    say('interrupted: data files restored');
+    exit(130);
+  };
+  signals.on('SIGINT', onInterrupt);
+  try {
+    for (const step of steps) {
+      // A command step announces itself as it starts (see handlers.run).
+      if (step.op !== 'run' && step.op !== 'check') say(describeStep(step));
+      try {
+        const handler = handlers[step.op];
+        if (!handler) throw new Error(`unknown step op "${step.op}"`);
+        await handler(step);
+      } catch (err) {
+        say(`  FAILED: ${err.message}`);
+        restore();
+        return { ok: false, failedStep: step, log };
+      }
     }
+    return { ok: true, log };
+  } finally {
+    signals.off('SIGINT', onInterrupt);
   }
-  return { ok: true, log };
 }

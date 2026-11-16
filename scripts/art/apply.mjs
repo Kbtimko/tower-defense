@@ -6,7 +6,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { resolveJob } from '../../src/assets/artJob.js';
-import { cacheRoot, candidateDir, readExisting } from '../../src/assets/candidates.js';
+import { cacheRoot, candidateDir, readExisting, cliPath } from '../../src/assets/candidates.js';
 import { validatePicks } from '../../src/assets/picks.js';
 import { planApply, describeStep } from '../../src/assets/applyPlan.js';
 import { SPRITE_MANIFEST } from '../../src/data/sprites.js';
@@ -18,6 +18,29 @@ const dataPaths = repoRoot => ({
   variantsPath: join(repoRoot, 'src/data/spriteVariants.js'),
   facingPath: join(repoRoot, 'scripts/art/facing.json'),
 });
+
+// The mirror prepare_review.py drew the preview with; undefined when the
+// candidate was never prepared (apply then falls back to the job's facing).
+function readReviewMirror(path) {
+  if (!existsSync(path)) return undefined;
+  try {
+    const { mirror } = JSON.parse(readFileSync(path, 'utf8'));
+    return typeof mirror === 'boolean' ? mirror : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// What a failed apply leaves behind and how to undo it. Only backups that ran.
+export function failureHints(steps, failedStep) {
+  const ran = steps.slice(0, steps.indexOf(failedStep) + 1);
+  const lines = ['src/data/sprites.js, src/data/spriteVariants.js and scripts/art/facing.json were restored;',
+    'copied references and built sheets were left in place for inspection.'];
+  const backups = ran.filter(s => s.op === 'backup').map(s => s.to);
+  if (backups.length) lines.push('The previous references were backed up to:', ...backups.map(b => `  ${b}`));
+  lines.push('To revert rebuilt shipped sheets: git restore public/assets/sprites assets-src/sprites');
+  return lines;
+}
 
 // -> { errors, steps, message? }. Errors mean nothing may be applied.
 export function prepareApply({ repoRoot, picks, cache, allowFake = false, timestamp, env = process.env }) {
@@ -35,9 +58,14 @@ export function prepareApply({ repoRoot, picks, cache, allowFake = false, timest
   const metas = {};
   const existingByAsset = {};
   for (const asset of job.assets) {
-    const { names, metas: m } = readMetas(candidateDir(cacheDir, job.batch, asset.assetId), () => {});
+    const dir = candidateDir(cacheDir, job.batch, asset.assetId);
+    const { names, metas: m } = readMetas(dir, () => {});
     metas[asset.assetId] = m;
     existingByAsset[asset.assetId] = readExisting(names, m).map(e => e.index);
+    for (const [index, meta] of Object.entries(m)) {
+      const reviewMirror = readReviewMirror(join(dir, `${index}.cut.json`));
+      if (reviewMirror !== undefined) m[index] = { ...meta, reviewMirror };
+    }
   }
 
   const errors = validatePicks(picks, job, existingByAsset);
@@ -58,7 +86,8 @@ export function prepareApply({ repoRoot, picks, cache, allowFake = false, timest
 
 async function main(argv) {
   const value = name => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : undefined);
-  const picksPath = argv.find((a, i) => !a.startsWith('--') && argv[i - 1] !== '--cache');
+  const picksArg = argv.find((a, i) => !a.startsWith('--') && argv[i - 1] !== '--cache');
+  const picksPath = cliPath(picksArg);
   if (!picksPath) {
     console.error('usage: npm run art:apply -- <picks.json> [--cache dir] [--allow-fake] [--dry-run]');
     return 1;
@@ -71,7 +100,7 @@ async function main(argv) {
   }
 
   const { errors, steps, message } = prepareApply({
-    repoRoot, picks, cache: value('--cache'), allowFake: argv.includes('--allow-fake'),
+    repoRoot, picks, cache: cliPath(value('--cache')), allowFake: argv.includes('--allow-fake'),
     timestamp: new Date().toISOString().replace(/[:.]/g, '-'),
   });
   if (errors.length) {
@@ -92,8 +121,8 @@ async function main(argv) {
   const res = await executeSteps(steps, { repoRoot, ...dataPaths(repoRoot), onLog: l => console.log(`  ${l}`) });
   if (!res.ok) {
     console.error(`\nApply FAILED at: ${describeStep(res.failedStep)}`);
-    console.error('src/data/sprites.js, src/data/spriteVariants.js and scripts/art/facing.json were restored;');
-    console.error('copied references and built sheets were left in place for inspection.\n');
+    for (const line of failureHints(steps, res.failedStep)) console.error(line);
+    console.error('');
     return 1;
   }
   console.log('\nApplied. Nothing is committed: review `git status` and commit what you keep.\n');

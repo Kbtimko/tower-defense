@@ -6,7 +6,7 @@ import { join, relative, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import sharp from 'sharp';
 import { resolveJob } from '../../src/assets/artJob.js';
-import { cacheRoot, candidateDir, readExisting } from '../../src/assets/candidates.js';
+import { cacheRoot, candidateDir, readExisting, cliPath } from '../../src/assets/candidates.js';
 import { requiredAssets } from '../../src/assets/assetManifest.js';
 import { getSpriteConfig } from '../../src/data/sprites.js';
 import { renderReviewPage } from '../../src/assets/reviewPage.js';
@@ -99,7 +99,7 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const batch = argv.find((a, i) => !a.startsWith('--') && argv[i - 1] !== '--cache');
   if (!batch) { console.error('usage: npm run art:review -- <batch> [--cache dir]'); process.exit(1); }
   try {
-    const p = await buildReview({ repoRoot: process.cwd(), batch, cache: ci !== -1 ? argv[ci + 1] : undefined });
+    const p = await buildReview({ repoRoot: process.cwd(), batch, cache: ci !== -1 ? cliPath(argv[ci + 1]) : undefined });
     console.log(pathToFileURL(p).href);
   } catch (err) { console.error(err.message); process.exit(1); }
 }

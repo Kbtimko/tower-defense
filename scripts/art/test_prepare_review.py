@@ -64,6 +64,21 @@ class PrepareReview(unittest.TestCase):
         self.run_prep()
         self.assertEqual(Image.open(d / '0.cut.png').getpixel((5, 20))[3], 255)
 
+    def test_cut_json_records_the_mirror_the_preview_used(self):
+        d = self._with_archer()
+        self.run_prep()
+        # tower_cannon mirrors by the facing table; the archer variant's job says False.
+        self.assertEqual(json.loads((self.dir / '0.cut.json').read_text()), {'mirror': True})
+        self.assertEqual(json.loads((d / '0.cut.json').read_text()), {'mirror': False})
+
+    def test_cut_png_without_cut_json_is_regenerated(self):
+        self.run_prep()
+        (self.dir / '1.cut.json').unlink()
+        failed, m = self.run_prep()
+        self.assertEqual(failed, 0)
+        self.assertEqual(m.call_count, 1)
+        self.assertTrue((self.dir / '1.cut.json').exists())
+
     def test_second_run_does_not_recut(self):
         self.run_prep()
         failed, m = self.run_prep()

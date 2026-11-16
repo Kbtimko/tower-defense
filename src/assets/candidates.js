@@ -6,6 +6,12 @@ export function cacheRoot(repoRoot, { cache, env = {} } = {}) {
   return resolve(repoRoot, cache ?? env.ART_CACHE ?? '.art-cache');
 }
 
+// A path typed on the command line. `npm run` executes from the package root, so a
+// relative path is resolved against INIT_CWD (where the user ran npm) instead.
+export function cliPath(p, { env = process.env, cwd = process.cwd() } = {}) {
+  return p === undefined || p === null ? undefined : resolve(env.INIT_CWD ?? cwd, p);
+}
+
 export function candidateDir(cache, batch, assetId) {
   return join(cache, 'candidates', batch, assetId);
 }

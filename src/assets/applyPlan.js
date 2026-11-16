@@ -33,7 +33,7 @@ function variantStates(entry, variant) {
   ]));
 }
 
-function spriteSteps(asset, { raw, cache, batch, timestamp, refExists, facing, flipped, manifest }) {
+function spriteSteps(asset, { raw, cache, batch, timestamp, refExists, facing, flipped, reviewMirror, manifest }) {
   const { assetId, category, type, variant } = asset;
   const entry = manifestEntry(manifest, category, type);
   const refDir = join(cache, 'sprites');
@@ -47,7 +47,9 @@ function spriteSteps(asset, { raw, cache, batch, timestamp, refExists, facing, f
 
   // facing.json is the only place the mirror lives, so a later `--all` rebuild
   // reproduces this install; the build itself is never given a mirror flag.
-  const mirror = asset.mirror !== flipped;
+  // A Flip inverts what the review preview showed, not asset.mirror: that is
+  // re-derived from facing.json, which an earlier apply of these picks changed.
+  const mirror = (reviewMirror ?? asset.mirror) !== flipped;
   if (mirror !== facingFor(assetId, facing)) {
     steps.push({ op: 'setFacing', name: assetId, mirror });
     facing[assetId] = mirror;
@@ -74,6 +76,8 @@ function imageStep(asset, raw) {
   return { op: 'resize', from: raw, to: req.path, width: req.expected.width, height: req.expected.height };
 }
 
+// metas: { assetId: { index: candidate meta } }; a sprite meta may carry
+// reviewMirror, the mirror its review preview was drawn with (<i>.cut.json).
 export function planApply({
   picks, job, metas, cache, manifest, timestamp,
   allowFake = false, refExists = () => false, facing = {},
@@ -97,11 +101,13 @@ export function planApply({
   const workingFacing = { ...facing };
   const steps = [];
   for (const asset of ordered) {
-    const raw = join(candidateDir(cache, job.batch, asset.assetId), `${picks.picks[asset.assetId]}.png`);
+    const index = picks.picks[asset.assetId];
+    const raw = join(candidateDir(cache, job.batch, asset.assetId), `${index}.png`);
     if (asset.kind === 'sprite') {
       steps.push(...spriteSteps(asset, {
         raw, cache, batch: job.batch, timestamp, refExists, manifest,
         facing: workingFacing, flipped: flips.has(asset.assetId),
+        reviewMirror: metas[asset.assetId][index].reviewMirror,
       }));
     } else {
       steps.push(imageStep(asset, raw));

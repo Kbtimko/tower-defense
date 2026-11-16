@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { resolve } from 'node:path';
-import { cacheRoot, candidateDir, readExisting, planCandidates } from './candidates.js';
+import { cacheRoot, candidateDir, readExisting, planCandidates, cliPath } from './candidates.js';
 
 const entry = (index, round = 0) => ({ index, round });
 
@@ -94,5 +94,20 @@ describe('candidateDir', () => {
   it('joins cache, candidates, batch and asset id', () => {
     expect(candidateDir('/c', 'b1', 'tower_archer.t2'))
       .toBe('/c/candidates/b1/tower_archer.t2');
+  });
+});
+
+describe('cliPath', () => {
+  // npm runs scripts from the package root; INIT_CWD is where the user typed the command.
+  it('resolves a relative path against INIT_CWD when npm set it', () => {
+    expect(cliPath('picks.json', { env: { INIT_CWD: '/home/me/Downloads' }, cwd: '/repo' }))
+      .toBe('/home/me/Downloads/picks.json');
+  });
+  it('falls back to the process cwd', () => {
+    expect(cliPath('../c', { env: {}, cwd: '/repo/sub' })).toBe('/repo/c');
+  });
+  it('keeps absolute paths and passes undefined through', () => {
+    expect(cliPath('/abs/p.json', { env: { INIT_CWD: '/x' }, cwd: '/y' })).toBe('/abs/p.json');
+    expect(cliPath(undefined, { env: { INIT_CWD: '/x' } })).toBeUndefined();
   });
 });

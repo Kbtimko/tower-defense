@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { executeSteps } from './applyExec.mjs';
-import { prepareApply } from './apply.mjs';
+import { prepareApply, failureHints } from './apply.mjs';
+import { EventEmitter } from 'node:events';
 import { planApply, parseSpriteVariants } from '../../src/assets/applyPlan.js';
 import { SPRITE_MANIFEST } from '../../src/data/sprites.js';
 
@@ -76,6 +77,9 @@ describe('executeSteps', () => {
     const res = await executeSteps(steps, { repoRoot: tmp, ...paths, run });
     expect(res.ok).toBe(true);
     expect(res.log).toHaveLength(steps.length);
+    // A long npm test must not look like a hang: each command announces itself.
+    expect(res.log.filter(l => l.startsWith('running: '))).toEqual(
+      steps.filter(st => st.op === 'run' || st.op === 'check').map(st => `running: ${st.cmd.join(' ')} …`));
 
     expect(readFileSync(join(cache, 'sprites/backup/tower_cannon-TS.png'))).toEqual(oldRef);
     expect(readFileSync(join(cache, 'sprites/tower_cannon.png')))
@@ -166,6 +170,44 @@ describe('executeSteps', () => {
     expect(snapshot()).toEqual(before);
   });
 
+  it('restores the data files and exits non-zero on Ctrl-C, then unhooks itself', async () => {
+    await candidate('tower_archer.t4a', 1);
+    const steps = planFor([archerT4a], { 'tower_archer.t4a': 1 }, ['tower_archer.t4a']);
+    const before = snapshot();
+    const signals = new EventEmitter();
+    const exits = [];
+    let restoredAtExit;
+    // The real exit never returns, so the files must already be restored when it is called.
+    const exit = (code) => {
+      exits.push(code);
+      restoredAtExit = Object.entries(before).every(([k, buf]) => readFileSync(paths[k]).equals(buf));
+      throw new Error('exited');
+    };
+    const { run: base } = stubRun();
+    let changedAtInterrupt;
+    const run = async (cmd) => {
+      if (cmd[1] === 'test') {
+        changedAtInterrupt = !snapshot().variantsPath.equals(before.variantsPath);
+        signals.emit('SIGINT');
+      }
+      return base(cmd);
+    };
+    const res = await executeSteps(steps, { repoRoot: tmp, ...paths, run, signals, exit });
+    expect(changedAtInterrupt).toBe(true);
+    expect(exits).toEqual([130]);
+    expect(restoredAtExit).toBe(true);
+    expect(res.ok).toBe(false);
+    expect(snapshot()).toEqual(before);
+    expect(signals.listenerCount('SIGINT')).toBe(0);
+  });
+
+  it('unhooks the SIGINT handler after a successful run', async () => {
+    const signals = new EventEmitter();
+    const steps = planFor([archerT4a], { 'tower_archer.t4a': 0 }).filter(st => st.op === 'writeVariant');
+    expect((await executeSteps(steps, { repoRoot: tmp, ...paths, run: stubRun().run, signals })).ok).toBe(true);
+    expect(signals.listenerCount('SIGINT')).toBe(0);
+  });
+
   it('resizes an overworld pick into public/ at the exact expected size', async () => {
     await candidate('overworld_0_outpost_sigma', 0);
     const steps = planFor([outpost], { overworld_0_outpost_sigma: 0 });
@@ -202,6 +244,29 @@ describe('prepareApply', () => {
     expect(r.steps.map(s => s.op)).toEqual(['copy', 'run', 'run', 'setGround', 'check', 'check']);
   });
 
+  it('re-applying the same flipped picks three times leaves facing.json as the first apply set it', async () => {
+    makeRepo(JOB);
+    await fakeCandidate('tower_cannon', 0);
+    // What prepare_review.py recorded: the preview was mirrored per the facing table.
+    writeFileSync(join(cache, 'candidates/b/tower_cannon/0.cut.json'), '{"mirror": true}\n');
+    const facingPath = join(tmp, 'scripts/art/facing.json');
+    const picks = { batch: 'b', picks: { tower_cannon: 0 }, flip: ['tower_cannon'], reroll: [] };
+    const recorded = [];
+    const facingAfter = [];
+    for (let n = 0; n < 3; n++) {
+      const { errors, steps } = prepareApply({ repoRoot: tmp, picks, cache, timestamp: `T${n}` });
+      expect(errors).toEqual([]);
+      recorded.push(steps.filter(st => st.op === 'setFacing').map(st => st.mirror));
+      const res = await executeSteps(steps, { repoRoot: tmp, ...paths, facingPath, run: stubRun().run });
+      expect(res.ok).toBe(true);
+      facingAfter.push(readFileSync(facingPath, 'utf8'));
+    }
+    expect(recorded).toEqual([[false], [], []]);
+    expect(JSON.parse(facingAfter[0]).tower_cannon).toBe(false);
+    expect(facingAfter[1]).toBe(facingAfter[0]);
+    expect(facingAfter[2]).toBe(facingAfter[0]);
+  });
+
   it('a picks file whose index was removed gives errors and no steps', async () => {
     makeRepo(JOB);
     await fakeCandidate('tower_cannon', 0);
@@ -230,5 +295,25 @@ describe('prepareApply', () => {
     makeRepo(JOB);
     const r = prepareApply({ repoRoot: tmp, picks: { batch: 'nope', picks: {} }, cache, timestamp: 'TS' });
     expect(r.errors).toEqual([`no job file for batch "nope" at ${join(tmp, 'scripts/art/jobs/nope.json')}`]);
+  });
+});
+
+describe('failureHints', () => {
+  it('lists the backups that ran and how to revert rebuilt sheets', () => {
+    const steps = [
+      { op: 'backup', from: '/c/sprites/tower_cannon.png', to: '/c/sprites/backup/tower_cannon-TS.png' },
+      { op: 'copy', from: 'a', to: 'b' },
+      { op: 'run', cmd: ['python3', 'build'] },
+      { op: 'backup', from: '/c/sprites/tower_archer.png', to: '/c/sprites/backup/tower_archer-TS.png' },
+    ];
+    const hints = failureHints(steps, steps[2]).join('\n');
+    expect(hints).toContain('/c/sprites/backup/tower_cannon-TS.png');
+    expect(hints).not.toContain('tower_archer-TS.png');
+    expect(hints).toContain('git restore public/assets/sprites assets-src/sprites');
+  });
+
+  it('says so when no reference was backed up', () => {
+    const steps = [{ op: 'run', cmd: ['npm', 'test'] }];
+    expect(failureHints(steps, steps[0]).join('\n')).not.toContain('backed up');
   });
 });

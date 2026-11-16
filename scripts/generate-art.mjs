@@ -35,13 +35,14 @@ const value = (name, fallback = null) => {
 
 if (flag('job')) {
   const { runJob } = await import('./art/runJob.mjs');
+  const { cliPath } = await import('../src/assets/candidates.js');
   const code = await runJob({
     repoRoot: process.cwd(),
     batch: value('job'),
     candidates: value('candidates') ? Number(value('candidates')) : undefined,
     fake: flag('fake'),
-    reroll: value('reroll'),
-    cache: value('cache'),
+    reroll: cliPath(value('reroll')),
+    cache: cliPath(value('cache')),
     port: value('port'),
     dryRun: flag('dry-run'),
     noPrepare: flag('no-prepare'),

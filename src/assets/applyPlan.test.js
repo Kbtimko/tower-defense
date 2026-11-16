@@ -102,6 +102,29 @@ describe('planApply', () => {
       .toBeLessThan(steps.findIndex(s => s.cmd?.[2] === 'tower_archer.t4a'));
   });
 
+  it('anchors a flip to the mirror the review preview used, not the job-time facing', () => {
+    // An earlier apply already recorded tower_cannon: false, so resolveJob now says false.
+    const metas = { tower_cannon: { 0: { ...meta(), reviewMirror: true } } };
+    const steps = plan({ assets: [{ ...cannon, mirror: false }], picks: { tower_cannon: 0 }, flip: ['tower_cannon'],
+      metas, facing: { default: true, tower_cannon: false } });
+    expect(steps.some(s => s.op === 'setFacing')).toBe(false);
+  });
+
+  it('re-applying the same flipped pick three times records the facing once', () => {
+    let facing = { default: true };
+    const recorded = [];
+    for (let n = 0; n < 3; n++) {
+      // What resolveJob derives from the facing.json the previous apply left.
+      const asset = { ...cannon, mirror: facing.tower_cannon ?? facing.default };
+      const steps = plan({ assets: [asset], picks: { tower_cannon: 0 }, flip: ['tower_cannon'], facing,
+        metas: { tower_cannon: { 0: { ...meta(), reviewMirror: true } } } });
+      const sets = steps.filter(s => s.op === 'setFacing');
+      recorded.push(sets.map(s => s.mirror));
+      for (const s of sets) facing = { ...facing, [s.name]: s.mirror };
+    }
+    expect(recorded).toEqual([[false], [], []]);
+  });
+
   it('overworld and portrait: resize the raw pick into public/ at the expected size', () => {
     const steps = plan({ assets: [outpost, rael], picks: { overworld_0_outpost_sigma: 3, 'portrait-rael': 0 } });
     expect(steps).toEqual([
