@@ -43,7 +43,9 @@
 // Soldier tier keys a manifest doesn't fill are generated at boot by
 // recolouring the base sheets (src/systems/soldierTierTextures.js); declared
 // art that loaded always wins over the generated copy.
-export const SPRITE_MANIFEST = [
+import { SPRITE_VARIANTS } from './spriteVariants.js';
+
+const BASE_SPRITE_MANIFEST = [
   // Veth Drone — ground, def.radius 9. The 64px cell renders at ~38px. That is
   // deliberately larger than the Graphics circle it replaced: at the original
   // ~27px a drone read as an indistinct speck next to 52-99px towers.
@@ -283,6 +285,18 @@ export const SPRITE_MANIFEST = [
     },
   },
 ];
+
+// Tier-variant art is declared in the GENERATED spriteVariants.js (written by
+// the art apply step) so the hand-written manifest above never needs editing.
+// Pure: returns new entries for matches, never mutates the input.
+export function mergeVariants(manifest, variants) {
+  return manifest.map(entry => {
+    const extra = variants[`${entry.category}/${entry.type}`];
+    return extra ? { ...entry, variants: { ...entry.variants, ...extra } } : entry;
+  });
+}
+
+export const SPRITE_MANIFEST = mergeVariants(BASE_SPRITE_MANIFEST, SPRITE_VARIANTS);
 
 // Look up the manifest entry for an entity, or null if none is registered.
 export function getSpriteConfig(category, type) {

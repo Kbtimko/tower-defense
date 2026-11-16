@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { SPRITE_MANIFEST, getSpriteConfig } from './sprites.js';
+import { SPRITE_MANIFEST, getSpriteConfig, mergeVariants } from './sprites.js';
+import { SPRITE_VARIANTS } from './spriteVariants.js';
+import { VARIANT_KEYS } from '../assets/artJob.js';
 import { TOWER_DEFS } from './towers.js';
 import { HEROES } from './heroes.js';
 
@@ -35,6 +37,38 @@ describe('SPRITE_MANIFEST', () => {
       for (const [st, def] of Object.entries(e.states)) {
         expect(def.frameWidth, `${e.category}/${e.type} ${st}`).toBe(def.frameHeight);
       }
+    }
+  });
+});
+
+describe('mergeVariants', () => {
+  const base = [
+    { category: 'tower', type: 'archer', states: { idle: { path: 'a.png' } }, variants: { t2: { states: {} } } },
+    { category: 'tower', type: 'cannon', states: {} },
+  ];
+  const t4a = { states: { idle: { path: 'v.png' } } };
+
+  it('adds variants to the matching entry without mutating the input', () => {
+    const snapshot = JSON.parse(JSON.stringify(base));
+    const out = mergeVariants(base, { 'tower/archer': { t4a } });
+    expect(out[0].variants).toEqual({ t2: { states: {} }, t4a });
+    expect(out[1]).toEqual(base[1]);
+    expect(out).not.toBe(base);
+    expect(out[0]).not.toBe(base[0]);
+    expect(base).toEqual(snapshot);
+  });
+
+  it('is a no-op for empty variants', () => {
+    expect(mergeVariants(base, {})).toEqual(base);
+  });
+});
+
+describe('SPRITE_VARIANTS contract', () => {
+  it('names existing manifest entries and valid variant keys', () => {
+    for (const [key, variants] of Object.entries(SPRITE_VARIANTS)) {
+      const [cat, type] = key.split('/');
+      expect(getSpriteConfig(cat, type), key).not.toBeNull();
+      for (const v of Object.keys(variants)) expect(VARIANT_KEYS, `${key} ${v}`).toContain(v);
     }
   });
 });

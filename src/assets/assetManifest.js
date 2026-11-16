@@ -10,12 +10,41 @@
 import { MAPS } from '../data/maps.js';
 import { STORY_SPEAKERS } from '../data/story.js';
 import { SPRITE_MANIFEST } from '../data/sprites.js';
-import { spriteTextureKey } from '../systems/spriteKeys.js';
+import { spriteTextureKey, variantTextureKey } from '../systems/spriteKeys.js';
 import { portraitPath } from '../systems/portraitFallback.js';
 import { backgroundUrl } from '../systems/backgroundAsset.js';
 import { BACKGROUND_VARIANTS } from '../data/backgroundAssets.js';
 
 export const PUBLIC_ROOT = 'public';
+
+// Base states fall back to Graphics (optional); a DECLARED variant has no
+// fallback worth shipping without, so its files are required.
+export function spriteAssets(manifest) {
+  const record = (entry, state, def, variant) => ({
+    kind: 'sprite',
+    id: `${entry.category}/${entry.type} ${state}${variant ? ` ${variant}` : ''}`,
+    path: `${PUBLIC_ROOT}/${def.path}`,
+    url: def.path,
+    required: Boolean(variant),
+    key: variant
+      ? variantTextureKey(entry.category, entry.type, state, variant)
+      : spriteTextureKey(entry.category, entry.type, state),
+    frames: def.frames ?? 1,
+    expected: def.frameWidth && def.frameHeight
+      ? { width: def.frameWidth * (def.frames ?? 1), height: def.frameHeight }
+      : undefined,
+  });
+  const out = [];
+  for (const entry of manifest) {
+    for (const [state, def] of Object.entries(entry.states ?? {})) out.push(record(entry, state, def));
+  }
+  for (const entry of manifest) {
+    for (const [variant, v] of Object.entries(entry.variants ?? {})) {
+      for (const [state, def] of Object.entries(v.states ?? {})) out.push(record(entry, state, def, variant));
+    }
+  }
+  return out;
+}
 
 // Every entry: { kind, id, path, url, required, expected }
 //   required — the game is visibly broken without it (no fallback)
@@ -64,22 +93,7 @@ export function requiredAssets() {
     });
   }
 
-  for (const entry of SPRITE_MANIFEST) {
-    for (const [state, def] of Object.entries(entry.states ?? {})) {
-      out.push({
-        kind: 'sprite',
-        id: `${entry.category}/${entry.type} ${state}`,
-        path: `${PUBLIC_ROOT}/${def.path}`,
-        url: def.path,
-        required: false,              // Graphics fallback
-        key: spriteTextureKey(entry.category, entry.type, state),
-        frames: def.frames ?? 1,
-        expected: def.frameWidth && def.frameHeight
-          ? { width: def.frameWidth * (def.frames ?? 1), height: def.frameHeight }
-          : undefined,
-      });
-    }
-  }
+  out.push(...spriteAssets(SPRITE_MANIFEST));
 
   return out;
 }
