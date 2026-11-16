@@ -59,7 +59,15 @@ async function loadInit(repoRoot, cache, asset) {
   if (existsSync(ref)) return readFileSync(ref).toString('base64');
   const fb = join(repoRoot, fallback);
   if (!existsSync(fb)) return null;
-  const buf = await sharp(fb)
+  // The shipped sheet can be a strip; init from its first frame only, as the
+  // reference would have been a single image.
+  const cfg = getSpriteConfig(asset.category, asset.type);
+  const st = cfg?.states?.[asset.category === 'enemy' ? 'move' : 'idle'];
+  let img = sharp(fb);
+  if (st?.frameWidth && st?.frameHeight) {
+    img = img.extract({ left: 0, top: 0, width: st.frameWidth, height: st.frameHeight });
+  }
+  const buf = await img
     .resize(1024, 1024, { fit: 'contain', kernel: 'nearest', background: { r: 128, g: 128, b: 128, alpha: 1 } })
     .flatten({ background: { r: 128, g: 128, b: 128 } })
     .png().toBuffer();
@@ -146,6 +154,7 @@ export async function runJob({
         } else {
           let res;
           if (assetMode === 'img2img') {
+            // strength defaults to 0.45: roadmap range is 0.4-0.5 when a job omits it.
             res = await post(usePort, '/sdapi/v1/img2img',
               img2imgBody({ prompt: asset.prompt, seed: c.seed, initB64, strength: asset.strength ?? 0.45 }));
             if (!res.ok) {
