@@ -84,7 +84,9 @@ for (const p of parsePortraitPrompts(portraitMd)) {
 const SPRITE_REF_DIR = '.art-cache/sprites';
 const spriteMd = readFileSync('public/assets/sprites/PROMPTS.md', 'utf8');
 const spriteStyle = parseFencedSection(spriteMd, 'Shared style anchor');
-for (const p of parseSpritePrompts(spriteMd)) {
+// Variants share the base's category_type id; including them would write over
+// the base reference.
+for (const p of parseSpritePrompts(spriteMd).filter(p => !p.variant)) {
   jobs.push({
     kind: 'sprite', id: `${p.category}_${p.type}`,
     path: `${SPRITE_REF_DIR}/${p.category}_${p.type}.png`,

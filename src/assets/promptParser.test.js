@@ -347,3 +347,47 @@ describe('the real PROMPTS.md yields a usable subject for every entity', () => {
     }
   });
 });
+
+describe('parseSpritePrompts variants', () => {
+  it('parses a variant bullet with the runtime type and the variant key', () => {
+    const md = [
+      '### (c) Towers',
+      '',
+      '- **archer.t4a** — `#8B4513` brown: `tall dark-iron crossbow emplacement with glowing runes`',
+    ].join('\n');
+    expect(parseSpritePrompts(md)).toEqual([
+      { category: 'tower', type: 'archer', variant: 't4a', subject: 'tall dark-iron crossbow emplacement with glowing runes' },
+    ]);
+  });
+
+  it('lets a fenced variant prompt beat an inline span', () => {
+    const md = [
+      '### (c) Towers',
+      '',
+      '- **archer.t4b** — output `assets/sprites/towers/`',
+      '  ```',
+      '  rapid repeating crossbow turret',
+      '  ```',
+    ].join('\n');
+    const [got] = parseSpritePrompts(md);
+    expect(got.variant).toBe('t4b');
+    expect(got.subject).toBe('rapid repeating crossbow turret');
+  });
+
+  it('maps a soldier variant to category soldier, type default', () => {
+    const md = [
+      '### (d) Heroes / Soldiers / Sentries',
+      '',
+      '- **soldier.t4a** — `armoured rifle soldier in gold plate`',
+    ].join('\n');
+    expect(parseSpritePrompts(md)).toEqual([
+      { category: 'soldier', type: 'default', variant: 't4a', subject: 'armoured rifle soldier in gold plate' },
+    ]);
+  });
+
+  it('leaves base bullets without a variant field', () => {
+    const out = parseSpritePrompts(spriteMd);
+    expect(out.length).toBeGreaterThan(0);
+    for (const p of out) expect(p.variant, `${p.category}/${p.type}`).toBeUndefined();
+  });
+});
