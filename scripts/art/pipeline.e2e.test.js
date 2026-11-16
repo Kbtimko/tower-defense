@@ -29,12 +29,7 @@ function makeRepo() {
     'scripts/art/jobs/smoke.json', 'scripts/art/facing.json',
     'src/data/sprites.js', 'src/data/spriteVariants.js',
   ]) copy(rel);
-  // The smoke job needs the archer.t4a bullet; keep this test independent of the real one.
-  const md = join(tmp, 'public/assets/sprites/PROMPTS.md');
-  if (!/\*\*archer\.t4a\*\*/.test(readFileSync(md, 'utf8'))) {
-    writeFileSync(md, readFileSync(md, 'utf8').replace(/^(- \*\*cannon\*\* .*)$/m,
-      '$1\n- **archer.t4a** — `#8B4513`: `upgraded ballista with twin bows`'));
-  }
+  expect(readFileSync(join(tmp, 'public/assets/sprites/PROMPTS.md'), 'utf8')).toMatch(/^- \*\*archer\.t4a\*\*/m);
   return tmp;
 }
 
@@ -47,7 +42,9 @@ function stubRun() {
     const gi = cmd.indexOf('--ground-json');
     if (gi !== -1) {
       const key = cmd[cmd.indexOf('--only') + 1];
-      writeFileSync(cmd[gi + 1], JSON.stringify([{ key, ground: { footY: 30.5, width: 33 } }]));
+      // Distinct per key so a ground written to the wrong target is caught.
+      const ground = key.endsWith('.t4a') ? { footY: 44.5, width: 41 } : { footY: 30.5, width: 33 };
+      writeFileSync(cmd[gi + 1], JSON.stringify([{ key, ground }]));
     }
     return { code: 0, output: 'ok' };
   };
@@ -81,7 +78,8 @@ describe('pipeline end to end (--fake, no Python, no Draw Things)', () => {
       for (let i = 0; i < 3; i++) {
         writeFileSync(join(d, `${i}.cut.png`), tiny);
         writeFileSync(join(d, `${i}.preview.png`), tiny);
-        writeFileSync(join(d, `${i}.cut.json`), JSON.stringify({ mirror: false }));
+        // cannon's preview was drawn mirrored; flipping it must un-mirror the install.
+        writeFileSync(join(d, `${i}.cut.json`), JSON.stringify({ mirror: d.endsWith('tower_cannon') }));
       }
     }
 
@@ -89,7 +87,7 @@ describe('pipeline end to end (--fake, no Python, no Draw Things)', () => {
     expect(html).toContain('tower_cannon');
     expect(html).toContain('tower_archer.t4a');
 
-    const picks = { batch: 'smoke', picks: { tower_cannon: 1, 'tower_archer.t4a': 0 }, flip: [], reroll: [] };
+    const picks = { batch: 'smoke', picks: { tower_cannon: 1, 'tower_archer.t4a': 0 }, flip: ['tower_cannon'], reroll: [] };
     const refused = prepareApply({ repoRoot: root, picks, cache, timestamp: 'TS' });
     expect(refused.errors.join('\n')).toMatch(/fake candidate; pass --allow-fake/);
 
@@ -107,10 +105,16 @@ describe('pipeline end to end (--fake, no Python, no Draw Things)', () => {
 
     const variants = parseSpriteVariants(readFileSync(paths.variantsPath, 'utf8'));
     const t4a = variants['tower/archer'].t4a;
-    expect(t4a.ground).toEqual({ footY: 30.5, width: 33 });
-    expect(Object.keys(t4a.states).length).toBeGreaterThan(0);
-    expect(readFileSync(paths.spritesPath, 'utf8')).toMatch(
-      /type: 'cannon',\n.*\n {4}ground: \{ footY: 30\.5, width: 33\.0 \},/);
+    expect(t4a.ground).toEqual({ footY: 44.5, width: 41 });
+    expect(Object.keys(t4a.states)).toEqual(['idle', 'attack']);
+    const sprites = readFileSync(paths.spritesPath, 'utf8');
+    expect(sprites).toMatch(/type: 'cannon',\n.*\n {4}ground: \{ footY: 30\.5, width: 33\.0 \},/);
+    expect(sprites).not.toContain('44.5');
+
+    expect(JSON.parse(readFileSync(paths.facingPath, 'utf8')).tower_cannon).toBe(false);
+    // The mirror lives only in facing.json; the build is never given a flag.
+    expect(calls.filter(c => c[1] === 'scripts/build-sprite-sheets.py').flat()
+      .filter(a => /mirror/.test(a))).toEqual([]);
 
     expect(protectedStatus()).toBe(before);
   }, 60000);
