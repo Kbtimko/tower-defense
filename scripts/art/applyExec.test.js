@@ -291,6 +291,14 @@ describe('prepareApply', () => {
     expect(prepareApply({ repoRoot: tmp, picks, cache, timestamp: 'TS', allowFake: true }).steps.length).toBe(6);
   });
 
+  it('reports a job whose batch differs from its file name', () => {
+    makeRepo(JOB);
+    writeFileSync(join(tmp, 'scripts/art/jobs/b.json'), JSON.stringify({ batch: 'renamed', assets: JOB }));
+    const r = prepareApply({ repoRoot: tmp, picks: { batch: 'b', picks: {}, flip: [], reroll: [] }, cache, timestamp: 'TS' });
+    expect(r.errors).toEqual(['job "b": batch "renamed" does not match the job file name "b.json"']);
+    expect(r.steps).toEqual([]);
+  });
+
   it('reports a batch with no job file', () => {
     makeRepo(JOB);
     const r = prepareApply({ repoRoot: tmp, picks: { batch: 'nope', picks: {} }, cache, timestamp: 'TS' });

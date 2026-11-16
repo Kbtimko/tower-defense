@@ -80,8 +80,13 @@ function resolveListed(a, kind, sources, fail) {
   };
 }
 
-export function resolveJob(job, sources, { facing = {} } = {}) {
+// batchName: the job file's stem. The cache, the review page and picks.json are
+// keyed by job.batch while the CLIs find the job by file name, so the two must agree.
+export function resolveJob(job, sources, { facing = {}, batchName } = {}) {
   const errors = [];
+  if (batchName !== undefined && job.batch !== batchName) {
+    errors.push(`batch ${JSON.stringify(job.batch)} does not match the job file name "${batchName}.json"`);
+  }
   const candidates = job.candidates ?? DEFAULT_CANDIDATES;
   const seed = job.seed ?? DEFAULT_SEED;
   if (!Number.isInteger(candidates) || !inRange(candidates, 1, 16)) {

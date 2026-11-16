@@ -110,7 +110,7 @@ export function prepareApply({ repoRoot, picks, cache, allowFake = false, timest
 
   const facing = loadFacing(repoRoot);
   const { job, errors: jobErrors } = resolveJob(JSON.parse(readFileSync(jobPath, 'utf8')),
-    loadPromptSources(repoRoot), { facing });
+    loadPromptSources(repoRoot), { facing, batchName: picks.batch });
   if (jobErrors.length) return fail(jobErrors.map(e => `job "${picks.batch}": ${e}`));
 
   const cacheDir = cacheRoot(repoRoot, { cache, env });

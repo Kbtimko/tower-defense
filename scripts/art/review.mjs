@@ -60,7 +60,7 @@ export async function buildReview({ repoRoot, batch, cache }) {
   const jobPath = join(repoRoot, 'scripts/art/jobs', `${batch}.json`);
   if (!existsSync(jobPath)) throw new Error(`No job file at ${jobPath}`);
   const { job, errors } = resolveJob(JSON.parse(readFileSync(jobPath, 'utf8')),
-    loadPromptSources(repoRoot), { facing: loadFacing(repoRoot) });
+    loadPromptSources(repoRoot), { facing: loadFacing(repoRoot), batchName: batch });
   if (errors.length) throw new Error(`Job "${batch}" is invalid: ${errors.join('; ')}`);
 
   const cacheDir = cacheRoot(repoRoot, { cache, env: process.env });

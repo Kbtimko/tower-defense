@@ -168,6 +168,17 @@ describe('runJob --fake / --dry-run / resume / reroll', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
+  it('refuses a job whose batch differs from its file name', async () => {
+    const root = makeRepo({});
+    const jobPath = join(root, 'scripts/art/jobs/t.json');
+    writeFileSync(jobPath, JSON.stringify({ ...JSON.parse(readFileSync(jobPath, 'utf8')), batch: 'renamed' }));
+    const logs = [];
+    expect(await run(root, { fake: true, log: m => logs.push(m) })).toBe(1);
+    expect(logs).toContain('  - batch "renamed" does not match the job file name "t.json"');
+    expect(existsSync(join(root, 'cache'))).toBe(false);
+    rmSync(root, { recursive: true, force: true });
+  });
+
   it('dry-run writes nothing', async () => {
     const root = makeRepo({});
     expect(await run(root, { fake: true, dryRun: true })).toBe(0);

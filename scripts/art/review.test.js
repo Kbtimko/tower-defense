@@ -48,6 +48,15 @@ describe('buildReview', () => {
     return tmp;
   }
 
+  it('refuses a job whose batch differs from its file name', async () => {
+    const tmp = makeRepo({ default: true });
+    try {
+      writeFileSync(join(tmp, 'scripts/art/jobs/r.json'), JSON.stringify({ batch: 'renamed', assets: [{ kind: 'sprite', entity: 'tower_cannon' }] }));
+      await expect(buildReview({ repoRoot: tmp, batch: 'r', cache: join(tmp, 'cache') }))
+        .rejects.toThrow('batch "renamed" does not match the job file name "r.json"');
+    } finally { rmSync(tmp, { recursive: true, force: true }); }
+  });
+
   it('treats a cutout without its cut.json as uncut and mirrors raw tiles per facing', async () => {
     for (const mirror of [true, false]) {
       const tmp = makeRepo({ default: true, tower_cannon: mirror });

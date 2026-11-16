@@ -107,7 +107,7 @@ export async function runJob({
   const raw = JSON.parse(readFileSync(jobPath, 'utf8'));
   if (candidates !== undefined && candidates !== null) raw.candidates = candidates;
 
-  const { job, errors } = resolveJob(raw, loadPromptSources(repoRoot), { facing: loadFacing(repoRoot) });
+  const { job, errors } = resolveJob(raw, loadPromptSources(repoRoot), { facing: loadFacing(repoRoot), batchName: batch });
   if (errors.length) {
     log(`Job "${batch}" has ${errors.length} error(s):`);
     for (const e of errors) log(`  - ${e}`);

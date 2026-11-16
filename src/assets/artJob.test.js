@@ -136,6 +136,12 @@ describe('resolveJob', () => {
     fails(job([spr('tower_archer', { variant: 't4a', cell: 96 })]), 'tower_archer.t4a: cell overrides are not supported yet');
   });
   it('rejects empty assets', () => fails(job([]), 'no assets'));
+  it('rejects a batch that differs from its job file name', () => {
+    const r = resolveJob(job([spr('tower_cannon')]), sources, { facing: {}, batchName: 'other' });
+    expect(r.job).toBeNull();
+    expect(r.errors).toEqual(['batch "b" does not match the job file name "other.json"']);
+    expect(resolveJob(job([spr('tower_cannon')]), sources, { facing: {}, batchName: 'b' }).errors).toEqual([]);
+  });
 
   it('collects every error, not just the first', () => {
     const r = resolveJob(job([spr('tower_laser'), { kind: 'icon' }]), sources, { facing: {} });
