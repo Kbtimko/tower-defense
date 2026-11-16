@@ -1,0 +1,18 @@
+{
+  "batch": "towers-branches",
+  "candidates": 8,
+  "assets": [
+    {"kind": "sprite", "entity": "tower_archer", "variant": "t4a", "init": "base", "strength": 0.65},
+    {"kind": "sprite", "entity": "tower_archer", "variant": "t4b", "init": "base", "strength": 0.65},
+    {"kind": "sprite", "entity": "tower_mage", "variant": "t4a", "init": "base", "strength": 0.65},
+    {"kind": "sprite", "entity": "tower_mage", "variant": "t4b", "init": "base", "strength": 0.65},
+    {"kind": "sprite", "entity": "tower_cannon", "variant": "t4a", "init": "base", "strength": 0.65},
+    {"kind": "sprite", "entity": "tower_cannon", "variant": "t4b", "init": "base", "strength": 0.65},
+    {"kind": "sprite", "entity": "tower_ice", "variant": "t4a", "init": "base", "strength": 0.65},
+    {"kind": "sprite", "entity": "tower_ice", "variant": "t4b", "init": "base", "strength": 0.65},
+    {"kind": "sprite", "entity": "tower_sniper", "variant": "t4a", "init": "base", "strength": 0.65},
+    {"kind": "sprite", "entity": "tower_sniper", "variant": "t4b", "init": "base", "strength": 0.65},
+    {"kind": "sprite", "entity": "tower_barracks", "variant": "t4a", "init": "base", "strength": 0.65},
+    {"kind": "sprite", "entity": "tower_barracks", "variant": "t4b", "init": "base", "strength": 0.65}
+  ]
+}

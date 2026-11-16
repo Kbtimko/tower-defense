@@ -248,8 +248,8 @@ Settings: 1024×1024, 4 steps, CFG 0, Euler a.
 
 FLUX at CFG 0 **ignores negative prompts** and does **not** understand A1111
 weighting such as `(…:1.2)`; it reads it as literal text. The current anchor in
-`public/assets/sprites/PROMPTS.md` uses both. Proposed replacement, to adopt in
-4.0 (put exclusions in the positive prompt):
+`public/assets/sprites/PROMPTS.md` used both. Replacement, adopted in 4.2 (the
+anchor below is now live in PROMPTS.md; exclusions live in the positive prompt):
 
 ```
 high-angle top-down game sprite of {subject}, sci-fi tower defense, painterly

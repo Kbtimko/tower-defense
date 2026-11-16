@@ -15,23 +15,24 @@ entry lights an entity up with no code change.
 > ecosystem, which is the only realistic way to hold a character consistent
 > across animation frames.
 
-## Recommended SDXL settings
+## Recommended settings (FLUX.1 [schnell])
 
-- **Resolution:** generate at 1024×1024, downscale to the target frame size.
-- **Sampler:** DPM++ 2M Karras · **Steps:** 30–35 · **CFG:** 6–7.
-- **Seed:** lock a seed per character so re-rolls stay on-model.
-- A **game-sprite / clean-vector LoRA** at ~0.6 weight sharpens the style; a
-  per-character LoRA (below) locks identity across frames.
+- **Resolution:** 1024×1024, downscaled to the target frame size.
+- **Steps:** 4 · **CFG:** 0 · **Sampler:** Euler a.
+- FLUX at CFG 0 ignores negative prompts and reads `(...:1.2)` weighting as
+  literal text, so every exclusion lives in the positive anchor below.
+- **Seed:** one seed per job keeps a set cohesive; re-roll by changing it.
 
-## Shared style anchor (paste into EVERY sprite prompt for cohesion)
+## Shared style anchor (the `{subject}` slot takes each entity's prompt)
 
 ```
-(top-down 3/4 game sprite:1.2), sci-fi tower-defense unit, clean
-vector-painterly shading, bold readable silhouette, rim light, centered,
-plain flat background, no ground shadow, no text, high detail
+high-angle top-down game sprite of {subject}, sci-fi tower defense, painterly
+vector shading, bold readable silhouette, lit from the upper left with a rim
+light, single subject centered, plain flat mid-grey background, no ground
+shadow, no outline, no text, no lettering
 ```
 
-## Shared negative prompt (use for ALL sprites)
+## Shared negative prompt (inert under FLUX at CFG 0; kept for an SDXL fallback)
 
 ```
 photo, photorealistic, realistic skin, busy background, scenery, multiple
@@ -216,13 +217,24 @@ shatter) optional. Author facing right, moving right.
 Towers are static emplacements viewed top-down 3/4 — author the muzzle/business
 end facing right.
 
-- **archer** — `#8B4513` brown: `automated crossbow ballista turret emplacement, tall upright swivel mount, dark weathered iron and deep brown wood, taut bowstring, high contrast against pale ground, compact dark base disc`
-- **archer.t4a** — `#8B4513` brown: `automated heavy crossbow ballista turret emplacement, tall upright swivel mount, dark weathered iron with glowing amber runes along the bow arms, twin reinforced bowstrings, high contrast against pale ground, compact dark base disc` (first draft for roadmap 4.2: the smoke batch uses it to prove the variant pipeline; refine it when real tier-4 art is made)
-- **mage** — `#6a0dad` purple: `arcane energy spire turret, floating violet crystal orb, glowing runic rings, purple magic emissive, metal base disc`
-- **cannon** — `#666666` grey: `heavy artillery cannon turret, stubby thick grey barrel, riveted armor plating, recoil mount, base disc`
-- **ice** — `#4a8fa8` teal: `cryo frost turret, glowing teal ice-crystal emitter, frosted condenser coils, pale-blue vapor, base disc`
-- **sniper** — `#556b2f` olive: `long-barreled railgun sniper turret, slim olive-drab rail, targeting scope, sleek precise build, base disc`
-- **barracks** — `#4caf50` green: `military barracks bunker, small reinforced green-walled structure with a rally flag on top, sandbag perimeter, deployment doorway, blank unmarked walls, no signage and no lettering anywhere, compact footprint on a round base disc` (static building, no `attack`)
+- **archer** — `#ffb000` amber: `an automated crossbow ballista turret on a compact round base, tall upright swivel mount, cool steel and teal armor plates, glowing amber accent lights along the bow arms, taut bowstring`
+- **archer.t4a** — `#ffb000` amber: `an automated twin crossbow ballista turret on a compact round base, two stacked bow arms on one swivel mount with two bolts loaded, cool steel and teal armor plates, glowing amber accent lights`
+- **archer.t4b** — `#ffb000` amber: `an automated long-range crossbow turret on a compact round base, one long-limbed bow on an extended rail with a scope lens, tall and slim, cool steel and teal armor, glowing amber accent lights`
+- **mage** — `#dd00ff` violet: `an arcane energy spire turret on a compact round base, floating violet crystal orb above steel prongs, glowing violet runic rings, cool steel and teal hull`
+- **mage.t4a** — `#dd00ff` violet: `an arcane energy spire turret on a compact round base, crackling violet orb arcing lightning to three floating conductor prongs, cool steel and teal hull`
+- **mage.t4b** — `#dd00ff` violet: `an arcane frost spire turret on a compact round base, violet orb sheathed in pale lilac-white ice shards, frosted steel prongs, cool steel and teal hull`
+- **cannon** — `#ff7a2f` ember: `a heavy artillery cannon turret on a compact round base, stubby thick barrel with a glowing ember-orange muzzle and vents, riveted cool steel and teal armor plating, recoil mount`
+- **cannon.t4a** — `#ff7a2f` ember: `a heavy mortar artillery turret on a compact round base, tall steeply angled wide-bore barrel, a rack of three shells beside it, glowing ember-orange vents, riveted cool steel and teal plating`
+- **cannon.t4b** — `#ff7a2f` ember: `a rotary autocannon turret on a compact round base, a rotating cluster of three barrels fed by an ammo belt, glowing ember-orange muzzles, riveted cool steel and teal plating`
+- **ice** — `#00eeff` cyan: `a cryo frost turret on a compact round base, glowing cyan ice-crystal emitter, frosted condenser coils, dark cool steel and teal hull`
+- **ice.t4a** — `#00eeff` cyan: `a massive cryo turret on a compact round base, a large glowing cyan emitter crown on thick frozen crystal pillars, a heavy frost mantle over a dark cool steel and teal hull`
+- **ice.t4b** — `#00eeff` cyan: `a cryo lance turret on a compact round base, a jagged faceted glowing cyan crystal lance with fracture lines and sharp shards, dark cool steel and teal hull`
+- **sniper** — `#ff3355` red: `a long-barreled railgun sniper turret on a compact round base, slim rail with a glowing red targeting lens, cool steel and teal hull, sleek precise build`
+- **sniper.t4a** — `#ff3355` red: `a stealth railgun sniper turret on a compact round base, a sleek dark rail with a long suppressor and a glowing red lens, cool steel and teal hull`
+- **sniper.t4b** — `#ff3355` red: `a rapid-fire railgun turret on a compact round base, shorter twin rails with a drum magazine and glowing red heat vents, cool steel and teal hull`
+- **barracks** — `#ffd34d` gold: `a small reinforced military bunker on a round base, cool steel and teal walls, a gold rally flag on top, sandbag perimeter, deployment doorway, blank unmarked walls, no signage` (static building, no `attack`)
+- **barracks.t4a** — `#ffd34d` gold: `a fortified military bunker on a round base behind a heavy steel shield wall, a gold banner on top, cool steel and teal walls, blank unmarked walls, no signage`
+- **barracks.t4b** — `#ffd34d` gold: `a military bunker on a round base with its launch-bay doors open and a glowing gold signal beacon on top, cool steel and teal walls, blank unmarked walls, no signage`
 
 ### (d) Heroes / Soldiers / Sentries
 

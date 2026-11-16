@@ -411,6 +411,12 @@ describe('parseSpritePrompts variants', () => {
     const bases = parseSpritePrompts(spriteMd.replace(/^- \*\*\w+\.t\d\w*\*\*.*$/gm, ''));
     expect(bases.length).toBeGreaterThan(0);
     for (const p of bases) expect(p.variant, `${p.category}/${p.type}`).toBeUndefined();
-    expect(parseSpritePrompts(spriteMd).filter(p => p.variant).map(p => `${p.type}.${p.variant}`)).toEqual(['archer.t4a']);
+    // Every variant is a tier-4 branch of a tower that also has a base bullet.
+    const variants = parseSpritePrompts(spriteMd).filter(p => p.variant);
+    expect(variants.length).toBeGreaterThan(0);
+    for (const v of variants) {
+      expect(['t4a', 't4b']).toContain(v.variant);
+      expect(bases.some(b => b.category === v.category && b.type === v.type), v.type).toBe(true);
+    }
   });
 });
