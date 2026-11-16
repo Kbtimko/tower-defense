@@ -1,4 +1,4 @@
-# Entity Sprite Art — Prompts & Pipeline (SDXL)
+# Entity Sprite Art — Prompts & Pipeline (FLUX.1 [schnell])
 
 Deferred-asset pipeline for backlog #8 sub-projects (b) enemies, (c) towers,
 (d) heroes/soldiers/sentries. Mirrors `public/assets/overworld/PROMPTS.md` and
@@ -6,14 +6,11 @@ Deferred-asset pipeline for backlog #8 sub-projects (b) enemies, (c) towers,
 already wired with a Graphics fallback, so dropping a PNG + adding one manifest
 entry lights an entity up with no code change.
 
-> **Model:** these prompts target **SDXL 1.0** (OpenRAIL++ — commercial-OK),
-> run locally via **Draw Things** (single frames) and **ComfyUI** (the
-> consistency pipeline). SDXL wants **comma-separated weighted tags**, not
-> DALL-E prose — that's why the prompts below read as tag lists. For the static
-> portrait/overworld art we use FLUX.1 [schnell] instead (see those PROMPTS.md
-> files); sprites stay on SDXL for its mature ControlNet / LoRA / IP-Adapter
-> ecosystem, which is the only realistic way to hold a character consistent
-> across animation frames.
+> **Model:** these prompts target **FLUX.1 [schnell]**, run locally in
+> **Draw Things** through its HTTP API (`npm run art`). FLUX reads natural
+> prose, so each prompt is a descriptive noun phrase that slots into the shared
+> anchor below; settings are in the next section. Animation frames are derived
+> from one reference image per entity (see the pipeline notes below).
 
 ## Recommended settings (FLUX.1 [schnell])
 
@@ -154,12 +151,11 @@ downloads and expect to hand-author poses rather than lean on OpenPose.
 
 ### Model settings
 
-The prompts below are written as SDXL-style comma-separated weighted tags. The
-**installed** model is FLUX.1 [schnell], which is what `npm run art` drives:
-4 steps, CFG 0, Euler a, 1024×1024. FLUX ignores `negative_prompt` at CFG 0, so
-the shared negative prompt is advisory here — fold exclusions into the positive
-prose instead. The SDXL settings above (DPM++ 2M Karras, 30–35 steps, CFG 6–7)
-apply only if an SDXL checkpoint is installed later.
+The installed model is FLUX.1 [schnell], which is what `npm run art` drives:
+the settings are the FLUX ones above (4 steps, CFG 0, Euler a, 1024×1024).
+FLUX at CFG 0 ignores `negative_prompt` and reads `(...:1.2)` weighting as
+literal text, so the shared negative prompt is advisory only; fold exclusions
+into the positive prose.
 
 Check every generated frame for stray lettering before compositing; the
 generator has a habit of rendering the game title into artwork.
