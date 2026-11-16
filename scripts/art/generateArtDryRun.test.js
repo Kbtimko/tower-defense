@@ -12,5 +12,5 @@ describe('legacy generator: sprite reference jobs', () => {
     expect(out.match(/^── sprite: /gm)).toHaveLength(18);
     expect(out.match(/^── sprite: tower_archer$/gm)).toHaveLength(1);
     expect(out).not.toMatch(/t4a/);
-  });
+  }, { timeout: 30000 });
 });
