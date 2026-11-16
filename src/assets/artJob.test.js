@@ -107,6 +107,7 @@ describe('resolveJob', () => {
 
   it('defaults to a seed that never reproduces the legacy references', () => {
     // Deterministic FLUX + the legacy seed would regenerate today's art as candidate #0.
+    expect(DEFAULT_SEED).toBeGreaterThan(LEGACY_SEED);
     const existing = [];
     for (let round = 0; round <= 20; round++) {
       const plan = planCandidates({ existing, candidates: 16, seed: DEFAULT_SEED, reroll: round > 0 });

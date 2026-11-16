@@ -32,7 +32,6 @@ candidate images you review in a browser, then apply. Prompts come from the
   `art:review` and `art:apply` alike.
 - `--candidates N` overrides the job's candidate count; `--no-prepare` skips the
   Python cutout step.
-
 - Jobs default to seed 88001, not the 77021 the shipped art used, so candidate #0
   is never today's art; put `"seed": 77021` in a job to reproduce it on purpose.
 
