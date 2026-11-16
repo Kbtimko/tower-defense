@@ -2,8 +2,9 @@ import { join, resolve } from 'node:path';
 
 // Candidate images live outside the repo's public/ tree until one is picked, so the
 // cache root is configurable (--cache beats ART_CACHE beats the repo default).
+// An empty ART_CACHE is unset: resolved as-is it would make the repo root the cache.
 export function cacheRoot(repoRoot, { cache, env = {} } = {}) {
-  return resolve(repoRoot, cache ?? env.ART_CACHE ?? '.art-cache');
+  return resolve(repoRoot, cache ?? (env.ART_CACHE || '.art-cache'));
 }
 
 // A path typed on the command line. `npm run` executes from the package root, so a

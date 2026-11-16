@@ -88,6 +88,10 @@ describe('cacheRoot', () => {
     expect(cacheRoot(repo, { env: { ART_CACHE: '/abs/env' } })).toBe('/abs/env');
     expect(cacheRoot(repo, { env: {} })).toBe(resolve(repo, '.art-cache'));
   });
+
+  it('treats an empty ART_CACHE as unset, never the repo root', () => {
+    expect(cacheRoot(repo, { env: { ART_CACHE: '' } })).toBe(resolve(repo, '.art-cache'));
+  });
 });
 
 describe('candidateDir', () => {
