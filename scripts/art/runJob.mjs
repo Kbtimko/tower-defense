@@ -180,8 +180,10 @@ export async function runJob({
       if (!initB64) { log(`  ERROR: no init image for ${asset.assetId} (neither reference nor shipped sheet); skipping`); failed += plan.length; continue; }
     }
 
+    // Logged whole once the candidate finishes: progress must go through `log` so
+    // callers (and tests) can capture it.
     for (const c of plan) {
-      process.stdout.write(`  #${c.index} (seed ${c.seed}) ... `);
+      const line = `  #${c.index} (seed ${c.seed}) ... `;
       const pngPath = join(dir, `${c.index}.png`);
       try {
         if (fake) {
@@ -193,7 +195,6 @@ export async function runJob({
             res = await post(usePort, '/sdapi/v1/img2img',
               img2imgBody({ prompt: asset.prompt, seed: c.seed, initB64, strength: asset.strength ?? 0.45 }));
             if (!res.ok) {
-              console.log('');
               log(`  img2img unsupported (HTTP ${res.status}), falling back to txt2img`);
               assetMode = 'txt2img';
             }
@@ -201,9 +202,9 @@ export async function runJob({
           if (assetMode === 'txt2img') {
             res = await post(usePort, '/sdapi/v1/txt2img', txt2imgBody({ prompt: asset.prompt, seed: c.seed }));
           }
-          if (!res.ok) { console.log(`FAILED (HTTP ${res.status})`); failed++; continue; }
+          if (!res.ok) { log(`${line}FAILED (HTTP ${res.status})`); failed++; continue; }
           const b64 = res.json?.images?.[0] ?? res.json?.image;
-          if (!b64) { console.log('FAILED (no image in response)'); failed++; continue; }
+          if (!b64) { log(`${line}FAILED (no image in response)`); failed++; continue; }
           writeFileSync(pngPath, Buffer.from(b64.replace(/^data:image\/\w+;base64,/, ''), 'base64'));
         }
         // json last: a png without it is an interrupted write and gets redone.
@@ -211,10 +212,10 @@ export async function runJob({
           index: c.index, round: c.round, seed: c.seed, mode: assetMode,
           prompt: asset.prompt, createdAt: new Date().toISOString(),
         }, null, 2));
-        console.log('ok');
+        log(`${line}ok`);
         generated++;
       } catch (err) {
-        console.log(`FAILED (${err.message})`);
+        log(`${line}FAILED (${err.message})`);
         failed++;
       }
     }

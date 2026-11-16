@@ -118,6 +118,10 @@ describe('runJob against a stub server', () => {
     txt2imgStatus = 200;
     expect(code).toBe(1);
     expect(logs.some(l => l.includes('3 generated, 3 failed'))).toBe(true);   // variant (img2img) ok, cannon (txt2img) fails
+    // Per-candidate progress goes through the injected log, one whole line each.
+    expect(logs.filter(l => l.includes('FAILED'))).toEqual(
+      [0, 1, 2].map(i => `  #${i} (seed ${77021 + i}) ... FAILED (HTTP 500)`));
+    expect(logs.filter(l => l.endsWith('... ok'))).toHaveLength(3);
     rmSync(root, { recursive: true, force: true });
   });
 });
