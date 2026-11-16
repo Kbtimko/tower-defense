@@ -36,7 +36,9 @@ body{margin:0}
 .rv .c.flipped img{transform:scaleX(-1)}
 .rv .pad{position:relative;margin:6px auto 4px;border-radius:4px;overflow:hidden;background-position:center;
   display:flex;align-items:center;justify-content:center}
-.rv .pad img{display:block;image-rendering:auto}
+.rv .pad img{display:block;image-rendering:auto;position:relative}
+.rv .pad .ell{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);border-radius:50%;
+  background:rgba(30,40,60,.85);border:1px solid #5a6a8a;box-sizing:border-box}
 .rv .c .flip{font-size:11px;padding:1px 8px}
 .rv .warn{color:var(--warn);font-size:11px;margin:2px 0}
 .rv .none,.rv .empty{color:var(--mut);font-style:italic}
@@ -49,7 +51,7 @@ function renderCurrent(current) {
   const fw = current.frameWidth, fh = current.frameHeight;
   const k = Math.min(1, 80 / Math.max(fw, fh));
   return `<div class="cur">now<div class="frame" style="width:${Math.round(fw * k)}px;height:${Math.round(fh * k)}px">`
-    + `<div style="width:${fw}px;height:${fh}px;transform:scale(${k});background-image:url('${escapeHtml(current.url)}')"></div></div></div>`;
+    + `<div style="width:${fw}px;height:${fh}px;transform:scale(${k});background-image:url(&quot;${escapeHtml(current.url)}&quot;)"></div></div></div>`;
 }
 
 function renderTile(row, c, padUrl) {
@@ -63,7 +65,8 @@ function renderTile(row, c, padUrl) {
   if (isSprite && c.previewUrl) {
     const sw = Math.max(96, width + 32), sh = height + 20;
     body = `<img class="big" src="${escapeHtml(big)}" alt="">`
-      + `<div class="pad" style="width:${sw}px;height:${sh}px;background-image:url('${escapeHtml(padUrl)}')">`
+      + `<div class="pad" style="width:${sw}px;height:${sh}px;background-image:url(&quot;${escapeHtml(padUrl)}&quot;)">`
+      + `<div class="ell" style="width:${Math.round(width * 0.6)}px;height:${Math.max(6, Math.round(width * 0.16))}px"></div>`
       + `<img class="game" src="${escapeHtml(c.previewUrl)}" width="${width}" height="${height}" alt=""></div>`;
   } else if (isSprite) {
     warnings.push('no game-size preview');
@@ -97,11 +100,23 @@ const SCRIPT = `
   var state = { picks: {}, flip: {}, reroll: {}, light: false };
   try {
     var saved = JSON.parse(localStorage.getItem(key) || 'null');
-    if (saved && typeof saved === 'object') {
-      state.picks = saved.picks || {}; state.flip = saved.flip || {};
-      state.reroll = saved.reroll || {}; state.light = !!saved.light;
+    var plain = function (o) { return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; };
+    if (plain(saved) === saved) {
+      state.picks = plain(saved.picks); state.flip = plain(saved.flip);
+      state.reroll = plain(saved.reroll); state.light = !!saved.light;
     }
   } catch (e) {}
+  // The job may have changed since this was saved: drop state with no row or tile.
+  (function prune() {
+    var has = function (sel) { return !!document.querySelector(sel); };
+    var q = function (id, idx) { return '.row[data-asset="' + id.replace(/["\\\\]/g, '\\\\$&') + '"]' + (idx === undefined ? '' : ' .c[data-index="' + idx + '"]'); };
+    Object.keys(state.picks).forEach(function (id) { if (!has(q(id, state.picks[id]))) delete state.picks[id]; });
+    Object.keys(state.reroll).forEach(function (id) { if (!has(q(id))) delete state.reroll[id]; });
+    Object.keys(state.flip).forEach(function (k) {
+      var cut = k.lastIndexOf('/');
+      if (cut < 0 || !has(q(k.slice(0, cut), k.slice(cut + 1)))) delete state.flip[k];
+    });
+  })();
   function save() { try { localStorage.setItem(key, JSON.stringify(state)); } catch (e) {} }
   function render() {
     var rows = document.querySelectorAll('.row'), n = 0, r = 0;

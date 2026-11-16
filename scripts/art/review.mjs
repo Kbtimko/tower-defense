@@ -49,6 +49,12 @@ function rowMode(metas) {
   return modes.size === 0 ? '' : modes.size === 1 ? [...modes][0] : 'mixed';
 }
 
+// Relative URL for the page: percent-encode each segment so spaces, #, ? and %
+// in the cache path cannot break src/url().
+export function pageUrl(fromDir, abs) {
+  return relative(fromDir, abs).split(sep).map(encodeURIComponent).join('/');
+}
+
 export async function buildReview({ repoRoot, batch, cache }) {
   const jobPath = join(repoRoot, 'scripts/art/jobs', `${batch}.json`);
   if (!existsSync(jobPath)) throw new Error(`No job file at ${jobPath}`);
@@ -59,7 +65,7 @@ export async function buildReview({ repoRoot, batch, cache }) {
   const cacheDir = cacheRoot(repoRoot, { cache, env: process.env });
   const outDir = join(cacheDir, 'review', job.batch);
   mkdirSync(outDir, { recursive: true });
-  const url = (abs) => relative(outDir, abs).split(sep).join('/');
+  const url = (abs) => pageUrl(outDir, abs);
 
   await sharp(join(repoRoot, BACKDROP))
     .extract({ left: 0, top: 0, ...PAD_SIZE }).jpeg({ quality: 85 })

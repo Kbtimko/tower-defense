@@ -118,4 +118,23 @@ describe('review page script', () => {
     p.click('[data-asset="tower_cannon"] .c[data-index="3"]');
     expect(await p.download()).toMatchObject({ picks: { tower_cannon: 3 } });
   });
+  it('prunes saved state for removed assets and missing candidates, and malformed shapes', async () => {
+    const seeded = JSON.stringify({
+      picks: { tower_cannon: 9, gone_asset: 1, tower_mage: 4 }, reroll: { gone_asset: true, tower_mage: true },
+      flip: { 'tower_cannon/9': true, 'gone_asset/1': true, 'tower_cannon/1': true },
+    });
+    const store = { 'art-review:b<1>': seeded };
+    const p = load({ storage: () => ({ getItem: (k) => store[k] ?? null, setItem: () => {} }) });
+    const out = await p.download();
+    expect(out).toEqual({ batch: 'b<1>', picks: {}, flip: [], reroll: ['tower_mage'] });
+    expect(p.w.document.getElementById('count').textContent).toContain('0 / 3 picked');
+    store['art-review:b<1>'] = JSON.stringify({ picks: [1, 2], reroll: 'x', flip: 5 });
+    const q = load({ storage: () => ({ getItem: (k) => store[k] ?? null, setItem: () => {} }) });
+    expect(await q.download()).toEqual({ batch: 'b<1>', picks: {}, flip: [], reroll: [] });
+  });
+  it('draws a pad ellipse under the sprite and quotes url()', () => {
+    const t = doc().querySelector('[data-asset="tower_cannon"] .c[data-index="1"] .pad');
+    expect(t.querySelector('.ell')).not.toBeNull();
+    expect(t.getAttribute('style')).toContain('url("pad.jpg")');
+  });
 });
