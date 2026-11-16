@@ -36,7 +36,8 @@ function makeRepo(init) {
   mkdirSync(join(tmp, 'scripts/art/jobs'), { recursive: true });
   for (const d of ['sprites', 'overworld', 'portraits']) mkdirSync(join(tmp, 'public/assets', d), { recursive: true });
   let md = readFileSync(join(cwd, 'public/assets/sprites/PROMPTS.md'), 'utf8');
-  md = md.replace(/^(- \*\*cannon\*\* .*)$/m, '$1\n- **archer.t4a** — `#8B4513`: `upgraded ballista with twin bows`');
+  // The real file carries an archer.t4a bullet; swap in a known prompt the assertions can match.
+  md = md.replace(/^- \*\*archer\.t4a\*\*.*$/m, '- **archer.t4a** — `#8B4513`: `upgraded ballista with twin bows`');
   writeFileSync(join(tmp, 'public/assets/sprites/PROMPTS.md'), md);
   for (const d of ['overworld', 'portraits']) {
     copyFileSync(join(cwd, `public/assets/${d}/PROMPTS.md`), join(tmp, `public/assets/${d}/PROMPTS.md`));

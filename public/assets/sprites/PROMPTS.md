@@ -72,6 +72,16 @@ extra limbs, deformed, side view, front portrait view
      frame. Use a looping state for any single-frame art.
    - The texture key is derived as `sprite-<category>-<type>-<state>` — never set it.
 
+### Tier variants
+
+A tier-variant prompt is a bullet named `<type>.<variant>` (e.g. `archer.t4a`) in
+the Towers section below. A job lists it as `{ "kind": "sprite", "entity":
+"tower_archer", "variant": "t4a" }`; add `"init": "base"` (and optionally a
+`strength`, default 0.45) to generate it img2img from the base tower's reference
+so it reads as an upgrade of the same emplacement. `npm run art:apply` builds
+the variant sheets and writes the declaration to `src/data/spriteVariants.js`.
+See `scripts/art/README.md`.
+
 ## Texture-key / state conventions
 
 - Categories: `enemy`, `tower`, `hero`, `soldier`, `sentry`.
@@ -207,6 +217,7 @@ Towers are static emplacements viewed top-down 3/4 — author the muzzle/busines
 end facing right.
 
 - **archer** — `#8B4513` brown: `automated crossbow ballista turret emplacement, tall upright swivel mount, dark weathered iron and deep brown wood, taut bowstring, high contrast against pale ground, compact dark base disc`
+- **archer.t4a** — `#8B4513` brown: `automated heavy crossbow ballista turret emplacement, tall upright swivel mount, dark weathered iron with glowing amber runes along the bow arms, twin reinforced bowstrings, high contrast against pale ground, compact dark base disc` (first draft for roadmap 4.2: the smoke batch uses it to prove the variant pipeline; refine it when real tier-4 art is made)
 - **mage** — `#6a0dad` purple: `arcane energy spire turret, floating violet crystal orb, glowing runic rings, purple magic emissive, metal base disc`
 - **cannon** — `#666666` grey: `heavy artillery cannon turret, stubby thick grey barrel, riveted armor plating, recoil mount, base disc`
 - **ice** — `#4a8fa8` teal: `cryo frost turret, glowing teal ice-crystal emitter, frosted condenser coils, pale-blue vapor, base disc`

@@ -288,7 +288,8 @@ describe('parseSpritePrompts entity-id agreement', () => {
 
   it('covers every hero, tower and enemy exactly once', () => {
     const md = readFileSync('public/assets/sprites/PROMPTS.md', 'utf8');
-    const got = parseSpritePrompts(md).map(p => `${p.category}/${p.type}`);
+    // Variant bullets (archer.t4a) share their base's type, so only base bullets count here.
+    const got = parseSpritePrompts(md).filter(p => !p.variant).map(p => `${p.category}/${p.type}`);
     expect(new Set(got).size).toBe(got.length);            // no duplicates
     for (const t of Object.keys(TOWER_DEFS)) expect(got).toContain(`tower/${t}`);
     for (const h of Object.keys(HEROES))     expect(got).toContain(`hero/${h}`);
@@ -386,8 +387,10 @@ describe('parseSpritePrompts variants', () => {
   });
 
   it('leaves base bullets without a variant field', () => {
-    const out = parseSpritePrompts(spriteMd);
-    expect(out.length).toBeGreaterThan(0);
-    for (const p of out) expect(p.variant, `${p.category}/${p.type}`).toBeUndefined();
+    // The real file now carries archer.t4a; check the base bullets by dropping variants first.
+    const bases = parseSpritePrompts(spriteMd.replace(/^- \*\*\w+\.t\d\w*\*\*.*$/gm, ''));
+    expect(bases.length).toBeGreaterThan(0);
+    for (const p of bases) expect(p.variant, `${p.category}/${p.type}`).toBeUndefined();
+    expect(parseSpritePrompts(spriteMd).filter(p => p.variant).map(p => `${p.type}.${p.variant}`)).toEqual(['archer.t4a']);
   });
 });
