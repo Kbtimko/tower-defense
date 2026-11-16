@@ -131,8 +131,10 @@ describe('resolveJob', () => {
       'strength must be 0-1'));
   it('rejects init on a base sprite', () =>
     fails(job([spr('tower_cannon', { init: 'x.png' })]), 'init needs a variant'));
-  it('rejects cell on a variant', () =>
-    fails(job([spr('tower_archer', { variant: 't4a', cell: 96 })]), 'a variant uses its base cell'));
+  it('rejects cell on a base sprite and on a variant', () => {
+    fails(job([spr('tower_cannon', { cell: 80 })]), 'tower_cannon: cell overrides are not supported yet');
+    fails(job([spr('tower_archer', { variant: 't4a', cell: 96 })]), 'tower_archer.t4a: cell overrides are not supported yet');
+  });
   it('rejects empty assets', () => fails(job([]), 'no assets'));
 
   it('collects every error, not just the first', () => {

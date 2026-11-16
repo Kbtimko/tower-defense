@@ -34,11 +34,12 @@ function currentArt(repoRoot, asset) {
   return { path: join(repoRoot, req.path), frameWidth: req.expected.width, frameHeight: req.expected.height };
 }
 
-// Sprites show at what the game draws: cell x scale (a variant uses its base entry).
+// Sprites show at what the game draws: the manifest cell x scale (a variant uses
+// its base entry).
 export function displaySize(asset, fallback = { width: 64, height: 64 }) {
   if (asset.kind !== 'sprite') return FIXED_DISPLAY[asset.kind];
   const { cfg, state } = spriteState(asset);
-  const cell = asset.cell ?? state?.frameWidth;
+  const cell = state?.frameWidth;
   if (!cell || !cfg) return fallback;
   const size = Math.round(cell * (cfg.scale ?? 1));
   return { width: size, height: size };

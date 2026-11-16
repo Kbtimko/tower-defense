@@ -59,7 +59,6 @@ function spriteSteps(asset, { raw, cache, batch, timestamp, refExists, facing, f
   if (variant) steps.push({ op: 'writeVariant', key, variant, def: { states: variantStates(entry, variant) } });
 
   const build = ['python3', 'scripts/build-sprite-sheets.py', assetId, '--ref-dir', refDir];
-  if (asset.cell !== undefined) build.push('--cell', String(asset.cell));
   if (asset.keepDebris) build.push('--keep-debris');
   steps.push({ op: 'run', cmd: build });
   steps.push({ op: 'run', cmd: ['python3', 'scripts/art/normalize.py', '--only',

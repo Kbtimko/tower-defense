@@ -43,10 +43,12 @@ function resolveSprite(a, sources, facing, fail) {
       fail(`${assetId}: variants are towers-only`);
       variantOk = false;
     }
-    if (a.cell !== undefined) fail(`${assetId}: a variant uses its base cell`);
   } else if (a.init !== undefined) {
     fail(`${assetId}: init needs a variant`);
   }
+  // build-sprite-sheets.py would honour it, but sprites.js frameWidth/scale would
+  // not follow, so the game would slice the new sheet with the old cell.
+  if (a.cell !== undefined) fail(`${assetId}: cell overrides are not supported yet`);
   if (a.strength !== undefined && !inRange(a.strength, 0, 1)) {
     fail(`${assetId}: strength must be 0-1`);
   }
@@ -62,7 +64,7 @@ function resolveSprite(a, sources, facing, fail) {
     prompt: entry ? buildPrompt(sources.sprite.style, entry.subject) : null,
   };
   if (variant !== undefined) out.variant = variant;
-  for (const k of ['cell', 'init', 'strength']) if (a[k] !== undefined) out[k] = a[k];
+  for (const k of ['init', 'strength']) if (a[k] !== undefined) out[k] = a[k];
   return out;
 }
 

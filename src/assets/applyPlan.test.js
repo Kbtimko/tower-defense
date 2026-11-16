@@ -56,9 +56,10 @@ describe('planApply', () => {
     expect(steps.some(s => s.op === 'backup')).toBe(false);
   });
 
-  it('passes the job cell and keepDebris to the build', () => {
+  it('passes keepDebris to the build, and never a cell (the manifest owns it)', () => {
     const steps = plan({ assets: [{ ...cannon, cell: 80, keepDebris: true }], picks: { tower_cannon: 0 } });
-    expect(steps).toContainEqual(build('tower_cannon', '--cell', '80', '--keep-debris'));
+    expect(steps).toContainEqual(build('tower_cannon', '--keep-debris'));
+    expect(steps.flatMap(s => s.cmd ?? [])).not.toContain('--cell');
   });
 
   it('variant: copy to <entity>.<variant>.png, declare it, build, normalize, ground', () => {
