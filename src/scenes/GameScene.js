@@ -974,10 +974,12 @@ export default class GameScene extends Phaser.Scene {
       // Deadzoned: tight bends backtrack far enough in x to read as a real
       // leftward delta and would mirror the sprite mid-stride (see facing.js).
       enemy._sprite?.setFacing(facingDirX(path[aheadIdx].x - enemy.x));
-      if (enemy.waypointIndex >= path.length - 1) {
+      // A tower-killed corpse finishing the path the same frame is a kill, not a
+      // leak: it keeps its death FX and costs no life (the simulator sweeps its
+      // dead before moving, so it never charged one either).
+      if (!enemy.dead && enemy.waypointIndex >= path.length - 1) {
         // Death FX must not play for an enemy that reached the base.
-        // A tower-killed corpse finishing the path the same frame keeps its FX.
-        if (!enemy.dead) enemy.leaked = true;
+        enemy.leaked = true;
         enemy.dead = true;
         const am = this.game.registry.get('audio');
         if (am) am.playSfx('life-lost');

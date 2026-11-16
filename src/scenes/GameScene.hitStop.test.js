@@ -186,7 +186,31 @@ describe('GameScene leak marking', () => {
     const s = sceneWith([e]);
     s._updateEnemies(0.016);
     expect(e.leaked).toBeUndefined();
-    expect(s.economy.loseLife).toHaveBeenCalledOnce(); // pre-existing behaviour, deliberately unchanged
+  });
+
+  it('does not cost a life, play the life-lost sound or pulse the HUD for a corpse at the end', () => {
+    // Backlog #38: the player already got the kill; the simulator sweeps its
+    // dead before moving, so it never charged this life either.
+    const e = walker({ dead: true });
+    const s = sceneWith([e]);
+    const audio = { playSfx: vi.fn(), setCombatActive: vi.fn() };
+    s.game.registry.get = (k) => (k === 'audio' ? audio : undefined);
+    s._pulseLifeLost = vi.fn();
+    s._updateEnemies(0.016);
+    expect(s.economy.loseLife).not.toHaveBeenCalled();
+    expect(audio.playSfx).not.toHaveBeenCalledWith('life-lost');
+    expect(s._pulseLifeLost).not.toHaveBeenCalled();
+    expect(s.enemies).toEqual([]); // still swept with the other dead
+  });
+
+  it('charges one life when a live enemy and a corpse reach the end together', () => {
+    const live = walker({});
+    const corpse = walker({ dead: true });
+    const s = sceneWith([corpse, live]);
+    s._updateEnemies(0.016);
+    expect(s.economy.loseLife).toHaveBeenCalledOnce();
+    expect(live.leaked).toBe(true);
+    expect(corpse.leaked).toBeUndefined();
   });
 
   it('pulses the lives HUD and the game frame when a life is lost', () => {
