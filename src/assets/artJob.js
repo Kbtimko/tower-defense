@@ -8,7 +8,13 @@ import {
 export const VARIANT_KEYS = ['t2', 't3', 't4a', 't4b'];
 
 const DEFAULT_CANDIDATES = 8;
-const DEFAULT_SEED = 77021;   // matches generate-art.mjs: one seed keeps a set cohesive
+// The shipped reference art came from this seed (generate-art.mjs). FLUX is
+// deterministic, so a v2 job that defaulted to it would regenerate that art as
+// candidate #0 and offer it back as a "new" option. Planned seeds only grow from
+// the job seed (seed + round*1000 + n), so any default above LEGACY_SEED never
+// lands on it. A job can still pin "seed": 77021 to reproduce today's art.
+export const LEGACY_SEED = 77021;
+export const DEFAULT_SEED = 88001;   // one seed per job keeps a set cohesive
 
 export function promptSources({ spriteMd, overworldMd, portraitMd }) {
   return {

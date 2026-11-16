@@ -24,6 +24,7 @@ import {
 } from '../src/assets/promptParser.js';
 import { requiredAssets } from '../src/assets/assetManifest.js';
 import { FLUX } from '../src/assets/drawThingsRequest.js';
+import { LEGACY_SEED } from '../src/assets/artJob.js';
 import { candidatePorts, discoverPort, noServerHelp } from './art/drawThings.mjs';
 
 const argv = process.argv.slice(2);
@@ -59,7 +60,7 @@ const endpoint = value('endpoint', '/sdapi/v1/txt2img');
 const explicitPort = Number(value('port')) || null;
 const CANDIDATE_PORTS = candidatePorts(explicitPort);
 
-const SEED = Number(value('seed', '77021'));   // one locked seed keeps the set cohesive
+const SEED = Number(value('seed', String(LEGACY_SEED)));   // one locked seed keeps the set cohesive
 
 // ── Assemble the job list ──────────────────────────────────────────────────
 const assets = requiredAssets();
