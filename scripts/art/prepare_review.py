@@ -82,6 +82,8 @@ def prepare(cache, batch, job_path=None, src_root=None):
             continue
         mirror = a['mirror'] if 'mirror' in a else _bs.mirror_for(asset_id, facing)
         params = _base_params(entry, src_root) if variant else None
+        if variant and params is None:
+            print(f'! {asset_id}: base art missing, previewing with its own tone')
         for i in _candidate_indexes(adir):
             cut_p, prev_p = adir / f'{i}.cut.png', adir / f'{i}.preview.png'
             if cut_p.exists() and prev_p.exists():

@@ -83,6 +83,36 @@ class PrepareReview(unittest.TestCase):
         with mock.patch.object(pr, 'prepare', return_value=1):
             self.assertEqual(pr.main(['--cache', str(self.cache), '--batch', 't']), 1)
 
+    def _with_archer(self, **extra):
+        d = self.cache / 'candidates' / 't' / 'tower_archer.t4a'
+        d.mkdir(parents=True)
+        Image.new('RGB', (32, 32)).save(d / '0.png')
+        (d / '0.json').write_text('{}')
+        return d
+
+    def test_tone_params_variant_gets_base_base_gets_own(self):
+        self._with_archer()
+        with mock.patch.object(pr.nz, 'preview_frame', wraps=pr.nz.preview_frame) as spy:
+            self.run_prep()
+        by_type = {c.args[1]['type']: c.kwargs.get('tone_params') for c in spy.call_args_list}
+        self.assertIsNone(by_type['cannon'])
+        self.assertIsNotNone(by_type['archer'])
+
+    def test_keep_debris_maps_to_keep_largest(self):
+        for debris, expected in ((False, True), (True, False)):
+            with self.subTest(keepDebris=debris):
+                for f in self.dir.glob('*.cut.png'):
+                    f.unlink()
+                for f in self.dir.glob('*.preview.png'):
+                    f.unlink()
+                job = json.loads(self.job.read_text())
+                job['assets'][0]['keepDebris'] = debris
+                self.job.write_text(json.dumps(job))
+                _, m = self.run_prep()
+                self.assertTrue(m.call_args_list)
+                for c in m.call_args_list:
+                    self.assertIs(c.kwargs['keep_largest'], expected)
+
 
 if __name__ == '__main__':
     unittest.main()
