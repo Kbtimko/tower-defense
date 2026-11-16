@@ -77,7 +77,9 @@ export async function buildReview({ repoRoot, batch, cache }) {
     const { names, metas } = readMetas(dir, () => {});
     const candidates = readExisting(names, metas).map((e) => {
       const c = { index: e.index, rawUrl: url(join(dir, `${e.index}.png`)) };
-      if (e.hasCut) c.cutUrl = url(join(dir, `${e.index}.cut.png`));
+      // Without its cut.json apply cannot tell which mirror the cutout was drawn
+      // with, so such a tile is treated as uncut (raw, no Flip).
+      if (e.hasCut && names.includes(`${e.index}.cut.json`)) c.cutUrl = url(join(dir, `${e.index}.cut.png`));
       if (e.hasPreview) c.previewUrl = url(join(dir, `${e.index}.preview.png`));
       return c;
     });
@@ -86,6 +88,7 @@ export async function buildReview({ repoRoot, batch, cache }) {
       assetId: asset.assetId, kind: asset.kind, label: asset.assetId, mode: rowMode(metas),
       current: cur && { url: url(cur.path), frameWidth: cur.frameWidth, frameHeight: cur.frameHeight },
       display: displaySize(asset), candidates,
+      ...(asset.kind === 'sprite' && { mirror: asset.mirror }),
     };
   });
 

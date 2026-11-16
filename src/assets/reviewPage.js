@@ -33,7 +33,7 @@ body{margin:0}
 .rv .c.on{border-color:var(--gold);box-shadow:0 0 0 2px rgba(240,192,96,.25)}
 .rv .c.on::after{content:'\\2605';position:absolute;top:0;right:5px;color:var(--gold)}
 .rv .c img.big{display:block;margin:10px auto 0;width:160px;height:160px;object-fit:contain}
-.rv .c.flipped img{transform:scaleX(-1)}
+.rv .c.flipped img,.rv .c img.mirrored{transform:scaleX(-1)}
 .rv .pad{position:relative;margin:6px auto 4px;border-radius:4px;overflow:hidden;background-position:center;
   display:flex;align-items:center;justify-content:center}
 .rv .pad img{display:block;image-rendering:auto;position:relative}
@@ -54,29 +54,35 @@ function renderCurrent(current) {
     + `<div style="width:${fw}px;height:${fh}px;transform:scale(${k});background-image:url(&quot;${escapeHtml(current.url)}&quot;)"></div></div></div>`;
 }
 
+// A cutout tile is drawn as prepare_review.py mirrored it (recorded in cut.json),
+// and Flip is relative to that. With no cutout there is nothing for a Flip to be
+// relative to, so the raw render is shown with the row's mirror (what apply will
+// install) and offers no Flip.
 function renderTile(row, c, padUrl) {
   const isSprite = row.kind === 'sprite';
+  const raw = isSprite && !c.cutUrl;
   const big = c.cutUrl ?? c.rawUrl;
   const warnings = [];
   if (c.warning) warnings.push(c.warning);
-  else if (isSprite && !c.cutUrl) warnings.push('no cutout: showing the raw render');
+  else if (raw) warnings.push('no cutout: raw render, facing as it will install (Flip needs the cutout)');
+  const bigImg = `<img class="big${raw && row.mirror ? ' mirrored' : ''}" src="${escapeHtml(big)}" alt="">`;
   const { width, height } = row.display;
   let body;
   if (isSprite && c.previewUrl) {
     const sw = Math.max(96, width + 32), sh = height + 20;
-    body = `<img class="big" src="${escapeHtml(big)}" alt="">`
+    body = bigImg
       + `<div class="pad" style="width:${sw}px;height:${sh}px;background-image:url(&quot;${escapeHtml(padUrl)}&quot;)">`
       + `<div class="ell" style="width:${Math.round(width * 0.6)}px;height:${Math.max(6, Math.round(width * 0.16))}px"></div>`
       + `<img class="game" src="${escapeHtml(c.previewUrl)}" width="${width}" height="${height}" alt=""></div>`;
   } else if (isSprite) {
     warnings.push('no game-size preview');
-    body = `<img class="big" src="${escapeHtml(big)}" alt="">`;
+    body = bigImg;
   } else {
     body = `<img class="big" src="${escapeHtml(big)}" width="${width}" height="${height}" `
       + `style="width:${width}px;height:${height}px" alt="">`;
   }
   const warn = warnings.map((w) => `<div class="warn">${escapeHtml(w)}</div>`).join('');
-  const flip = isSprite ? '<button type="button" class="btn flip">Flip</button>' : '';
+  const flip = isSprite && !raw ? '<button type="button" class="btn flip">Flip</button>' : '';
   return `<div class="c" data-index="${c.index}"><span class="n">${c.index}</span>${body}${warn}${flip}</div>`;
 }
 
@@ -112,9 +118,10 @@ const SCRIPT = `
     var q = function (id, idx) { return '.row[data-asset="' + id.replace(/["\\\\]/g, '\\\\$&') + '"]' + (idx === undefined ? '' : ' .c[data-index="' + idx + '"]'); };
     Object.keys(state.picks).forEach(function (id) { if (!has(q(id, state.picks[id]))) delete state.picks[id]; });
     Object.keys(state.reroll).forEach(function (id) { if (!has(q(id))) delete state.reroll[id]; });
+    // A tile that lost its Flip control (no cutout now) cannot be un-flipped.
     Object.keys(state.flip).forEach(function (k) {
       var cut = k.lastIndexOf('/');
-      if (cut < 0 || !has(q(k.slice(0, cut), k.slice(cut + 1)))) delete state.flip[k];
+      if (cut < 0 || !has(q(k.slice(0, cut), k.slice(cut + 1)) + ' .flip')) delete state.flip[k];
     });
   })();
   function save() { try { localStorage.setItem(key, JSON.stringify(state)); } catch (e) {} }

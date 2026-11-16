@@ -4,7 +4,7 @@ import { JSDOM } from 'jsdom';
 import { renderReviewPage } from './reviewPage.js';
 
 const sprite = (assetId, cands, extra = {}) => ({
-  assetId, kind: 'sprite', label: assetId, mode: 'fake',
+  assetId, kind: 'sprite', label: assetId, mode: 'fake', mirror: true,
   current: { url: `../x/${assetId}.png`, frameWidth: 64, frameHeight: 64 },
   display: { width: 55, height: 55 }, candidates: cands, ...extra,
 });
@@ -53,6 +53,23 @@ describe('renderReviewPage markup', () => {
     const t = doc().querySelector('[data-asset="tower_cannon"] .c[data-index="3"]');
     expect(t.querySelector('img.big').getAttribute('src')).toBe('r3.png');
     expect(t.querySelector('.warn').textContent).toMatch(/cutout/);
+  });
+  it('an uncut tile shows the raw render with the row mirror and offers no Flip', () => {
+    const t = doc().querySelector('[data-asset="tower_cannon"] .c[data-index="3"]');
+    expect(t.querySelector('img.big').classList.contains('mirrored')).toBe(true);
+    expect(t.querySelector('.flip')).toBeNull();
+    // Cut tiles were mirrored by prepare_review.py already: no CSS mirror, and a Flip.
+    const cut = doc().querySelector('[data-asset="tower_cannon"] .c[data-index="1"]');
+    expect(cut.querySelector('img.big').classList.contains('mirrored')).toBe(false);
+    expect(cut.querySelector('.flip')).not.toBeNull();
+    const h = renderReviewPage({ job: { batch: 'b' }, padUrl: 'p',
+      rows: [sprite('tower_archer', [cand(0, { cutUrl: undefined })], { mirror: false })] });
+    const raw = new JSDOM(h).window.document.querySelector('.c[data-index="0"]');
+    expect(raw.querySelector('img.big').classList.contains('mirrored')).toBe(false);
+    expect(raw.querySelector('.flip')).toBeNull();
+  });
+  it('mirrors via CSS scaleX(-1)', () => {
+    expect(html()).toMatch(/\.rv \.c img\.mirrored\{transform:scaleX\(-1\)\}/);
   });
   it('zero candidates says no candidates yet; no current says none yet', () => {
     const r = doc().querySelector('[data-asset="tower_mage"]');
@@ -127,6 +144,10 @@ describe('review page script', () => {
     const p = load({ storage: () => ({ getItem: (k) => store[k] ?? null, setItem: () => {} }) });
     const out = await p.download();
     expect(out).toEqual({ batch: 'b<1>', picks: {}, flip: [], reroll: ['tower_mage'] });
+    // A saved flip on a tile that now has no Flip control (no cutout) is dropped too.
+    store['art-review:b<1>'] = JSON.stringify({ picks: { tower_cannon: 3 }, flip: { 'tower_cannon/3': true } });
+    const r = load({ storage: () => ({ getItem: (k) => store[k] ?? null, setItem: () => {} }) });
+    expect(await r.download()).toEqual({ batch: 'b<1>', picks: { tower_cannon: 3 }, flip: [], reroll: [] });
     expect(p.w.document.getElementById('count').textContent).toContain('0 / 3 picked');
     store['art-review:b<1>'] = JSON.stringify({ picks: [1, 2], reroll: 'x', flip: 5 });
     const q = load({ storage: () => ({ getItem: (k) => store[k] ?? null, setItem: () => {} }) });
