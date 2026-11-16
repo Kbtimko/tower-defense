@@ -261,17 +261,23 @@ def build_death(ref, out_path, tint, cell=64, frames=6, seed=7, ease=2.4,
     return sheet
 
 
+def static_cell(ref, cell):
+    """The centred, fitted first frame. Split out so normalize.py's
+    preview shows exactly what the real sheet's frame would be."""
+    big = cell * SS
+    ref = _fit(ref, big)
+    cellim = Image.new('RGBA', (big, big), (0, 0, 0, 0))
+    cellim.paste(ref, (round((big - ref.width) / 2), round((big - ref.height) / 2)), ref)
+    return cellim.resize((cell, cell), Image.LANCZOS)
+
+
 def build_idle_static(ref, out_path, cell=64):
     """A single centred cell. Towers are emplacements and do not breathe.
 
     `frames: 1` is handled by EntitySprite.setState via setTexture rather than
     an animation, and a static state is a legal default to revert to after a
     one-shot — only a single-frame ONE-SHOT is broken (no animationcomplete)."""
-    big = cell * SS
-    ref = _fit(ref, big)
-    cellim = Image.new('RGBA', (big, big), (0, 0, 0, 0))
-    cellim.paste(ref, (round((big - ref.width) / 2), round((big - ref.height) / 2)), ref)
-    sheet = cellim.resize((cell, cell), Image.LANCZOS)
+    sheet = static_cell(ref, cell)
     sheet.save(out_path)
     return sheet
 
