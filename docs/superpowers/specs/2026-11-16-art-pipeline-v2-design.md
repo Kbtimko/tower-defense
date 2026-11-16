@@ -85,7 +85,7 @@ The first real consumer is **4.2 (tower tier art)**, which needs per-tier **vari
   "seed": 77021,
   "assets": [
     { "kind": "sprite", "entity": "tower_archer", "variant": "t4a",
-      "mirror": false, "cell": 96, "init": "base", "strength": 0.45 },
+      "mirror": false, "init": "base", "strength": 0.45 },
     { "kind": "sprite", "entity": "tower_cannon" },
     { "kind": "overworld", "id": "overworld_5" }
   ]
@@ -93,7 +93,7 @@ The first real consumer is **4.2 (tower tier art)**, which needs per-tier **vari
 ```
 
 - `assetId` is derived: `tower_archer.t4a`, `tower_cannon`, `overworld_5`. It names folders, review rows and `picks.json` keys.
-- Sprite settings per asset, all optional overrides: `mirror` (default: the entity's entry in the facing table), `cell` (default: the script's `PLAN`/`CELL_OVERRIDES`), `keepDebris` (default `false`).
+- Sprite settings per asset, all optional overrides: `mirror` (default: the entity's entry in the facing table), `keepDebris` (default `false`). A `cell` override is rejected for now (final-review ruling): apply does not rewrite the manifest's `frameWidth`/`scale`, so a different cell would be sliced wrong; cells come from the script's `PLAN`/`CELL_OVERRIDES`.
 - `init: "base"` + `strength` asks for img2img from the entity's base reference (variants only). Omitted → txt2img.
 - A pure validator rejects: unknown kind, an entity/variant with no `PROMPTS.md` entry, an unknown variant key (allowed: `t2`, `t3`, `t4a`, `t4b`), a variant on a non-tower entity, duplicate `assetId`s, `candidates` outside 1–16, `strength` outside 0–1, `init` on a non-variant.
 
@@ -150,14 +150,14 @@ A pure planner turns picks into an ordered list of file operations and commands;
 
 - **sprite, base entity** (`tower_cannon`)
   1. Back up the existing reference to `.art-cache/sprites/backup/<entity>-<timestamp>.png`, then copy the raw pick to `.art-cache/sprites/<entity>.png`.
-  2. `build-sprite-sheets.py <entity> [--no-mirror] [--cell N] [--keep-debris]` from the job settings.
+  2. `build-sprite-sheets.py <entity> [--keep-debris]` from the job settings (facing comes from `scripts/art/facing.json`).
   3. `normalize.py --only <category>/<type>`.
   4. Update the entry's `ground` in `src/data/sprites.js` from normalize's measured values, via a pure text transform that rewrites only that entry's `ground: { footY, width }` line and fails loudly unless it matches exactly once.
 - **sprite, variant** (`tower_archer.t4a`)
   1. Copy the raw pick to `.art-cache/sprites/<entity>.<variant>.png` (backup as above if present).
   2. `build-sprite-sheets.py` builds the base entity's states under variant names: `assets-src/sprites/towers/archer_t4a_idle.png`, `archer_t4a_attack.png`.
   3. `normalize.py` normalises variant sheets too (it currently iterates base states only), **using the base entry's tone parameters**, and prints their `ground`.
-  4. Write/update the variant in **`src/data/spriteVariants.js`**, a generated data module (`export const SPRITE_VARIANTS = { 'tower/archer': { t4a: { ground, states: {...} } } }`) that `sprites.js` merges into the matching `SPRITE_MANIFEST` entries' `variants`. Generated, not hand-edited; header comment says so. `scale`/`anchor` are not written unless the variant's cell differs from the base (then `scale` keeps the base footprint).
+  4. Write/update the variant in **`src/data/spriteVariants.js`**, a generated data module (`export const SPRITE_VARIANTS = { 'tower/archer': { t4a: { ground, states: {...} } } }`) that `sprites.js` merges into the matching `SPRITE_MANIFEST` entries' `variants`. Generated, not hand-edited; header comment says so. `scale`/`anchor` are not written: a variant always shares its base's cell.
 - **overworld / portrait**: resize the raw pick to the asset's expected size (from `requiredAssets()`) into its `public/assets/...` path.
 
 Then: `npm run assets -- --strict` (which, after this task, requires every declared variant's files), then `npm test`; print a summary of files changed and both results. **Apply refuses any pick whose metadata says `mode: fake`** unless `--allow-fake` is passed, and `--allow-fake` is only used by tests against a temp directory.
