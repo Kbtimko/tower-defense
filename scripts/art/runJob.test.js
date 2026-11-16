@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { runJob } from './runJob.mjs';
+import { DEFAULT_SEED } from '../../src/assets/artJob.js';
 
 // Never the real Draw Things: every request goes to a stub on an ephemeral port.
 let server, port, requests, img2imgStatus, txt2imgStatus = 200, tmp, tinyB64;
@@ -69,7 +70,7 @@ describe('runJob against a stub server', () => {
     expect(hits[0].body.init_images).toHaveLength(1);
     expect(hits[0].body.denoising_strength).toBe(0.45);
     expect(hits.slice(1).map(h => h.url)).toEqual(Array(3).fill('/sdapi/v1/txt2img'));
-    expect(hits.slice(1).map(h => h.body.seed)).toEqual([77021, 77022, 77023]);
+    expect(hits.slice(1).map(h => h.body.seed)).toEqual([DEFAULT_SEED, DEFAULT_SEED + 1, DEFAULT_SEED + 2]);
     expect(hits.slice(1).every(h => !('init_images' in h.body))).toBe(true);
 
     expect(metas(root, 'tower_archer.t4a').map(m => m.mode)).toEqual(['txt2img', 'txt2img', 'txt2img']);
@@ -120,7 +121,7 @@ describe('runJob against a stub server', () => {
     expect(logs.some(l => l.includes('3 generated, 3 failed'))).toBe(true);   // variant (img2img) ok, cannon (txt2img) fails
     // Per-candidate progress goes through the injected log, one whole line each.
     expect(logs.filter(l => l.includes('FAILED'))).toEqual(
-      [0, 1, 2].map(i => `  #${i} (seed ${77021 + i}) ... FAILED (HTTP 500)`));
+      [0, 1, 2].map(i => `  #${i} (seed ${DEFAULT_SEED + i}) ... FAILED (HTTP 500)`));
     expect(logs.filter(l => l.endsWith('... ok'))).toHaveLength(3);
     rmSync(root, { recursive: true, force: true });
   });
@@ -152,7 +153,7 @@ describe('runJob --fake / --dry-run / resume / reroll', () => {
     rmSync(join(dir(root, 'tower_cannon'), '2.json'));
     await run(root, { fake: true });
     expect(ls(root, 'tower_cannon')).toEqual(['0.json', '0.png', '1.json', '1.png', '2.json', '2.png']);
-    expect(metas(root, 'tower_cannon').map(m => [m.index, m.round, m.seed])).toEqual([[0, 0, 77021], [1, 0, 77022], [2, 0, 77023]]);
+    expect(metas(root, 'tower_cannon').map(m => [m.index, m.round, m.seed])).toEqual([[0, 0, DEFAULT_SEED], [1, 0, DEFAULT_SEED + 1], [2, 0, DEFAULT_SEED + 2]]);
     expect(readFileSync(join(dir(root, 'tower_cannon'), '0.png')).equals(before)).toBe(true);
     rmSync(root, { recursive: true, force: true });
   });

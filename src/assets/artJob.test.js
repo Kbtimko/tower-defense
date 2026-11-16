@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { buildPrompt } from './promptParser.js';
-import { VARIANT_KEYS, promptSources, resolveJob } from './artJob.js';
+import { VARIANT_KEYS, LEGACY_SEED, DEFAULT_SEED, promptSources, resolveJob } from './artJob.js';
+import { planCandidates } from './candidates.js';
 
 const spriteMd = [
   '## Shared style anchor',
@@ -82,7 +83,7 @@ describe('resolveJob', () => {
       buildPrompt('Painted sci-fi sprite.', 'a heavy crossbow turret with a banner'));
     expect(out.assets[2].prompt).toBe(buildPrompt('A painted overworld icon.', 'a walled outpost'));
     expect(out.assets[3].prompt).toBe(buildPrompt('A painted portrait.', 'a weathered scout'));
-    expect(out).toMatchObject({ batch: 'b', candidates: 8, seed: 77021 });
+    expect(out).toMatchObject({ batch: 'b', candidates: 8, seed: DEFAULT_SEED });
     expect(out.assets[1]).toMatchObject({
       kind: 'sprite', category: 'tower', type: 'archer', variant: 't4a', entity: 'tower_archer',
     });
@@ -102,6 +103,28 @@ describe('resolveJob', () => {
       spr('tower_archer', { variant: 't4a', mirror: true }),
     ]), sources, { facing: { tower_archer: false } });
     expect(out.assets[0].mirror).toBe(true);
+  });
+
+  it('defaults to a seed that never reproduces the legacy references', () => {
+    // Deterministic FLUX + the legacy seed would regenerate today's art as candidate #0.
+    expect(DEFAULT_SEED).toBeGreaterThan(LEGACY_SEED);
+    const existing = [];
+    for (let round = 0; round <= 20; round++) {
+      const plan = planCandidates({ existing, candidates: 16, seed: DEFAULT_SEED, reroll: round > 0 });
+      for (const p of plan) {
+        expect(p.seed).not.toBe(LEGACY_SEED);
+        existing.push({ index: p.index, round: p.round });
+      }
+    }
+    expect(existing).toHaveLength(21 * 16);
+    const { job: out } = resolveJob(job([spr('tower_cannon')]), sources, { facing: {} });
+    expect(out.seed).toBe(DEFAULT_SEED);
+  });
+
+  it('keeps an explicit job seed as written', () => {
+    const { job: out } = resolveJob(job([spr('tower_cannon')], { seed: LEGACY_SEED }),
+      sources, { facing: {} });
+    expect(out.seed).toBe(LEGACY_SEED);
   });
 
   it('defaults keepDebris to false and carries job overrides', () => {
