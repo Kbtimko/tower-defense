@@ -13,16 +13,18 @@ candidate images you review in a browser, then apply. Prompts come from the
    `file://` URL.
 3. Open the page, pick one candidate per asset (flip if the facing is wrong, or
    "None - reroll"), then Download `picks.json`.
-4. `npm run art:apply -- picks.json` installs the picks, rebuilds sheets, runs
-   `npm run assets` and `npm test`. It NEVER commits.
+4. `npm run art:apply -- ~/Downloads/picks.json` (the browser usually saves it
+   there) installs the picks, rebuilds sheets, runs `npm run assets -- --strict`
+   and `npm test`, and prints the files it changed. It NEVER commits.
 5. `npm run build && npm run preview` and look at it in the running game (the
    dev server serves files the production build drops).
 6. Commit what you keep, on a branch, with explicit `git add <paths>`.
 
 ## Flags
 
-- `--fake` makes labelled grey cards with no Draw Things. Apply refuses them
-  unless you pass `--allow-fake` (tests only; never ship them).
+- `--fake` makes stand-ins with no Draw Things: hue-shifted copies of today's
+  art with a FAKE band (a labelled grey card when there is no current art).
+  Apply refuses them unless you pass `--allow-fake` (tests only; never ship them).
 - `--dry-run` prints what would be generated (or, for apply, the step plan).
 - `--reroll reroll.json` regenerates only the assets the page marked, as a new
   round of candidates (old ones are kept).
@@ -52,6 +54,16 @@ wedged Draw Things twice.
   only an explicit pick rebuilds it.
 - Apply restores `src/data/sprites.js`, `spriteVariants.js` and `facing.json` if
   any step fails; copied references and built sheets are left for inspection.
-- To undo a test batch: `git checkout -- public/ assets-src/ src/data/ scripts/art/facing.json`.
+  When `npm test` is the failing check, apply names the failing test files.
+- A failing `src/systems/tierLookPadFit.test.js` after a base-tower pick means the
+  new art changed tower footprints (it pins the accepted overlap sets). Check the
+  overlaps in the game, then update the pinned set in that test deliberately,
+  then re-run apply.
+- To undo a batch:
+  - tracked files: `git restore public/assets/sprites public/assets/overworld public/assets/portraits assets-src/sprites src/data scripts/art/facing.json`;
+  - new variant sheets are untracked: `git clean -n public/assets/sprites assets-src/sprites`,
+    then `git clean -f <each path it printed>`;
+  - a reference apply overwrote is in `<cache>/sprites/backup/<name>-<timestamp>.png`;
+    copy it back to `<cache>/sprites/<name>.png`.
 - Tests: `npm test` (the `--fake` end-to-end is `scripts/art/pipeline.e2e.test.js`)
   and `python3 -m unittest discover -s scripts/art -p 'test_*.py'`.

@@ -45,6 +45,8 @@ export async function executeSteps(steps, {
   const abs = p => resolve(repoRoot, p);
   const log = [];
   const say = (line) => { log.push(line); onLog(line); };
+  // Each check's output, so the caller can report what passed.
+  const checks = [];
 
   const guarded = [spritesPath, variantsPath, facingPath];
   const saved = guarded.map(p => (existsSync(p) ? readFileSync(p) : null));
@@ -100,7 +102,12 @@ export async function executeSteps(steps, {
       writeFileSync(facingPath, renderFacing(facing));
     },
   };
-  handlers.check = handlers.run;
+  handlers.check = async (s) => {
+    say(`running: ${s.cmd.join(' ')} …`);
+    const { code, output } = await runCmd(s.cmd);
+    if (code !== 0) throw new Error(`exit ${code}\n${output}`);
+    checks.push({ cmd: s.cmd, output });
+  };
 
   // Ctrl-C during the long checks would otherwise leave the data files
   // half-applied; the terminal sends it to the child commands too.
@@ -121,10 +128,10 @@ export async function executeSteps(steps, {
       } catch (err) {
         say(`  FAILED: ${err.message}`);
         restore();
-        return { ok: false, failedStep: step, log };
+        return { ok: false, failedStep: step, error: err.message, log };
       }
     }
-    return { ok: true, log };
+    return { ok: true, log, checks };
   } finally {
     signals.off('SIGINT', onInterrupt);
   }

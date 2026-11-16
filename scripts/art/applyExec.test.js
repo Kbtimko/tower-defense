@@ -5,9 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { executeSteps } from './applyExec.mjs';
-import { prepareApply, failureHints } from './apply.mjs';
+import { prepareApply, failureHints, failingTestFiles, appliedSummary } from './apply.mjs';
 import { EventEmitter } from 'node:events';
-import { planApply, parseSpriteVariants } from '../../src/assets/applyPlan.js';
+import { planApply, parseSpriteVariants, renderSpriteVariants, CHECK_STEPS } from '../../src/assets/applyPlan.js';
 import { SPRITE_MANIFEST } from '../../src/data/sprites.js';
 
 const REPO = process.cwd();
@@ -22,7 +22,8 @@ beforeEach(() => {
     facingPath: join(tmp, 'facing.json'),
   };
   copyFileSync(join(REPO, 'src/data/sprites.js'), paths.spritesPath);
-  copyFileSync(join(REPO, 'src/data/spriteVariants.js'), paths.variantsPath);
+  // An empty fixture, not the live file: the live one fills up as variants are applied.
+  writeFileSync(paths.variantsPath, renderSpriteVariants({}));
   copyFileSync(join(REPO, 'scripts/art/facing.json'), paths.facingPath);
 });
 afterEach(() => rmSync(tmp, { recursive: true, force: true }));
@@ -120,8 +121,7 @@ describe('executeSteps', () => {
   });
 
   it('keeps other variant entries when writing one', async () => {
-    writeFileSync(paths.variantsPath, readFileSync(paths.variantsPath, 'utf8').replace('= {};',
-      '= {\n  "tower/mage": {\n    "t2": {\n      "states": {}\n    }\n  }\n};'));
+    writeFileSync(paths.variantsPath, renderSpriteVariants({ 'tower/mage': { t2: { states: {} } } }));
     const steps = planFor([archerT4a], { 'tower_archer.t4a': 0 }).filter(s => s.op === 'writeVariant');
     await executeSteps(steps, { repoRoot: tmp, ...paths, run: stubRun().run });
     expect(Object.keys(parseSpriteVariants(readFileSync(paths.variantsPath, 'utf8')))).toEqual(['tower/archer', 'tower/mage']);
@@ -298,8 +298,28 @@ describe('prepareApply', () => {
   });
 });
 
+// Trimmed from a real `npx vitest run` (non-TTY) after a base-archer ground change.
+const VITEST_FAIL = [
+  ' ❯ src/systems/tierLookPadFit.test.js (3 tests | 2 failed) 21ms',
+  ' ✓ src/data/sprites.test.js (9 tests) 4ms',
+  '\x1b[31m FAIL \x1b[39m src/systems/tierLookPadFit.test.js > tier-look pad fit (R25) > footprint clashes',
+  ' ❯ src/systems/tierLookPadFit.test.js:42:33',
+  ' FAIL  src/systems/tierLookPadFit.test.js > tier-look pad fit (R25) > T4 rings cross',
+  ' FAIL  src/scenes/BootScene.test.js [ src/scenes/BootScene.test.js ]',
+  ' Test Files  2 failed | 22 passed (24)',
+].join('\n');
+
+describe('failingTestFiles', () => {
+  it('lists each failing file once, in order, ignoring colour codes', () => {
+    expect(failingTestFiles(VITEST_FAIL)).toEqual(['src/systems/tierLookPadFit.test.js', 'src/scenes/BootScene.test.js']);
+  });
+  it('finds none in a green run', () => {
+    expect(failingTestFiles(' ✓ a.test.js (1 test)\n Test Files  1 passed (1)')).toEqual([]);
+  });
+});
+
 describe('failureHints', () => {
-  it('lists the backups that ran and how to revert rebuilt sheets', () => {
+  it('lists the backups that ran, how to put them back and how to undo the art', () => {
     const steps = [
       { op: 'backup', from: '/c/sprites/tower_cannon.png', to: '/c/sprites/backup/tower_cannon-TS.png' },
       { op: 'copy', from: 'a', to: 'b' },
@@ -307,13 +327,80 @@ describe('failureHints', () => {
       { op: 'backup', from: '/c/sprites/tower_archer.png', to: '/c/sprites/backup/tower_archer-TS.png' },
     ];
     const hints = failureHints(steps, steps[2]).join('\n');
-    expect(hints).toContain('/c/sprites/backup/tower_cannon-TS.png');
+    expect(hints).toContain('cp /c/sprites/backup/tower_cannon-TS.png /c/sprites/tower_cannon.png');
     expect(hints).not.toContain('tower_archer-TS.png');
-    expect(hints).toContain('git restore public/assets/sprites assets-src/sprites');
+    expect(hints).toContain('git restore public/assets/sprites public/assets/overworld public/assets/portraits assets-src/sprites');
+    expect(hints).toContain('git clean -n public/assets/sprites assets-src/sprites');
+    expect(hints).toContain('git clean -f <each path it printed>');
+    expect(hints).not.toContain('Failing test files');
   });
 
   it('says so when no reference was backed up', () => {
     const steps = [{ op: 'run', cmd: ['npm', 'test'] }];
     expect(failureHints(steps, steps[0]).join('\n')).not.toContain('backed up');
+  });
+
+  it('names the failing test files when npm test is the failed check, and explains a pad-fit failure', () => {
+    const steps = [...CHECK_STEPS];
+    const hints = failureHints(steps, steps[1], { error: `exit 1\n${VITEST_FAIL}` });
+    expect(hints).toContain('Failing test files:');
+    expect(hints).toContain('  src/systems/tierLookPadFit.test.js');
+    expect(hints).toContain('  src/scenes/BootScene.test.js');
+    expect(hints.join('\n')).toMatch(/tierLookPadFit\.test\.js failing means the new art changed tower footprints/);
+    // The asset check's output is not vitest's: no file list there.
+    expect(failureHints(steps, steps[0], { error: VITEST_FAIL }).join('\n')).not.toContain('Failing test files');
+  });
+
+  it('gives no footprint advice when the pad-fit test passed', () => {
+    const steps = [...CHECK_STEPS];
+    const hints = failureHints(steps, steps[1], { error: ' FAIL  src/a.test.js > x' }).join('\n');
+    expect(hints).toContain('  src/a.test.js');
+    expect(hints).not.toContain('footprints');
+  });
+});
+
+describe('appliedSummary', () => {
+  const CHECKS = [
+    { cmd: ['npm', 'run', 'assets', '--', '--strict'], output: 'sprite (39/39)\n\n72/72 assets present · 0 required missing\n\n' },
+    { cmd: ['npm', 'test'], output: ' Test Files  234 passed (234)\n      Tests  3883 passed (3883)\n   Duration  16s' },
+  ];
+
+  it('lists every file the steps changed, once, and both check results', () => {
+    const steps = planFor([cannon, archerT4a, outpost], { tower_cannon: 0, 'tower_archer.t4a': 1, overworld_0_outpost_sigma: 0 },
+      ['tower_archer.t4a']);
+    const lines = appliedSummary([{ op: 'backup', from: 'r', to: '/c/backup/r-TS.png' }, ...steps], CHECKS, SPRITE_MANIFEST);
+    expect(lines).toEqual([
+      'Changed:',
+      '  /c/backup/r-TS.png (the previous reference)',
+      `  ${join(cache, 'sprites/tower_cannon.png')}`,
+      '  assets-src/sprites/towers/cannon_idle.png',
+      '  public/assets/sprites/towers/cannon_idle.png',
+      '  assets-src/sprites/towers/cannon_attack.png',
+      '  public/assets/sprites/towers/cannon_attack.png',
+      '  src/data/sprites.js',
+      '  public/assets/overworld/overworld_0_outpost_sigma.png',
+      `  ${join(cache, 'sprites/tower_archer.t4a.png')}`,
+      '  scripts/art/facing.json',
+      '  src/data/spriteVariants.js',
+      '  assets-src/sprites/towers/archer_t4a_idle.png',
+      '  public/assets/sprites/towers/archer_t4a_idle.png',
+      '  assets-src/sprites/towers/archer_t4a_attack.png',
+      '  public/assets/sprites/towers/archer_t4a_attack.png',
+      'Checks:',
+      '  npm run assets -- --strict: ok (72/72 assets present · 0 required missing)',
+      '  npm test: ok (3883 passed (3883))',
+    ]);
+  });
+
+  it('executeSteps hands back each check output for the summary', async () => {
+    const steps = CHECK_STEPS;
+    const run = async cmd => ({ code: 0, output: cmd[1] === 'test' ? 'Tests  9 passed (9)' : 'all present' });
+    const res = await executeSteps(steps, { repoRoot: tmp, ...paths, run });
+    expect(res.checks).toEqual([
+      { cmd: CHECK_STEPS[0].cmd, output: 'all present' },
+      { cmd: CHECK_STEPS[1].cmd, output: 'Tests  9 passed (9)' },
+    ]);
+    const failed = await executeSteps(steps, { repoRoot: tmp, ...paths, run: async () => ({ code: 1, output: ' FAIL  x.test.js' }) });
+    expect(failed.error).toBe('exit 1\n FAIL  x.test.js');
   });
 });

@@ -31,14 +31,73 @@ function readReviewMirror(path) {
   }
 }
 
+const stripAnsi = text => String(text).replace(/\x1b\[[0-9;]*m/g, '');
+
+// Vitest marks each failing file with a `FAIL  <path>` line (once per failed test,
+// and once for a file that would not load). Unique, in order of appearance.
+export function failingTestFiles(output) {
+  const files = [...stripAnsi(output).matchAll(/^\s*FAIL\s+(\S+)/gm)].map(m => m[1]);
+  return [...new Set(files)];
+}
+
+const PAD_FIT_TEST = 'src/systems/tierLookPadFit.test.js';
+
 // What a failed apply leaves behind and how to undo it. Only backups that ran.
-export function failureHints(steps, failedStep) {
+export function failureHints(steps, failedStep, { error = '' } = {}) {
   const ran = steps.slice(0, steps.indexOf(failedStep) + 1);
   const lines = ['src/data/sprites.js, src/data/spriteVariants.js and scripts/art/facing.json were restored;',
     'copied references and built sheets were left in place for inspection.'];
-  const backups = ran.filter(s => s.op === 'backup').map(s => s.to);
-  if (backups.length) lines.push('The previous references were backed up to:', ...backups.map(b => `  ${b}`));
-  lines.push('To revert rebuilt shipped sheets: git restore public/assets/sprites assets-src/sprites');
+  if (failedStep?.op === 'check' && failedStep.cmd.join(' ') === 'npm test') {
+    const files = failingTestFiles(error);
+    if (files.length) lines.push('Failing test files:', ...files.map(f => `  ${f}`));
+    if (files.includes(PAD_FIT_TEST)) {
+      lines.push(`${PAD_FIT_TEST} failing means the new art changed tower footprints:`,
+        '  check the overlaps in the game, update the pinned set in that test on purpose, then re-run apply.');
+    }
+  }
+  lines.push('To undo the art it wrote:',
+    '  git restore public/assets/sprites public/assets/overworld public/assets/portraits assets-src/sprites',
+    '  git clean -n public/assets/sprites assets-src/sprites   (new variant sheets are untracked;',
+    '    then git clean -f <each path it printed>)');
+  const backups = ran.filter(s => s.op === 'backup');
+  if (backups.length) {
+    lines.push('The previous references were backed up; to put them back:',
+      ...backups.map(b => `  cp ${b.to} ${b.from}`));
+  }
+  return lines;
+}
+
+// A built sheet lands in assets-src/ and normalize.py ships it under public/.
+const sheetPaths = states => Object.values(states ?? {}).flatMap(st =>
+  [`assets-src/${st.path.replace(/^assets\//, '')}`, `public/${st.path}`]);
+
+// What a successful apply changed, in step order, and what the checks reported.
+export function appliedSummary(steps, checks, manifest) {
+  const changed = [];
+  for (const s of steps) {
+    if (s.op === 'backup') changed.push(`${s.to} (the previous reference)`);
+    else if (s.op === 'copy' || s.op === 'resize') changed.push(s.to);
+    else if (s.op === 'setFacing') changed.push('scripts/art/facing.json');
+    else if (s.op === 'writeVariant') changed.push('src/data/spriteVariants.js');
+    else if (s.op === 'setGround') {
+      changed.push(s.target === 'sprites' ? 'src/data/sprites.js' : 'src/data/spriteVariants.js');
+    } else if (s.op === 'run' && s.cmd[1] === 'scripts/build-sprite-sheets.py') {
+      const [entity, variant] = s.cmd[2].split('.');
+      const cut = entity.indexOf('_');
+      const [category, type] = [entity.slice(0, cut), entity.slice(cut + 1)];
+      const declared = steps.find(w => w.op === 'writeVariant' && w.key === `${category}/${type}` && w.variant === variant);
+      const states = variant ? declared?.def.states
+        : manifest.find(e => e.category === category && e.type === type)?.states;
+      changed.push(...sheetPaths(states));
+    }
+  }
+  const lines = ['Changed:', ...[...new Set(changed)].map(f => `  ${f}`), 'Checks:'];
+  for (const { cmd, output } of checks) {
+    const text = stripAnsi(output);
+    const result = /^\s*Tests\s+(.+?)\s*$/m.exec(text)?.[1]
+      ?? text.split('\n').map(l => l.trim()).filter(Boolean).at(-1) ?? '';
+    lines.push(`  ${cmd.join(' ')}: ok${result ? ` (${result})` : ''}`);
+  }
   return lines;
 }
 
@@ -121,10 +180,12 @@ async function main(argv) {
   const res = await executeSteps(steps, { repoRoot, ...dataPaths(repoRoot), onLog: l => console.log(`  ${l}`) });
   if (!res.ok) {
     console.error(`\nApply FAILED at: ${describeStep(res.failedStep)}`);
-    for (const line of failureHints(steps, res.failedStep)) console.error(line);
+    for (const line of failureHints(steps, res.failedStep, { error: res.error })) console.error(line);
     console.error('');
     return 1;
   }
+  console.log('');
+  for (const line of appliedSummary(steps, res.checks, SPRITE_MANIFEST)) console.log(line);
   console.log('\nApplied. Nothing is committed: review `git status` and commit what you keep.\n');
   return 0;
 }
