@@ -120,7 +120,29 @@ describe('resolveTap priority', () => {
   });
 });
 
+describe('resolveTap rallying (#48 R3)', () => {
+  const ring = { kind: 'tower', target: T };
+  it('rallying routes to rally', () => {
+    expect(resolveTap({ ...idle, rallying: true }, none)).toEqual({ type: 'rally' });
+  });
+  it('aim wins over rallying', () => {
+    expect(resolveTap({ ...idle, aimSlot: 0, rallying: true }, none).type).toBe('fireAim');
+  });
+  it('reposition wins over rallying', () => {
+    expect(resolveTap({ ...idle, repositioning: true, rallying: true }, none).type).toBe('reposition');
+  });
+  it('rallying wins over an open radial', () => {
+    expect(resolveTap({ ...idle, rallying: true, radial: ring }, none)).toEqual({ type: 'rally' });
+  });
+  it('E25: a tower hit while rallying is still a rally, not openRing', () => {
+    expect(resolveTap({ ...idle, rallying: true }, { ...none, tower: T })).toEqual({ type: 'rally' });
+  });
+});
+
 describe('hasMode', () => {
+  it('rallying counts as a mode', () => {
+    expect(hasMode({ ...idle, rallying: true })).toBe(true);
+  });
   it('hasMode true for each mode alone, false when idle', () => {
     expect(hasMode(idle)).toBe(false);
     expect(hasMode({ ...idle, aimSlot: 0 })).toBe(true);

@@ -10,6 +10,8 @@ const ringConfigs = {
   build: buildAngles(BUILD_ANGLES_COUNT),
   towerWithBranches: [RING_ANGLES.branchA, RING_ANGLES.branchB, RING_ANGLES.reposition, RING_ANGLES.sell],
   towerWithUpgrade: [RING_ANGLES.upgrade, RING_ANGLES.reposition, RING_ANGLES.sell],
+  barracksL1: [RING_ANGLES.reposition, RING_ANGLES.upgrade, RING_ANGLES.rally, RING_ANGLES.sell],
+  barracksL3Branches: [RING_ANGLES.reposition, RING_ANGLES.branchA, RING_ANGLES.branchB, RING_ANGLES.rally, RING_ANGLES.sell],
 };
 
 const circles = (layout, m) => [

@@ -124,6 +124,30 @@ describe('ringItems', () => {
     expect(byId(items, 'branchA').name).toBe(TOWER_DEFS.barracks.tier4A.label);
     expect(byId(items, 'branchB').name).toBe(TOWER_DEFS.barracks.tier4B.label);
   });
+  describe('barracks Rally item (#48 R1)', () => {
+    const order = (items) => items.map(i => i.id);
+    for (const [level, branch] of [[1, null], [3, null], [4, 'A']]) {
+      it(`barracks L${level}${branch ? branch : ''} has the exact rally item between upgrade/branches and sell`, () => {
+        const items = ring(tower('barracks', level, branch), 1000, 4);
+        expect(byId(items, 'rally')).toEqual({
+          id: 'rally', slot: RING_ANGLES.rally, icon: '⚑', label: 'Rally', cost: null,
+          variant: 'primary', state: 'ready', ariaLabel: `Rally ${TOWER_DEFS.barracks.name} soldiers`,
+        });
+        const ids = order(items);
+        const last = Math.max(...ids.map((id, i) => (id === 'upgrade' || id.startsWith('branch') ? i : -1)));
+        expect(ids.indexOf('rally')).toBeGreaterThan(last);
+        expect(ids.indexOf('rally')).toBe(ids.indexOf('sell') - 1);
+      });
+    }
+    it('an unbranched L3 ring is reposition, A, B, rally, sell', () => {
+      expect(order(ring(tower('barracks', 3), 1000, 4))).toEqual(['reposition', 'branchA', 'branchB', 'rally', 'sell']);
+    });
+    for (const type of types.filter(t => t !== 'barracks')) {
+      it(`${type} ring has no rally`, () => {
+        expect(byId(ring(tower(type, 2), 1000, 4), 'rally')).toBeUndefined();
+      });
+    }
+  });
   it('every item has the documented fields', () => {
     for (const i of ring(tower('barracks', 3), 1000, 4)) {
       expect(i).toEqual(expect.objectContaining({ id: expect.any(String), slot: expect.any(Number), label: expect.any(String), variant: expect.stringMatching(/^(currency|danger|primary|neutral)$/), state: expect.stringMatching(/^(ready|disabled|locked|maxed)$/), ariaLabel: expect.any(String) }));

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   MELEE_RANGE, ENEMY_MELEE_DAMAGE, SOLDIER_ATTACK_RATE,
-  findBlockingSoldier, damageSoldier, tickSoldier,
+  findBlockingSoldier, soldierCanBlock, damageSoldier, tickSoldier,
   soldierMaxHp, soldierRespawnDuration, heroBlocksEnemy,
 } from './soldierCombat.js';
 import { ENEMY_MELEE_DAMAGE as MELEE_DAMAGE_FROM_DATA } from '../data/enemies.js';
@@ -144,5 +144,29 @@ describe('heroBlocksEnemy', () => {
 
   it('lets flyers pass over the hero, matching ground soldiers', () => {
     expect(heroBlocksEnemy(hero(), flyer(0, 0))).toBe(false);
+  });
+});
+
+describe('soldierCanBlock', () => {
+  it('is false for a dead soldier', () => {
+    expect(soldierCanBlock(soldier({ dead: true }), ground(0, 0))).toBe(false);
+  });
+  it('is false while the soldier is disengaging', () => {
+    expect(soldierCanBlock(soldier({ disengageLeftPx: 10 }), ground(0, 0))).toBe(false);
+  });
+  it('is true once the disengage window is spent', () => {
+    expect(soldierCanBlock(soldier({ disengageLeftPx: 0 }), ground(0, 0))).toBe(true);
+  });
+  it('lets only flyer-capable soldiers block a flyer', () => {
+    expect(soldierCanBlock(soldier({ canBlockFlyers: false }), flyer(0, 0))).toBe(false);
+    expect(soldierCanBlock(soldier({ canBlockFlyers: true }), flyer(0, 0))).toBe(true);
+  });
+});
+
+describe('findBlockingSoldier with disengage', () => {
+  it('skips a disengaging soldier and returns the next one', () => {
+    const away = soldier({ disengageLeftPx: 10 });
+    const next = soldier();
+    expect(findBlockingSoldier(ground(1, 0), [away, next])).toBe(next);
   });
 });

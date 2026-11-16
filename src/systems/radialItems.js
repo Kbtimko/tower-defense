@@ -85,6 +85,10 @@ export function ringItems({ tower, towerDefs, map, maps, gold }) {
     items.push(purchaseItem({ id: 'upgrade', def, tierDef, tier: next, icon: '⬆', gold, maps, allowed: map.maxTierAllowed >= next }));
   }
 
+  if (tower.type === 'barracks') {
+    items.push({ id: 'rally', slot: RING_ANGLES.rally, icon: '⚑', label: 'Rally', cost: null, variant: 'primary', state: 'ready', ariaLabel: `Rally ${def.name} soldiers` });
+  }
+
   items.push({
     id: 'sell', slot: RING_ANGLES.sell, icon: '💰', label: `+${sellRefund(tower.totalCost)}g`, cost: null,
     variant: 'danger', state: 'ready', ariaLabel: `Sell ${def.name}, refund ${sellRefund(tower.totalCost)} gold`,

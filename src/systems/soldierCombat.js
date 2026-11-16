@@ -27,13 +27,21 @@ export function soldierRespawnDuration(stats, modifiers = {}) {
   return stats.respawnDuration * (modifiers.soldierRespawnMult ?? 1);
 }
 
-// The soldier that halts this enemy, or null. Flyers pass over ground soldiers.
+// Whether this soldier may halt this enemy at all, ignoring distance. A soldier
+// still walking off an engagement (disengageLeftPx > 0) must not re-block, or a
+// rallied squad could never leave a fight. Flyers pass over ground soldiers.
+export function soldierCanBlock(soldier, enemy) {
+  if (soldier.dead) return false;
+  if (soldier.disengageLeftPx > 0) return false;
+  return !enemy.def?.flying || !!soldier.canBlockFlyers;
+}
+
+// The soldier that halts this enemy, or null.
 // The first match wins and is not claimed exclusively, so several enemies can
 // gang up on one blocker — that concentration is why blocking eventually breaks.
 export function findBlockingSoldier(enemy, soldiers) {
   for (const soldier of soldiers) {
-    if (soldier.dead) continue;
-    if (enemy.def.flying && !soldier.canBlockFlyers) continue;
+    if (!soldierCanBlock(soldier, enemy)) continue;
     if (Math.hypot(enemy.x - soldier.x, enemy.y - soldier.y) < MELEE_RANGE) return soldier;
   }
   return null;
