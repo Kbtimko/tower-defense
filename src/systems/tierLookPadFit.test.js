@@ -3,6 +3,7 @@ import { footprintClash, ringCrossing } from './tierLookMath.js';
 import { TIER_SCALE, TIER_RING } from '../data/tierLooks.js';
 import { MAPS } from '../data/maps.js';
 import { SPRITE_MANIFEST } from '../data/sprites.js';
+import { TOWER_DEFS } from '../data/towers.js';
 
 const W = 1280, H = 720;
 const CAP_VARIANT = { 1: 't1', 2: 't2', 3: 't3', 4: 't4a' };
@@ -25,22 +26,21 @@ function padPairs(map) {
 const at = (pad, t) => ({ x: pad.x, y: pad.y, footY: t.ground.footY, width: t.ground.width });
 
 describe('tier-look pad fit (R25)', () => {
-  it('footprint clashes at each map cap are exactly the accepted C4 set, always archer on the upper pad', () => {
+  // The pre-4.2 art clashed on 8 accepted pairs (C4), all from the tall archer.
+  // The 4.2 bases are squatter and scaled to the 36px footprint, so none clash.
+  it('no footprint clashes at any map cap', () => {
+    // An empty tower list would pass vacuously.
+    expect(towers.map((t) => t.type).sort()).toEqual(Object.keys(TOWER_DEFS).sort());
     const clashes = new Set();
-    const upperTypes = new Set();
     for (const map of MAPS) {
       const s = TIER_SCALE.tower[CAP_VARIANT[map.maxTierAllowed]];
       for (const [u, l] of padPairs(map)) {
         for (const tu of towers) for (const tl of towers) {
-          if (footprintClash(at(u, tu), at(l, tl), s)) {
-            clashes.add(`m${map.id} ${u.i}/${l.i}`);
-            upperTypes.add(tu.type);
-          }
+          if (footprintClash(at(u, tu), at(l, tl), s)) clashes.add(`m${map.id} ${u.i}/${l.i} ${tu.type}/${tl.type}`);
         }
       }
     }
-    expect([...clashes].sort()).toEqual(['m3 0/7','m5 6/10','m5 8/13','m8 14/11','m8 12/5','m8 4/6','m9 9/2','m9 19/8'].sort());
-    expect([...upperTypes]).toEqual(['archer']);
+    expect([...clashes].sort()).toEqual([]);
   });
 
   it('T4 rings cross on exactly the 7 accepted pairs (Decision 6)', () => {
