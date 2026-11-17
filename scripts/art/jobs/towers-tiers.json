@@ -1,0 +1,30 @@
+{
+  "batch": "towers-tiers",
+  "candidates": 6,
+  "assets": [
+    {"kind": "sprite", "entity": "tower_archer", "variant": "t2", "init": "base", "strength": 0.6},
+    {"kind": "sprite", "entity": "tower_mage", "variant": "t2", "init": "base", "strength": 0.6},
+    {"kind": "sprite", "entity": "tower_cannon", "variant": "t2", "init": "base", "strength": 0.6},
+    {"kind": "sprite", "entity": "tower_ice", "variant": "t2", "init": "base", "strength": 0.6},
+    {"kind": "sprite", "entity": "tower_sniper", "variant": "t2", "init": "base", "strength": 0.6},
+    {"kind": "sprite", "entity": "tower_barracks", "variant": "t2", "init": "base", "strength": 0.6},
+    {"kind": "sprite", "entity": "tower_archer", "variant": "t3", "init": "base", "strength": 0.7},
+    {"kind": "sprite", "entity": "tower_mage", "variant": "t3", "init": "base", "strength": 0.7},
+    {"kind": "sprite", "entity": "tower_cannon", "variant": "t3", "init": "base", "strength": 0.7},
+    {"kind": "sprite", "entity": "tower_ice", "variant": "t3", "init": "base", "strength": 0.7},
+    {"kind": "sprite", "entity": "tower_sniper", "variant": "t3", "init": "base", "strength": 0.7},
+    {"kind": "sprite", "entity": "tower_barracks", "variant": "t3", "init": "base", "strength": 0.7},
+    {"kind": "sprite", "entity": "tower_archer", "variant": "t4a", "init": "base", "strength": 0.75},
+    {"kind": "sprite", "entity": "tower_mage", "variant": "t4a", "init": "base", "strength": 0.75},
+    {"kind": "sprite", "entity": "tower_cannon", "variant": "t4a", "init": "base", "strength": 0.75},
+    {"kind": "sprite", "entity": "tower_ice", "variant": "t4a", "init": "base", "strength": 0.75},
+    {"kind": "sprite", "entity": "tower_sniper", "variant": "t4a", "init": "base", "strength": 0.75},
+    {"kind": "sprite", "entity": "tower_barracks", "variant": "t4a", "init": "base", "strength": 0.75},
+    {"kind": "sprite", "entity": "tower_archer", "variant": "t4b", "init": "base", "strength": 0.75},
+    {"kind": "sprite", "entity": "tower_mage", "variant": "t4b", "init": "base", "strength": 0.75},
+    {"kind": "sprite", "entity": "tower_cannon", "variant": "t4b", "init": "base", "strength": 0.75},
+    {"kind": "sprite", "entity": "tower_ice", "variant": "t4b", "init": "base", "strength": 0.75},
+    {"kind": "sprite", "entity": "tower_sniper", "variant": "t4b", "init": "base", "strength": 0.75},
+    {"kind": "sprite", "entity": "tower_barracks", "variant": "t4b", "init": "base", "strength": 0.75}
+  ]
+}

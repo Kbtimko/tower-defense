@@ -26,23 +26,33 @@ describe('tower art prompts', () => {
     expect(a).not.toContain('(top-down 3/4 game sprite:1.2)');
   });
 
-  it('every tower has a base, a 4A and a 4B prompt', () => {
+  it('every tower has a base, T2, T3, 4A and 4B prompt', () => {
     const towers = sources.sprite.entries.filter(e => e.category === 'tower');
     for (const type of towerTypes) {
-      for (const variant of [undefined, 't4a', 't4b']) {
+      for (const variant of [undefined, 't2', 't3', 't4a', 't4b']) {
         const n = towers.filter(e => e.type === type && e.variant === variant).length;
         expect(n, `${type}.${variant ?? 'base'}`).toBe(1);
       }
     }
   });
 
-  describe.each(['towers-base', 'towers-branches'])('job %s', name => {
+  it('every tier prompt keeps the compact footprint', () => {
+    const towers = sources.sprite.entries.filter(e => e.category === 'tower');
+    for (const e of towers) {
+      const phrase = e.type === 'barracks' ? 'on a round base' : 'compact round base';
+      expect(e.subject, `${e.type}.${e.variant ?? 'base'}`).toContain(phrase);
+    }
+  });
+
+  const TIER_STRENGTH = { t2: 0.6, t3: 0.7, t4a: 0.75, t4b: 0.75 };
+
+  describe.each(['towers-base', 'towers-tiers'])('job %s', name => {
     const job = JSON.parse(read(`scripts/art/jobs/${name}.json`));
     const { job: r, errors } = resolveJob(job, sources, { facing: loadFacing(root), batchName: name });
 
-    it('resolves with no errors and 8 candidates', () => {
+    it('resolves with no errors and the expected candidate count', () => {
       expect(errors).toEqual([]);
-      expect(r.candidates).toBe(8);
+      expect(r.candidates).toBe(name === 'towers-base' ? 8 : 6);
     });
 
     it('covers the expected assets', () => {
@@ -50,10 +60,14 @@ describe('tower art prompts', () => {
         expect(r.assets.map(a => a.assetId).sort()).toEqual([...towerTypes].map(t => `tower_${t}`).sort());
         expect(r.assets.every(a => a.variant === undefined)).toBe(true);
       } else {
-        expect(r.assets).toHaveLength(towerTypes.length * 2);
+        expect(r.assets).toHaveLength(towerTypes.length * 4);
         for (const a of r.assets) {
           expect(a.init).toBe('base');
-          expect(a.strength).toBe(0.65);
+          expect(a.strength, a.assetId + a.variant).toBe(TIER_STRENGTH[a.variant]);
+        }
+        for (const t of towerTypes) {
+          const vs = r.assets.filter(a => a.entity === `tower_${t}`).map(a => a.variant);
+          expect(vs).toEqual(['t2', 't3', 't4a', 't4b']);
         }
       }
     });
