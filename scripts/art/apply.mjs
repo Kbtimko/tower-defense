@@ -52,7 +52,9 @@ export function failureHints(steps, failedStep, { error = '' } = {}) {
     if (files.length) lines.push('Failing test files:', ...files.map(f => `  ${f}`));
     if (files.includes(PAD_FIT_TEST)) {
       lines.push(`${PAD_FIT_TEST} failing means the new art changed tower footprints:`,
-        '  check the overlaps in the game, update the pinned set in that test on purpose, then re-run apply.');
+        '  a footprint clash: check the overlaps in the game; change the pinned set only on purpose.',
+        '  off the 36px footprint: set that variant\'s `scale` in src/data/spriteVariants.js to scale * 36 / width',
+        '    (width is in the failure message), then re-run apply. The tolerance stays as is.');
     }
   }
   lines.push('To undo the art it wrote:',

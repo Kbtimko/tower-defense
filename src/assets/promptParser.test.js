@@ -4,6 +4,7 @@ import {
   parseStyleAnchor, parseOverworldPrompts, parsePortraitPrompts, buildPrompt,
   parseFencedSection, parseSpritePrompts,
 } from './promptParser.js';
+import { VARIANT_KEYS } from './artJob.js';
 import { MAPS } from '../data/maps.js';
 import { STORY_SPEAKERS } from '../data/story.js';
 import { HEROES } from '../data/heroes.js';
@@ -415,7 +416,7 @@ describe('parseSpritePrompts variants', () => {
     const variants = parseSpritePrompts(spriteMd).filter(p => p.variant);
     expect(variants.length).toBeGreaterThan(0);
     for (const v of variants) {
-      expect(['t2', 't3', 't4a', 't4b']).toContain(v.variant);
+      expect(VARIANT_KEYS).toContain(v.variant);
       expect(bases.some(b => b.category === v.category && b.type === v.type), v.type).toBe(true);
     }
   });

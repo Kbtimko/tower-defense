@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { TOWER_DEFS } from '../data/towers.js';
 import { buildPrompt } from './promptParser.js';
-import { promptSources, resolveJob } from './artJob.js';
+import { promptSources, resolveJob, VARIANT_KEYS } from './artJob.js';
 import { loadFacing } from '../../scripts/art/runJob.mjs';
 
 // Reads the REAL prompt files and job files: these tests guard the shipped art inputs.
@@ -29,7 +29,7 @@ describe('tower art prompts', () => {
   it('every tower has a base, T2, T3, 4A and 4B prompt', () => {
     const towers = sources.sprite.entries.filter(e => e.category === 'tower');
     for (const type of towerTypes) {
-      for (const variant of [undefined, 't2', 't3', 't4a', 't4b']) {
+      for (const variant of [undefined, ...VARIANT_KEYS]) {
         const n = towers.filter(e => e.type === type && e.variant === variant).length;
         expect(n, `${type}.${variant ?? 'base'}`).toBe(1);
       }
@@ -67,7 +67,7 @@ describe('tower art prompts', () => {
         }
         for (const t of towerTypes) {
           const vs = r.assets.filter(a => a.entity === `tower_${t}`).map(a => a.variant);
-          expect(vs).toEqual(['t2', 't3', 't4a', 't4b']);
+          expect(vs).toEqual(VARIANT_KEYS);
         }
       }
     });

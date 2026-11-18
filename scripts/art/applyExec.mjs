@@ -77,7 +77,11 @@ export async function executeSteps(steps, {
     },
     writeVariant: (s) => {
       const variants = parseSpriteVariants(readFileSync(variantsPath, 'utf8'));
-      variants[s.key] = { ...variants[s.key], [s.variant]: s.def };
+      // scale/anchor are hand-set per variant (the 36px footprint); dropping them
+      // would make normalize.py measure at the base scale and fail the footprint test.
+      const { scale, anchor } = variants[s.key]?.[s.variant] ?? {};
+      const kept = { ...(scale !== undefined && { scale }), ...(anchor !== undefined && { anchor }) };
+      variants[s.key] = { ...variants[s.key], [s.variant]: { ...kept, ...s.def } };
       writeFileSync(variantsPath, renderSpriteVariants(variants));
     },
     setGround: (s) => {

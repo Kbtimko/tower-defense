@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { footprintClash, ringCrossing } from './tierLookMath.js';
 import { TIER_SCALE, TIER_RING } from '../data/tierLooks.js';
 import { MAPS } from '../data/maps.js';
+import { VARIANT_KEYS } from '../assets/artJob.js';
 import { SPRITE_MANIFEST } from '../data/sprites.js';
 import { TOWER_DEFS } from '../data/towers.js';
 
@@ -51,10 +52,24 @@ describe('tier-look pad fit (R25)', () => {
 
   // Every tier holds the 36px footprint, so TIER_SCALE alone sets how much a
   // tier grows; a variant shrunk into its cell would read weaker than the tier below.
-  it('every tower variant keeps the 36px footprint', () => {
-    const widths = towers.flatMap((t) => Object.entries(t.variants ?? {}).map(([v, d]) => [`${t.type}.${v}`, d.ground.width]));
-    expect(widths.map(([k]) => k).sort()).toEqual(towers.flatMap((t) => ['t2', 't3', 't4a', 't4b'].map((v) => `${t.type}.${v}`)).sort());
+  it('every tower tier keeps the 36px footprint', () => {
+    const widths = towers.flatMap((t) => [
+      [`${t.type}.t1`, t.ground.width],
+      ...Object.entries(t.variants ?? {}).map(([v, d]) => [`${t.type}.${v}`, d.ground.width]),
+    ]);
+    expect(widths.map(([k]) => k).sort()).toEqual(towers.flatMap((t) => ['t1', ...VARIANT_KEYS].map((v) => `${t.type}.${v}`)).sort());
     for (const [k, w] of widths) expect(Math.abs(w - 36), k).toBeLessThanOrEqual(2);
+  });
+
+  it('each tier draws wider than the tier below', () => {
+    const drawn = (t, v) => (v === 't1' ? t.ground.width : t.variants[v].ground.width) * TIER_SCALE.tower[v];
+    for (const t of towers) {
+      const [w1, w2, w3, w4a, w4b] = ['t1', 't2', 't3', 't4a', 't4b'].map((v) => drawn(t, v));
+      expect(w1, `${t.type} t1<t2`).toBeLessThan(w2);
+      expect(w2, `${t.type} t2<t3`).toBeLessThan(w3);
+      expect(w3, `${t.type} t3<t4a`).toBeLessThan(w4a);
+      expect(w3, `${t.type} t3<t4b`).toBeLessThan(w4b);
+    }
   });
 
   it('T4 rings cross on exactly the 7 accepted pairs (Decision 6)', () => {
