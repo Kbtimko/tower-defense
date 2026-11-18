@@ -6,7 +6,8 @@ import { SPRITE_MANIFEST } from '../data/sprites.js';
 import { TOWER_DEFS } from '../data/towers.js';
 
 const W = 1280, H = 720;
-const CAP_VARIANT = { 1: 't1', 2: 't2', 3: 't3', 4: 't4a' };
+// A capped map draws its towers at the cap tier, in the variant art when declared.
+const CAP_VARIANTS = { 1: ['t1'], 2: ['t2'], 3: ['t3'], 4: ['t4a', 't4b'] };
 const towers = SPRITE_MANIFEST.filter((e) => e.category === 'tower');
 
 // Every pad pair per map, upper = smaller y (ties: smaller x), per plan ruling P5.
@@ -23,7 +24,10 @@ function padPairs(map) {
   return out;
 }
 
-const at = (pad, t) => ({ x: pad.x, y: pad.y, footY: t.ground.footY, width: t.ground.width });
+const at = (pad, t, v) => {
+  const g = t.variants?.[v]?.ground ?? t.ground;
+  return { x: pad.x, y: pad.y, footY: g.footY, width: g.width };
+};
 
 describe('tier-look pad fit (R25)', () => {
   // The pre-4.2 art clashed on 8 accepted pairs (C4), all from the tall archer.
@@ -33,22 +37,32 @@ describe('tier-look pad fit (R25)', () => {
     expect(towers.map((t) => t.type).sort()).toEqual(Object.keys(TOWER_DEFS).sort());
     const clashes = new Set();
     for (const map of MAPS) {
-      const s = TIER_SCALE.tower[CAP_VARIANT[map.maxTierAllowed]];
-      for (const [u, l] of padPairs(map)) {
-        for (const tu of towers) for (const tl of towers) {
-          if (footprintClash(at(u, tu), at(l, tl), s)) clashes.add(`m${map.id} ${u.i}/${l.i} ${tu.type}/${tl.type}`);
+      for (const v of CAP_VARIANTS[map.maxTierAllowed]) {
+        const s = TIER_SCALE.tower[v];
+        for (const [u, l] of padPairs(map)) {
+          for (const tu of towers) for (const tl of towers) {
+            if (footprintClash(at(u, tu, v), at(l, tl, v), s)) clashes.add(`m${map.id} ${u.i}/${l.i} ${tu.type}/${tl.type} ${v}`);
+          }
         }
       }
     }
     expect([...clashes].sort()).toEqual([]);
   });
 
+  // Every tier holds the 36px footprint, so TIER_SCALE alone sets how much a
+  // tier grows; a variant shrunk into its cell would read weaker than the tier below.
+  it('every tower variant keeps the 36px footprint', () => {
+    const widths = towers.flatMap((t) => Object.entries(t.variants ?? {}).map(([v, d]) => [`${t.type}.${v}`, d.ground.width]));
+    expect(widths.map(([k]) => k).sort()).toEqual(towers.flatMap((t) => ['t2', 't3', 't4a', 't4b'].map((v) => `${t.type}.${v}`)).sort());
+    for (const [k, w] of widths) expect(Math.abs(w - 36), k).toBeLessThanOrEqual(2);
+  });
+
   it('T4 rings cross on exactly the 7 accepted pairs (Decision 6)', () => {
     const crossings = new Set();
     for (const map of MAPS.filter((m) => m.maxTierAllowed === 4)) {
       for (const [u, l] of padPairs(map)) {
-        for (const tu of towers) for (const tl of towers) {
-          if (ringCrossing(at(u, tu), at(l, tl), TIER_RING)) crossings.add(`m${map.id} ${u.i}/${l.i}`);
+        for (const v of CAP_VARIANTS[4]) for (const tu of towers) for (const tl of towers) {
+          if (ringCrossing(at(u, tu, v), at(l, tl, v), TIER_RING)) crossings.add(`m${map.id} ${u.i}/${l.i}`);
         }
       }
     }
