@@ -44,7 +44,7 @@ describe('tower art prompts', () => {
     }
   });
 
-  const TIER_STRENGTH = { t2: 0.6, t3: 0.7, t4a: 0.75, t4b: 0.75 };
+  const TIER_STRENGTH = { t2: 0.85, t3: 0.88, t4a: 0.92, t4b: 0.92 };
 
   describe.each(['towers-base', 'towers-tiers'])('job %s', name => {
     const job = JSON.parse(read(`scripts/art/jobs/${name}.json`));

@@ -104,7 +104,8 @@ Escalation comes from weapon size, armor, glow and a power core, never from a wi
 
 ### 3. Jobs
 - `scripts/art/jobs/towers-base.json`: batch `towers-base`, 8 candidates, the 6 base towers (txt2img, default seed).
-- `scripts/art/jobs/towers-tiers.json` (replaces `towers-branches.json`): batch `towers-tiers`, 6 candidates, 24 variants (t2, t3, t4a, t4b per tower), all `"init": "base"`; strength rises with the tier so higher tiers move further from the base: t2 `0.6`, t3 `0.7`, t4a/t4b `0.75`.
+- `scripts/art/jobs/towers-tiers.json` (replaces `towers-branches.json`): batch `towers-tiers`, 6 candidates, 24 variants (t2, t3, t4a, t4b per tower), all `"init": "base"`; strength rises with the tier so higher tiers move further from the base: t2 `0.85`, t3 `0.88`, t4a/t4b `0.92`.
+  Builder's call (2026-11-17): the first run at t2 `0.6` / t3 `0.7` / t4 `0.75` gave 144 candidates that all read as the base. A probe on archer.t4a and mage.t4a (seeds 88001-88002) showed `0.85` adds parts, `0.92` changes the silhouette while keeping the tower's identity, and `1.0` loses the identity and outgrows the footprint.
 - Builder's call: init from the base, not chained (t3 from t2, ...). The pipeline only inits from the base, and chaining would mean three generate/review rounds; one round also lets the user compare a tower's whole ladder side by side.
 
 ### 4. Stages (LOCAL, Chrome closed, Draw Things HTTP 7860)
