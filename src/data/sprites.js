@@ -134,8 +134,8 @@ const BASE_SPRITE_MANIFEST = [
   // correct). Attack is the firing beat.
   {
     category: 'tower', type: 'archer',
-    scale: 1.03, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
-    ground: { footY: 41.2, width: 37.1 },
+    scale: 0.78, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 32.0, width: 37.4 },
     states: {
       idle:   { path: 'assets/sprites/towers/archer_idle.png',
                 frameWidth: 96, frameHeight: 96, frames: 1 },
@@ -143,14 +143,12 @@ const BASE_SPRITE_MANIFEST = [
                 frameWidth: 96, frameHeight: 96, frames: 5, frameRate: 14 },
     },
   },
-  // Mage — the narrowest tower (silhouette aspect 0.48). At a 64px cell it
-  // would be only 25px wide and need a 1.44x upscale to reach the 36px tower
-  // footprint, which looks soft, so it gets a 96px cell like the colossus
-  // and titan do.
+  // Mage keeps the 96px cell from its old, narrow art. The 4.2 art is the
+  // widest tower, so it scales down hardest to hold the 36px tower footprint.
   {
     category: 'tower', type: 'mage',
-    scale: 0.86, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
-    ground: { footY: 35.3, width: 35.3 },
+    scale: 0.54, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 22.7, width: 37.3 },
     states: {
       idle:   { path: 'assets/sprites/towers/mage_idle.png',
                 frameWidth: 96, frameHeight: 96, frames: 1 },
@@ -160,8 +158,8 @@ const BASE_SPRITE_MANIFEST = [
   },
   {
     category: 'tower', type: 'cannon',
-    scale: 0.86, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
-    ground: { footY: 24.1, width: 35.3 },
+    scale: 0.65, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 18.2, width: 35.8 },
     states: {
       idle:   { path: 'assets/sprites/towers/cannon_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 1 },
@@ -171,8 +169,8 @@ const BASE_SPRITE_MANIFEST = [
   },
   {
     category: 'tower', type: 'ice',
-    scale: 0.88, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
-    ground: { footY: 24.6, width: 34.3 },
+    scale: 0.78, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 21.8, width: 35.9 },
     states: {
       idle:   { path: 'assets/sprites/towers/ice_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 1 },
@@ -182,8 +180,8 @@ const BASE_SPRITE_MANIFEST = [
   },
   {
     category: 'tower', type: 'sniper',
-    scale: 0.82, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
-    ground: { footY: 23.0, width: 34.4 },
+    scale: 0.75, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 21.0, width: 36.0 },
     states: {
       idle:   { path: 'assets/sprites/towers/sniper_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 1 },
@@ -195,8 +193,8 @@ const BASE_SPRITE_MANIFEST = [
   // attack state at all.
   {
     category: 'tower', type: 'barracks',
-    scale: 0.86, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
-    ground: { footY: 24.1, width: 34.4 },
+    scale: 0.75, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 21.0, width: 36.0 },
     states: {
       idle: { path: 'assets/sprites/towers/barracks_idle.png',
               frameWidth: 64, frameHeight: 64, frames: 1 },

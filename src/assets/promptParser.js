@@ -186,9 +186,18 @@ function cleanSubject(raw) {
     .trim();
 }
 
-// The full prompt handed to the model: shared style sentence, then the subject.
+// The full prompt handed to the model. A style anchor containing `{subject}`
+// places the subject itself (so the art bible's anchor can be used verbatim);
+// otherwise the shared style sentence comes first, then the subject.
 export function buildPrompt(styleAnchor, subject) {
   const style = (styleAnchor ?? '').trim().replace(/[.\s]*$/, '');
   const body = subject.trim().replace(/^[.\s]+/, '');
+  if ((styleAnchor ?? '').includes('{subject}')) {
+    // Trailing dots go too: a period mid-sentence would break the anchor. The
+    // function replacer keeps `$&`/`$'` in a subject literal and, being a single
+    // replace, never re-scans the substituted text for another slot.
+    const slotBody = body.replace(/[.\s]+$/, '');
+    return (styleAnchor ?? '').trim().replace('{subject}', () => slotBody);
+  }
   return style ? `${style}. ${body}` : body;
 }

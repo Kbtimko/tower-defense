@@ -1,0 +1,12 @@
+{
+  "batch": "towers-base",
+  "candidates": 8,
+  "assets": [
+    { "kind": "sprite", "entity": "tower_archer" },
+    { "kind": "sprite", "entity": "tower_mage" },
+    { "kind": "sprite", "entity": "tower_cannon" },
+    { "kind": "sprite", "entity": "tower_ice" },
+    { "kind": "sprite", "entity": "tower_sniper" },
+    { "kind": "sprite", "entity": "tower_barracks" }
+  ]
+}

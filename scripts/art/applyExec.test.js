@@ -127,6 +127,18 @@ describe('executeSteps', () => {
     expect(Object.keys(parseSpriteVariants(readFileSync(paths.variantsPath, 'utf8')))).toEqual(['tower/archer', 'tower/mage']);
   });
 
+  it('keeps a hand-set scale and anchor on the variant when writing new states', async () => {
+    writeFileSync(paths.variantsPath, renderSpriteVariants({
+      'tower/archer': { t4a: { scale: 0.75, anchor: { x: 0.5, y: 0.9 }, states: {} } },
+    }));
+    const steps = planFor([archerT4a], { 'tower_archer.t4a': 0 }).filter(s => s.op === 'writeVariant');
+    await executeSteps(steps, { repoRoot: tmp, ...paths, run: stubRun().run });
+    const def = parseSpriteVariants(readFileSync(paths.variantsPath, 'utf8'))['tower/archer'].t4a;
+    expect(def.scale).toBe(0.75);
+    expect(def.anchor).toEqual({ x: 0.5, y: 0.9 });
+    expect(Object.keys(def.states).length).toBeGreaterThan(0);
+  });
+
   it('rolls back the data files when normalize fails, keeping the image outputs', async () => {
     await candidate('tower_archer.t4a', 1);
     const steps = planFor([archerT4a], { 'tower_archer.t4a': 1 }, ['tower_archer.t4a']);
@@ -355,6 +367,9 @@ describe('failureHints', () => {
     expect(hints).toContain('  src/systems/tierLookPadFit.test.js');
     expect(hints).toContain('  src/scenes/BootScene.test.js');
     expect(hints.join('\n')).toMatch(/tierLookPadFit\.test\.js failing means the new art changed tower footprints/);
+    expect(hints.join('\n')).toContain('a footprint clash: check the overlaps in the game');
+    expect(hints.join('\n')).toContain('off the 36px footprint: set that variant\'s `scale` in src/data/spriteVariants.js to scale * 36 / width');
+    expect(hints.join('\n')).not.toMatch(/loosen|widen|raise the tolerance/i);
     // The asset check's output is not vitest's: no file list there.
     expect(failureHints(steps, steps[0], { error: VITEST_FAIL }).join('\n')).not.toContain('Failing test files');
   });

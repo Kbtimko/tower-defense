@@ -4,6 +4,7 @@ import {
   parseStyleAnchor, parseOverworldPrompts, parsePortraitPrompts, buildPrompt,
   parseFencedSection, parseSpritePrompts,
 } from './promptParser.js';
+import { VARIANT_KEYS } from './artJob.js';
 import { MAPS } from '../data/maps.js';
 import { STORY_SPEAKERS } from '../data/story.js';
 import { HEROES } from '../data/heroes.js';
@@ -168,6 +169,26 @@ describe('buildPrompt', () => {
 
   it('does not double up punctuation or whitespace', () => {
     expect(buildPrompt('Style.  ', '  subject.')).toBe('Style. subject.');
+  });
+
+  it('substitutes the subject into a {subject} slot', () => {
+    expect(buildPrompt('sprite of {subject}, flat background', 'a cannon'))
+      .toBe('sprite of a cannon, flat background');
+  });
+
+  it('trims the subject before substituting', () => {
+    expect(buildPrompt('sprite of {subject}, flat background', '  a cannon. '))
+      .toBe('sprite of a cannon, flat background');
+  });
+
+  it('replaces only the first slot and never re-scans the subject', () => {
+    expect(buildPrompt('{subject} and {subject}', 'x {subject}'))
+      .toBe('x {subject} and {subject}');
+  });
+
+  it('treats $ patterns in the subject literally', () => {
+    expect(buildPrompt('sprite of {subject}.', "a $& and $' cannon"))
+      .toBe("sprite of a $& and $' cannon.");
   });
 });
 
@@ -391,6 +412,12 @@ describe('parseSpritePrompts variants', () => {
     const bases = parseSpritePrompts(spriteMd.replace(/^- \*\*\w+\.t\d\w*\*\*.*$/gm, ''));
     expect(bases.length).toBeGreaterThan(0);
     for (const p of bases) expect(p.variant, `${p.category}/${p.type}`).toBeUndefined();
-    expect(parseSpritePrompts(spriteMd).filter(p => p.variant).map(p => `${p.type}.${p.variant}`)).toEqual(['archer.t4a']);
+    // Every variant is a tier look of a tower that also has a base bullet.
+    const variants = parseSpritePrompts(spriteMd).filter(p => p.variant);
+    expect(variants.length).toBeGreaterThan(0);
+    for (const v of variants) {
+      expect(VARIANT_KEYS).toContain(v.variant);
+      expect(bases.some(b => b.category === v.category && b.type === v.type), v.type).toBe(true);
+    }
   });
 });
