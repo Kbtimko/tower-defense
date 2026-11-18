@@ -26,7 +26,7 @@ export const TOWER_DEFS = {
     tier2: { cost: 60, damage: 50, range: 115, label: 'Arcane Power' },
     tier3: { cost: 90, damage: 80, range: 130, label: 'Sorcery' },
     tier4A: { cost: 130, damage: 120, label: 'Archmage', passiveEffect: 'Chain lightning to 3 targets' },
-    tier4B: { cost: 130, damage: 60, splashRadius: 60, label: 'Frost Mage', passiveEffect: 'AoE frost on every shot, 30% slow' },
+    tier4B: { cost: 130, damage: 85, splashRadius: 60, label: 'Frost Mage', passiveEffect: 'AoE frost on every shot, 30% slow' },
     ability: { label: 'Slow Nova', cooldown: 20, description: 'AoE freeze in range for 2s' },
   },
   cannon: {
