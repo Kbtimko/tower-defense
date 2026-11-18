@@ -1,4 +1,5 @@
 import { TOWER_DEFS } from './towers.js';
+import { towerSpecAt } from '../sim/matchupValue.js';
 
 describe('TOWER_DEFS', () => {
   const REQUIRED = ['name','icon','cost','color','range','damage','fireRate',
@@ -16,4 +17,31 @@ describe('TOWER_DEFS', () => {
       expect(def.tier4B.cost).toBeGreaterThan(0);
     });
   }
+});
+
+describe('tier damage ladder', () => {
+  const dps = (type, tier, branch) => {
+    const s = towerSpecAt(type, tier, branch);
+    return s.damage * s.fireRate;
+  };
+  // Barracks deals no direct damage (its soldiers do), so it has no ladder to pin.
+  const attackers = Object.keys(TOWER_DEFS).filter((t) => TOWER_DEFS[t].damage > 0);
+
+  it('every attacking tower out-damages the tier below, both T4 branches above T3', () => {
+    // An empty list would make the loop below pass without asserting anything.
+    expect(attackers).toContain('mage');
+    expect(attackers).toHaveLength(Object.keys(TOWER_DEFS).length - 1);
+
+    for (const type of attackers) {
+      const steps = [
+        ['T1<T2', dps(type, 1, null), dps(type, 2, null)],
+        ['T2<T3', dps(type, 2, null), dps(type, 3, null)],
+        ['T3<4A', dps(type, 3, null), dps(type, 4, 'A')],
+        ['T3<4B', dps(type, 3, null), dps(type, 4, 'B')],
+      ];
+      for (const [label, prev, next] of steps) {
+        expect(next, `${type} ${label}`).toBeGreaterThan(prev);
+      }
+    }
+  });
 });
