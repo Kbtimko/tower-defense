@@ -75,3 +75,12 @@ describe('tier-4 effect data (#75)', () => {
     expect(D.sniper.tier4A.bossStun).toBe(1);
   });
 });
+
+describe('Rapid Cannon tuning (#76)', () => {
+  // Pins the user's measured pick from the --t4 sweep at 140 damage: map 6 x1.14,
+  // map 8 x1.00 with 50% lives, map 9 x1.27. Changing it means re-running the sweep.
+  it('Rapid Cannon is tuned to 140 (#76)', () => {
+    expect(TOWER_DEFS.cannon.tier4B.damage).toBe(140);
+    expect(TOWER_DEFS.cannon.tier4B.splashRadius).toBe(0);
+  });
+});

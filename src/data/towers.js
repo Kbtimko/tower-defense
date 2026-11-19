@@ -39,7 +39,7 @@ export const TOWER_DEFS = {
     tier2: { cost: 70, damage: 70, range: 125, splashRadius: 55, label: 'Heavy Shell' },
     tier3: { cost: 100, damage: 100, range: 140, splashRadius: 65, label: 'Mega Bomb' },
     tier4A: { cost: 150, damage: 150, splashRadius: 80, label: 'Artillery', cluster: { shells: 3, spread: 40, radius: 35, damageFrac: 0.4 }, passiveEffect: 'Splits into 3 shells on impact' },
-    tier4B: { cost: 150, damage: 80, fireRate: 1.35, splashRadius: 0, label: 'Rapid Cannon', passiveEffect: '3x fire rate, single target' },
+    tier4B: { cost: 150, damage: 140, fireRate: 1.35, splashRadius: 0, label: 'Rapid Cannon', passiveEffect: '3x fire rate, single target' },
     ability: { label: 'Big Bomb', cooldown: 30, description: 'Massive AoE strike on target' },
   },
   ice: {

@@ -5,6 +5,12 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 
 ## Current Status (2026-11-19)
 
+**2026-11-19: backlog #76 + #77 (tier-4 pricing, Rapid Cannon 140) — PR into `visual/integration`.**
+- **#76:** User: "Damage 140", picked from a measured `--t4` sweep of 80/110/140/splash 35. `cannon.tier4B.damage` goes 80→140; the card stays "3x fire rate, single target". Sweep: map 4 lives 50→61%, map 6 x1.27→x1.14, map 8 x1.11/0%→x1.00/50%, map 9 x1.49→x1.27/10%. That is at or above its pre-#75 self everywhere. It is now 189 single-target DPS, the highest in the game, but it doesn't pierce.
+- **#77:** User: "Approve". `towerSpecAt` folds `shots`, `slow` and `slowedMult`, and `towerDpsAgainst` multiplies by `shots × (slow > 0 ? slowedMult : 1)`. Splash, chain and cluster stay unpriced (crowd effects). Spec `2026-11-19-t4-pricing-design.md`, plan `2026-11-19-t4-pricing.md`, session `.claude/sessions/2026-11-19-t4-pricing.md`. 4020 tests.
+- **Worth knowing:** the default `npm run balance` is **byte-identical** after #77. Measured: no default strategy run upgrades any tower to tier 4 on maps 4–9, because the greedy planner widens first and runs out of gold. So the pricing is right but inert today. It only shows once the economy reaches tier 4 (for example with meta upgrades). `legacyGolden.json` and the #75 tiers 1–3 snapshot are unchanged.
+- **Live (capture build, map 8 wave 13, `cannon@7:4b`):** 21 hits, all at 140, 0 AoE, 0 page errors.
+
 **2026-11-19: backlog #75 (tier-4 abilities do what their cards say) — PR into `visual/integration`.** User: "Make it all true". Every tier-4 `passiveEffect` is now real in the game AND the sim, through one pure resolver, `src/systems/towerShot.js`. `shotTargets` decides what a trigger fires at; `resolveHit` turns a hit into records `{enemy, amount, isAoe, hitMult, slow, stun, chainFrom}`, which GameScene and `simulate.js` only apply. The abilities:
 - Volley: 2 arrows per shot.
 - Marksman: pierce.
@@ -169,7 +175,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
-- **2026-11-19:** #75 tier-4 abilities PR open into `visual/integration` (`balance/75-t4-abilities`). #126 (#74) and #127 (#73a) merged.
+- **2026-11-19:** #128 (#75 tier-4 abilities) merged. #76+#77 PR open into `visual/integration` (`balance/76-77-t4-pricing`).
 - **2026-11-18:** #124 (roadmap 4.2) merged into `visual/integration`. #125 (#72 Frost Mage) merged. #74 tier-4 sweep PR open into `visual/integration` (`balance/74-t4-sweep`).
 - **2026-11-16:** roadmap 4.0 PR open into `visual/integration` (`visual/4.0-art-pipeline-v2`). #120 merged into `visual/integration`; hotfix #121 merged into `main` and deployed. Waiting on the user: G3 (incl. rally flag and tier looks on a real phone).
 - Preview for playtesting: `https://tower-defense-git-visual-integration-kbtimko-5183s-projects.vercel.app` (verified 2026-10-22; Vercel SSO-protected — sign in on the device or use the dashboard Share link).
@@ -426,8 +432,8 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 73. `[auto]` **4.2 deferred minors** _(final review + task reviews)_. (a) ✅ **DONE 2026-11-19 (visual/73a-drop-core-glow)** — user: "drop the dots for 73a". The core glow now draws only on art-less fallback towers; #66's stroke circle and the pips/badge/embers/ring stay. (b) `capture.mjs` `tierLooksPlan` picks pads from base ground only. (c) `sniper.t4b` draws at 1.40 screen px per source px (64px cell), `barracks.t4a` 1.26 — soft; re-bake at 4.1. (d) `buildPrompt` evaluates `styleAnchor ?? ''` 3x; no empty-subject slot test. (e) `towerArtPrompts.test.js` hardcodes the spec's strength map and a barracks footprint substring. (f) `tierLookPadFit.test.js` "each tier draws wider" hardcodes `['t1','t2','t3','t4a','t4b']` (use `['t1', ...VARIANT_KEYS]`).
 74. `[review]` ✅ **DONE 2026-11-19 (balance/74-t4-sweep)** ~~The balance sim cannot see a tier-4 mage at all~~. User: "for 74 build a sweep". `npm run balance -- --t4` adds a tier-4 sweep (maps 4-9 × every tower × T3/4A/4B, ~35 s). The default report and sim are byte-identical. Original finding: the sim always took branch A, and no run took a mage to T4 (mage 4A 120→20 left the report identical).
 75. `[review]` ✅ **DONE 2026-11-19 (balance/75-t4-abilities)** ~~Most tier-4 abilities are text only~~. User: "Make it all true". Every card is real in game + sim via `src/systems/towerShot.js`, splash keeps slow, and a stronger slow/stun wins (`statusMerge.js`). See Current Status.
-76. `[review]` **Rapid Cannon (cannon 4B) is weaker than before #75** _(found 2026-11-19 by the #75 `--t4` sweep)_. Going single-target (`splashRadius: 0`, fireRate 1.35) to make "direct damage focus" true costs it: map 6 x1.14→x1.27 (T3 x1.14), map 8 lives 58%→0%, map 9 x1.44→x1.49. Options: raise its damage (80 → ~110?), give it a small splash back, or accept it as the anti-boss branch. Re-run `npm run balance -- --t4` after any change.
-77. `[auto]` **The sim's purchase heuristic doesn't price tier-4 abilities** _(#75 final review)_. `src/sim/matchupValue.js` `towerSpecAt` copies damage/fireRate/pierce only, so greedy upgrade scoring sees Volley as 60/shot (really 2×60), and ignores chain, cluster and Shatter's 2x. In-family with the existing "splash and slow go unpriced" note. Cheap start: copy `shots` and multiply by it. The `--t4` sweep forces branches and is unaffected.
+76. `[review]` ✅ **DONE 2026-11-19 (balance/76-77-t4-pricing)** ~~Rapid Cannon weaker than before #75~~. User: "Damage 140" (measured sweep). Back at or above its pre-#75 strength on maps 4–9.
+77. `[auto]` ✅ **DONE 2026-11-19 (balance/76-77-t4-pricing)** ~~The sim's purchase heuristic doesn't price tier-4 abilities~~. Prices `shots` and Shatter's self-slowed 2x (upper bound), with splash/chain/cluster unpriced. Inert today: no default run reaches tier 4.
 
 ## Completed
 <!-- Tags below are retrospective/illustrative — runner skips done items regardless. -->

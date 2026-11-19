@@ -159,3 +159,46 @@ describe('towerValueAgainst', () => {
     expect(Number.isFinite(v)).toBe(true);
   });
 });
+
+describe('tier-4 per-target multipliers (#77)', () => {
+  const w = mixOf('drone');
+
+  it('prices Volley at 2 arrows', () => {
+    const spec = towerSpecAt('archer', 4, 'A');
+    expect(spec.shots).toBe(2);
+    expect(towerDpsAgainst(spec, w)).toBeCloseTo(2 * towerDpsAgainst({ ...spec, shots: 1 }, w));
+  });
+
+  it('Shatter spec inherits slow from T3 and doubles DPS', () => {
+    const spec = towerSpecAt('ice', 4, 'B');
+    expect(spec.slow).toBe(TOWER_DEFS.ice.tier3.slow);
+    expect(spec.slowedMult).toBe(2);
+    expect(towerDpsAgainst(spec, w)).toBeCloseTo(2 * towerDpsAgainst({ ...spec, slowedMult: 1 }, w));
+  });
+
+  it('slowedMult without slow is not priced', () => {
+    const spec = { ...towerSpecAt('ice', 4, 'B'), slow: 0 };
+    expect(towerDpsAgainst(spec, w)).toBeCloseTo(towerDpsAgainst({ ...spec, slowedMult: 1 }, w));
+  });
+
+  it('crowd effects stay unpriced', () => {
+    const spec = towerSpecAt('mage', 4, 'A');
+    expect(spec).not.toHaveProperty('chain');
+    expect(spec).not.toHaveProperty('cluster');
+    expect(towerDpsAgainst(spec, w)).toBeCloseTo(
+      towerDpsAgainst({ type: spec.type, tier: 4, branch: 'A', damage: spec.damage,
+        fireRate: spec.fireRate, pierce: spec.pierce, cost: spec.cost }, w));
+    expect(towerSpecAt('cannon', 4, 'A')).not.toHaveProperty('cluster');
+  });
+
+  it('tiers 1-3 are unchanged', () => {
+    for (const [type, def] of Object.entries(TOWER_DEFS)) {
+      if (!(def.fireRate > 0)) continue;
+      for (const tier of [1, 2, 3]) {
+        const s = towerSpecAt(type, tier, 'A');
+        expect(s.shots).toBe(1);
+        expect(s.slowedMult).toBe(1);
+      }
+    }
+  });
+});
