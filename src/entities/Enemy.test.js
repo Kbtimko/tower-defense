@@ -140,6 +140,22 @@ describe('Enemy.takeDamage — weakness matrix integration', () => {
   });
 });
 
+describe('Enemy stronger status wins', () => {
+  it('a weaker slow does not overwrite a stronger one (Permafrost then Frost Mage)', () => {
+    const e = new Enemy(makeScene(), { def: makeDef(), startX: 0, startY: 0 });
+    e.applyStatus({ type: 'slow', duration: 2, factor: 0.15 });
+    e.applyStatus({ type: 'slow', duration: 2, factor: 0.7 });
+    expect(e.statusEffects.slow.factor).toBe(0.15);
+  });
+
+  it('a shorter stun does not cut a longer running one (EMP then Assassin)', () => {
+    const e = new Enemy(makeScene(), { def: makeDef(), startX: 0, startY: 0 });
+    e.applyStatus({ type: 'stun', duration: 3 });
+    e.applyStatus({ type: 'stun', duration: 1 });
+    expect(e.statusEffects.stun.timer).toBeCloseTo(3);
+  });
+});
+
 describe('Enemy burn status', () => {
   it('takes dps damage at 1-second ticks', () => {
     const enemy = makeEnemy();
@@ -542,5 +558,21 @@ describe('Enemy hit squash and status visuals', () => {
     e.applyStatus({ type: 'slow', duration: 1, factor: 0.5 });
     e.takeDamage(5);
     expect(() => e.update(0.05)).not.toThrow();
+  });
+});
+
+describe('Enemy hitMult (#75)', () => {
+  it('multiplies after armour, stacking with vulnerable', () => {
+    const e = makeEnemy();
+    e.armor = 5;
+    const start = e.hp;
+    e.takeDamage(25, { hitMult: 2 });
+    expect(start - e.hp).toBe(40); // (25-5) * 1 * 2
+    const e2 = makeEnemy();
+    e2.armor = 5;
+    e2.applyStatus({ type: 'vulnerable', duration: 5, multiplier: 1.5 });
+    const s2 = e2.hp;
+    e2.takeDamage(25, { hitMult: 2 });
+    expect(s2 - e2.hp).toBe(60);
   });
 });

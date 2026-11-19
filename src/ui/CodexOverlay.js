@@ -169,7 +169,7 @@ export class CodexOverlay {
         line('codex-stat', `Fire rate: ${t.fireRate}/s`),
       );
       if (t.splashRadius > 0) this._detail.appendChild(line('codex-stat', `Splash: ${t.splashRadius}`));
-      if (t.slow > 0)         this._detail.appendChild(line('codex-stat', `Slow: ${Math.round(t.slow * 100)}%`));
+      if (t.slow > 0)         this._detail.appendChild(line('codex-stat', `Slows to ${Math.round(t.slow * 100)}% speed`));
     } else if (t.soldierStats) {
       // The barracks fields a squad instead of shooting.
       this._detail.appendChild(line('codex-section', 'Soldiers'));
@@ -190,12 +190,15 @@ export class CodexOverlay {
       const bits = [];
       if (tier.damage       != null) bits.push(`${tier.damage} dmg`);
       if (tier.range        != null) bits.push(`${tier.range} range`);
-      if (tier.splashRadius != null) bits.push(`${tier.splashRadius} splash`);
-      // Ice is the only tower whose tiers vary slow (0.45 -> 0.3 -> 0.2 ->
+      if (tier.splashRadius > 0)     bits.push(`${tier.splashRadius} splash`);
+      // A tier that sets splashRadius 0 (Rapid Cannon) is saying "no splash";
+      // its passive text already says "single target", so omit the row.
+      // Slow is a speed multiplier, so it is worded as the speed left to match
+      // the tower cards. Ice varies it per tier (0.45 -> 0.3 -> 0.2 ->
       // 0.15); without this, Deep Freeze/Blizzard show damage and range but
       // give no hint that they also strengthen the slow, which is their
       // actual point.
-      if (tier.slow         != null) bits.push(`Slow: ${Math.round(tier.slow * 100)}%`);
+      if (tier.slow         != null) bits.push(`Slows to ${Math.round(tier.slow * 100)}% speed`);
       if (tier.passiveEffect)        bits.push(tier.passiveEffect);
       if (bits.length) row.appendChild(document.createTextNode(` — ${bits.join(', ')}`));
       this._detail.appendChild(row);

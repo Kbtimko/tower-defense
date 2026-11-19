@@ -47,8 +47,9 @@
 // looking at.
 import { PathManager } from '../systems/PathManager.js';
 import { WaveManager } from '../systems/WaveManager.js';
-import { TOWER_DEFS } from '../data/towers.js';
+import { TOWER_DEFS, TOWER_SLOW_DURATION } from '../data/towers.js';
 import { computeDamage } from '../systems/damage.js';
+import { T4_EFFECT_KEYS, shotTargets, resolveHit, isBossType } from '../systems/towerShot.js';
 import { pointAtProgress } from '../systems/pathGeometry.js';
 import { HEROES } from '../data/heroes.js';
 import { heroSource, soldierSource } from '../data/sourceBuilders.js';
@@ -61,6 +62,7 @@ import { makeHeroUnit, damageHeroUnit, tickHeroUnit, registerHeroUnitDamage } fr
 import { heroAttackDamage } from '../systems/heroLeveling.js';
 import { totalEnemyHp } from '../data/waves.js';
 import { countdownMsFor, shouldStartCountdown, WaveCountdown } from '../systems/waveCountdown.js';
+import { mergeSlow, mergeStun } from '../systems/statusMerge.js';
 
 const PROJECTILE_SPEED = 280;   // Projectile.js
 const WAVE_CLEAR_BONUS = 38;    // GameScene.js
@@ -89,6 +91,8 @@ function makeTower(type, x, y, branchPref = null, tierCap = null, tag = null) {
     slow: def.slow,
     level: 1,
     branch: null,
+    // Tier-4 ability slots, empty until the tier-4 def supplies them (as Tower's are).
+    shots: 1, chain: null, cluster: null, slowedMult: 1, bossStun: 0,
     // Sweep-only knobs: the tier-4 branch to buy, a ceiling below the map's, a label.
     branchPref, tierCap, tag,
     cooldown: 0,
@@ -179,6 +183,7 @@ export function simulateMap({
       waypointIndex: 0,
       dead: false,
       slow: { active: false, timer: 0, factor: 1 },
+      stun: { active: false, timer: 0 },
     });
   });
 
@@ -235,6 +240,7 @@ export function simulateMap({
         if (tierDef.fireRate     !== undefined) t.fireRate     = tierDef.fireRate;
         if (tierDef.pierce       !== undefined) t.pierce       = tierDef.pierce;
         if (nextTier === 4)                     t.branch       = letter;
+        for (const k of T4_EFFECT_KEYS) if (tierDef[k] !== undefined) t[k] = tierDef[k];
         // Barracks gain nothing from the tier stat block; their upgrade lands on
         // the soldiers (Barracks.upgrade + _rebuildSoldiers, which respawns the
         // squad at full strength with the new stats).
@@ -332,6 +338,13 @@ export function simulateMap({
         e.slow.timer -= dt;
         if (e.slow.timer <= 0) e.slow = { active: false, timer: 0, factor: 1 };
       }
+      if (e.stun.active) {
+        e.stun.timer -= dt;
+        if (e.stun.timer <= 0) e.stun = { active: false, timer: 0 };
+      }
+      // Before the blocker lookup, as in GameScene._updateEnemies: a stunned
+      // enemy neither moves nor trades melee, and no blocker strikes it either.
+      if (e.stun.active) continue;
       // Blocking (GameScene._updateEnemies): a blocked enemy skips the whole
       // movement loop and trades melee instead, so it sits inside tower range
       // for as long as a soldier survives in front of it.
@@ -388,18 +401,25 @@ export function simulateMap({
       t.cooldown = Math.max(0, t.cooldown - dt);
       if (t.cooldown > 0) continue;
       let best = null, bestProg = -1;
+      const inRange = [];
       for (const e of enemies) {
-        if (Math.hypot(e.x - t.x, e.y - t.y) <= t.range && e.waypointIndex > bestProg) {
-          best = e; bestProg = e.waypointIndex;
+        if (Math.hypot(e.x - t.x, e.y - t.y) <= t.range) {
+          inRange.push(e);
+          if (e.waypointIndex > bestProg) { best = e; bestProg = e.waypointIndex; }
         }
       }
       if (best) {
-        projectiles.push({
-          x: t.x, y: t.y, target: best, targetX: best.x, targetY: best.y,
-          damage: t.damage, splashRadius: t.splashRadius, pierce: t.pierce,
-          slowFactor: t.slow, towerType: t.type, tier: t.level, branch: t.branch,
-          dead: false,
-        });
+        for (const target of shotTargets(t.shots, best, inRange)) {
+          projectiles.push({
+            x: t.x, y: t.y, target, targetX: target.x, targetY: target.y,
+            damage: t.damage, splashRadius: t.splashRadius, pierce: t.pierce,
+            slowFactor: t.slow, towerType: t.type, tier: t.level, branch: t.branch,
+            chain: t.chain, cluster: t.cluster,
+            slowedMult: t.slowedMult, bossStun: t.bossStun,
+            slowDuration: TOWER_SLOW_DURATION,
+            dead: false,
+          });
+        }
         t.cooldown = 1 / t.fireRate;
       }
     }
@@ -411,18 +431,24 @@ export function simulateMap({
       const dist = Math.hypot(dx, dy);
       if (dist < 10) {
         const source = { kind: 'tower', type: p.towerType, tier: p.tier, branch: p.branch };
-        const hits = p.splashRadius > 0
-          ? enemies.filter(e => Math.hypot(e.x - p.targetX, e.y - p.targetY) <= p.splashRadius)
-          : (p.target && !p.target.dead ? [p.target] : []);
-        for (const e of hits) {
+        const records = resolveHit(p, enemies, {
+          isSlowed: e => e.slow.active,
+          isBoss: e => isBossType(e.def.type),
+        });
+        for (const rec of records) {
+          const e = rec.enemy;
+          // An earlier record in this same hit (a cluster bomblet) may have killed it.
+          if (e.dead) continue;
           e.hp -= computeDamage({
-            amount: p.damage * damageMult, armor: e.armor, pierce: p.pierce,
-            source, enemyType: e.def.type,
+            amount: rec.amount * damageMult, armor: e.armor, pierce: p.pierce,
+            source, enemyType: e.def.type, vulnerableMult: rec.hitMult,
           });
-          if (e.hp <= 0 && !e.dead) {
+          if (e.hp <= 0) {
             e.dead = true; kills++; gold += killReward(e.reward);
-          } else if (p.splashRadius === 0 && p.slowFactor > 0) {
-            e.slow = { active: true, timer: 2, factor: p.slowFactor };
+          } else {
+            // Status only lands on a survivor, as in GameScene._onProjectileHit.
+            if (rec.slow) e.slow = mergeSlow(e.slow, rec.slow);
+            if (rec.stun) e.stun = mergeStun(e.stun, rec.stun);
           }
         }
         p.dead = true;

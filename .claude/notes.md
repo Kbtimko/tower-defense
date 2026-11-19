@@ -5,6 +5,42 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 
 ## Current Status (2026-11-19)
 
+**2026-11-19: backlog #75 (tier-4 abilities do what their cards say) — PR into `visual/integration`.** User: "Make it all true". Every tier-4 `passiveEffect` is now real in the game AND the sim, through one pure resolver, `src/systems/towerShot.js`. `shotTargets` decides what a trigger fires at; `resolveHit` turns a hit into records `{enemy, amount, isAoe, hitMult, slow, stun, chainFrom}`, which GameScene and `simulate.js` only apply. The abilities:
+- Volley: 2 arrows per shot.
+- Marksman: pierce.
+- Archmage: chains to 3 targets, 70 px jumps, ×0.75 falloff, drawn as a magenta bolt (`this.bolts`, `CHAIN_BOLT` in `src/data/fx.js`).
+- Frost Mage: slow 0.7.
+- Artillery: 3 bomblets at 40 px, 40% damage in a 35 px radius.
+- Rapid Cannon: 1.35 fire rate (exact 3x), single target.
+- Shatter: 2x damage to slowed enemies.
+- Assassin: 1 s stun on bosses (`DEATH_CLASS === 'boss'`).
+
+Other changes in the PR:
+- **Root-cause fix:** splash shots now apply slow (Shatter used to lose its slow entirely).
+- **Final-review fix:** a stronger slow or stun beats a weaker one (pure `src/systems/statusMerge.js`, shared by `Enemy.applyStatus` and the sim). Without it, the new Frost Mage AoE would weaken Permafrost and Shatter slows, and Assassin would cut a 3 s EMP stun to 1 s. It also means weaker ice no longer overwrites stronger ice.
+- **Codex** words slow as "Slows to N% speed" and drops "0 splash".
+
+Tunables are the tier blocks in `src/data/towers.js` (`TOWER_SLOW_DURATION`, `T4_EFFECT_KEYS`). Spec `2026-11-19-t4-abilities-design.md`, plan `2026-11-19-t4-abilities.md`, session `.claude/sessions/2026-11-19-t4-abilities.md`. 4014 tests.
+- **Balance:**
+  - The default `npm run balance` is byte-identical, `legacyGolden.json` is untouched, and the tiers 1–3 sim characterization snapshot (maps 0/4/8) is unchanged.
+  - `--t4` sweep: Archmage map 9 x1.63→x1.22; Volley x1.71→x1.36; Shatter map 6 x1.46→x1.25.
+  - **Rapid Cannon got weaker** without splash (map 6 x1.14→x1.27, map 8 lives 58%→0%), see #76.
+  - Sniper rows are unchanged.
+- **Live (capture build, map 8 wave 13, path-hugging slots 7/13, real combat, every probe against the base build too):**
+  - Volley fires 2 projectiles per trigger (base: 1).
+  - Marksman hits pierce 20/20 (base: 0).
+  - Archmage hits are [120, 90, 67.5] with up to 2 bolts (base: [120], no bolts).
+  - Frost Mage slows 19/19 splash survivors (base: 0/2).
+  - Artillery shows 4 impacts per hit, [150, 60] (base: 1).
+  - Rapid Cannon makes 0 AoE hits (base: 44).
+  - Shatter does 2x on 25 hits, all on already-slowed enemies (base: 0).
+  - Assassin stunned the titan on 4/4 hits (base: 0/4).
+  - 0 page errors. A frozen-frame screenshot shows the chain bolt.
+- **Worth knowing:**
+  - The old splash loop also hit same-frame corpses: `_dealDamage` paid the kill reward again, and an ice slow tinted the fading corpse. The resolver skips dead enemies, so both are gone.
+  - The sim's greedy purchase heuristic (`matchupValue`) still prices only damage × rate × pierce (#77).
+  - Volley's 2 arrows draw as one when there is a single target.
+
 **2026-11-19: backlog #73a (drop the core glow over tower art) — PR into `visual/integration`.** User: "drop the dots for 73a".
 - The #49 pulsing core now draws only on art-less fallback towers (`TowerTierLook.setTier` gates on `!sprite.active`).
 - Embers, pips/badge, the T4 ring and the #66 stroke circle stay.
@@ -133,6 +169,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
+- **2026-11-19:** #75 tier-4 abilities PR open into `visual/integration` (`balance/75-t4-abilities`). #126 (#74) and #127 (#73a) merged.
 - **2026-11-18:** #124 (roadmap 4.2) merged into `visual/integration`. #125 (#72 Frost Mage) merged. #74 tier-4 sweep PR open into `visual/integration` (`balance/74-t4-sweep`).
 - **2026-11-16:** roadmap 4.0 PR open into `visual/integration` (`visual/4.0-art-pipeline-v2`). #120 merged into `visual/integration`; hotfix #121 merged into `main` and deployed. Waiting on the user: G3 (incl. rally flag and tier looks on a real phone).
 - Preview for playtesting: `https://tower-defense-git-visual-integration-kbtimko-5183s-projects.vercel.app` (verified 2026-10-22; Vercel SSO-protected — sign in on the device or use the dashboard Share link).
@@ -388,7 +425,9 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 72. `[review]` ✅ **DONE 2026-11-18 (balance/72-frost-mage-damage)** ~~Frost Mage (mage 4B) is weaker single-target than T3~~ — damage 60→85 (DPS 36→51, T3 48, 4A 72). `src/data/towers.test.js` "tier damage ladder" pins T1<T2<T3<4A and T3<4B DPS for every attacking tower. Balance report byte-identical (see #74).
 73. `[auto]` **4.2 deferred minors** _(final review + task reviews)_. (a) ✅ **DONE 2026-11-19 (visual/73a-drop-core-glow)** — user: "drop the dots for 73a". The core glow now draws only on art-less fallback towers; #66's stroke circle and the pips/badge/embers/ring stay. (b) `capture.mjs` `tierLooksPlan` picks pads from base ground only. (c) `sniper.t4b` draws at 1.40 screen px per source px (64px cell), `barracks.t4a` 1.26 — soft; re-bake at 4.1. (d) `buildPrompt` evaluates `styleAnchor ?? ''` 3x; no empty-subject slot test. (e) `towerArtPrompts.test.js` hardcodes the spec's strength map and a barracks footprint substring. (f) `tierLookPadFit.test.js` "each tier draws wider" hardcodes `['t1','t2','t3','t4a','t4b']` (use `['t1', ...VARIANT_KEYS]`).
 74. `[review]` ✅ **DONE 2026-11-19 (balance/74-t4-sweep)** ~~The balance sim cannot see a tier-4 mage at all~~. User: "for 74 build a sweep". `npm run balance -- --t4` adds a tier-4 sweep (maps 4-9 × every tower × T3/4A/4B, ~35 s). The default report and sim are byte-identical. Original finding: the sim always took branch A, and no run took a mage to T4 (mage 4A 120→20 left the report identical).
-75. `[review]` **Most tier-4 abilities are text only — the game never applies them** _(found 2026-11-19 while scoping #74)_. Towers fire with damage, range, fireRate, splashRadius, pierce and slow only (`GameScene._fire`/`_onProjectileHit`, `src/scenes/GameScene.js:1359-1414`); `passiveEffect` is read only by the codex/inspect panels. Not implemented: archer 4A "2 arrows per shot", archer 4B "+50% range, armor piercing" (no range/pierce in its tier block), mage 4A "chain lightning to 3 targets", mage 4B "AoE frost, 30% slow" (no slow), cannon 4A "splits into 3 shells", ice 4B "frozen enemies take 2x damage", sniper 4A "ignores armor, stuns boss 1s". Worse: **ice 4B Shatter stops slowing entirely** — a splash shot skips the slow (`_onProjectileHit` applies slow only on the single-target path), so the ice tower's 4B loses its whole job. Real today (stat-backed): cannon/sniper 4B fire rate, ice 4A 15% slow. Decide per ability: implement it (game + `src/sim/` so balance sees it) or rewrite the text to what the tier does.
+75. `[review]` ✅ **DONE 2026-11-19 (balance/75-t4-abilities)** ~~Most tier-4 abilities are text only~~. User: "Make it all true". Every card is real in game + sim via `src/systems/towerShot.js`, splash keeps slow, and a stronger slow/stun wins (`statusMerge.js`). See Current Status.
+76. `[review]` **Rapid Cannon (cannon 4B) is weaker than before #75** _(found 2026-11-19 by the #75 `--t4` sweep)_. Going single-target (`splashRadius: 0`, fireRate 1.35) to make "direct damage focus" true costs it: map 6 x1.14→x1.27 (T3 x1.14), map 8 lives 58%→0%, map 9 x1.44→x1.49. Options: raise its damage (80 → ~110?), give it a small splash back, or accept it as the anti-boss branch. Re-run `npm run balance -- --t4` after any change.
+77. `[auto]` **The sim's purchase heuristic doesn't price tier-4 abilities** _(#75 final review)_. `src/sim/matchupValue.js` `towerSpecAt` copies damage/fireRate/pierce only, so greedy upgrade scoring sees Volley as 60/shot (really 2×60), and ignores chain, cluster and Shatter's 2x. In-family with the existing "splash and slow go unpriced" note. Cheap start: copy `shots` and multiply by it. The `--t4` sweep forces branches and is unaffected.
 
 ## Completed
 <!-- Tags below are retrospective/illustrative — runner skips done items regardless. -->

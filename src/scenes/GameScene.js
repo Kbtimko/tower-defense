@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { TOWER_DEFS, PROJECTILE_HIT_RADIUS, sellRefund } from '../data/towers.js';
+import { TOWER_DEFS, PROJECTILE_HIT_RADIUS, TOWER_SLOW_DURATION, sellRefund } from '../data/towers.js';
 import { MAPS } from '../data/maps.js';
 import { MAP_WAVES } from '../data/waves.js';
 import { PathManager } from '../systems/PathManager.js';
@@ -21,7 +21,8 @@ import { DamageNumberOverlay } from '../systems/DamageNumberOverlay.js';
 import { CoinFx } from '../systems/CoinFx.js';
 import { ShakeController }    from '../systems/ShakeController.js';
 import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
-import { SOLDIER_MUZZLE, HIT_STOP } from '../data/fx.js';
+import { SOLDIER_MUZZLE, HIT_STOP, CHAIN_BOLT } from '../data/fx.js';
+import { shotTargets, resolveHit, clusterPoints, isBossType } from '../systems/towerShot.js';
 import { BUILD_POP, UPGRADE_POP, SELL_FX, SELECTION_RING, PAD_GLOW, RETICLE } from '../data/juice.js';
 import { deathClass, isHeavyHit, canHitStop } from '../systems/hitFx.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
@@ -295,6 +296,7 @@ export default class GameScene extends Phaser.Scene {
     this.projectiles = [];
     this._projectilePool = new ProjectilePool(opts => new Projectile(this, opts));
     this.particles   = [];
+    this.bolts       = [];
     this.kills       = 0;
     this.speed       = 1;
     this.over        = false;
@@ -1342,10 +1344,11 @@ export default class GameScene extends Phaser.Scene {
       tower.cooldown = Math.max(0, tower.cooldown - dt);
       if (tower.cooldown > 0) continue;
       let best = null, bestProg = -1;
+      const inRange = [];
       for (const enemy of this.enemies) {
-        if (Math.hypot(enemy.x - tower.x, enemy.y - tower.y) <= tower.range
-            && enemy.waypointIndex > bestProg) {
-          best = enemy; bestProg = enemy.waypointIndex;
+        if (Math.hypot(enemy.x - tower.x, enemy.y - tower.y) <= tower.range) {
+          inRange.push(enemy);
+          if (enemy.waypointIndex > bestProg) { best = enemy; bestProg = enemy.waypointIndex; }
         }
       }
       if (best) {
@@ -1354,14 +1357,19 @@ export default class GameScene extends Phaser.Scene {
         // Shots leave the drawn art, which a tier scale lifts off the pad (S6).
         const m = tower.muzzlePoint();
         if (this.particleSpawner) this.particleSpawner.spawnMuzzleFlash(m.x, m.y, tower.type, tower.level, tower.branch);
-        this.projectiles.push(this._projectilePool.acquire({
-          x: m.x, y: m.y, target: best,
-          damage: tower.damage, splashRadius: tower.splashRadius,
-          pierce: tower.pierce, slowFactor: tower.slow,
-          color: PROJ_COLORS[tower.type] ?? 0xffffff,
-          towerType: tower.type,
-          tier: tower.level, branch: tower.branch,
-        }));
+        for (const target of shotTargets(tower.shots ?? 1, best, inRange)) {
+          this.projectiles.push(this._projectilePool.acquire({
+            x: m.x, y: m.y, target,
+            damage: tower.damage, splashRadius: tower.splashRadius,
+            pierce: tower.pierce, slowFactor: tower.slow,
+            color: PROJ_COLORS[tower.type] ?? 0xffffff,
+            towerType: tower.type,
+            tier: tower.level, branch: tower.branch,
+            chain: tower.chain, cluster: tower.cluster,
+            slowedMult: tower.slowedMult, bossStun: tower.bossStun,
+            slowDuration: TOWER_SLOW_DURATION,
+          }));
+        }
         tower.cooldown = 1 / tower.fireRate;
         // No deadzone, unlike the enemy path (systems/facing.js): a tower's
         // target jumps between discrete enemies rather than tracking a dense
@@ -1402,18 +1410,33 @@ export default class GameScene extends Phaser.Scene {
   _onProjectileHit(proj) {
     const source = { kind: 'tower', type: proj.towerType, tier: proj.tier, branch: proj.branch };
     this.particleSpawner?.spawnImpact(proj.fx.impact, proj.targetX, proj.targetY);
-    if (proj.splashRadius > 0) {
-      for (const enemy of this.enemies) {
-        if (Math.hypot(enemy.x - proj.targetX, enemy.y - proj.targetY) <= proj.splashRadius) {
-          this._dealDamage(enemy, proj.damage, proj.pierce, { source, isAoe: true });
-        }
+    const targetWasHit = !!(proj.target && !proj.target.dead);
+    const records = resolveHit(proj, this.enemies, {
+      isSlowed: e => e.statusEffects.slow.active,
+      isBoss: e => isBossType(e.def.type),
+    });
+    for (const rec of records) {
+      // An earlier record in this same hit (a cluster bomblet) may have killed it.
+      if (rec.enemy.dead) continue;
+      this._dealDamage(rec.enemy, rec.amount, proj.pierce, { source, isAoe: rec.isAoe, hitMult: rec.hitMult });
+      // Status only lands on a survivor; a corpse has nothing to slow or stun.
+      if (!rec.enemy.dead) {
+        if (rec.slow) rec.enemy.applyStatus({ type: 'slow', ...rec.slow });
+        if (rec.stun) rec.enemy.applyStatus({ type: 'stun', ...rec.stun });
       }
-      this._addParticle(proj.targetX, proj.targetY, 0xff8800, 14);
-    } else if (proj.target && !proj.target.dead) {
-      this._dealDamage(proj.target, proj.damage, proj.pierce, { source });
-      if (proj.slowFactor > 0) proj.target.applyStatus({ type: 'slow', duration: 2, factor: proj.slowFactor });
-      this._addParticle(proj.targetX, proj.targetY, proj.color, 7);
+      if (rec.chainFrom) {
+        this.bolts.push({
+          x1: rec.chainFrom.x, y1: rec.chainFrom.y, x2: rec.enemy.x, y2: rec.enemy.y,
+          color: PROJ_COLORS[proj.towerType] ?? 0xffffff,
+          life: CHAIN_BOLT.duration, maxLife: CHAIN_BOLT.duration,
+        });
+      }
     }
+    if (proj.cluster) {
+      for (const pt of clusterPoints(proj)) this.particleSpawner?.spawnImpact(proj.fx.impact, pt.x, pt.y);
+    }
+    if (proj.splashRadius > 0) this._addParticle(proj.targetX, proj.targetY, 0xff8800, 14);
+    else if (targetWasHit) this._addParticle(proj.targetX, proj.targetY, proj.color, 7);
   }
 
   _dealDamage(enemy, damage, pierce, opts = {}) {
@@ -1450,6 +1473,8 @@ export default class GameScene extends Phaser.Scene {
       p.life -= dt; p.radius += dt * 28; p.alpha = Math.max(0, p.life / p.maxLife);
     }
     this.particles = this.particles.filter(p => p.life > 0);
+    for (const b of this.bolts) b.life -= dt;
+    this.bolts = this.bolts.filter(b => b.life > 0);
   }
 
   // ─── Input ─────────────────────────────────────────────────────────────────
@@ -2365,6 +2390,10 @@ export default class GameScene extends Phaser.Scene {
     for (const p of this.particles) {
       this.gfx.lineStyle(2, p.color, p.alpha);
       this.gfx.strokeCircle(p.x, p.y, p.radius);
+    }
+    for (const b of this.bolts) {
+      this.gfx.lineStyle(2, b.color, b.life / b.maxLife);
+      this.gfx.lineBetween(b.x1, b.y1, b.x2, b.y2);
     }
   }
 

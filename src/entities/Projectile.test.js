@@ -18,7 +18,7 @@ vi.mock('phaser', () => ({
 import { Projectile } from './Projectile.js';
 import { projectileFx, arcOffset } from '../systems/fxResolve.js';
 import { PROJECTILE_FX, PROJECTILE_SHAPES } from '../data/fx.js';
-import { PROJECTILE_HIT_RADIUS } from '../data/towers.js';
+import { PROJECTILE_HIT_RADIUS, TOWER_SLOW_DURATION } from '../data/towers.js';
 
 const makeGfx = () => {
   const calls = [];
@@ -138,5 +138,15 @@ describe('Projectile', () => {
     const ground = c.shadow.scale;
     c.x = 50; c.updateVisual();
     expect(c.shadow.scale).toBeLessThan(ground);
+  });
+});
+
+describe('Projectile tier-4 fields (#75)', () => {
+  it('reset clears chain/cluster/slowedMult/bossStun to defaults', () => {
+    const p = new Projectile(makeScene(), opts({ cluster: { shells: 3 }, slowedMult: 2, bossStun: 1,
+      chain: { targets: 3 }, slowDuration: 5 }));
+    expect(p).toMatchObject({ cluster: { shells: 3 }, slowedMult: 2, bossStun: 1, chain: { targets: 3 }, slowDuration: 5 });
+    p.reset(opts());
+    expect(p).toMatchObject({ chain: null, cluster: null, slowedMult: 1, bossStun: 0, slowDuration: TOWER_SLOW_DURATION });
   });
 });
