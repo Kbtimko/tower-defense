@@ -136,3 +136,60 @@ describe('build-phase context', () => {
     expect(seen[1]?.waveNumber).toBe(2);
   });
 });
+
+describe('tier-4 branch, tier cap and tag on purchases', () => {
+  // Tier-4 map, rich and forgiving, so the only thing under test is the purchase.
+  const map4 = { ...MAPS[4], startGold: 100000, startLives: 1000 };
+  const waves4 = MAP_WAVES[4].slice(0, 2);
+
+  // Runs `first` on wave 1, then returns a snapshot of the towers seen at wave 2.
+  function towersAfter(first) {
+    let snap = null;
+    let call = 0;
+    simulateMap({
+      map: map4, waves: waves4,
+      buildPlan: ctx => {
+        call++;
+        if (call === 1) return first;
+        if (call === 2) snap = ctx.towers.map(t => ({ ...t }));
+        return [];
+      },
+    });
+    return snap;
+  }
+  const ups = [{ upgrade: true, towerIndex: 0 }, { upgrade: true, towerIndex: 0 }, { upgrade: true, towerIndex: 0 }];
+
+  it('a build purchase with branch B and a tag reaches tier 4B and keeps the tag', () => {
+    const [t] = towersAfter([{ type: 'mage', slotIndex: 0, branch: 'B', tag: 'x' }, ...ups]);
+    const def = TOWER_DEFS.mage.tier4B;
+    expect(t.level).toBe(4);
+    expect(t.branch).toBe('B');
+    expect(t.tag).toBe('x');
+    expect(t.damage).toBe(def.damage);
+    expect(t.splashRadius).toBe(def.splashRadius);
+  });
+
+  it('an upgrade purchase can name the branch itself', () => {
+    const [t] = towersAfter([
+      { type: 'mage', slotIndex: 0 },
+      { upgrade: true, towerIndex: 0 }, { upgrade: true, towerIndex: 0 },
+      { upgrade: true, towerIndex: 0, branch: 'B' },
+    ]);
+    expect(t.branch).toBe('B');
+    expect(t.damage).toBe(TOWER_DEFS.mage.tier4B.damage);
+  });
+
+  it('with no branch the tower lands on A, as before', () => {
+    const [t] = towersAfter([{ type: 'mage', slotIndex: 0 }, ...ups]);
+    expect(t.branch).toBe('A');
+    expect(t.damage).toBe(TOWER_DEFS.mage.tier4A.damage);
+    expect(t.tag).toBeNull();
+    expect(t.tierCap).toBeNull();
+  });
+
+  it('a maxTier of 3 stops a tower below tier 4', () => {
+    const [t] = towersAfter([{ type: 'mage', slotIndex: 0, maxTier: 3 }, ...ups]);
+    expect(t.level).toBe(3);
+    expect(t.branch).toBeNull();
+  });
+});

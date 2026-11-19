@@ -264,3 +264,22 @@ describe('greedyBuildPlan defaults', () => {
     expect(explicit).toEqual(implicit);
   });
 });
+
+describe('tier-4 branch and tier cap in the upgrade pass', () => {
+  it('prices tier 4 from the tower\'s branchPref', () => {
+    expect(upgradeCost({ type: 'mage', level: 3, branchPref: 'B' }, 4)).toBe(TOWER_DEFS.mage.tier4B.cost);
+  });
+
+  it('a tierCap below the map ceiling ends the ladder', () => {
+    expect(upgradeCost({ type: 'mage', level: 3, tierCap: 3 }, 4)).toBeNull();
+  });
+
+  it('greedy never upgrades a tierCap 3 tower at level 3', () => {
+    const towers = [{ type: 'mage', level: 3, branch: null, tierCap: 3 }];
+    const out = greedyBuildPlan({
+      gold: 1000, slotsUsed: new Set([0]), buildZones: zones, path, towers,
+      barracksTarget: 0, waveNumber: 1,
+    });
+    expect(out.filter(p => p.upgrade)).toEqual([]);
+  });
+});
