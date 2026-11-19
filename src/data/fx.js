@@ -181,6 +181,9 @@ export const PROJECTILE_DRAW = {
 // On hit the sprite widens and flattens (scaleX 1+a, scaleY 1-a), easing back to 1.
 export const HIT_SQUASH = { duration: 0.12, amount: 0.18 }; // seconds
 
+// Archmage chain-lightning bolt: how long each link stays on screen. Seconds.
+export const CHAIN_BOLT = { duration: 0.15 };
+
 // Hit-stop: a brief whole-scene freeze on heavy hits (>= heavyFraction of maxHp,
 // or any kill of a large/boss enemy), rate-limited by cooldown. Seconds.
 export const HIT_STOP = { duration: 0.05, cooldown: 0.6, heavyFraction: 0.25 };
