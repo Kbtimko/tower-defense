@@ -162,4 +162,13 @@ describe('runT4Sweep', () => {
     expect(res.baseline.livesKept).toBeGreaterThanOrEqual(0);
     expect(res.baseline.livesKept).toBeLessThanOrEqual(1);
   }, 120000);
+
+  // Map 6's barracks 4A wins at x1.27 holding 4A, but its anchor dies short of
+  // 4A at the baseline's x1.00: reach read from the lives run printed it as @-.
+  it('reads reach from the win run (map 6 barracks 4A)', () => {
+    const map = MAPS.find(m => m.id === 6);
+    const row = runT4Sweep(map, MAP_WAVES[map.id]).rows.find(r => r.type === 'barracks' && r.tier === '4A');
+    expect(row.multiplier).not.toBeNull();
+    expect(row.reachedWave).not.toBeNull();
+  }, 120000);
 });
