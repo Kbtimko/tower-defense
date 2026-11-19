@@ -6,7 +6,7 @@
 import { TOWER_DEFS } from '../data/towers.js';
 import { MAPS } from '../data/maps.js';
 import { simulateMap } from './simulate.js';
-import { findWinMultiplier } from './deficit.js';
+import { findWinMultiplier, WIN_MULTIPLIER_MAX } from './deficit.js';
 import { bestStrategy, strategyPlan, strategyLabel } from './strategy.js';
 import { rankSlots } from './buildPolicy.js';
 
@@ -27,6 +27,7 @@ export function anchoredPlan(basePlan, { type, tier }) {
     const purchases = [];
     let gold = ctx.gold;
     const slotsUsed = new Set(ctx.slotsUsed);
+    let towers = ctx.towers;
 
     if (anchorIndex === -1) {
       // Hold the gold until the anchor is affordable: the base plan would
@@ -44,30 +45,40 @@ export function anchoredPlan(basePlan, { type, tier }) {
       // The sim applies upgrades in order against its own gold, so mirror its
       // refusals here: stop at the first step that is capped or unaffordable.
       const cap = Math.min(ctx.map?.maxTierAllowed ?? 4, goal);
-      for (let next = ctx.towers[anchorIndex].level + 1; next <= cap; next++) {
+      let level = ctx.towers[anchorIndex].level;
+      for (let next = level + 1; next <= cap; next++) {
         const key = next === 4 ? `tier4${branch}` : `tier${next}`;
         const cost = def[key]?.cost;
         if (cost === undefined || cost > gold) break;
         purchases.push({ upgrade: true, towerIndex: anchorIndex, ...(next === 4 && { branch }) });
         gold -= cost;
+        level = next;
       }
+      // The upgrades apply before the base plan's purchases, so show it the
+      // anchor already upgraded or it budgets for a step that is paid for.
+      towers = ctx.towers.map((t, i) => (i === anchorIndex ? { ...t, level } : t));
     }
 
-    return [...purchases, ...(basePlan({ ...ctx, gold, slotsUsed }) ?? [])];
+    return [...purchases, ...(basePlan({ ...ctx, towers, gold, slotsUsed }) ?? [])];
   };
 }
 
-// Observes ctx.towers at each build phase: the first phase that starts with the
-// anchor at its target level is the wave it "reached" the tier.
-function watchAnchor(plan, goal) {
+// Observes ctx.towers at each build phase. Purchases apply inside the build
+// before wave k, so a tier first seen at the start of phase k was bought before
+// wave k-1; one bought in the final build is only visible after the run, via
+// the live array.
+export function watchAnchor(plan, goal) {
   let phase = 0;
   let reachedAt = null;
+  let towers = [];
+  const atGoal = () => towers.some(t => t.tag === ANCHOR_TAG && t.level >= goal);
   const watched = ctx => {
     phase++;
-    if (reachedAt === null && ctx.towers.some(t => t.tag === ANCHOR_TAG && t.level >= goal)) reachedAt = phase;
+    towers = ctx.towers;
+    if (reachedAt === null && atGoal()) reachedAt = phase - 1;
     return plan(ctx);
   };
-  return { plan: watched, reached: () => reachedAt };
+  return { plan: watched, reached: () => reachedAt ?? (phase > 0 && atGoal() ? phase : null) };
 }
 
 export function sweepMaps() {
@@ -78,7 +89,8 @@ export function runT4Sweep(map, waves, { waveTiming } = {}) {
   const { best } = bestStrategy(map, waves, { waveTiming });
   const basePlan = strategyPlan(best.strategy);
 
-  const livesMult = best.multiplier ?? 8;
+  const livesMult = best.multiplier ?? WIN_MULTIPLIER_MAX;
+  const baselineRun = simulateMap({ map, waves, buildPlan: basePlan, waveTiming, damageMult: livesMult });
   const rows = [];
   for (const type of Object.keys(TOWER_DEFS)) {
     for (const tier of ANCHOR_TIERS) {
@@ -86,11 +98,14 @@ export function runT4Sweep(map, waves, { waveTiming } = {}) {
       // At 1x most maps are lost by wave 1-2 and every row reads 0% lives, so
       // lives are measured where the baseline wins; the multiplier column stays
       // the anchored plan's own win multiplier.
+      const run = simulateMap({ map, waves, buildPlan, waveTiming, damageMult: livesMult });
+      const multiplier = findWinMultiplier(map, waves, { buildPlan, waveTiming });
+      // Reach is read from a run at the row's own win multiplier: at livesMult
+      // the anchor can die before the tier it would hold in the winning run.
       const { plan: watched, reached } = watchAnchor(buildPlan, targetLevel(tier));
-      const run = simulateMap({ map, waves, buildPlan: watched, waveTiming, damageMult: livesMult });
+      simulateMap({ map, waves, buildPlan: watched, waveTiming, damageMult: multiplier ?? WIN_MULTIPLIER_MAX });
       rows.push({
-        type, tier,
-        multiplier: findWinMultiplier(map, waves, { buildPlan, waveTiming }),
+        type, tier, multiplier,
         livesKept: run.livesRemaining / map.startLives,
         reachedWave: reached(),
       });
@@ -100,7 +115,7 @@ export function runT4Sweep(map, waves, { waveTiming } = {}) {
   return {
     map,
     livesMult,
-    baseline: { label: strategyLabel(best.strategy), multiplier: best.multiplier, livesKept: best.livesKept },
+    baseline: { label: strategyLabel(best.strategy), multiplier: best.multiplier, livesKept: baselineRun.livesRemaining / map.startLives },
     rows,
   };
 }

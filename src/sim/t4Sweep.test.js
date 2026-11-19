@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { ANCHOR_TIERS, anchoredPlan, runT4Sweep, sweepMaps } from './t4Sweep.js';
+import { ANCHOR_TIERS, anchoredPlan, runT4Sweep, sweepMaps, watchAnchor } from './t4Sweep.js';
+import { WIN_MULTIPLIER_MAX } from './deficit.js';
 import { rankSlots } from './buildPolicy.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { MAPS } from '../data/maps.js';
@@ -94,6 +95,45 @@ describe('anchoredPlan', () => {
   });
 });
 
+describe('anchoredPlan base-plan view', () => {
+  it('hands the base plan the anchor at its post-upgrade level without mutating the live tower', () => {
+    const { plan, calls } = stub();
+    const live = anchorTower(1);
+    const other = { type: 'archer', level: 1 };
+    const ctx = mkCtx({ towers: [other, live], gold: 10000, slotsUsed: new Set([0, 1]) });
+    anchoredPlan(plan, { type: 'mage', tier: 'T3' })(ctx);
+    expect(calls[0].towers[1].level).toBe(3);
+    expect(calls[0].towers[0]).toBe(other);
+    expect(live.level).toBe(1);
+    expect(ctx.towers[1]).toBe(live);
+  });
+});
+
+describe('watchAnchor', () => {
+  const run = (goal, levelsPerPhase, finalLevel) => {
+    const anchor = { tag: 'anchor', level: levelsPerPhase[0] };
+    const towers = [anchor];
+    const w = watchAnchor(() => [], goal);
+    levelsPerPhase.forEach(l => { anchor.level = l; w.plan({ towers }); });
+    anchor.level = finalLevel;
+    return w.reached();
+  };
+
+  it('reports the wave the tier was bought before, not the phase that first sees it', () => {
+    // Seen at the start of phase 3, so it was bought in build 2.
+    expect(run(3, [1, 2, 3, 3], 3)).toBe(2);
+  });
+
+  it('reports a tier bought in the final build as the last wave', () => {
+    expect(run(3, [1, 2, 2], 3)).toBe(3);
+  });
+
+  it('is null when the tier is never reached, and when no phase ran', () => {
+    expect(run(3, [1, 2, 2], 2)).toBeNull();
+    expect(watchAnchor(() => [], 3).reached()).toBeNull();
+  });
+});
+
 describe('sweepMaps', () => {
   it('is every map that allows tier 4', () => {
     expect(sweepMaps()).toEqual(MAPS.filter(m => (m.maxTierAllowed ?? 4) === 4));
@@ -113,8 +153,13 @@ describe('runT4Sweep', () => {
       expect(r.livesKept).toBeLessThanOrEqual(1);
       expect(r.reachedWave === null || (Number.isInteger(r.reachedWave) && r.reachedWave >= 1)).toBe(true);
     }
-    expect(res.livesMult).toBe(res.baseline.multiplier ?? 8);
+    expect(res.livesMult).toBe(res.baseline.multiplier ?? WIN_MULTIPLIER_MAX);
     // Guards the column against being vacuous: some tier-4 anchor must get there.
     expect(res.rows.some(r => r.tier !== 'T3' && r.reachedWave !== null)).toBe(true);
+    // Reach comes from the win run: a tier-4 row that wins at its own multiplier
+    // and holds its tier must not print @-.
+    expect(res.rows.some(r => r.tier !== 'T3' && r.multiplier !== null && r.reachedWave !== null)).toBe(true);
+    expect(res.baseline.livesKept).toBeGreaterThanOrEqual(0);
+    expect(res.baseline.livesKept).toBeLessThanOrEqual(1);
   }, 120000);
 });

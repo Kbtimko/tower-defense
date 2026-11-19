@@ -26,6 +26,8 @@ export function formatT4Sweep(results) {
   }
   lines.push('Legend: lower x = stronger; lives are taken at the baseline\'s win multiplier; @wN is the wave the');
   lines.push('anchor reached its tier, and a row that never reached tier 4 (@—) says nothing about that tier.');
+  lines.push('To read it, compare within a row; the baseline is context: every anchor takes the top slot and holds gold');
+  lines.push('until it is affordable, so part of the gap from the baseline is that cost.');
   lines.push('Caveat (#75): most tier-4 abilities are text only (chain lightning, 2 arrows, split shells,');
   lines.push('frozen 2x, ignores armour, boss stun), and mage 4B and ice 4B apply no slow because a splash');
   lines.push('shot skips it. The sweep measures the tiers as the game plays them today.');

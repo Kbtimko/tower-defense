@@ -36,10 +36,11 @@ describe('formatT4Sweep', () => {
 
   it('prints a legend line before the caveat', () => {
     const at = lines.findIndex(l => l.startsWith('Legend'));
-    const legend = lines.slice(at, at + 2).join(' ');
+    const legend = lines.slice(at, at + 3).join(' ');
     expect(legend).toMatch(/lower x = stronger/);
     expect(legend).toMatch(/baseline's win multiplier/);
     expect(legend).toMatch(/@wN/);
+    expect(legend).toMatch(/compare within a row; the baseline is context/);
     expect(legend).toMatch(/never reached tier 4/);
   });
 
