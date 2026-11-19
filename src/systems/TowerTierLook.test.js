@@ -88,6 +88,8 @@ function makeContainer() {
 // Stand-in for an active EntitySprite at some tier scale.
 const fakeSprite = (ground, pivot) => ({ groundSpec: () => ground, pivotOffsetY: () => pivot });
 
+const activeSprite = (ground, pivot) => ({ ...fakeSprite(ground, pivot), active: true });
+
 function build({ type = 'archer', sprite } = {}) {
   const scene = makeScene();
   const container = makeContainer();
@@ -122,6 +124,32 @@ describe('TowerTierLook', () => {
     expect(fillCircles(pipsGfx(container))).toHaveLength(3);
     expect(look.snapshot()).toMatchObject({ core: true, embers: 3, pips: 3 });
     expect(look.snapshot().emberDy).toHaveLength(3);
+  });
+
+  it('with art loaded there is no core at T2, and T4 A keeps its embers', () => {
+    const { container, look } = build({ sprite: activeSprite(null, 0) });
+    look.setTier(2, null);
+    expect(look.snapshot().core).toBe(false);
+    expect(container.live('image')).toHaveLength(0);
+    look.setTier(4, 'A');
+    expect(look.snapshot()).toMatchObject({ core: false, embers: 3, pips: 'A' });
+  });
+
+  it('an art-less sprite still gets the core at T2', () => {
+    const { look } = build({ sprite: { ...fakeSprite(null, 0), active: false } });
+    look.setTier(2, null);
+    expect(look.snapshot().core).toBe(true);
+  });
+
+  it('a sprite that turns active after a core was drawn loses the core on the next tier', () => {
+    const sprite = { ...fakeSprite(null, 0), active: false };
+    const { container, look } = build({ sprite });
+    look.setTier(2, null);
+    expect(look.snapshot().core).toBe(true);
+    sprite.active = true;
+    look.setTier(3, null);
+    expect(look.snapshot().core).toBe(false);
+    expect(container.live('image')).toHaveLength(TIER_EMBERS.count);
   });
 
   it('core and embers are fx textures, ADD blend, tinted with the accent (hot dot white)', () => {

@@ -35,7 +35,7 @@ import { TOWER_DEFS } from '../data/towers.js';
 import { Tower } from './Tower.js';
 import { BUILD_POP, UPGRADE_POP } from '../data/juice.js';
 import { popScale } from '../systems/juiceMath.js';
-import { TIER_CORE, TIER_FALLBACK_GROUND } from '../data/tierLooks.js';
+import { TIER_FALLBACK_GROUND } from '../data/tierLooks.js';
 
 // Records the calls a Graphics object receives so the test can assert on what
 // was drawn rather than on pixels.
@@ -199,7 +199,7 @@ describe('Tower tier look (#49)', () => {
     t.upgrade(2);
     expect(t._sprite.sprite.scaleX).toBeCloseTo(0.6 * 1.12, 9);
     expect(t._sprite.sprite.scaleY).toBeCloseTo(0.6 * 1.12, 9);
-    expect(t.lookSnapshot()).toMatchObject({ level: 2, core: true, pips: 2, scale: 1.12 });
+    expect(t.lookSnapshot()).toMatchObject({ level: 2, core: false, pips: 2, scale: 1.12 });
     expect(t.lookSnapshot().footDriftPx).toBeCloseTo(0, 9);
 
     t.upgrade(4, 'B');
@@ -207,10 +207,10 @@ describe('Tower tier look (#49)', () => {
     expect(t.footY()).toBe(FOOT_Y);
     expect(t.muzzlePoint().x).toBe(100);
     expect(t.muzzlePoint().y).toBeCloseTo(200 + (1 - 1.4) * FOOT_Y, 9);
-    expect(t.lookSnapshot()).toMatchObject({ level: 4, branch: 'B', core: true, embers: 3, pips: 'B', scale: 1.4 });
+    expect(t.lookSnapshot()).toMatchObject({ level: 4, branch: 'B', core: false, embers: 3, pips: 'B', scale: 1.4 });
     expect(t.lookSnapshot().footDriftPx).toBeCloseTo(0, 9);
-    // The look caches the ground at setTier, so the sprite must be rescaled first.
-    expect(t._look._glow.displayWidth).toBeCloseTo(TIER_CORE.sizeFrac * 37.1 * 1.4, 9);
+    // Real art carries its own glow, so no core object exists (#73a).
+    expect(t._look._glow).toBeNull();
   });
 
   it('footDriftPx reads the live sprite, so a sprite off its foot pivot shows drift', () => {

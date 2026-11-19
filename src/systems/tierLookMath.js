@@ -11,7 +11,8 @@ const frac = (x) => x - Math.floor(x);
 const wave = (tSec, periodS) => (1 - Math.cos((2 * Math.PI * tSec) / periodS)) / 2;
 const easeOut = (p) => 1 - (1 - p) * (1 - p);
 
-export function expectedTowerLook(level, branch) {
+// `art`: the tower's sprite is loaded, so the core glow is not drawn (#73a).
+export function expectedTowerLook(level, branch, { art = false } = {}) {
   const variant = tierVariant(level, branch);
   const marked = level >= TIER_CORE.fromTier;
   let ring = null;
@@ -20,7 +21,7 @@ export function expectedTowerLook(level, branch) {
   const pips = PIPS_BY_VARIANT[variant];
   return {
     scale: TIER_SCALE.tower[variant],
-    core: marked,
+    core: marked && !art,
     embers: level >= TIER_EMBERS.fromTier ? TIER_EMBERS.count : 0,
     ring,
     pips,

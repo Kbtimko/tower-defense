@@ -18,6 +18,7 @@ export const TIER_SCALE = deepFreeze({
   soldier: { t1: 1, t2: 1.10, t3: 1.20, t4a: 1.3, t4b: 1.3 },
 });
 
+// Only drawn on art-less fallback towers; real tier art replaces it (#73a).
 export const TIER_CORE = deepFreeze({
   fromTier: 2, sizeFrac: 0.5, hotFrac: 0.4, periodS: 1.1, alpha: [0.65, 1], stillAlpha: 1,
 });
