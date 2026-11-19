@@ -53,7 +53,11 @@ describe('campaign economy ramp', () => {
     // ratio for a monotonic gold-per-HP curve, because map 5's board is bigger
     // than map 4's but its threat is not. The two invariants disagree only for
     // this one map, and gold-per-HP is the one that matters here.
-    const ratios = late().filter(m => m.id !== 5).map(depthRatio);
+    //
+    // Map 9 is excluded too: its startGold is a recorded override (#37) that
+    // front-loads gold the board-based rule did not give it, which lifts its
+    // depth ratio to about 0.62.
+    const ratios = late().filter(m => m.id !== 5 && m.id !== 9).map(depthRatio);
     expect(Math.max(...ratios) - Math.min(...ratios)).toBeLessThanOrEqual(0.05);
   });
 
@@ -96,5 +100,12 @@ describe('campaign economy ramp', () => {
     expect(byId(1).rewardMult).toBe(0.35);
     expect(byId(2).startGold).toBe(170);
     expect(byId(2).rewardMult).toBe(0.40);
+  });
+
+  it('late maps carry the #37 starting-gold overrides', () => {
+    // User's call 2026-11-19 (backlog #37): map 9 died on wave 1 at the derived
+    // 300 under every strategy; see maps.js and the 2026-11-19 map9-funding spec.
+    expect(byId(8).startGold).toBe(405);
+    expect(byId(9).startGold).toBe(690);
   });
 });

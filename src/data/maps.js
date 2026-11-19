@@ -306,10 +306,13 @@ export const MAPS = [
     // Economy derived, not hand-picked -- see
     // docs/superpowers/specs/2026-09-22-campaign-economy-ramp-design.md
     // 18 slots: cheap board 1080, fully-upgraded board 5580 (tier-4 cap).
-    // startGold  = 25% of the cheap board, so the opening hand scales with the
-    //              board instead of shrinking.
+    // startGold  = OVERRIDDEN from the derived 270 (backlog #37). At 270 the
+    //              map needed 1.08x to hold; 405 wins keeping 33% of lives
+    //              (67% with the logistics perk). Neighbouring values are
+    //              noisy -- 420 loses at 1.03x -- so 405 is a measured point,
+    //              not a trend to extrapolate.
     // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
-    startGold: 270,
+    startGold: 405,
     startLives: 12,
     overworldArt: 'overworld_8_enemy_homeworld.png',
     rewardMult: 0.39,
@@ -344,13 +347,17 @@ export const MAPS = [
     // Economy derived, not hand-picked -- see
     // docs/superpowers/specs/2026-09-22-campaign-economy-ramp-design.md
     // 20 slots: cheap board 1200, fully-upgraded board 6200 (tier-4 cap).
-    // startGold  = 25% of the cheap board, so the opening hand scales with the
-    //              board instead of shrinking (this map used to open with ONE
-    //              tower on twenty slots).
+    // startGold  = OVERRIDDEN from the derived 300 (backlog #37). At 300 the
+    //              map died on wave 1 with 3 of 20 towers under every barracks
+    //              strategy (needed 1.36x). Fewer enemies or a higher
+    //              rewardMult did not help -- fewer kills means less gold --
+    //              but earlier gold did: 690 wins keeping 60% of lives, with
+    //              or without the +40% logistics perk.
     // rewardMult = solves gold ceiling = 55% of the fully-upgraded board. Lower
     //              than the mid maps because this one carries far more raw kill
-    //              income; the declining multiplier was never the defect.
-    startGold: 300,
+    //              income; the declining multiplier was never the defect, so
+    //              it stays derived.
+    startGold: 690,
     startLives: 10,
     overworldArt: 'overworld_9_last_light.png',
     rewardMult: 0.31,
