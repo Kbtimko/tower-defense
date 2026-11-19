@@ -36,4 +36,6 @@ Most tier-4 abilities are text only. The game fires with damage, range, fireRate
 - **Capture `--screens` desktop1440:**
   - Run 1: tier-looks-still passed all three batches. The animated tier-looks run timed out on a canvas `boundingBox` during the per-tower crop step, after its looks checks had run.
   - Run 2 timed out earlier, in `shootBusiestFrame`.
-  - Both ran under host load of 6–25 from other sessions, with a different step failing each time (the known load flake). A third run is queued for load < 4.
+  - Both ran under host load of 6–25 from other sessions, with a different step failing each time (the known load flake).
+  - Run 3, started at load 1.5: exit 0, including both tier-looks runs (animated and reduced-motion). In the tier crops the core blob is gone and the art reads through (mage T2 orb, ice T3 crystal).
+- Merged `visual/integration` after #126 (#74) landed; the only conflict was `.claude/notes.md` (both status entries and backlog items 73–75 kept).

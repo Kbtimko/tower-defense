@@ -70,8 +70,8 @@ export function openingBarracksTarget(opening, barracksTarget, waves, waveNumber
 // is already at the map's ceiling.
 export function upgradeCost(tower, maxTier) {
   const nextTier = tower.level + 1;
-  if (nextTier > maxTier) return null;
-  const tierDef = TOWER_DEFS[tower.type][nextTier === 4 ? 'tier4A' : `tier${nextTier}`];
+  if (nextTier > Math.min(maxTier, tower.tierCap ?? maxTier)) return null;
+  const tierDef = TOWER_DEFS[tower.type][nextTier === 4 ? `tier4${tower.branchPref ?? 'A'}` : `tier${nextTier}`];
   return tierDef ? tierDef.cost : null;
 }
 
@@ -164,7 +164,7 @@ export function greedyBuildPlan({
         continue;
       }
       const type   = towers[i].type;
-      const branch = towers[i].branch ?? null;
+      const branch = towers[i].branch ?? towers[i].branchPref ?? null;
       const before = towerDpsAgainst(towerSpecAt(type, level, branch), weights);
       const after  = towerDpsAgainst(towerSpecAt(type, level + 1, branch), weights);
       const score  = (after - before) / cost;
