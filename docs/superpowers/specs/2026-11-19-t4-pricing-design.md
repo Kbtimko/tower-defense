@@ -27,7 +27,10 @@ practice Volley is the one that matters.
     (`matchupValue.js`, `buildPolicy.js:30`) to name chain and cluster too.
   - No branch choice in the greedy planner. The user chose a report-only sweep in #74.
 - **Expected effects:**
-  - The default `npm run balance` output changes.
+  - The default `npm run balance` output changes. _(Measured after implementing: it did
+    NOT change. No default strategy run upgrades any tower to tier 4 on maps 4–9, because
+    the greedy planner widens the board first and runs out of gold. The pricing is correct
+    but has nothing to act on today; it applies once the economy reaches tier 4.)_
   - `legacyGolden.json` may change. If it does, re-capture it via
     `scripts/captureSimGolden.mjs` and give the reason in the commit.
   - The #75 tiers 1–3 characterization snapshot must NOT change (at tier ≤3, shots = 1 and

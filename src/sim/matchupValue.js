@@ -61,8 +61,11 @@ export function towerSpecAt(type, tier = 1, branch = null) {
 // are all honoured and no combat arithmetic is duplicated here. Prices raw
 // per-target damage: multi-shot (Volley's 2 arrows) and Shatter's 2x vs slowed
 // targets, the latter only when the tower itself slows (else nothing slows its
-// targets). Splash, chain and cluster stay unpriced, so it under-rates cannon,
-// mage and ice, same as the towerValue caveat in buildPolicy.js.
+// targets). The 2x is an upper bound: each enemy's first hit lands before its
+// own slow does, and it assumes the slow (TOWER_SLOW_DURATION) outlasts the
+// tower's cooldown, true for Shatter. Splash, chain and cluster stay unpriced,
+// so it under-rates cannon, mage and ice, same as the towerValue caveat in
+// buildPolicy.js.
 export function towerDpsAgainst(spec, weights) {
   if (!spec || !weights || weights.size === 0) return 0;
   const shots = spec.shots ?? 1;
