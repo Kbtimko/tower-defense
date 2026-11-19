@@ -57,6 +57,19 @@ export function anchoredPlan(basePlan, { type, tier }) {
   };
 }
 
+// Observes ctx.towers at each build phase: the first phase that starts with the
+// anchor at its target level is the wave it "reached" the tier.
+function watchAnchor(plan, goal) {
+  let phase = 0;
+  let reachedAt = null;
+  const watched = ctx => {
+    phase++;
+    if (reachedAt === null && ctx.towers.some(t => t.tag === ANCHOR_TAG && t.level >= goal)) reachedAt = phase;
+    return plan(ctx);
+  };
+  return { plan: watched, reached: () => reachedAt };
+}
+
 export function sweepMaps() {
   return MAPS.filter(m => (m.maxTierAllowed ?? 4) === 4);
 }
@@ -65,21 +78,28 @@ export function runT4Sweep(map, waves, { waveTiming } = {}) {
   const { best } = bestStrategy(map, waves, { waveTiming });
   const basePlan = strategyPlan(best.strategy);
 
+  const livesMult = best.multiplier ?? 8;
   const rows = [];
   for (const type of Object.keys(TOWER_DEFS)) {
     for (const tier of ANCHOR_TIERS) {
       const buildPlan = anchoredPlan(basePlan, { type, tier });
-      const run = simulateMap({ map, waves, buildPlan, waveTiming });
+      // At 1x most maps are lost by wave 1-2 and every row reads 0% lives, so
+      // lives are measured where the baseline wins; the multiplier column stays
+      // the anchored plan's own win multiplier.
+      const { plan: watched, reached } = watchAnchor(buildPlan, targetLevel(tier));
+      const run = simulateMap({ map, waves, buildPlan: watched, waveTiming, damageMult: livesMult });
       rows.push({
         type, tier,
         multiplier: findWinMultiplier(map, waves, { buildPlan, waveTiming }),
         livesKept: run.livesRemaining / map.startLives,
+        reachedWave: reached(),
       });
     }
   }
 
   return {
     map,
+    livesMult,
     baseline: { label: strategyLabel(best.strategy), multiplier: best.multiplier, livesKept: best.livesKept },
     rows,
   };

@@ -111,6 +111,10 @@ describe('runT4Sweep', () => {
       expect(r.multiplier === null || typeof r.multiplier === 'number').toBe(true);
       expect(r.livesKept).toBeGreaterThanOrEqual(0);
       expect(r.livesKept).toBeLessThanOrEqual(1);
+      expect(r.reachedWave === null || (Number.isInteger(r.reachedWave) && r.reachedWave >= 1)).toBe(true);
     }
+    expect(res.livesMult).toBe(res.baseline.multiplier ?? 8);
+    // Guards the column against being vacuous: some tier-4 anchor must get there.
+    expect(res.rows.some(r => r.tier !== 'T3' && r.reachedWave !== null)).toBe(true);
   }, 120000);
 });
