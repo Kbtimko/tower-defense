@@ -31,6 +31,13 @@ Branch `balance/37-map9-funding` → PR into `visual/integration`. This is roadm
 - `--t4`: only maps 8 and 9 move. Every tier-4 line now wins at 1x, and some single-tower probes on map 9 keep 90–100% of lives.
 - Live: a capture build reads 240 / 405 / 690 gold on maps 7 / 8 / 9 in Chromium, with 0 page errors. The production build exits 0.
 
+## Follow-up in the same session: the rest of G4
+- The user asked what the calls for maps 2 and 5 were. I re-measured both:
+  - map 2: 90% today, 95% with the perk, 40% at start 150, 15% at reward 0.36;
+  - map 5: 80% without the perk and 93% with it, still 93% with the perk at reward 0.47 or 0.44.
+- I recommended keeping map 2 as it is and accepting map 5. The user: "i agree with th erecommendation".
+- Shipped: the PROVISIONAL comment on map 2 is replaced with the decision (comment only, no value change), #35 and #36 are closed, and roadmap 5.4 is ticked.
+
 ## Next
-- G4 still has #35 (map 5 near too easy) and #36 (map 2 too easy).
+- G4 is closed.
 - Map 7 still needs 1.05x without the perk, which the user accepted.

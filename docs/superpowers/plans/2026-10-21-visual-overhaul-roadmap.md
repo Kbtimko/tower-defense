@@ -112,7 +112,7 @@ Failing tests after two attempts at the same fix; any change that would alter ba
 - [ ] **5.1 [AUTO] Map mechanics.** Spec first (brainstorm → spec → plan, per `CLAUDE.md`). Three data-driven mechanics: `altPaths` (forks with weighted spawn), `hazardZones` (telegraphed asteroid impacts, ion storm slows towers), `padRestrictions` (locked/special pads). Teach `src/sim/` the same rules so balance stays measurable. Give each of maps 3–9 one signature mechanic.
 - [ ] **5.2 [AUTO] Wave readability.** Flyer/boss warnings, richer wave preview, boss intro beat.
 - [ ] **5.3 [AUTO] Replay value.** Difficulty modes (Normal/Veteran), endless mode from the wave generator, per-map best score.
-- [ ] **5.4 [GATE→AUTO] Balance debt.** Backlog #35–37 (maps 5, 2, 9) after your decision at G4.
+- [x] **5.4 [GATE→AUTO] Balance debt.** Backlog #35–37 (maps 5, 2, 9) after your decision at G4. *Done 2026-11-19 (PR #130): map 9 starts with 690 gold and map 8 with 405. Map 2 and map 5 were kept as they are, by decision (G4).*.
 - [ ] **5.5 [AUTO] Onboarding.** Guided first-map hints (place, upgrade, ability, send-early), dismissible, stored in save data.
 
 ### Phase 6 — Release

@@ -75,13 +75,12 @@ export const MAPS = [
     background: 0x1e1e1e,
     pathColor: 0x808080,
     waypoints: [[0,.387],[.025,.432],[.045,.378],[.121,.459],[.176,.468],[.176,.541],[.251,.64],[.261,.595],[.296,.595],[.367,.505],[.472,.532],[.523,.64],[.578,.658],[.593,.748],[.643,.802],[.804,.649],[.794,.613],[.814,.595],[.894,.631],[.955,.595],[.975,.631],[1,.613]],
-    // PROVISIONAL -- playtest-tunable, not derived. The balance simulator
-    // cannot resolve this map: sweeping startGold in 5g steps gives five
-    // monotonicity inversions in eleven (more gold, worse outcome), because
-    // greedyBuildPlan's towerValue ignores armour and the weakness matrix and
-    // this map's 11 slots and tier-3 cap compound that mis-ranking. 170/0.40
-    // is the most stable cell found (a three-wide plateau at 165/170/175g).
-    // Expect to retune after a human plays it.
+    // Hand-picked, not derived -- and KEPT as an on-ramp decision (#36, G4,
+    // 2026-11-19). The best-of-5 sim keeps 90% of lives here, exactly the TOO
+    // EASY line, but the on-ramp is meant to be generous and #18 pinned it. The
+    // sim cannot fine-tune it anyway: reward 0.36 drops it to 15% and start 150
+    // to 40%, so any retune waits on a human playtest (#30). 170/0.40 is the
+    // most stable cell the original sweep found (a plateau at 165/170/175g).
     startGold: 170,
     startLives: 20,
     overworldArt: 'overworld_2_the_crater.png',
