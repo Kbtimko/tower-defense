@@ -16,7 +16,8 @@ The user picked option 2 on 2026-11-19 ("for 74 build a sweep"). It is a report-
 - Each tower runs as an anchor at T3, 4A and 4B.
 - For each map × tower × tier the report shows:
   - **win multiplier**: the tower-damage multiplier needed to win, from `findWinMultiplier`. 1 means it wins as-is; `—` means it cannot win at 8x.
-  - **lives kept %**: from a 1x run.
+  - **lives kept %**: from one run at the map's baseline win multiplier (`best.multiplier`, or 8 when the baseline cannot win at 8x). Ruling made 2026-11-19, after the first output: every tier-4 map except 4–6 is lost by wave 1–2 at 1x, before any anchor passes level 2. A 1x lives column read 0% in every row.
+  - **reached**: the wave on which the anchor first stands at its target tier in that run (`@w6`, or `@—` when it never gets there). A row whose anchor never reaches tier 4 says nothing about that tier. Ice, for example, never reaches 4A or 4B on any map.
 - The report also prints that map's best-strategy baseline row, for reference.
 - Reading: a 4X that does no better than T3 or the other branch at equal spend is a weak tier.
 
