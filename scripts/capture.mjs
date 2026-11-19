@@ -1665,7 +1665,7 @@ function tierLookProblems(looks, batch, spriteKeys) {
   const got = looks.towers.map(id).sort();
   if (JSON.stringify(want) !== JSON.stringify(got)) problems.push(`towers [${got.join(', ')}], expected [${want.join(', ')}]`);
   for (const t of looks.towers) {
-    const exp = expectedTowerLook(t.level, t.branch);
+    const exp = expectedTowerLook(t.level, t.branch, { art: true });
     const off = ['core', 'embers', 'ring', 'pips'].filter(k => t[k] !== exp[k]);
     if (Math.abs(t.scale - exp.scale) > LOOK_EPS) off.push('scale');
     if (off.length) problems.push(`(a) ${id(t)} ${off.map(k => `${k} ${JSON.stringify(t[k])} != ${JSON.stringify(exp[k])}`).join(', ')}`);

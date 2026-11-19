@@ -16,6 +16,15 @@ describe('expectedTowerLook', () => {
   ])('level %s branch %s', (level, branch, want) => {
     expect(expectedTowerLook(level, branch)).toEqual(want);
   });
+  it.each([
+    [1, null, { scale: 1, core: false, embers: 0, ring: null, pips: 1 }],
+    [2, null, { scale: 1.12, core: false, embers: 0, ring: null, pips: 2 }],
+    [3, null, { scale: 1.25, core: false, embers: 3, ring: null, pips: 3 }],
+    [4, 'A', { scale: 1.4, core: false, embers: 3, ring: 'solid', pips: 'A' }],
+    [4, 'B', { scale: 1.4, core: false, embers: 3, ring: 'dashed', pips: 'B' }],
+  ])('with art: level %s branch %s has no core, rest unchanged', (level, branch, want) => {
+    expect(expectedTowerLook(level, branch, { art: true })).toEqual(want);
+  });
   it('level 4 with no branch equals the T3 row', () => {
     expect(expectedTowerLook(4, null)).toEqual(expectedTowerLook(3, null));
   });

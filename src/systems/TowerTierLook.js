@@ -1,4 +1,4 @@
-// A tower's tier marks (#49): glowing core (T2+), rising embers (T3+), tier
+// A tower's tier marks (#49): glowing core (T2+, art-less towers only, #73a), rising embers (T3+), tier
 // pips (T1-T3) or a branch badge (T4). They are children of the tower
 // container so they move, sort and die with it; the T4 ring is a scene layer
 // instead (spec S5). No Phaser import, like EntitySprite, so a plain scene
@@ -40,10 +40,11 @@ export class TowerTierLook {
   }
 
   // Tower calls this after the sprite's variant and tier scale are set, so the
-  // ground read here is the new tier's.
+  // ground read here is the new tier's. The core is dropped over real art, which
+  // carries its own glow; _setCore(false) also removes one drawn before art loaded.
   setTier(level, branch) {
     this._ground = this.ground();
-    this._setCore(level >= TIER_CORE.fromTier);
+    this._setCore(level >= TIER_CORE.fromTier && !this.sprite.active);
     this._setEmbers(level >= TIER_EMBERS.fromTier ? TIER_EMBERS.count : 0);
     this._drawPips(PIPS_BY_VARIANT[tierVariant(level, branch)]);
   }
