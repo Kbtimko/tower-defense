@@ -2,6 +2,10 @@
 // cannon arc visual also lands here so shells never vanish mid-air.
 export const PROJECTILE_HIT_RADIUS = 10;
 
+// Seconds a tower-applied slow lasts; Projectile defaults to it so ice and
+// frost-mage slows expire on the same clock.
+export const TOWER_SLOW_DURATION = 2;
+
 // Share of total gold spent on a tower that selling returns.
 export const SELL_REFUND_RATIO = 0.6;
 
@@ -16,8 +20,8 @@ export const TOWER_DEFS = {
     range: 120, damage: 15, fireRate: 1.0, splashRadius: 0, pierce: false, slow: 0,
     tier2: { cost: 50, damage: 25, range: 135, label: 'Eagle Eye' },
     tier3: { cost: 80, damage: 40, range: 150, label: 'Barrage' },
-    tier4A: { cost: 120, damage: 60, label: 'Volley', passiveEffect: 'Fires 2 arrows per shot' },
-    tier4B: { cost: 120, damage: 80, range: 180, label: 'Marksman', passiveEffect: '+50% range, armor piercing' },
+    tier4A: { cost: 120, damage: 60, label: 'Volley', shots: 2, passiveEffect: 'Fires 2 arrows per shot' },
+    tier4B: { cost: 120, damage: 80, range: 180, pierce: true, label: 'Marksman', passiveEffect: '+50% range, armor piercing' },
     ability: { label: 'Volley', cooldown: 15, description: 'All-target burst for 3s' },
   },
   mage: {
@@ -25,8 +29,8 @@ export const TOWER_DEFS = {
     range: 100, damage: 30, fireRate: 0.6, splashRadius: 0, pierce: true, slow: 0,
     tier2: { cost: 60, damage: 50, range: 115, label: 'Arcane Power' },
     tier3: { cost: 90, damage: 80, range: 130, label: 'Sorcery' },
-    tier4A: { cost: 130, damage: 120, label: 'Archmage', passiveEffect: 'Chain lightning to 3 targets' },
-    tier4B: { cost: 130, damage: 85, splashRadius: 60, label: 'Frost Mage', passiveEffect: 'AoE frost on every shot, 30% slow' },
+    tier4A: { cost: 130, damage: 120, label: 'Archmage', chain: { targets: 3, jumpRadius: 70, falloff: 0.75 }, passiveEffect: 'Chain lightning to 3 targets' },
+    tier4B: { cost: 130, damage: 85, splashRadius: 60, slow: 0.7, label: 'Frost Mage', passiveEffect: 'AoE frost on every shot, 30% slow' },
     ability: { label: 'Slow Nova', cooldown: 20, description: 'AoE freeze in range for 2s' },
   },
   cannon: {
@@ -34,8 +38,8 @@ export const TOWER_DEFS = {
     range: 110, damage: 45, fireRate: 0.45, splashRadius: 45, pierce: false, slow: 0,
     tier2: { cost: 70, damage: 70, range: 125, splashRadius: 55, label: 'Heavy Shell' },
     tier3: { cost: 100, damage: 100, range: 140, splashRadius: 65, label: 'Mega Bomb' },
-    tier4A: { cost: 150, damage: 150, splashRadius: 80, label: 'Artillery', passiveEffect: 'Splits into 3 shells on impact' },
-    tier4B: { cost: 150, damage: 80, fireRate: 1.2, label: 'Rapid Cannon', passiveEffect: '3x fire rate, direct damage focus' },
+    tier4A: { cost: 150, damage: 150, splashRadius: 80, label: 'Artillery', cluster: { shells: 3, spread: 40, radius: 35, damageFrac: 0.4 }, passiveEffect: 'Splits into 3 shells on impact' },
+    tier4B: { cost: 150, damage: 80, fireRate: 1.35, splashRadius: 0, label: 'Rapid Cannon', passiveEffect: '3x fire rate, single target' },
     ability: { label: 'Big Bomb', cooldown: 30, description: 'Massive AoE strike on target' },
   },
   ice: {
@@ -44,7 +48,7 @@ export const TOWER_DEFS = {
     tier2: { cost: 55, damage: 12, range: 130, slow: 0.3, label: 'Deep Freeze' },
     tier3: { cost: 85, damage: 18, range: 145, slow: 0.2, label: 'Blizzard' },
     tier4A: { cost: 110, damage: 28, slow: 0.15, label: 'Permafrost', passiveEffect: 'Slows to 15% speed' },
-    tier4B: { cost: 110, damage: 50, splashRadius: 60, label: 'Shatter', passiveEffect: 'Frozen enemies take 2x damage' },
+    tier4B: { cost: 110, damage: 50, splashRadius: 60, label: 'Shatter', slowedMult: 2, passiveEffect: 'Slowed enemies take 2x damage' },
     ability: { label: 'Blizzard', cooldown: 25, description: 'Freeze all enemies in range' },
   },
   sniper: {
@@ -52,7 +56,7 @@ export const TOWER_DEFS = {
     range: 200, damage: 80, fireRate: 0.3, splashRadius: 0, pierce: true, slow: 0,
     tier2: { cost: 80, damage: 130, range: 220, label: 'Long Barrel' },
     tier3: { cost: 110, damage: 200, range: 240, label: 'Dead Eye' },
-    tier4A: { cost: 160, damage: 300, label: 'Assassin', passiveEffect: 'Ignores armor, stuns boss 1s' },
+    tier4A: { cost: 160, damage: 300, label: 'Assassin', bossStun: 1, passiveEffect: 'Ignores armor, stuns boss 1s' },
     tier4B: { cost: 160, damage: 180, fireRate: 0.9, label: 'Rapid Fire', passiveEffect: '3x fire rate' },
     ability: { label: 'Headshot', cooldown: 20, description: 'Instakill one non-boss enemy' },
   },

@@ -143,7 +143,8 @@ export class Enemy extends Phaser.GameObjects.Container {
       pierce: optsObj.pierce,
       source: optsObj.source,
       enemyType: this.def.type,
-      vulnerableMult: vulnMult,
+      // Per-hit multiplier (e.g. a slowed-target bonus) stacks with the status.
+      vulnerableMult: vulnMult * (optsObj.hitMult ?? 1),
     });
     this.hp -= dmg;
     const justDied = this.hp <= 0 && !this.dead;

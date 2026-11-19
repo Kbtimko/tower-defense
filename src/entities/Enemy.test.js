@@ -544,3 +544,19 @@ describe('Enemy hit squash and status visuals', () => {
     expect(() => e.update(0.05)).not.toThrow();
   });
 });
+
+describe('Enemy hitMult (#75)', () => {
+  it('multiplies after armour, stacking with vulnerable', () => {
+    const e = makeEnemy();
+    e.armor = 5;
+    const start = e.hp;
+    e.takeDamage(25, { hitMult: 2 });
+    expect(start - e.hp).toBe(40); // (25-5) * 1 * 2
+    const e2 = makeEnemy();
+    e2.armor = 5;
+    e2.applyStatus({ type: 'vulnerable', duration: 5, multiplier: 1.5 });
+    const s2 = e2.hp;
+    e2.takeDamage(25, { hitMult: 2 });
+    expect(s2 - e2.hp).toBe(60);
+  });
+});

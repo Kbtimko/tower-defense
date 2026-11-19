@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { projectileFx, arcOffset } from '../systems/fxResolve.js';
 import { PROJECTILE_DRAW as D } from '../data/fx.js';
-import { PROJECTILE_HIT_RADIUS } from '../data/towers.js';
+import { PROJECTILE_HIT_RADIUS, TOWER_SLOW_DURATION } from '../data/towers.js';
 
 // Pooled: the constructor builds the display children once, reset() re-arms
 // them for each shot. The container's x/y are always the true ground position;
@@ -23,7 +23,8 @@ export class Projectile extends Phaser.GameObjects.Container {
   }
 
   reset({ x, y, target, damage, splashRadius = 0, pierce = false, slowFactor = 0, color = 0xffffff,
-          towerType = 'default', tier = 1, branch = null, fxType = null }) {
+          towerType = 'default', tier = 1, branch = null, fxType = null,
+          chain = null, cluster = null, slowedMult = 1, bossStun = 0, slowDuration = TOWER_SLOW_DURATION }) {
     this.x = x;
     this.y = y;
     this.target       = target;
@@ -33,6 +34,11 @@ export class Projectile extends Phaser.GameObjects.Container {
     this.splashRadius = splashRadius;
     this.pierce       = pierce;
     this.slowFactor   = slowFactor;
+    this.chain        = chain;
+    this.cluster      = cluster;
+    this.slowedMult   = slowedMult;
+    this.bossStun     = bossStun;
+    this.slowDuration = slowDuration;
     this.color        = color;
     this.towerType    = towerType;
     this.tier         = tier;

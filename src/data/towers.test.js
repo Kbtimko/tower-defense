@@ -45,3 +45,33 @@ describe('tier damage ladder', () => {
     }
   });
 });
+
+describe('tier-4 effect data (#75)', () => {
+  it('splash+slow is tier-4 only', () => {
+    let walked = 0;
+    for (const def of Object.values(TOWER_DEFS)) {
+      if (!def.fireRate) continue; // barracks fires nothing
+      const acc = { splashRadius: def.splashRadius, slow: def.slow };
+      for (const key of [null, 'tier2', 'tier3']) {
+        if (key) Object.assign(acc, Object.fromEntries(
+          ['splashRadius', 'slow'].filter(k => def[key][k] !== undefined).map(k => [k, def[key][k]])));
+        expect(acc.splashRadius > 0 && acc.slow > 0, `${def.name} ${key ?? 'tier1'}`).toBe(false);
+      }
+      walked++;
+    }
+    expect(walked).toBeGreaterThanOrEqual(5);
+  });
+
+  it('carries the tier-4 effect fields', () => {
+    const D = TOWER_DEFS;
+    expect(D.archer.tier4A.shots).toBe(2);
+    expect(D.archer.tier4B.pierce).toBe(true);
+    expect(D.mage.tier4A.chain.targets).toBe(3);
+    expect(D.mage.tier4B.slow).toBe(0.7);
+    expect(D.cannon.tier4A.cluster.shells).toBe(3);
+    expect(D.cannon.tier4B.fireRate / D.cannon.fireRate).toBeCloseTo(3, 2);
+    expect(D.cannon.tier4B.splashRadius).toBe(0);
+    expect(D.ice.tier4B.slowedMult).toBe(2);
+    expect(D.sniper.tier4A.bossStun).toBe(1);
+  });
+});

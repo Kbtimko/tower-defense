@@ -257,3 +257,20 @@ describe('Tower tier look (#49)', () => {
     expect(t._look.updateLook).toHaveBeenCalledWith(1.5, true);
   });
 });
+
+describe('Tower tier-4 effect fields (#75)', () => {
+  const mk = (type) => new Tower(makeScene(), { type, x: 0, y: 0, def: TOWER_DEFS[type], zoneIndex: 0 });
+
+  it('upgrade copies tier-4 effect fields', () => {
+    const a = mk('archer');
+    expect(a).toMatchObject({ shots: 1, chain: null, cluster: null, slowedMult: 1, bossStun: 0 });
+    a.upgrade(4, 'A');
+    expect(a.shots).toBe(2);
+    const m = mk('mage');
+    m.upgrade(4, 'A');
+    expect(m.chain).toEqual(TOWER_DEFS.mage.tier4A.chain);
+    const m2 = mk('mage');
+    m2.upgrade(4, 'B');
+    expect(m2.chain).toBeNull();
+  });
+});

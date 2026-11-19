@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { TOWER_DEFS, sellRefund } from '../data/towers.js';
+import { T4_EFFECT_KEYS } from '../systems/towerShot.js';
 import { EntitySprite } from '../systems/EntitySprite.js';
 import { unitDepth } from '../systems/grounding.js';
 import { setBaseFireRate } from '../systems/fireRateMods.js';
@@ -24,6 +25,12 @@ export class Tower extends Phaser.GameObjects.Container {
     this.splashRadius = def.splashRadius;
     this.pierce       = def.pierce;
     this.slow         = def.slow;
+    // Neutral until a tier-4 block sets them, so towerShot can read every tower alike.
+    this.shots        = 1;
+    this.chain        = null;
+    this.cluster      = null;
+    this.slowedMult   = 1;
+    this.bossStun     = 0;
     this.cooldown     = 0;
     this.totalCost    = def.cost;
     this.zoneIndex    = zoneIndex;
@@ -114,6 +121,7 @@ export class Tower extends Phaser.GameObjects.Container {
     if (tierDef.slow         !== undefined) this.slow         = tierDef.slow;
     if (tierDef.fireRate     !== undefined) setBaseFireRate(this, tierDef.fireRate);
     if (tierDef.pierce       !== undefined) this.pierce       = tierDef.pierce;
+    for (const k of T4_EFFECT_KEYS) if (tierDef[k] !== undefined) this[k] = tierDef[k];
     this._redraw();
     this._applyTier();
   }
