@@ -154,11 +154,11 @@ Everything else stays word for word.
 
 ### Builder-check resolutions (Claude's calls)
 
-- **Sim stun = the game's full freeze.** A stunned sim enemy does not move and deals no
-  melee damage to its blocker (soldier or hero), but it still counts as blocked, so the
-  blocker keeps striking it. This mirrors `GameScene` ~929. Today the sim's soldier strike
-  sits inside the enemy loop, so the stun check goes **after** the blocker lookup: skip
-  `damageSoldier` / `damageHeroUnit`, keep the blocker's attack.
+- **Sim stun = the game's full freeze.** `GameScene._updateEnemies` `continue`s for a
+  stunned enemy **before** the blocker lookup. It doesn't move, doesn't hit its blocker, and
+  the blocker's strike (which lives in that same block) doesn't land either. The sim does
+  exactly the same: `if (e.stun.active) continue;` before `findBlockingSoldier`.
+  _(Corrected while planning: an earlier draft said the blocker keeps striking.)_
 - **The Shatter multiplier is applied after armour,** like `vulnerable`. `Enemy.takeDamage`
   gains one opt, `hitMult` (default 1). It is multiplied into `vulnerableMult` before
   `computeDamage`, so the in-world number shows the real amount. The sim passes
