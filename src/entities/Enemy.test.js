@@ -140,6 +140,22 @@ describe('Enemy.takeDamage — weakness matrix integration', () => {
   });
 });
 
+describe('Enemy stronger status wins', () => {
+  it('a weaker slow does not overwrite a stronger one (Permafrost then Frost Mage)', () => {
+    const e = new Enemy(makeScene(), { def: makeDef(), startX: 0, startY: 0 });
+    e.applyStatus({ type: 'slow', duration: 2, factor: 0.15 });
+    e.applyStatus({ type: 'slow', duration: 2, factor: 0.7 });
+    expect(e.statusEffects.slow.factor).toBe(0.15);
+  });
+
+  it('a shorter stun does not cut a longer running one (EMP then Assassin)', () => {
+    const e = new Enemy(makeScene(), { def: makeDef(), startX: 0, startY: 0 });
+    e.applyStatus({ type: 'stun', duration: 3 });
+    e.applyStatus({ type: 'stun', duration: 1 });
+    expect(e.statusEffects.stun.timer).toBeCloseTo(3);
+  });
+});
+
 describe('Enemy burn status', () => {
   it('takes dps damage at 1-second ticks', () => {
     const enemy = makeEnemy();

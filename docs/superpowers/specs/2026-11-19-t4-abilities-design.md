@@ -119,7 +119,7 @@ Everything else stays word for word.
   applied after armour and multiplied with any active `vulnerable` status.
 - **Boss stun (Assassin):** a hit on a boss applies `stun { duration: bossStun }`.
   "Boss" = `DEATH_CLASS[type] === 'boss'` (`src/data/juice.js`), the same rule
-  `BOSS_WARNING` uses, never a `'titan'` literal. An existing stun is refreshed, not stacked.
+  `BOSS_WARNING` uses, never a `'titan'` literal. An existing longer stun is kept; a shorter one is extended to 1 s.
 
 ### Resolver contract (`src/systems/towerShot.js`, pure, no Phaser)
 
@@ -176,6 +176,13 @@ Everything else stays word for word.
 - **Shatter's 2x is near-permanent against an enemy it keeps hitting.** Its own 2 s slow
   outlasts its 1.43 s cooldown, so every hit after the first is 2x. That is the card's
   promise. The sweep reports it, and a retune is a follow-up.
+- **Stronger status wins (final review).** A slow keeps the lower (stronger) factor; an
+  equal factor refreshes to the longer timer; a weaker one changes nothing. A stun keeps
+  the longer of the running and incoming timers. One pure helper,
+  `src/systems/statusMerge.js`, serves both `Enemy.applyStatus` and the sim. Why: plain
+  overwrite let Frost Mage's 0.7 slow weaken Permafrost (0.15), Shatter (0.2) or T1 ice
+  (0.45), and let an Assassin's 1 s boss stun cut a 3 s hero EMP stun. It also changes
+  ice-on-ice T1-T3 stacking: a weaker ice slow no longer overwrites a stronger one.
 
 ## Edge cases the tests must cover
 

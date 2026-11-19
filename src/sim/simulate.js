@@ -62,6 +62,7 @@ import { makeHeroUnit, damageHeroUnit, tickHeroUnit, registerHeroUnitDamage } fr
 import { heroAttackDamage } from '../systems/heroLeveling.js';
 import { totalEnemyHp } from '../data/waves.js';
 import { countdownMsFor, shouldStartCountdown, WaveCountdown } from '../systems/waveCountdown.js';
+import { mergeSlow, mergeStun } from '../systems/statusMerge.js';
 
 const PROJECTILE_SPEED = 280;   // Projectile.js
 const WAVE_CLEAR_BONUS = 38;    // GameScene.js
@@ -446,8 +447,8 @@ export function simulateMap({
             e.dead = true; kills++; gold += killReward(e.reward);
           } else {
             // Status only lands on a survivor, as in GameScene._onProjectileHit.
-            if (rec.slow) e.slow = { active: true, timer: rec.slow.duration, factor: rec.slow.factor };
-            if (rec.stun) e.stun = { active: true, timer: rec.stun.duration };
+            if (rec.slow) e.slow = mergeSlow(e.slow, rec.slow);
+            if (rec.stun) e.stun = mergeStun(e.stun, rec.stun);
           }
         }
         p.dead = true;

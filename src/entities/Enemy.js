@@ -6,6 +6,7 @@ import { enemyHitSfxKey } from '../systems/sfxKeys.js';
 import { EntitySprite } from '../systems/EntitySprite.js';
 import { unitDepth } from '../systems/grounding.js';
 import { hpBarFillWidth, hpBarGeometry } from '../systems/hpBar.js';
+import { mergeSlow, mergeStun } from '../systems/statusMerge.js';
 import { squashScale, statusTint } from '../systems/hitFx.js';
 import { HIT_SQUASH, STATUS_FX, STATUS_DRAW } from '../data/fx.js';
 
@@ -196,12 +197,12 @@ export class Enemy extends Phaser.GameObjects.Container {
     // just resets its timer, so skip the redraw (and its point-array allocs).
     if (type === 'slow') {
       const started = !this.statusEffects.slow.active;
-      this.statusEffects.slow = { active: true, timer: duration, factor };
+      this.statusEffects.slow = mergeSlow(this.statusEffects.slow, { duration, factor });
       if (started) this._refreshStatusVisuals();
     }
     if (type === 'stun') {
       const started = !this.statusEffects.stun.active;
-      this.statusEffects.stun = { active: true, timer: duration };
+      this.statusEffects.stun = mergeStun(this.statusEffects.stun, { duration });
       if (started) this._refreshStatusVisuals();
     }
     if (type === 'burn') {

@@ -109,7 +109,7 @@ describe('GameScene._onProjectileHit tier-4', () => {
     const b = makeEnemy(105, 100, { hp: 1 });
     const ctx = makeHitCtx([a, b]);
     GameScene.prototype._onProjectileHit.call(ctx, makeProj(a, { splashRadius: 50, slowFactor: 0.7 }));
-    expect(a.applyStatus).toHaveBeenCalledWith({ type: 'slow', duration: 2, factor: 0.7 });
+    expect(a.applyStatus).toHaveBeenCalledWith({ type: 'slow', duration: TOWER_SLOW_DURATION, factor: 0.7 });
     expect(b.applyStatus).not.toHaveBeenCalled();
   });
 
