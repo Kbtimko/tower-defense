@@ -44,10 +44,9 @@ describe('formatT4Sweep', () => {
     expect(legend).toMatch(/never reached tier 4/);
   });
 
-  it('ends with the caveat naming #75, text-only abilities and no slow', () => {
-    const caveat = lines.slice(-3).join(' ');
-    expect(caveat).toContain('#75');
-    expect(caveat).toMatch(/text only/);
-    expect(caveat).toMatch(/mage 4B and ice 4B apply no slow/);
+  it('ends with the caveat naming #75 and the modelled abilities', () => {
+    const caveat = lines.slice(-1).join(' ');
+    expect(caveat).toMatch(/#75/);
+    expect(caveat).toMatch(/modelled/);
   });
 });
