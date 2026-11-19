@@ -311,7 +311,12 @@ export const MAPS = [
     //              (67% with the logistics perk). Neighbouring values are
     //              noisy -- 420 loses at 1.03x -- so 405 is a measured point,
     //              not a trend to extrapolate.
-    // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
+    // rewardMult = stays as derived. It was solved at the DERIVED start (270),
+    //              where gold ceiling = 55% of the fully-upgraded board, and is
+    //              deliberately NOT re-solved for the override: the ramp rule
+    //              takes startGold as an input, so re-solving would claw the
+    //              added gold back out of kill income. With 405 the ceiling is
+    //              now about 58% of the upgraded board.
     startGold: 405,
     startLives: 12,
     overworldArt: 'overworld_8_enemy_homeworld.png',
@@ -353,10 +358,14 @@ export const MAPS = [
     //              rewardMult did not help -- fewer kills means less gold --
     //              but earlier gold did: 690 wins keeping 60% of lives, with
     //              or without the +40% logistics perk.
-    // rewardMult = solves gold ceiling = 55% of the fully-upgraded board. Lower
-    //              than the mid maps because this one carries far more raw kill
-    //              income; the declining multiplier was never the defect, so
-    //              it stays derived.
+    // rewardMult = stays as derived. It was solved at the DERIVED start (300),
+    //              where gold ceiling = 55% of the fully-upgraded board, and is
+    //              deliberately NOT re-solved for the override: re-solving
+    //              would claw the added gold back (about 0.27, roughly -390
+    //              gold of kill income). With 690 the ceiling is now about 62%
+    //              of the upgraded board. Lower than the mid maps because this
+    //              one carries far more raw kill income; the declining
+    //              multiplier was never the defect.
     startGold: 690,
     startLives: 10,
     overworldArt: 'overworld_9_last_light.png',

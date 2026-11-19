@@ -4,6 +4,9 @@
 // today's numbers exactly. Re-run only to deliberately re-baseline. It was
 // first captured on the pre-#51 simulator, which ignored `waveTiming`; passing
 // 'onClear' keeps a re-run legacy now that the default is 'countdown'.
+// The 8:* and 9:* entries were re-baselined on 2026-11-19 (#37) after the map
+// economy changed, so for those maps the golden pins the current simulator's
+// onClear mode, not the pre-#51 one.
 import { writeFileSync } from 'node:fs';
 import { MAPS } from '../src/data/maps.js';
 import { MAP_WAVES } from '../src/data/waves.js';
