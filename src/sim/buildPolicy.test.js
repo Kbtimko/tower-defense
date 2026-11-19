@@ -266,8 +266,34 @@ describe('greedyBuildPlan defaults', () => {
 });
 
 describe('tier-4 branch and tier cap in the upgrade pass', () => {
+  // Real 4A and 4B cost the same for every tower, so a check against them
+  // cannot tell the branches apart. Skew the data for the duration of a test.
+  function withSkewedMage(fn) {
+    const mage = TOWER_DEFS.mage;
+    const saved = { a: mage.tier4A, b: mage.tier4B };
+    mage.tier4A = { ...saved.a, cost: 111, damage: 1 };
+    mage.tier4B = { ...saved.b, cost: 222, damage: 1000 };
+    try { fn(); } finally { mage.tier4A = saved.a; mage.tier4B = saved.b; }
+  }
+
   it('prices tier 4 from the tower\'s branchPref', () => {
-    expect(upgradeCost({ type: 'mage', level: 3, branchPref: 'B' }, 4)).toBe(TOWER_DEFS.mage.tier4B.cost);
+    withSkewedMage(() => {
+      expect(upgradeCost({ type: 'mage', level: 3, branchPref: 'B' }, 4)).toBe(222);
+      expect(upgradeCost({ type: 'mage', level: 3 }, 4)).toBe(111);
+    });
+  });
+
+  it('scores a tier-4 upgrade with the tower\'s branchPref stats', () => {
+    // Mage 4B hits for 1000, 4A for 1; a sniper's 4A is an ordinary upgrade.
+    // Only a score that reads the mage's 4B stats can pick the mage.
+    withSkewedMage(() => {
+      const out = greedyBuildPlan({
+        gold: 230, slotsUsed: new Set([0, 1, 2]), buildZones: zones, path,
+        towers: [{ type: 'mage', level: 3, branch: null, branchPref: 'B' }, { type: 'sniper', level: 3, branch: null }],
+        barracksTarget: 0, waveNumber: 1, waves: skitterWaves, map: { maxTierAllowed: 4 },
+      });
+      expect(out.find(p => p.upgrade)?.towerIndex).toBe(0);
+    });
   });
 
   it('a tierCap below the map ceiling ends the ladder', () => {
