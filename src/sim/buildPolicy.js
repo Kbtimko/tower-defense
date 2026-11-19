@@ -27,8 +27,8 @@ export function rankSlots(buildZones, path, range = 120) {
 }
 
 // Damage per second per gold — the yardstick for "best tower I can afford".
-// Ignores splash and slow, so it under-rates cannon and ice; that is fine for a
-// pessimistic model.
+// Ignores splash, slow, chain and cluster, so it under-rates cannon, ice and
+// mage; that is fine for a pessimistic model.
 export function towerValue(type) {
   const def = TOWER_DEFS[type];
   return (def.damage * def.fireRate) / def.cost;
