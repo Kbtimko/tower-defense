@@ -14,6 +14,8 @@ import { bestStrategy, strategyLabel } from '../src/sim/strategy.js';
 import { verdict, COMFORT_CEILING, COMFORT_FLOOR } from '../src/sim/verdict.js';
 import { WAVE_COUNTDOWN } from '../src/data/waveCountdown.js';
 import { matchesBefore, afterSame } from '../src/sim/autosendMatch.js';
+import { runT4Sweep, sweepMaps } from '../src/sim/t4Sweep.js';
+import { formatT4Sweep } from '../src/sim/t4SweepReport.js';
 
 const args = process.argv.slice(2);
 const verbose = args.includes('--verbose');
@@ -251,3 +253,13 @@ console.log('           hide behind a fine-looking "boards" figure\n');
 const unwinnable = rows.filter(r => !r.r.won).length;
 const tooEasy = rows.filter(r => r.v.tag === 'TOO EASY').length;
 console.log(`\n${rows.length} maps · ${unwinnable} unwinnable · ${tooEasy} too easy\n`);
+
+// Opt-in: 6 towers x 3 tiers x every tier-4 map is minutes of sim, so the
+// default report stays fast. Countdown mode matches the headline.
+if (args.includes('--t4')) {
+  console.log('Tier-4 sweep — one tower anchored at T3 / 4A / 4B over the best strategy.\n');
+  const results = sweepMaps()
+    .filter(m => onlyMap === null || m.id === onlyMap)
+    .map(m => runT4Sweep(m, MAP_WAVES[m.id], { waveTiming: 'countdown' }));
+  for (const line of formatT4Sweep(results)) console.log(line);
+}

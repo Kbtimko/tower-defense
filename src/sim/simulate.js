@@ -74,7 +74,7 @@ class Emitter {
   emit(evt, payload) { for (const fn of this._handlers[evt] ?? []) fn(payload); }
 }
 
-function makeTower(type, x, y) {
+function makeTower(type, x, y, branchPref = null, tierCap = null, tag = null) {
   const def = TOWER_DEFS[type];
   return {
     type, x, y,
@@ -89,6 +89,8 @@ function makeTower(type, x, y) {
     slow: def.slow,
     level: 1,
     branch: null,
+    // Sweep-only knobs: the tier-4 branch to buy, a ceiling below the map's, a label.
+    branchPref, tierCap, tag,
     cooldown: 0,
   };
 }
@@ -220,9 +222,10 @@ export function simulateMap({
         const t = towers[p.towerIndex];
         if (!t) continue;
         const nextTier = t.level + 1;
-        const key = nextTier === 4 ? 'tier4A' : `tier${nextTier}`;
+        const letter = p.branch ?? t.branchPref ?? 'A';
+        const key = nextTier === 4 ? `tier4${letter}` : `tier${nextTier}`;
         const tierDef = TOWER_DEFS[t.type][key];
-        if (!tierDef || nextTier > (map.maxTierAllowed ?? 4) || tierDef.cost > gold) continue;
+        if (!tierDef || nextTier > Math.min(map.maxTierAllowed ?? 4, t.tierCap ?? 4) || tierDef.cost > gold) continue;
         gold -= tierDef.cost;
         t.level = nextTier;
         if (tierDef.damage       !== undefined) t.damage       = tierDef.damage;
@@ -231,7 +234,7 @@ export function simulateMap({
         if (tierDef.slow         !== undefined) t.slow         = tierDef.slow;
         if (tierDef.fireRate     !== undefined) t.fireRate     = tierDef.fireRate;
         if (tierDef.pierce       !== undefined) t.pierce       = tierDef.pierce;
-        if (nextTier === 4)                     t.branch       = 'A';
+        if (nextTier === 4)                     t.branch       = letter;
         // Barracks gain nothing from the tier stat block; their upgrade lands on
         // the soldiers (Barracks.upgrade + _rebuildSoldiers, which respawns the
         // squad at full strength with the new stats).
@@ -246,7 +249,7 @@ export function simulateMap({
       if (cost > gold || !zone || slotsUsed.has(p.slotIndex)) continue;
       gold -= cost;
       slotsUsed.add(p.slotIndex);
-      const tower = makeTower(p.type, zone.cx, zone.cy);
+      const tower = makeTower(p.type, zone.cx, zone.cy, p.branch ?? null, p.maxTier ?? null, p.tag ?? null);
       if (tower.soldierStats) {
         tower.soldierPathProgress = pathMgr.getNearestPathProgress(zone.cx, zone.cy);
         spawnSoldiers(tower, path);
