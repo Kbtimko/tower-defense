@@ -5,6 +5,32 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 
 ## Current Status (2026-11-19)
 
+**2026-11-19: backlog #37 (map 9 under-funding, map 8 coin flip), roadmap G4 for map 9. PR into `visual/integration`.**
+- **Re-measured after #75–#77:** map 9 died on **wave 1** (3 of 20 towers, needed 1.36x), map 8 needed 1.08x, map 7 1.05x.
+- **The sweep picked the lever:**
+  - Scaling map 9's enemy counts down by 10–40% still needed 1.36–1.52x, because fewer kills means less gold.
+  - Kill reward alone (`rewardMult` 0.36 / 0.41) still needed 1.36x.
+  - Only early gold moved it (#16's "timing, not total").
+- **User's calls:** "Start gold 690" and "Fix 8, leave 7".
+  - Map 9 `startGold` 300→690, now OK with 60% of lives. With the +40% logistics perk (966) it also keeps 60%; the board fills up, so more gold up front doesn't make it too easy.
+  - Map 8 270→405, now OK with 33% (67% with the perk). Neighbouring values are noisy: 420 loses at 1.03x.
+  - Map 7 stays at 240; it wins with the perk (42%).
+  - The rejected mix (start 510 + reward 0.38) went 100% / too easy with the perk.
+- Both are recorded overrides in `maps.js`. `rewardMult` stays solved at the derived start and is deliberately not re-solved: re-solving would take back about 390 gold on map 9.
+- `mapsEconomy.test.js`:
+  - pins 405/690;
+  - keeps map 9 in the depth-spread guard, evaluated at its derived 300, so its kill income stays guarded (proven to fail at `rewardMult` 0.29).
+- Fixtures:
+  - The `legacyGolden.json` `8:*`/`9:*` entries were re-baselined (merged and pruned: the committed fixture predates newer sim fields, so a full regeneration would churn all 50 keys).
+  - The #75 tiers 1–3 snapshot changed for map 8 only.
+- **Balance:**
+  - The report changes only on rows 8 and 9: **1 unwinnable** (map 7 at 1.05x), down from 3.
+  - Auto-send "harder than before" is still 0.
+  - In `--t4`, maps 8 and 9 now win at 1x under every tier-4 line, and some single-tower T4 probes on map 9 keep 90–100% of lives (Shatter, Rapid Cannon, sniper 4B, barracks 4B). Worth watching at playtest (#30).
+- **Live (capture build):** maps 7/8/9 open with 240/405/690 gold, 0 page errors. Production build exit 0.
+- Spec `2026-11-19-map9-funding-design.md`, plan `2026-11-19-map9-funding.md`, session `.claude/sessions/2026-11-19-map9-funding.md`.
+- **G4 remaining:** #35 (map 5) and #36 (map 2).
+
 **2026-11-19: backlog #76 + #77 (tier-4 pricing, Rapid Cannon 140) — PR into `visual/integration`.**
 - **#76:** User: "Damage 140", picked from a measured `--t4` sweep of 80/110/140/splash 35. `cannon.tier4B.damage` goes 80→140; the card stays "3x fire rate, single target". Sweep: map 4 lives 50→61%, map 6 x1.27→x1.14, map 8 x1.11/0%→x1.00/50%, map 9 x1.49→x1.27/10%. That is at or above its pre-#75 self everywhere. It is now 189 single-target DPS, the highest in the game, but it doesn't pierce.
 - **#77:** User: "Approve". `towerSpecAt` folds `shots`, `slow` and `slowedMult`, and `towerDpsAgainst` multiplies by `shots × (slow > 0 ? slowedMult : 1)`. Splash, chain and cluster stay unpriced (crowd effects). Spec `2026-11-19-t4-pricing-design.md`, plan `2026-11-19-t4-pricing.md`, session `.claude/sessions/2026-11-19-t4-pricing.md`. 4020 tests.
@@ -175,6 +201,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
+- **2026-11-19:** #129 (#76+#77) merged. #37 PR open into `visual/integration` (`balance/37-map9-funding`).
 - **2026-11-19:** #128 (#75 tier-4 abilities) merged. #76+#77 PR open into `visual/integration` (`balance/76-77-t4-pricing`).
 - **2026-11-18:** #124 (roadmap 4.2) merged into `visual/integration`. #125 (#72 Frost Mage) merged. #74 tier-4 sweep PR open into `visual/integration` (`balance/74-t4-sweep`).
 - **2026-11-16:** roadmap 4.0 PR open into `visual/integration` (`visual/4.0-art-pipeline-v2`). #120 merged into `visual/integration`; hotfix #121 merged into `main` and deployed. Waiting on the user: G3 (incl. rally flag and tier looks on a real phone).
@@ -371,7 +398,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 
 36. `[review]` **Map 2 is TOO EASY** _(raised 2026-10-13 by PR #84, logged as an item 2026-10-21)_. Under the best-of-5 headline map 2 keeps **90%** of lives (start/T3) — exactly the ceiling. Its `startGold 170 / rewardMult 0.40` is still marked PROVISIONAL in `src/data/maps.js`, and #18 pinned maps 0-2 against casual sweeps, so this needs an explicit decision to reopen the on-ramp.
 
-37. `[review]` **Map 9 under-funding (and map 8 is a coin flip)** _(raised 2026-10-13 by PR #84, logged as an item 2026-10-21)_. Map 9 needs **1.36x** under every barracks strategy, so its under-funding is real, not a policy artefact. Map 8 sits at **1.08x** unaided and flips between a narrow win (8% of lives with flat +120) and a narrow loss (1.05x with +108 under #31's percentage) on ~12 gold. Tune together — they share the late-campaign gold curve.
+37. `[review]` ✅ **DONE 2026-11-19 (balance/37-map9-funding)** ~~Map 9 under-funding (and map 8 is a coin flip)~~. User: "Start gold 690" + "Fix 8, leave 7". Map 9 `startGold` 300→690 (OK 60%), map 8 270→405 (OK 33%), map 7 unchanged (1.05x unaided, wins with the perk). See Current Status.
 38. `[auto]` ✅ ~~**A killed enemy can still cost a life**~~ **DONE 2026-11-15** — leak branch guarded on `!enemy.dead` (PR into `visual/integration`). _(raised 2026-10-21 by the 1.6 FX review)_. Tower-killed corpses stay in `this.enemies` until the end-of-frame sweep, and `_updateEnemies` moves them without checking `enemy.dead`; a corpse that reaches the last waypoint in the same frame runs the leak branch and calls `economy.loseLife()`. Fix: skip `dead` enemies in the movement loop (or guard the leak branch on `!enemy.dead`), with a failing test first. Gameplay change, so it was deliberately left out of the visual-only 1.6 PR (which only stops such corpses being marked `leaked`).
 39. `[auto]` **Road follow-ups from roadmap 1.7** _(raised 2026-10-22 by the 1.7 final review)_. (a) Evict other maps' `road_map_*` canvas textures in `GameScene._setupRoad` before the iOS work (#9): one 1280x720 texture is kept per visited map (~74 MB canvas+GPU after all 10). (b) Area effects (pyro firefield, depth 2) now sit under the opaque road (depth 8), leaving a road-shaped gap in the fire: move them to ~8.5. (c) `MapEditorScene` still previews the legacy `renderPath` look. (d) Optional per-style `featherAlpha` so a style's edge colour can read stronger.
 40. `[auto]` **Screen-space helpers & HUD consistency** — **(a) DONE in roadmap 2.1 (2026-10-22).** _(raised 2026-10-22 by the 1.8 reviews)_. (a) `gameToPageCss` (src/systems/viewport.js) multiplies by Phaser's `displayScale`, which is GAME px per CSS px — inverted, so the tower panel / inspector open off-position whenever the canvas is FIT-scaled (likely the panel clipping seen in the 0.3 baseline); `pageToGame` was written correctly in 1.8. Fix with a test against Phaser's `transformX`. (b) HUD `stat-wave` still reads `MAPS[id].waveCount` while the wave banner reads `waveMgr.waves.length` (equal today). (c) `.gold-gain-pulse` / `.life-lost-pulse` classes are never removed, so they may replay when `#hud` re-shows: remove on `animationend`.
