@@ -40,4 +40,9 @@ describe('StoryManager', () => {
     expect(sm.getPanelForWave('unknown_key', 3)).toBeNull();
   });
 
+  it('getDuePanels delegates to the panels it was built with', () => {
+    const sm = new StoryManager(PANELS);
+    expect(sm.getDuePanels('map_a', 5, new Set())).toEqual([{ wave: 3, panel: PANELS.map_a.waves[3] }]);
+    expect(sm.getDuePanels('map_a', 5, new Set([3]))).toEqual([]);
+  });
 });
