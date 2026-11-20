@@ -54,6 +54,7 @@ import { RALLY_FLAG, SOLDIER_MARCH } from '../data/soldiers.js';
 import { hexToInt } from '../ui/theme.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { previewRange } from '../systems/rangePreview.js';
+import { unitDepth } from '../systems/grounding.js';
 
 const OK = hexToInt(RALLY_FLAG.ok);
 const BAD = hexToInt(RALLY_FLAG.bad);
@@ -867,5 +868,38 @@ describe('rally visuals sit on a halo (ruling 15)', () => {
     const alpha = b.rallyFlag.fadeLeftMs / RALLY_FLAG.fadeMs;
     expect(alpha).toBeLessThan(1);
     expectFlagOnHalo(marks(routeGfx(s)), OK, alpha);
+  });
+});
+
+describe('Move re-sorts the barracks by its new pad (#68)', () => {
+  beforeEach(() => { localStorage.clear(); loadShippedDOM(); });
+
+  function enterMove(scene, b) {
+    scene._openRing(b);
+    scene._onRadialActivate(scene.radial._items.find(i => i.id === 'reposition'));
+  }
+
+  it('a moved barracks takes the depth of its new pad', () => {
+    const s = level();
+    const b = buildBarracks(s);
+    const zones = s.placementManager.getZones();
+    const target = zones.findIndex(z => !z.occupied && Math.abs(z.cy - b.y) > 1);
+    expect(target).toBeGreaterThan(-1);
+    const z = zones[target];
+    const spy = vi.spyOn(b, 'setDepth');
+    enterMove(s, b);
+    s._onTap(z.cx, z.cy);
+    expect(b.zoneIndex).toBe(target);
+    expect(spy).toHaveBeenLastCalledWith(unitDepth(z.cy));
+  });
+
+  it('a Move tap that finds no free pad leaves depth alone', () => {
+    const s = level();
+    const b = buildBarracks(s);
+    const spy = vi.spyOn(b, 'setDepth');
+    enterMove(s, b);
+    s._onTap(-500, -500);
+    expect(spy).not.toHaveBeenCalled();
+    expect(b.zoneIndex).toBe(PAD);
   });
 });

@@ -87,7 +87,7 @@ describe('GameScene static pad repaint', () => {
   it('repaints after a barracks reposition frees one slot and occupies another', () => {
     const zones = [{ occupied: true }, { occupied: false }];
     // A move also hands the squad its new rally point (#48 R5).
-    const barracks = { zoneIndex: 0, setPosition: vi.fn(), setRallyPoint: vi.fn() };
+    const barracks = { zoneIndex: 0, setPosition: vi.fn(), setDepth: vi.fn(), setRallyPoint: vi.fn() };
     const ctx = makeCtx({
       repositionMode: true,
       repositioningBarracks: barracks,

@@ -234,7 +234,7 @@ describe('ring layer redraws on board changes', () => {
   });
 
   it('_repositionTo redraws (E25: the ring follows the moved barracks)', () => {
-    const barracks = { zoneIndex: 0, setPosition: vi.fn(), setRallyPoint: vi.fn() };
+    const barracks = { zoneIndex: 0, setPosition: vi.fn(), setDepth: vi.fn(), setRallyPoint: vi.fn() };
     const ctx = {
       repositioningBarracks: barracks, enemies: [],
       placementManager: {
