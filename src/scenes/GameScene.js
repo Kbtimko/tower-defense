@@ -1577,7 +1577,8 @@ export default class GameScene extends Phaser.Scene {
     zones[slot.slotIndex].occupied = true;
     barracks.zoneIndex = slot.slotIndex;
     barracks.setPosition(slot.x, slot.y);
-    // Depth is y-sorted but Tower only derives it at construction; without this a moved barracks keeps its old pad's layer.
+    // Depth is y-sorted but Tower only derives it at construction; without this a moved
+    // barracks keeps its old pad's layer.
     barracks.setDepth(unitDepth(slot.y));
     // The squad walks to the new pad's road point rather than staying behind.
     barracks.setRallyPoint(this.pathMgr.getNearestPathProgress(slot.x, slot.y), this.enemies);

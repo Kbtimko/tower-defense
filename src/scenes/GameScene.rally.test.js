@@ -897,6 +897,7 @@ describe('Move re-sorts the barracks by its new pad (#68)', () => {
     const b = buildBarracks(s);
     const spy = vi.spyOn(b, 'setDepth');
     enterMove(s, b);
+    expect(s.repositionMode).toBe(true);
     s._onTap(-500, -500);
     expect(spy).not.toHaveBeenCalled();
     expect(b.zoneIndex).toBe(PAD);
