@@ -137,7 +137,8 @@ export class SaveManager {
   }
 
   // Several instances share one storage key (boot registry, GameScene, MapSelectScene);
-  // re-read before patching so a stale snapshot never overwrites another instance's save.
+  // re-read before patching so a stale snapshot never overwrites another instance's save,
+  // and before reading: the boot registry instance outlives every level, so its snapshot goes stale.
   _refresh() {
     this._data = this._load();
   }
@@ -148,6 +149,7 @@ export class SaveManager {
 
   // ─── Map stars ───
   getStars(mapId) {
+    this._refresh();
     return this._data.maps[mapId] ?? 0;
   }
 
@@ -160,16 +162,19 @@ export class SaveManager {
   }
 
   isUnlocked(mapId) {
+    this._refresh();
     if (mapId === 0) return true;
     return this._data.maps[mapId - 1] > 0;
   }
 
   getTotalStars() {
+    this._refresh();
     return this._data.maps.reduce((sum, s) => sum + s, 0);
   }
 
   // ─── Best records ───
   getRecord(mapId) {
+    this._refresh();
     const r = this._data.records[mapId];
     return r ? { ...r } : null;
   }
@@ -192,6 +197,7 @@ export class SaveManager {
 
   // ─── Upgrades ───
   getPurchasedUpgrades() {
+    this._refresh();
     return this._data.upgrades.slice();
   }
 
@@ -203,6 +209,7 @@ export class SaveManager {
 
   // ─── Stats ───
   getStats() {
+    this._refresh();
     return { ...this._data.stats };
   }
 
@@ -214,6 +221,7 @@ export class SaveManager {
 
   // ─── Settings ───
   getSettings() {
+    this._refresh();
     return { ...this._data.settings };
   }
 
@@ -225,6 +233,7 @@ export class SaveManager {
 
   // ─── Hero selection ───
   getSelectedHero() {
+    this._refresh();
     const id = this._data.selectedHeroId;
     return (id && HEROES[id]) ? id : 'rael';
   }
@@ -245,6 +254,7 @@ export class SaveManager {
 
   // ─── Story beats ───
   hasSeenBeat(id) {
+    this._refresh();
     return !!this._data.seenStoryBeats[id];
   }
 
@@ -256,6 +266,7 @@ export class SaveManager {
   }
 
   getSeenBeats() {
+    this._refresh();
     return { ...this._data.seenStoryBeats };
   }
 }
