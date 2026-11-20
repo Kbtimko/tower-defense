@@ -140,6 +140,10 @@ function enterRally(scene, b) {
   scene._openRing(b);
   scene._onRadialActivate(scene.radial._items.find(i => i.id === 'rally'));
 }
+function enterMove(scene, b) {
+  scene._openRing(b);
+  scene._onRadialActivate(scene.radial._items.find(i => i.id === 'reposition'));
+}
 function rallyTo(scene, b, p) {
   enterRally(scene, b);
   const pt = road(scene, p);
@@ -874,11 +878,6 @@ describe('rally visuals sit on a halo (ruling 15)', () => {
 describe('Move re-sorts the barracks by its new pad (#68)', () => {
   beforeEach(() => { localStorage.clear(); loadShippedDOM(); });
 
-  function enterMove(scene, b) {
-    scene._openRing(b);
-    scene._onRadialActivate(scene.radial._items.find(i => i.id === 'reposition'));
-  }
-
   it('a moved barracks takes the depth of its new pad', () => {
     const s = level();
     const b = buildBarracks(s);
@@ -906,11 +905,6 @@ describe('Move re-sorts the barracks by its new pad (#68)', () => {
 
 describe('newest intent wins over a pending Move (#64)', () => {
   beforeEach(() => { localStorage.clear(); loadShippedDOM(); });
-
-  function enterMove(scene, b) {
-    scene._openRing(b);
-    scene._onRadialActivate(scene.radial._items.find(i => i.id === 'reposition'));
-  }
 
   it('arming Archer during a Move drops the Move, and a pad tap builds instead of moving', () => {
     const s = level();
