@@ -1,3 +1,5 @@
+import { dueStoryPanels } from './storyQueue.js';
+
 export class StoryManager {
   constructor(panels) {
     this._panels    = panels;
@@ -14,6 +16,10 @@ export class StoryManager {
 
   getPanelForWave(storyKey, waveNum) {
     return this._panels[storyKey]?.waves?.[waveNum] ?? null;
+  }
+
+  getDuePanels(storyKey, throughWave, shown) {
+    return dueStoryPanels(this._panels, storyKey, throughWave, shown);
   }
 
   showBanner(panel, onDismiss) {

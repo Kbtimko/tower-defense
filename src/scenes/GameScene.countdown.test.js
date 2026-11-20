@@ -73,7 +73,8 @@ function frameScene({ registry = {}, realStory = false } = {}) {
     game: { registry: { get: (k) => reg[k] }, events: { emit: vi.fn() } },
     storyMgr: realStory
       ? new StoryManager(STORY_PANELS)
-      : { getPanelForWave: () => null, showBanner: vi.fn(), hideBanner: vi.fn() },
+      : { getDuePanels: () => [], showBanner: vi.fn(), hideBanner: vi.fn() },
+    _storyShown: new Set(),
     _wavePreview: { setWave: vi.fn(), hide: vi.fn() },
     _countdown: new WaveCountdown(),
     _autoSendOverride: null,
@@ -509,5 +510,104 @@ describe('live level (real create)', () => {
     scene._updateCountdown(TOTAL_MS * 2);
     expect(scene._countdown.remainingMs).toBe(0);
     expect(scene.waveMgr.currentWave).toBe(1); // override OFF beats the registry's ON
+  });
+});
+
+describe('merged-wave story banners (#59)', () => {
+  beforeEach(loadShippedDOM);
+
+  const PANELS = STORY_PANELS[MAPS[MAP].storyKey].waves;
+  const [FIRST, SECOND] = Object.keys(PANELS).map(Number).sort((a, b) => a - b);
+  const visible = () => $('story-banner').classList.contains('visible');
+  const headline = () => $('story-headline').textContent;
+  const clearBoard = (scene) => { scene.enemies = []; scene.update(0, 16); };
+  const finishSpawns = (scene) => { while (scene.waveMgr.hasQueuedEnemies) scene.update(0, 100); };
+
+  // Wave FIRST is still on the board when FIRST+1 is sent, then everything clears.
+  function overlapped() {
+    const scene = sendAndSpawnAll(frameScene({ realStory: true }), FIRST);
+    scene._startWave();
+    scene.enemies = [stillEnemy()];
+    finishSpawns(scene);
+    clearBoard(scene);
+    return scene;
+  }
+
+  it('a wave overlapped by the next still gets its banner', () => {
+    overlapped();
+    expect(visible()).toBe(true);
+    expect(headline()).toBe(PANELS[FIRST].headline);
+  });
+
+  it('a shown banner does not repeat', () => {
+    const scene = overlapped();
+    $('story-dismiss').click();
+    scene._startWave();
+    scene.enemies = [stillEnemy()];
+    finishSpawns(scene);
+    clearBoard(scene);
+    expect(visible()).toBe(false);
+  });
+
+  it('two due banners show oldest first and hold the countdown until the last', () => {
+    const scene = sendAndSpawnAll(frameScene({ realStory: true }), SECOND, { keepBoard: false });
+    expect(headline()).toBe(PANELS[FIRST].headline);
+    expect(scene._countdown.held).toBe(true);
+    $('story-dismiss').click();
+    expect(headline()).toBe(PANELS[SECOND].headline);
+    expect(scene._countdown.held).toBe(true);
+    $('story-dismiss').click();
+    expect(visible()).toBe(false);
+    expect(scene._countdown.held).toBe(false);
+  });
+
+  it('sending mid-sequence defers the rest to the next clear', () => {
+    const scene = sendAndSpawnAll(frameScene({ realStory: true }), SECOND, { keepBoard: false });
+    expect(headline()).toBe(PANELS[FIRST].headline);
+    scene._startWave();
+    expect(visible()).toBe(false);
+    scene.enemies = [stillEnemy()];
+    finishSpawns(scene);
+    clearBoard(scene);
+    expect(headline()).toBe(PANELS[SECOND].headline);
+    $('story-dismiss').click();
+    scene._startWave();
+    scene.enemies = [stillEnemy()];
+    finishSpawns(scene);
+    clearBoard(scene);
+    expect(visible()).toBe(false);
+  });
+
+  it('_skipStoryBefore marks earlier waves shown', () => {
+    const scene = frameScene({ realStory: true });
+    scene._skipStoryBefore(SECOND + 1);
+    sendAndSpawnAll(scene, SECOND + 1, { keepBoard: false });
+    expect(visible()).toBe(false);
+  });
+
+  it('a debug wave jump through create() skips earlier banners but shows its own', () => {
+    const scene = liveScene({ registry: { ambientMotion: false, autoSend: false } });
+    scene._repaintStaticLayers = vi.fn();
+    startLevel(scene, { mapId: MAP, heroId: 'rael', debug: { build: [], wave: SECOND, errors: [] } });
+    expect(scene.waveMgr.currentWave).toBe(SECOND);
+    // The harness mocks Enemy and Hero, so their per-frame updates are stubbed (as in frameScene);
+    // the spawn queue and wave-clear check are real.
+    for (const m of ['_updateEnemies', '_updateTowers', '_updateProjectiles', '_updateSoldiers', '_updateHero',
+      '_updateSentries', '_updateParticles', '_drawPath', '_drawZones', '_drawSelectionRing', '_drawReticle',
+      '_drawParticles', '_drawRallyOverlay', '_drawRallyRoutes', '_updateTowerLooks', '_drawTierRings']) scene[m] = vi.fn();
+    finishSpawns(scene);
+    clearBoard(scene);
+    expect(visible()).toBe(true);
+    expect(headline()).toBe(PANELS[SECOND].headline);
+    $('story-dismiss').click();
+    expect(visible()).toBe(false);
+  });
+
+  it('a victory clear shows no banner', () => {
+    const scene = frameScene({ realStory: true });
+    scene._onVictory = vi.fn();
+    sendAndSpawnAll(scene, MAP_WAVES[MAP].length, { keepBoard: false });
+    expect(scene._onVictory).toHaveBeenCalledTimes(1);
+    expect(visible()).toBe(false);
   });
 });

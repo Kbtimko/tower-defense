@@ -155,6 +155,7 @@ function applyDebugCapture(scene) {
   scene._autoSendOverride = scene._debug.autoSend === true;
   if (wave) {
     scene.waveMgr.currentWave = wave - 1;
+    scene._skipStoryBefore(wave);
     scene._startWave();
   }
   if (errors.length) console.warn('[capture] ignored:', errors.join('; '));
@@ -258,6 +259,9 @@ export default class GameScene extends Phaser.Scene {
     // shutdown clone of #wave-btn carries the last level's.
     this._waveBtnCache = null;
     this.storyMgr = new StoryManager(STORY_PANELS);
+    // Wave keys whose banner has been shown; auto-send can start wave N+1 before
+    // N clears, so "current wave's panel" alone would drop N's.
+    this._storyShown = new Set();
     this._storyDialog = new StoryDialogOverlay({ motion: () => this.game.registry.get('ambientMotion') !== false });
     this._results = new ResultsScreen({ motion: () => this.game.registry.get('ambientMotion') !== false });
     // A level never opens under a stale screen.
@@ -904,17 +908,32 @@ export default class GameScene extends Phaser.Scene {
       this._onVictory();
     } else {
       const map   = MAPS[this.mapId];
-      const panel = this.storyMgr.getPanelForWave(map.storyKey, this.waveMgr.currentWave);
-      if (panel) {
+      const due = this.storyMgr.getDuePanels(map.storyKey, this.waveMgr.currentWave, this._storyShown);
+      if (due.length) {
         this._countdown.hold();
-        this.storyMgr.showBanner(panel, () => {
-          this._countdown.resume();
-          this._updateWaveButton();
-        });
+        this._showDueBanners(due);
       } else {
         this._updateWaveButton();
       }
     }
+  }
+
+  // Oldest first, each dismiss revealing the next. A send mid-sequence hides the
+  // banner without calling the dismiss, so the unshown rest stays due for the next clear.
+  _showDueBanners(due, i = 0) {
+    const { wave, panel } = due[i];
+    this._storyShown.add(wave);
+    this.storyMgr.showBanner(panel, () => {
+      if (i + 1 < due.length) return this._showDueBanners(due, i + 1);
+      this._countdown.resume();
+      this._updateWaveButton();
+    });
+  }
+
+  // Debug captures jump to a wave; earlier beats were never played.
+  _skipStoryBefore(wave) {
+    this.storyMgr.getDuePanels(MAPS[this.mapId].storyKey, wave - 1, new Set())
+      .forEach(d => this._storyShown.add(d.wave));
   }
 
   // ─── Enemies ───────────────────────────────────────────────────────────────

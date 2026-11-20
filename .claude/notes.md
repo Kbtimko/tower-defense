@@ -3,7 +3,21 @@
 ## Goal
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
-## Current Status (2026-11-19)
+## Current Status (2026-11-20)
+
+**2026-11-20: backlog #59 (a merged wave's story banner was skipped). PR into `visual/integration` (`fix/59-merged-wave-story-beats`).**
+- **Root cause:** `_checkWaveComplete` looked up only the panel keyed to `currentWave`. When auto-send or an early Send Wave started wave N+1 before wave N cleared, the board cleared once at N+1 and panel N was never looked up. This hit every map (panels at 3/7, 4/8, 4/9, 5/10, 5/11, 6/12), not just the titan warnings.
+- **Fix:**
+  - The pure `src/systems/storyQueue.js` `dueStoryPanels` (via `StoryManager#getDuePanels`) returns every unshown panel up to the current wave, oldest first.
+  - GameScene shows those panels one after another (`_showDueBanners`). It tracks shown waves in a per-level `_storyShown` Set, reset in `create()`.
+  - A wave sent mid-sequence hides the banner as before, and the panels not yet shown come up at the next clear.
+  - A debug wave jump marks the earlier panels shown (`_skipStoryBefore`) so captures don't stall on stale banners.
+- **Verified:**
+  - 4034 tests in 242 files, exit 0. The new scene tests fail against the pre-fix GameScene.
+  - Live A/B on the capture build: map 0, Send Wave pressed for wave 4 with 4 wave-3 enemies on the board. The fix shows "Intel — Wave 3" at the clear, with 0 page errors; base `2fd42e9` shows no banner.
+- **Parked:** #78 (stale dismiss callback after a mid-sequence send; unreachable today).
+
+## Previous Status (2026-11-19)
 
 **2026-11-19: backlog #37 (map 9 under-funding, map 8 coin flip), roadmap G4 for map 9. PR into `visual/integration`.**
 - **Re-measured after #75–#77:** map 9 died on **wave 1** (3 of 20 towers, needed 1.36x), map 8 needed 1.08x, map 7 1.05x.
@@ -203,6 +217,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
+- **2026-11-20:** #130 (#37) merged. #59 PR open into `visual/integration` (`fix/59-merged-wave-story-beats`).
 - **2026-11-19:** #129 (#76+#77) merged. #37 PR open into `visual/integration` (`balance/37-map9-funding`).
 - **2026-11-19:** #128 (#75 tier-4 abilities) merged. #76+#77 PR open into `visual/integration` (`balance/76-77-t4-pricing`).
 - **2026-11-18:** #124 (roadmap 4.2) merged into `visual/integration`. #125 (#72 Frost Mage) merged. #74 tier-4 sweep PR open into `visual/integration` (`balance/74-t4-sweep`).
@@ -444,7 +459,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
     - (f) Small: `_runStars` not reset per create; `onlyLine` hardcodes the `RESULT_LINES` shape; retry×3 test doesn't count the `game.events` trio; journey "first clear + campaign_intro unseen + NEXT MISSION" untested (works by reading); `resultsLayout` duplicates storyDialogLayout helpers; `_onUiCancel` now runs only before the epilogue, so a mode armed *during* it would survive under the results (the 3.5 dialog captures keys and covers the board, so believed unreachable).
 57. `[auto]` **Stale SaveManager *reads*** _(2026-10-26)_. #114 fixed writes; getters on a long-lived instance (the boot `registry 'save'`, e.g. the codex's encounter gating) still show values from boot until it next writes. Read through a fresh `_refresh()` or a single shared instance.
 58. `[auto]` **Per-wave clear bonus under overlap** _(#51 follow-up, 2026-10-28)_. With auto-send, waves that clear as one board pay one `WAVE_CLEAR_BONUS`, so slower players lose income (accepted in #51 Decision 8; calibration absorbed it). Pay one per wave instead and re-run `npm run calibrate:autosend` (lengths would shorten).
-59. `[auto]` **Story beats lost when their wave merges into the next** _(#51 follow-up)_. `_checkWaveComplete` shows the panel for `currentWave` only, so a merged wave's banner (e.g. the titan warnings on maps 5–7) never appears. Queue it for the next clear.
+59. `[auto]` ✅ **DONE 2026-11-20 (fix/59-merged-wave-story-beats)** ~~Story beats lost when their wave merges into the next~~ _(#51 follow-up)_. Every unshown panel up to the current wave now shows at the next clear, oldest first. Original: `_checkWaveComplete` shows the panel for `currentWave` only, so a merged wave's banner (e.g. the titan warnings on maps 5–7) never appears. Queue it for the next clear.
 60. `[auto]` **Calibration resolution on losing maps 7–9** _(#51 final review)_. All three lose at 1× in both modes, so "no harder" reduces to win multipliers bisected to 0.05 — a few-% harder countdown would still match. Tie-break on waves survived at 1× or bisect tighter.
 61. `[auto]` **Harness flakes under host load (pre-existing)** _(2026-10-28)_. Matrix step 17 `animationsSettled` trips on `#hero-hp-fill` (the hero is already in melee, its 0.15 s width transition restarts every frame) and the screens results/next-mission steps time out at load ≳ 8; an A/B against e74371f shows the same. Consider excluding `#hero-hp-fill` from the settle check or pausing before the map sample. Also: `--screens` now takes +2–3 min/device for the `auto-send` run.
 62. `[local]` **Soldier move sheet** _(#48 follow-up)_. `Soldier` already calls `setState('move')` while marching; it falls back to idle until a `move` sheet is registered in `src/data/sprites.js` (don't add the entry before the file exists — BootScene would 404). Derive the frames from the soldier reference (sprite pipeline memory).
@@ -463,6 +478,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 75. `[review]` ✅ **DONE 2026-11-19 (balance/75-t4-abilities)** ~~Most tier-4 abilities are text only~~. User: "Make it all true". Every card is real in game + sim via `src/systems/towerShot.js`, splash keeps slow, and a stronger slow/stun wins (`statusMerge.js`). See Current Status.
 76. `[review]` ✅ **DONE 2026-11-19 (balance/76-77-t4-pricing)** ~~Rapid Cannon weaker than before #75~~. User: "Damage 140" (measured sweep). Back at or above its pre-#75 strength on maps 4–9.
 77. `[auto]` ✅ **DONE 2026-11-19 (balance/76-77-t4-pricing)** ~~The sim's purchase heuristic doesn't price tier-4 abilities~~. Prices `shots` and Shatter's self-slowed 2x (upper bound), with splash/chain/cluster unpriced. Inert today: no default run reaches tier 4.
+78. `[auto]` **Stale story-banner dismiss after a mid-sequence send** _(#59 final review, unreachable today)_. `StoryManager.hideBanner()` never clears `_onDismiss`, so after a wave is sent while banner 1 of 2 is up, a later click on the hidden `#story-dismiss` would show banner 2 without holding the countdown, and a later send wouldn't hide it. It's unreachable while each map has at most 2 panels and the button can't be clicked or focused while hidden. Fix: clear the callback when `_startWave` hides a held banner (needs a small `StoryManager` API, e.g. `hideBanner({ clear: true })`).
 
 ## Completed
 <!-- Tags below are retrospective/illustrative — runner skips done items regardless. -->
