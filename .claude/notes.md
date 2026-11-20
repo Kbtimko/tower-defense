@@ -5,7 +5,7 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 
 ## Current Status (2026-11-19)
 
-**2026-11-19: backlog #37 (map 9 under-funding, map 8 coin flip), roadmap G4 for map 9. PR into `visual/integration`.**
+**2026-11-19: backlog #37 (map 9 under-funding, map 8 coin flip) plus #35/#36 decided, closing roadmap G4. PR #130, merged into `visual/integration`.**
 - **Re-measured after #75–#77:** map 9 died on **wave 1** (3 of 20 towers, needed 1.36x), map 8 needed 1.08x, map 7 1.05x.
 - **The sweep picked the lever:**
   - Scaling map 9's enemy counts down by 10–40% still needed 1.36–1.52x, because fewer kills means less gold.
@@ -203,7 +203,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
-- **2026-11-19:** #129 (#76+#77) merged. #37 PR open into `visual/integration` (`balance/37-map9-funding`).
+- **2026-11-19:** #130 (#37 + G4 close-out) merged into `visual/integration`. Nothing open. Next: pick the next roadmap/backlog item (G3 and integration→main remain the user's).
 - **2026-11-19:** #128 (#75 tier-4 abilities) merged. #76+#77 PR open into `visual/integration` (`balance/76-77-t4-pricing`).
 - **2026-11-18:** #124 (roadmap 4.2) merged into `visual/integration`. #125 (#72 Frost Mage) merged. #74 tier-4 sweep PR open into `visual/integration` (`balance/74-t4-sweep`).
 - **2026-11-16:** roadmap 4.0 PR open into `visual/integration` (`visual/4.0-art-pipeline-v2`). #120 merged into `visual/integration`; hotfix #121 merged into `main` and deployed. Waiting on the user: G3 (incl. rally flag and tier looks on a real phone).
