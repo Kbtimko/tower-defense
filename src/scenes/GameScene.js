@@ -1120,7 +1120,7 @@ export default class GameScene extends Phaser.Scene {
       if (this.hero.dead) return;
       if (this.hero._timers[slot] > 0) return;
       if (this.hero.level < this.hero.def.stats.abilityUnlockLevels[slot]) return;
-      this._leaveRallyMode();
+      this._leaveBarracksModes();
       this._closeRadial();
       this.aimMode  = true;
       this._aimSlot = slot;
@@ -1637,9 +1637,11 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // Newest intent wins (ruling 16): arming a tower or an aim drops a pending
-  // rally, or the next tap would still go to the rally and the build would be
+  // rally or Move, or the next tap would still go to it and the build would be
   // silently ignored. Callers sync Cancel afterwards.
-  _leaveRallyMode() {
+  _leaveBarracksModes() {
+    this.repositionMode = false;
+    this.repositioningBarracks = null;
     if (!this.rallyMode) return;
     this.rallyMode = false;
     this.rallyBarracks = null;
@@ -1665,7 +1667,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _selectTowerType(type, btn) {
-    this._leaveRallyMode();
+    this._leaveBarracksModes();
     if (this.selectedType === type) {
       this.selectedType = null;
       this._deselectButtons();
