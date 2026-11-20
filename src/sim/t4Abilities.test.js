@@ -35,11 +35,11 @@ describe('below tier 4 is unchanged', () => {
           "wavesSurvived": 14,
         },
         "map8": {
-          "goldFinal": 76,
-          "kills": 90,
+          "goldFinal": 136,
+          "kills": 196,
           "leaked": 12,
           "livesRemaining": 0,
-          "wavesSurvived": 6,
+          "wavesSurvived": 10,
         },
       }
     `);

@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { MAPS } from './maps.js';
 import { MAP_WAVES } from './waves.js';
 import { TOWER_DEFS } from './towers.js';
-import { goldCeiling, depthBoardCost, goldPerHp } from '../sim/economy.js';
+import { goldCeiling, depthBoardCost, goldPerHp, cheapestFullBoardCost } from '../sim/economy.js';
 
 // The cheapest FIRING tower, currently the archer (60g) -- an affordability
 // floor computed from every tower so it re-derives itself if a cheaper one is
@@ -53,7 +53,15 @@ describe('campaign economy ramp', () => {
     // ratio for a monotonic gold-per-HP curve, because map 5's board is bigger
     // than map 4's but its threat is not. The two invariants disagree only for
     // this one map, and gold-per-HP is the one that matters here.
-    const ratios = late().filter(m => m.id !== 5).map(depthRatio);
+    //
+    // Map 9 is evaluated at its DERIVED opening hand (25% of the cheap board),
+    // not its shipped one: its startGold is a recorded override (#37) that
+    // front-loads gold the board-based rule did not give it, which would lift
+    // its depth ratio to about 0.62. Undoing the override for this check keeps
+    // the test guarding map 9's kill income (rewardMult).
+    const forSpread = (m) =>
+      m.id === 9 ? { ...m, startGold: 0.25 * cheapestFullBoardCost(m) } : m;
+    const ratios = late().filter(m => m.id !== 5).map(forSpread).map(depthRatio);
     expect(Math.max(...ratios) - Math.min(...ratios)).toBeLessThanOrEqual(0.05);
   });
 
@@ -96,5 +104,12 @@ describe('campaign economy ramp', () => {
     expect(byId(1).rewardMult).toBe(0.35);
     expect(byId(2).startGold).toBe(170);
     expect(byId(2).rewardMult).toBe(0.40);
+  });
+
+  it('late maps carry the #37 starting-gold overrides', () => {
+    // User's call 2026-11-19 (backlog #37): map 9 died on wave 1 at the derived
+    // 300 under every strategy; see maps.js and the 2026-11-19 map9-funding spec.
+    expect(byId(8).startGold).toBe(405);
+    expect(byId(9).startGold).toBe(690);
   });
 });

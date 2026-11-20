@@ -20,6 +20,9 @@ function legacyView(run, want) {
   return { ...pick(run, Object.keys(want)), waveLog: run.waveLog.map(e => pick(e, entryKeys)) };
 }
 
+// The 8:* and 9:* entries were re-baselined on 2026-11-19 (#37) after the map
+// economy changed, so for those maps the golden pins the current simulator's
+// onClear mode, not the pre-#51 one.
 describe("waveTiming 'onClear' reproduces the pre-#51 simulator", () => {
   for (const map of MAPS) {
     const waves = MAP_WAVES[map.id];

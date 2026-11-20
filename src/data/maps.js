@@ -75,13 +75,12 @@ export const MAPS = [
     background: 0x1e1e1e,
     pathColor: 0x808080,
     waypoints: [[0,.387],[.025,.432],[.045,.378],[.121,.459],[.176,.468],[.176,.541],[.251,.64],[.261,.595],[.296,.595],[.367,.505],[.472,.532],[.523,.64],[.578,.658],[.593,.748],[.643,.802],[.804,.649],[.794,.613],[.814,.595],[.894,.631],[.955,.595],[.975,.631],[1,.613]],
-    // PROVISIONAL -- playtest-tunable, not derived. The balance simulator
-    // cannot resolve this map: sweeping startGold in 5g steps gives five
-    // monotonicity inversions in eleven (more gold, worse outcome), because
-    // greedyBuildPlan's towerValue ignores armour and the weakness matrix and
-    // this map's 11 slots and tier-3 cap compound that mis-ranking. 170/0.40
-    // is the most stable cell found (a three-wide plateau at 165/170/175g).
-    // Expect to retune after a human plays it.
+    // Hand-picked, not derived -- and KEPT as an on-ramp decision (#36, G4,
+    // 2026-11-19). The best-of-5 sim keeps 90% of lives here, exactly the TOO
+    // EASY line, but the on-ramp is meant to be generous and #18 pinned it. The
+    // sim cannot fine-tune it anyway: reward 0.36 drops it to 15% and start 150
+    // to 40%, so any retune waits on a human playtest (#30). 170/0.40 is the
+    // most stable cell the original sweep found (a plateau at 165/170/175g).
     startGold: 170,
     startLives: 20,
     overworldArt: 'overworld_2_the_crater.png',
@@ -306,10 +305,18 @@ export const MAPS = [
     // Economy derived, not hand-picked -- see
     // docs/superpowers/specs/2026-09-22-campaign-economy-ramp-design.md
     // 18 slots: cheap board 1080, fully-upgraded board 5580 (tier-4 cap).
-    // startGold  = 25% of the cheap board, so the opening hand scales with the
-    //              board instead of shrinking.
-    // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
-    startGold: 270,
+    // startGold  = OVERRIDDEN from the derived 270 (backlog #37). At 270 the
+    //              map needed 1.08x to hold; 405 wins keeping 33% of lives
+    //              (67% with the logistics perk). Neighbouring values are
+    //              noisy -- 420 loses at 1.03x -- so 405 is a measured point,
+    //              not a trend to extrapolate.
+    // rewardMult = stays as derived. It was solved at the DERIVED start (270),
+    //              where gold ceiling = 55% of the fully-upgraded board, and is
+    //              deliberately NOT re-solved for the override: the ramp rule
+    //              takes startGold as an input, so re-solving would claw the
+    //              added gold back out of kill income. With 405 the ceiling is
+    //              now about 58% of the upgraded board.
+    startGold: 405,
     startLives: 12,
     overworldArt: 'overworld_8_enemy_homeworld.png',
     rewardMult: 0.39,
@@ -344,13 +351,21 @@ export const MAPS = [
     // Economy derived, not hand-picked -- see
     // docs/superpowers/specs/2026-09-22-campaign-economy-ramp-design.md
     // 20 slots: cheap board 1200, fully-upgraded board 6200 (tier-4 cap).
-    // startGold  = 25% of the cheap board, so the opening hand scales with the
-    //              board instead of shrinking (this map used to open with ONE
-    //              tower on twenty slots).
-    // rewardMult = solves gold ceiling = 55% of the fully-upgraded board. Lower
-    //              than the mid maps because this one carries far more raw kill
-    //              income; the declining multiplier was never the defect.
-    startGold: 300,
+    // startGold  = OVERRIDDEN from the derived 300 (backlog #37). At 300 the
+    //              map died on wave 1 with 3 of 20 towers under every barracks
+    //              strategy (needed 1.36x). Fewer enemies or a higher
+    //              rewardMult did not help -- fewer kills means less gold --
+    //              but earlier gold did: 690 wins keeping 60% of lives, with
+    //              or without the +40% logistics perk.
+    // rewardMult = stays as derived. It was solved at the DERIVED start (300),
+    //              where gold ceiling = 55% of the fully-upgraded board, and is
+    //              deliberately NOT re-solved for the override: re-solving
+    //              would claw the added gold back (about 0.27, roughly -390
+    //              gold of kill income). With 690 the ceiling is now about 62%
+    //              of the upgraded board. Lower than the mid maps because this
+    //              one carries far more raw kill income; the declining
+    //              multiplier was never the defect.
+    startGold: 690,
     startLives: 10,
     overworldArt: 'overworld_9_last_light.png',
     rewardMult: 0.31,
