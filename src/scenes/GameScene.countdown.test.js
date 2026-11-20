@@ -585,6 +585,24 @@ describe('merged-wave story banners (#59)', () => {
     expect(visible()).toBe(false);
   });
 
+  it('a debug wave jump through create() skips earlier banners but shows its own', () => {
+    const scene = liveScene({ registry: { ambientMotion: false, autoSend: false } });
+    scene._repaintStaticLayers = vi.fn();
+    startLevel(scene, { mapId: MAP, heroId: 'rael', debug: { build: [], wave: SECOND, errors: [] } });
+    expect(scene.waveMgr.currentWave).toBe(SECOND);
+    // The harness mocks Enemy and Hero, so their per-frame updates are stubbed (as in frameScene);
+    // the spawn queue and wave-clear check are real.
+    for (const m of ['_updateEnemies', '_updateTowers', '_updateProjectiles', '_updateSoldiers', '_updateHero',
+      '_updateSentries', '_updateParticles', '_drawPath', '_drawZones', '_drawSelectionRing', '_drawReticle',
+      '_drawParticles', '_drawRallyOverlay', '_drawRallyRoutes', '_updateTowerLooks', '_drawTierRings']) scene[m] = vi.fn();
+    finishSpawns(scene);
+    clearBoard(scene);
+    expect(visible()).toBe(true);
+    expect(headline()).toBe(PANELS[SECOND].headline);
+    $('story-dismiss').click();
+    expect(visible()).toBe(false);
+  });
+
   it('a victory clear shows no banner', () => {
     const scene = frameScene({ realStory: true });
     scene._onVictory = vi.fn();

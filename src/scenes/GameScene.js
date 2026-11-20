@@ -932,8 +932,8 @@ export default class GameScene extends Phaser.Scene {
 
   // Debug captures jump to a wave; earlier beats were never played.
   _skipStoryBefore(wave) {
-    Object.keys(STORY_PANELS[MAPS[this.mapId].storyKey].waves).map(Number)
-      .filter(w => w < wave).forEach(w => this._storyShown.add(w));
+    this.storyMgr.getDuePanels(MAPS[this.mapId].storyKey, wave - 1, new Set())
+      .forEach(d => this._storyShown.add(d.wave));
   }
 
   // ─── Enemies ───────────────────────────────────────────────────────────────
