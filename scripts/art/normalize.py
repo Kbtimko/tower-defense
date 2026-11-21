@@ -74,9 +74,17 @@ SKIP_TONE = set()          # e.g. {'hero/pyro'}
 # Drift is bounded by the outline, not zero: the 1.5 display-px outline rasterises
 # differently at 1x and 2x, so the measured silhouette grows or shrinks by up to one
 # outline width across its two sides (width) and half that on the one ground edge (footY).
+# footY also quantises to the 1x source: one 1x source pixel is `scale` display px, so a
+# scale above half the outline (titan, 1.08, drifted 0.58) can sit a whole source pixel
+# off with no real change. Its floor is therefore max(outline / 2, that job's 1x scale).
 GROUND_WIDTH_TOLERANCE = OUTLINE_DISPLAY_PX
 GROUND_FOOTY_TOLERANCE = OUTLINE_DISPLAY_PX / 2
-GROUND_TOLERANCES = {'width': GROUND_WIDTH_TOLERANCE, 'footY': GROUND_FOOTY_TOLERANCE}
+
+
+def ground_tolerance(field, scale_1x=0):
+    if field == 'footY':
+        return max(GROUND_FOOTY_TOLERANCE, scale_1x)
+    return GROUND_WIDTH_TOLERANCE
 SPRITE2X_JS = ROOT / 'src' / 'data' / 'sprite2x.js'
 
 LUMA = np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
@@ -333,18 +341,19 @@ def normalize_entry(entry, *, only_variants=None, include_base=True, src_root, o
             # Only 2x runs are checked against the manifest; 1x records stay as they were.
             if px > 1 and expected:
                 record['expected'] = expected
+                record['scale'] = sc
             records.append(record)
     return records
 
 
 def ground_drift(records):
     """Messages for each measured footY/width that strays from the manifest's
-    1x ground by more than its GROUND_TOLERANCES entry (display px)."""
+    1x ground by more than ground_tolerance (display px)."""
     msgs = []
     for r in records:
         for field, want in r.get('expected', {}).items():
             got = r['ground'][field]
-            if abs(got - want) > GROUND_TOLERANCES[field]:
+            if abs(got - want) > ground_tolerance(field, r.get('scale', 0)):
                 msgs.append(f"{r['key']}: {field} {got} vs manifest {want}")
     return msgs
 
@@ -386,8 +395,9 @@ def main(argv=None):
     ap.add_argument('--out-root', type=Path, default=OUT_ROOT)
     ap.add_argument('--scale', type=int, choices=(1, 2), default=1,
                     help='2 reads <name>@2x.png sources and writes @2x shipped sheets')
-    ap.add_argument('--sprite2x-js', type=Path, default=SPRITE2X_JS,
-                    help='where --scale 2 writes the 2x coverage module')
+    ap.add_argument('--sprite2x-js', type=Path, default=None,
+                    help='where --scale 2 writes the 2x coverage module (default: the real '
+                         'one, but only when --out-root is the default too)')
     ap.add_argument('--ground-json', type=Path, help='write the measured ground records here')
     args = ap.parse_args(argv)
     manifest = load_manifest()
@@ -413,7 +423,13 @@ def main(argv=None):
     if clipped:
         print('outline touches the cell edge (art may be cropped):', ', '.join(sorted(set(clipped))))
     if args.scale > 1:
-        write_sprite2x_module(args.out_root, args.sprite2x_js)
+        # A scratch --out-root would otherwise overwrite the real module with a list
+        # of only the scratch sheets, declaring the game's 2x art missing.
+        js = args.sprite2x_js or (SPRITE2X_JS if args.out_root == OUT_ROOT else None)
+        if js:
+            write_sprite2x_module(args.out_root, js)
+        else:
+            print('\nskipped src/data/sprite2x.js: --out-root is not the default (pass --sprite2x-js to write it)')
         drift = ground_drift(records)
         if drift:
             print('\nGROUND DRIFT (2x vs manifest, display px):\n  ' + '\n  '.join(drift))

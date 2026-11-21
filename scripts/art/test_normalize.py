@@ -225,7 +225,8 @@ class Scale2(unittest.TestCase):
         self.assertEqual(rc, 0)
 
     def test_scale_2_fails_on_ground_drift(self):
-        shift = math.ceil(1.0 / (1 / 2))
+        # Past the footY tolerance, which is one source px (1.0 display px at scale 1).
+        shift = math.ceil(1.2 / (1 / 2))
         rc, out = self.drift_run(shift)
         self.assertNotEqual(rc, 0)
         self.assertIn('tower/blob', out)
@@ -244,6 +245,32 @@ class Scale2(unittest.TestCase):
         tol = nz.OUTLINE_DISPLAY_PX / 2
         self.assertEqual(self.drift_msgs('footY', tol - 0.05), [])
         self.assertEqual(len(self.drift_msgs('footY', tol + 0.05)), 1)
+
+    def foot_msgs(self, scale, delta):
+        rec = {'key': 'enemy/titan', 'scale': scale,
+               'ground': {'footY': 60 + delta}, 'expected': {'footY': 60}}
+        return nz.ground_drift([rec])
+
+    def test_footY_tolerance_follows_one_source_pixel_when_scale_exceeds_half_outline(self):
+        # One 1x source px is `scale` display px, so a titan at 1.08 can land a
+        # whole source px off however well the 2x art matches.
+        self.assertEqual(self.foot_msgs(1.08, 1.0), [])
+        self.assertEqual(len(self.foot_msgs(1.08, 1.2)), 1)
+
+    def test_footY_tolerance_keeps_half_outline_floor_at_small_scale(self):
+        self.assertEqual(self.foot_msgs(0.5, 0.7), [])
+        self.assertEqual(len(self.foot_msgs(0.5, 0.8)), 1)
+
+    def test_width_tolerance_ignores_scale(self):
+        rec = {'key': 'k', 'scale': 1.08, 'ground': {'width': 31.7}, 'expected': {'width': 30}}
+        self.assertEqual(len(nz.ground_drift([rec])), 1)
+
+    def test_normalize_records_carry_the_1x_job_scale(self):
+        write_sheet_2x(self.t / 'src/sprites/towers/blob_idle@2x.png', 120)
+        e = one_state_entry('blob', {'footY': 30, 'width': 30})
+        e['scale'] = 1.08
+        rec = nz.normalize_entry(e, src_root=self.t / 'src', out_root=self.t / 'out', px=2)[0]
+        self.assertEqual(rec['scale'], 1.08)
 
     def test_scale_2_skips_entry_without_at2x_source(self):
         write_sheet(self.t / 'src/sprites/towers/blob_idle.png', 120)   # 1x only
@@ -266,6 +293,28 @@ class Scale2(unittest.TestCase):
                       "  'assets/sprites/enemies/skitter_move.png',\n"
                       "  'assets/sprites/towers/archer_idle.png',\n"
                       ']);', text)
+
+    def run_default_js(self, *argv):
+        write_sheet_2x(self.t / 'src/sprites/towers/blob_idle@2x.png', 120)
+        mf = self.t / 'manifest.json'
+        mf.write_text(json.dumps([one_state_entry('blob')]))
+        fake_js = self.t / 'default_sprite2x.js'
+        with mock.patch.object(nz, 'load_manifest', lambda: json.loads(mf.read_text())), \
+             mock.patch.object(nz, 'SPRITE2X_JS', fake_js), \
+             contextlib.redirect_stdout(io.StringIO()) as out:
+            nz.main(['--src-root', str(self.t / 'src'), '--scale', '2', *argv])
+        return fake_js, out.getvalue()
+
+    def test_temp_out_root_without_explicit_js_leaves_the_real_module_alone(self):
+        fake_js, out = self.run_default_js('--out-root', str(self.t / 'out'))
+        self.assertFalse(fake_js.exists())
+        self.assertIn('sprite2x', out)
+
+    def test_default_out_root_writes_the_default_module(self):
+        with mock.patch.object(nz, 'OUT_ROOT', self.t / 'out'), \
+             mock.patch.object(nz, 'REVIEW', self.t / 'review'):
+            fake_js, _ = self.run_default_js('--out-root', str(self.t / 'out'))
+        self.assertTrue(fake_js.exists())
 
     def test_scale_1_does_not_touch_sprite2x_js(self):
         write_sheet(self.t / 'src/sprites/towers/blob_idle.png', 120)
