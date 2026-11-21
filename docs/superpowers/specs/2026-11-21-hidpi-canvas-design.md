@@ -71,8 +71,9 @@ User decision (2026-11-21): do both, as two PRs, canvas first.
 - Memory notes that apply: Phaser scale/camera gotchas (stale canvas after
   orientationchange; `pointer.camera` undefined off the viewport → stale worldX); judge
   visual work with frozen-frame probes; captures gate on host load < 6.
-- Fill cost: k = 2 is 4x the pixels per frame (2976 x 1440 ≈ 4.3 MP). Measured, not
-  assumed, on the phone emulation.
+- Fill cost: k = 2 is 4x the pixels per frame. Phones use coarse rails (CANVAS_WIDTH
+  1632), so their k = 2 backing is 3264 x 1440 (≈4.7 MP); desktops (fine rails, 1488)
+  are 2976 x 1440 (≈4.3 MP). Measured, not assumed, on the phone emulation.
 
 ## What the change touches today (recon, 2026-11-21)
 
@@ -112,6 +113,11 @@ User decision (2026-11-21): do both, as two PRs, canvas first.
     CANVAS_WIDTH`;
   - device px = that × `dpr`;
   - k = 2 if device px ≥ `RENDER_SCALE.threshold` (1.25) × `CANVAS_WIDTH`, else 1;
+  - k is 1 whenever `dpr < RENDER_SCALE.minDpr` (1.5): a 1x-density screen is already
+    sharp, so DPR-1 desktops at 1080p and up render as today;
+  - on a coarse-pointer device the dimensions are first landscape-normalised
+    (`landscape: true` → width = max, height = min), because phones boot upright behind
+    the rotate prompt but play landscape;
   - capped at `RENDER_SCALE.max` (2). Integer k only: non-integer zoom shimmers on
     sprite edges and misaligns 1px Graphics strokes.
   - Measured examples: 1440 x 900 @2x → 2880 ≥ 1860 → k = 2. 1440 x 900 @1x → 1440 → k = 1.
@@ -125,8 +131,9 @@ User decision (2026-11-21): do both, as two PRs, canvas first.
 - **Camera recipe.** One shared helper (e.g. `applyRenderScale(camera, { x, y, w, h })`)
   that sets the viewport in game px (`x*k, y*k, w*k, h*k`), `setZoom(k)`, and scrolls so
   world (0,0) maps to the viewport's top-left. GameScene, MapEditorScene and the Boot
-  loading bar use it, so there is one recipe to get right. Camera shake keeps its
-  current intensity (it is a fraction of the viewport, so it scales on its own).
+  loading bar use it, so there is one recipe to get right. Camera shake divides its
+  intensity by k²: Phaser's shake offset is intensity × camera.width × zoom, applied
+  after the zoom, so `ShakeController` scales by 1/k² to keep the same world-space shake.
 - **Text.** One helper or a shared default so every `add.text` gets `resolution: k`
   (Phaser's Text style option). New text objects added later pick it up by using the
   helper.
@@ -192,3 +199,16 @@ User decision (2026-11-21): do both, as two PRs, canvas first.
   call sites and future ones get it.
 - Any further callers of `displayScale`, `canvasBounds` or `game.canvas.width` found
   during implementation get the same logical/game-px audit.
+
+## Final-review rulings (2026-11-21)
+
+- **F1 PreFX pool.** Phaser's PipelineManager pre-allocates square PreFX render targets
+  up to the canvas short side (~420 MB at k = 2). The only preFX use (backdrop grade)
+  always uses the full-size targets, so `pipelineConfig` sets a non-enumerable `frameInc`
+  >= the canvas long side and no square targets are created.
+- **F2 Portrait boot.** Coarse-pointer devices decide k from landscape-normalised
+  dimensions, otherwise phones booting upright would be stuck at k = 1 all session.
+- **F3 DPR-1 desktops.** `RENDER_SCALE.minDpr` (1.5) keeps 1x-density screens at k = 1;
+  without it 1080p+ desktops went to k = 2, against Goal 3.
+- **F4 Road textures.** `_setupRoad` evicts every other `road_map_*` texture before
+  baking, so only the current map's (4x larger at k = 2) road stays resident.

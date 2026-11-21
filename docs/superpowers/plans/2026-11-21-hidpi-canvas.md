@@ -180,7 +180,7 @@ git commit -m "feat(render): road bakes at the render scale; capture exposes it 
 
 Final whole-branch review (Opus), then live verification on the capture build per the spec's "Verification" and "Builder-check resolutions" sections, with host load < 6:
 
-1. Backing store: `desktop1440x2` and `iphone` → 2976×1440; `desktop1440` (DPR 1) → 1488×720; `?res=1` on `desktop1440x2` → 1488×720.
+1. Backing store: `desktop1440x2` → 2976×1440; `iphone` → 3264×1440; `desktop1080` (DPR 1) → 1488×720; `?res=1` on `desktop1440x2` → 1488×720.
 2. Real-input checks at k = 2 (mouse on `desktop1440x2`, touch on `iphone`): build on a pad, radial ring, long-press peek, barracks Move/Rally, hero aim, coin-fly lands on the gold counter, peek card beside its tower, pointer leaving the map.
 3. Frozen-frame side-by-side crops (`?res=1` vs `?res=2`, same scene state): towers, enemies, road, damage numbers — sharper at 2, same silhouette bounds.
 4. k = 1 frame vs base build `70fd45e`: identical (or within the capture's tolerance).
