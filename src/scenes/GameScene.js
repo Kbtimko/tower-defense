@@ -165,6 +165,8 @@ function applyDebugCapture(scene) {
   if (errors.length) console.warn('[capture] ignored:', errors.join('; '));
   window.__capture = {
     simMs: 0, enemies: 0, errors,
+    // Lets the harness assert the backing store (canvas = world * k).
+    renderScale: getRenderScale(),
     // Game-time ms left on the countdown (null when none runs): unlike simMs it
     // stops during hit-stop, so auto-send waits key on it.
     countdownMs: null,
@@ -2277,11 +2279,14 @@ export default class GameScene extends Phaser.Scene {
       addText(this, p[p.length-1].x, p[p.length-1].y, 'OUT', { fontSize: '10px', color: '#fff', fontFamily: FONTS.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
       return;
     }
+    // The key carries k: bakeRoad reuses an existing key, so a k=1 texture must
+    // never be served at k=2.
+    const k = getRenderScale();
     const key = bakeRoad(this, {
-      key: `road_map_${map.id}`, waypoints: this.pathMgr.waypoints,
+      key: `road_map_${map.id}@${k}`, resolution: k, waypoints: this.pathMgr.waypoints,
       styleKey: map.pathRenderStyle, seed: map.blockerSeed, width: WORLD_WIDTH, height: WORLD_HEIGHT,
     });
-    this._roadImage = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, key).setDepth(ROAD_DEPTH);
+    this._roadImage = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, key).setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT).setDepth(ROAD_DEPTH);
     this._endpoints = new PathEndpoints(this, {
       start: p[0], end: p[p.length - 1], family: ROAD_STYLES[map.pathRenderStyle].family,
     });

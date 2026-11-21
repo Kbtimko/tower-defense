@@ -104,15 +104,17 @@ function makeTileCanvas(seed, style) {
  * Bake the road for one map into a CanvasTexture under `key` (reused if it exists,
  * so replays never repaint). Returns the texture key.
  */
-export function bakeRoad(scene, { key, waypoints, styleKey, seed, width, height }) {
+export function bakeRoad(scene, { key, waypoints, styleKey, seed, width, height, resolution = 1 }) {
   if (scene.textures.exists(key)) return key;
   const style = ROAD_STYLES[styleKey];
   // Throw before createCanvas so an unknown key never leaves a blank texture registered.
   if (!style) throw new Error(`bakeRoad: unknown road style "${styleKey}"`);
-  const texture = scene.textures.createCanvas(key, width, height);
+  const texture = scene.textures.createCanvas(key, width * resolution, height * resolution);
   const ctx = texture.getContext();
   // jsdom (tests) has no canvas 2D; the texture still exists, just blank.
   if (!ctx) return key;
+  // World-unit painting on a k-times canvas; skipped at 1 so k = 1 is untouched.
+  if (resolution !== 1) ctx.scale(resolution, resolution);
   const curve = samplePath(waypoints, ROAD_CURVE_SAMPLES);
   paintRoad(ctx, { curve, style, tile: makeTileCanvas(seed, style) });
   texture.refresh();

@@ -44,6 +44,7 @@ vi.mock('../systems/AmbientBackgroundLayer.js', () => ({
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import GameScene from './GameScene.js';
+import { setRenderScale, getRenderScale } from '../systems/renderScale.js';
 import { loadShippedDOM, liveScene, startLevel } from './gameSceneHarness.js';
 import { TIER_RING, TIER_CORE, TIER_EMBERS, towerAccent } from '../data/tierLooks.js';
 import { ringBreath, ellipseDashes, expectedTowerLook, corePulse, emberPose } from '../systems/tierLookMath.js';
@@ -313,6 +314,15 @@ describe('live level: ring layer, frame loop and __capture.looks', () => {
     const [[, cx, cy]] = named(s._tierRingGfx, 'strokeEllipse');
     expect([cx, cy]).toEqual([archer.x, archer.y + archer.footY()]);
     expect(named(s._tierRingGfx, 'strokePoints')).toHaveLength(TIER_RING.spin.dashes);
+  });
+
+  it('__capture.renderScale reports the boot-time render scale', () => {
+    setRenderScale(2);
+    try {
+      level(false);
+      expect(window.__capture.renderScale).toBe(getRenderScale());
+      expect(window.__capture.renderScale).toBe(2);
+    } finally { setRenderScale(1); }
   });
 
   it('__capture.looks reports every tower and soldier as drawn (reduced motion repeats exactly)', () => {

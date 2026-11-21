@@ -19,7 +19,8 @@ function makeCtx() {
     beginPath() {}, moveTo() {}, lineTo() {},
     setLineDash(d) { state.dash = [...d]; },
     createPattern(src, rep) { return { pattern: src, rep }; },
-    stroke() { strokes.push({ ...state, dash: [...state.dash] }); },
+    stroke() { calls.push('stroke'); strokes.push({ ...state, dash: [...state.dash] }); },
+    scale: vi.fn(() => calls.push('scale')),
   };
   for (const k of ['strokeStyle', 'lineWidth', 'globalAlpha', 'lineJoin', 'lineCap']) {
     Object.defineProperty(ctx, k, { get: () => state[k], set: (v) => { state[k] = v; } });
@@ -208,6 +209,24 @@ describe('bakeRoad', () => {
     expect(putImageData).toHaveBeenCalledTimes(1);
     expect(ctx.strokes.some((s) => s.strokeStyle && s.strokeStyle.pattern === canvas)).toBe(true);
     expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('texture size follows resolution and the paint is scaled before the first stroke', () => {
+    stubTileCanvas();
+    const hi = makeScene();
+    bakeRoad(hi.scene, { ...opts, resolution: 2 });
+    expect(hi.createCanvas).toHaveBeenCalledWith('road_map_1', 2560, 1440);
+    expect(hi.ctx.scale).toHaveBeenCalledWith(2, 2);
+    expect(hi.ctx.calls.indexOf('scale')).toBeGreaterThanOrEqual(0);
+    expect(hi.ctx.calls.indexOf('scale')).toBeLessThan(hi.ctx.calls.indexOf('stroke'));
+  });
+
+  it('resolution 1 (default) creates the world-size canvas and never calls ctx.scale', () => {
+    stubTileCanvas();
+    const lo = makeScene();
+    bakeRoad(lo.scene, opts);
+    expect(lo.createCanvas).toHaveBeenCalledWith('road_map_1', 1280, 720);
+    expect(lo.ctx.scale).not.toHaveBeenCalled();
   });
 
   it('is deterministic: same seed + style yields identical tile pixels', () => {
