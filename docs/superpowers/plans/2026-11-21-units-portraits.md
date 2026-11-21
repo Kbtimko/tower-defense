@@ -43,7 +43,7 @@
 - [ ] **Step 1b: Legacy generator uses `post()`** (added 2026-11-21).
   - `scripts/generate-art.mjs` (~line 161) still calls global `fetch`, which has undici's 300 s header timeout, and the 2026-11-21 runs lost images to it under load.
   - Replace that fetch with `post(port, endpoint, body)` from `./art/drawThings.mjs` (cherry-picked as dfc6784; it returns `{ ok, status, json }` and waits up to 30 min). Keep the existing log lines: `FAILED (HTTP ${status})`, and `FAILED (no image in response)` when `json` is null or has no image.
-  - Check it with `node scripts/generate-art.mjs --kind portrait --dry-run`: it exits 0 and lists the 3 portraits. Also run `npx vitest run scripts/art`.
+  - Check it with `node scripts/generate-art.mjs --kind portrait --force --dry-run`: it exits 0 and lists the 3 portraits. Also run `npx vitest run scripts/art`.
 - [ ] **Step 2:** Change `expected`. Copy the three shipped PNGs to `/private/tmp/claude-501/portraits-256/` first. Then run `PATH=/usr/bin:$PATH npm run art -- --kind portrait --force` with Draw Things idle. `--force` is required, because without it the generator skips files that already exist and renders nothing.
 - [ ] **Step 3: Sameness gate.** For each portrait, downscale the new 512 to 256 (PIL LANCZOS) and compare with the saved 256: report mean and max per-channel abs diff. Pass if mean < 4 (resampling noise). **If any fails, stop and report BLOCKED** with the numbers and both images saved side by side in `/private/tmp/claude-501/`.
 - [ ] **Step 4:** `npx vitest run`, `npm run assets -- --strict` → pass. Commit `feat(portraits): speaker portraits at 512 px, same art (4.5)`.
