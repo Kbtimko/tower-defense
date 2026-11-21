@@ -20,6 +20,15 @@ describe('planCandidates', () => {
     ]);
   });
 
+  it('refills a mid-round gap with the missing seeds, not used ones', () => {
+    const e = (index, seed) => ({ index, round: 0, seed });
+    const existing = [e(0, 88001), e(1, 88002), e(3, 88004), e(4, 88005), e(5, 88006), e(7, 88008)];
+    const plan = planCandidates({ existing, candidates: 8, seed: 88001, reroll: false });
+    expect(plan.map((c) => c.seed)).toEqual([88003, 88007]);
+    expect(plan.map((c) => c.index)).toEqual([8, 9]);
+    expect(plan.every((c) => c.round === 0)).toBe(true);
+  });
+
   it('a complete round plans nothing', () => {
     const existing = [entry(0), entry(1), entry(2)];
     expect(planCandidates({ existing, candidates: 3, seed: 100, reroll: false })).toEqual([]);

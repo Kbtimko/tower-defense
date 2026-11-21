@@ -28,6 +28,7 @@ export function readExisting(fileNames, metas) {
     .map((index) => ({
       index,
       round: metas[index].round,
+      seed: metas[index].seed,
       hasCut: present.has(`${index}.cut.png`),
       hasPreview: present.has(`${index}.preview.png`),
     }));
@@ -43,18 +44,28 @@ export function planCandidates({ existing, candidates, seed, reroll }) {
   if (maxRound === null) round = 0;
   else round = reroll ? maxRound + 1 : maxRound;
 
-  const inRound = existing.filter((e) => e.round === round).length;
+  const inRoundEntries = existing.filter((e) => e.round === round);
+  const inRound = inRoundEntries.length;
   const missing = candidates - inRound;
   if (missing <= 0) return [];
+
+  // A failed candidate leaves a hole mid-round; FLUX is deterministic, so refilling
+  // must reuse the hole's seed, not a seed a later survivor already rendered. Without
+  // numeric seeds to read positions from, assume the round is a contiguous prefix.
+  const base = seed + round * ROUND_SEED_STRIDE;
+  const seeded = inRoundEntries.every((e) => Number.isFinite(e.seed));
+  const used = new Set(seeded ? inRoundEntries.map((e) => e.seed - base) : []);
+  const positions = [];
+  if (seeded) {
+    for (let p = 0; positions.length < missing; p++) if (!used.has(p)) positions.push(p);
+  } else {
+    for (let k = 0; k < missing; k++) positions.push(inRound + k);
+  }
 
   const nextIndex = existing.length ? Math.max(...existing.map((e) => e.index)) + 1 : 0;
   const plan = [];
   for (let k = 0; k < missing; k++) {
-    plan.push({
-      index: nextIndex + k,
-      round,
-      seed: seed + round * ROUND_SEED_STRIDE + inRound + k,
-    });
+    plan.push({ index: nextIndex + k, round, seed: base + positions[k] });
   }
   return plan;
 }

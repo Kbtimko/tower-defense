@@ -1,3 +1,5 @@
+import { request as httpRequest } from 'node:http';
+
 // Draw Things HTTP API server: port discovery, the "server is off" help text and
 // a POST helper. Shared by the legacy generate-art.mjs path and runJob.mjs.
 
@@ -46,13 +48,32 @@ Works right now with no server:  npm run art -- --dry-run
 `;
 }
 
-// Resolves to { ok, status, json }; json is null when the body is not JSON.
-export async function post(port, endpoint, body) {
-  const res = await fetch(`http://127.0.0.1:${port}${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+// Resolves to { ok, status, json }; json is null when the response is not OK or the
+// body is not JSON. node:http, not global fetch: undici's fetch gives up on response
+// headers after 300 s, and a FLUX image under host load can take longer than that.
+export function post(port, endpoint, body, { timeoutMs = 30 * 60_000 } = {}) {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify(body);
+    const req = httpRequest({
+      host: '127.0.0.1', port, path: endpoint, method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+    }, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('error', reject);
+      res.on('end', () => {
+        const ok = res.statusCode >= 200 && res.statusCode < 300;
+        let json = null;
+        if (ok) {
+          try { json = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { json = null; }
+        }
+        resolve({ ok, status: res.statusCode, json });
+      });
+    });
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`request to ${endpoint} timed out after ${timeoutMs} ms`));
+    });
+    req.on('error', reject);
+    req.end(payload);
   });
-  const json = res.ok ? await res.json().catch(() => null) : null;
-  return { ok: res.ok, status: res.status, json };
 }
