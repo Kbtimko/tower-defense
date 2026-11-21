@@ -31,6 +31,8 @@ import { placeLeftOf, placeBeside } from '../systems/viewport.js';
 import { attachHint } from '../ui/HintPeek.js';
 import { HINTS } from '../data/hints.js';
 import { WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH } from '../data/layout.js';
+import { applyWorldCamera } from '../systems/worldCamera.js';
+import { getRenderScale } from '../systems/renderScale.js';
 import {
   PANEL_EDGE_MARGIN, TAP_TOWER_RADIUS, TAP_SLOT_RADIUS, TAP_PATH_RADIUS, REPOSITION_SNAP_RADIUS, PEEK_GAP_PX,
 } from '../data/input.js';
@@ -324,7 +326,7 @@ export default class GameScene extends Phaser.Scene {
     // The map renders between the HUD rails; scroll stays 0, so world coords are
     // unchanged and only the viewport moves. The background colour (solid
     // fallback if the bitmap PNG isn't present) fills that viewport only.
-    this.cameras.main.setViewport(RAIL_WIDTH, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    applyWorldCamera(this.cameras.main, { x: RAIL_WIDTH, y: 0, width: WORLD_WIDTH, height: WORLD_HEIGHT }, getRenderScale());
     this.cameras.main.setBackgroundColor(map.background);
 
     // Bitmap backdrop (depth 0) — Phaser logs 404 if PNG missing; game still runs.

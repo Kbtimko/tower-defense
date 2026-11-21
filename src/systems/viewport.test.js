@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import { setRenderScale } from './renderScale.js';
 import { gameToPageCss, pageToGame, worldToPageCss, pageToWorld, clampPanel, placeLeftOf, placeRightOf, placeBeside, clampPanelWithin } from './viewport.js';
 import { RAIL_WIDTH, CANVAS_WIDTH, WORLD_WIDTH, WORLD_HEIGHT } from '../data/layout.js';
 
@@ -202,5 +203,32 @@ describe('placeBeside', () => {
     const p = placeBeside({ left: 60, top: 60, width: 180, height: 180 }, { width: 200, height: 50 }, b, 10, 8);
     expect(p.left).toBeGreaterThanOrEqual(8);
     expect(p.left + 200).toBeLessThanOrEqual(300 - 8);
+  });
+});
+
+describe('worldToPageCss / pageToWorld at render scale k=2', () => {
+  afterEach(() => setRenderScale(1));
+  const fake = (ds, k) => ({ canvasBounds: { x: 40, y: 10 }, displayScale: { x: ds * k, y: ds * k } });
+
+  it('worldToPageCss at k=2 equals k=1 for the same CSS layout', () => {
+    setRenderScale(1);
+    const at1 = worldToPageCss(fake(1.25, 1), 300, 200);
+    setRenderScale(2);
+    const at2 = worldToPageCss(fake(1.25, 2), 300, 200);
+    expect(at2.x).toBeCloseTo(at1.x);
+    expect(at2.y).toBeCloseTo(at1.y);
+  });
+
+  it('round-trips at k=2 under any displayScale', () => {
+    setRenderScale(2);
+    for (const ds of [0.5, 0.97, 1.6]) {
+      const scale = fake(ds, 2);
+      for (const [x, y] of [[0, 0], [123, 456], [WORLD_WIDTH, WORLD_HEIGHT]]) {
+        const page = worldToPageCss(scale, x, y);
+        const back = pageToWorld(scale, page.x, page.y);
+        expect(back.x).toBeCloseTo(x);
+        expect(back.y).toBeCloseTo(y);
+      }
+    }
   });
 });

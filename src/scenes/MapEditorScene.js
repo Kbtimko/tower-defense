@@ -5,6 +5,8 @@ import { renderPath } from '../systems/PathRenderer.js';
 import { renderPlatforms } from '../systems/PlatformRenderer.js';
 import { serializeMapArrays, slotInPathCorridor } from '../systems/mapEditorUtils.js';
 import { WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH } from '../data/layout.js';
+import { applyWorldCamera } from '../systems/worldCamera.js';
+import { getRenderScale } from '../systems/renderScale.js';
 
 /**
  * Dev-only overlay editor. Activated by BootScene when the URL has
@@ -28,7 +30,7 @@ export default class MapEditorScene extends Phaser.Scene {
     this.W = WORLD_WIDTH; this.H = WORLD_HEIGHT;
     const map = MAPS[this.mapId];
 
-    this.cameras.main.setViewport(RAIL_WIDTH, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    applyWorldCamera(this.cameras.main, { x: RAIL_WIDTH, y: 0, width: WORLD_WIDTH, height: WORLD_HEIGHT }, getRenderScale());
     this.cameras.main.setBackgroundColor(map.background);
     const bgKey = `bg_map_${map.id}`;
     if (this.textures.exists(bgKey)) {
