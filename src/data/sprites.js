@@ -298,6 +298,9 @@ export function mergeVariants(manifest, variants) {
   });
 }
 
+// The 1x manifest, kept for tooling (asset check, art:apply, normalize via node).
+// Runtime code must use spriteManifest() / getSpriteConfig so render scale 2 resolves
+// to the @2x sheets; reading this directly would silently pin the game to 1x art.
 export const SPRITE_MANIFEST = mergeVariants(BASE_SPRITE_MANIFEST, SPRITE_VARIANTS);
 
 // The manifest the runtime loads and reads. Resolved at call time because
