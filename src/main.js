@@ -6,8 +6,9 @@ import GameScene from './scenes/GameScene.js';
 import UIScene from './scenes/UIScene.js';
 import MapEditorScene from './scenes/MapEditorScene.js';
 import { resumeAudio } from './systems/shellLifecycle.js';
-import { CANVAS_WIDTH, WORLD_HEIGHT } from './data/layout.js';
-import { parseRenderScaleOverride, renderScaleFor, setRenderScale } from './systems/renderScale.js';
+import { CANVAS_WIDTH, WORLD_HEIGHT, POINTER_FINE } from './data/layout.js';
+import { parseRenderScaleOverride, renderScaleFor, setRenderScale, viewportCssSize } from './systems/renderScale.js';
+import { pipelineConfig } from './systems/rendererConfig.js';
 import { applyHudLayerSize, fitHudLayer } from './ui/hudLayer.js';
 import { applyTheme, loadThemeFonts } from './ui/theme.js';
 import { watchRailLabels } from './ui/fitLabels.js';
@@ -21,11 +22,11 @@ function pickRenderScale() {
       ? parseRenderScaleOverride(window.location.search)
       : null;
   if (override) return override;
-  const rect = document.getElementById('game').getBoundingClientRect();
   return renderScaleFor({
-    cssWidth: rect.width || window.innerWidth,
-    cssHeight: rect.height || window.innerHeight,
+    ...viewportCssSize(document.getElementById('game').getBoundingClientRect(), window),
     dpr: window.devicePixelRatio,
+    // Phones boot upright behind the rotate prompt but play landscape.
+    landscape: !POINTER_FINE,
   });
 }
 const renderScale = pickRenderScale();
@@ -43,6 +44,7 @@ const config = {
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
   backgroundColor: '#1a1a2e',
+  pipeline: pipelineConfig({ canvasWidth: CANVAS_WIDTH * renderScale, canvasHeight: WORLD_HEIGHT * renderScale }),
   scene: [BootScene, TitleScene, MapSelectScene, GameScene, UIScene, MapEditorScene],
 };
 
