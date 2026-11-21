@@ -1,0 +1,7 @@
+{
+  "batch": "hero-engineer",
+  "candidates": 8,
+  "assets": [
+    { "kind": "sprite", "entity": "hero_engineer" }
+  ]
+}
