@@ -33,6 +33,7 @@ import { HINTS } from '../data/hints.js';
 import { WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH } from '../data/layout.js';
 import { applyWorldCamera } from '../systems/worldCamera.js';
 import { getRenderScale } from '../systems/renderScale.js';
+import { addText } from '../ui/hiDpiText.js';
 import {
   PANEL_EDGE_MARGIN, TAP_TOWER_RADIUS, TAP_SLOT_RADIUS, TAP_PATH_RADIUS, REPOSITION_SNAP_RADIUS, PEEK_GAP_PX,
 } from '../data/input.js';
@@ -2272,8 +2273,8 @@ export default class GameScene extends Phaser.Scene {
   _setupRoad(map) {
     const p = this.pathMgr.path;
     if (roadRendererFor(map) === 'legacy') {
-      this.add.text(p[0].x, p[0].y, 'IN',  { fontSize: '10px', color: '#fff', fontFamily: FONTS.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
-      this.add.text(p[p.length-1].x, p[p.length-1].y, 'OUT', { fontSize: '10px', color: '#fff', fontFamily: FONTS.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
+      addText(this, p[0].x, p[0].y, 'IN',  { fontSize: '10px', color: '#fff', fontFamily: FONTS.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
+      addText(this, p[p.length-1].x, p[p.length-1].y, 'OUT', { fontSize: '10px', color: '#fff', fontFamily: FONTS.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
       return;
     }
     const key = bakeRoad(this, {
