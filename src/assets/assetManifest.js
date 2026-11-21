@@ -13,6 +13,8 @@ import { SPRITE_MANIFEST } from '../data/sprites.js';
 import { spriteTextureKey, variantTextureKey } from '../systems/spriteKeys.js';
 import { portraitPath } from '../systems/portraitFallback.js';
 import { backgroundUrl } from '../systems/backgroundAsset.js';
+import { SPRITE_2X } from '../data/sprite2x.js';
+import { at2x } from '../systems/spriteResolution.js';
 import { BACKGROUND_VARIANTS } from '../data/backgroundAssets.js';
 
 export const PUBLIC_ROOT = 'public';
@@ -43,7 +45,21 @@ export function spriteAssets(manifest) {
       for (const [state, def] of Object.entries(v.states ?? {})) out.push(record(entry, state, def, variant));
     }
   }
-  return out;
+  return [...out, ...sprites2x(out)];
+}
+
+// A sheet in SPRITE_2X ships an @2x sibling that the game requests at render
+// scale 2, so it is required (no fallback) and exactly twice the 1x size.
+function sprites2x(rows) {
+  return rows.filter(r => SPRITE_2X.has(r.url)).map(r => ({
+    ...r,
+    id: `${r.id} @2x`,
+    path: at2x(r.path),
+    url: at2x(r.url),
+    required: true,
+    key: `${r.key}@2x`,
+    expected: r.expected && { width: r.expected.width * 2, height: r.expected.height * 2 },
+  }));
 }
 
 // Every entry: { kind, id, path, url, required, expected }

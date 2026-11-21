@@ -1,5 +1,6 @@
-// Carries out the steps planApply produced. The three data files it edits
-// (sprites.js, spriteVariants.js, facing.json) are snapshotted first and restored
+// Carries out the steps planApply produced. The four data files it edits
+// (sprites.js, spriteVariants.js, facing.json and the generated sprite2x.js, which
+// the normalize --scale 2 step rewrites) are snapshotted first and restored
 // byte-for-byte if any step fails, so a half-applied pick can never leave the game
 // declaring art that was not built. Image outputs (references, sheets) are left
 // in place for inspection: they are not read by the game until declared.
@@ -38,7 +39,7 @@ function groundFrom(fromJson, key) {
 }
 
 export async function executeSteps(steps, {
-  repoRoot, spritesPath, variantsPath, facingPath, run, onLog = () => {},
+  repoRoot, spritesPath, variantsPath, facingPath, sprite2xPath, run, onLog = () => {},
   signals = process, exit = code => process.exit(code),
 }) {
   const runCmd = run ?? (cmd => spawnCapture(cmd, repoRoot));
@@ -48,7 +49,7 @@ export async function executeSteps(steps, {
   // Each check's output, so the caller can report what passed.
   const checks = [];
 
-  const guarded = [spritesPath, variantsPath, facingPath];
+  const guarded = [spritesPath, variantsPath, facingPath, sprite2xPath];
   const saved = guarded.map(p => (existsSync(p) ? readFileSync(p) : null));
   const restore = () => guarded.forEach((p, i) => {
     if (saved[i] === null) rmSync(p, { force: true });

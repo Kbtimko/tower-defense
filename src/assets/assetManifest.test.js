@@ -31,6 +31,24 @@ describe('spriteAssets', () => {
   });
 });
 
+describe('2x sprite sheets', () => {
+  const sprites = () => requiredAssets().filter(a => a.kind === 'sprite');
+
+  it('lists each @2x sheet at twice its 1x size', () => {
+    const one = sprites().find(a => a.id === 'tower/archer idle');
+    const two = sprites().find(a => a.path === one.path.replace('.png', '@2x.png'));
+    expect(two).toBeDefined();
+    expect(two.expected).toEqual({ width: one.expected.width * 2, height: one.expected.height * 2 });
+    expect(two.url).toBe(one.url.replace('.png', '@2x.png'));
+  });
+
+  it('drone has no @2x row', () => {
+    const drone = sprites().filter(a => a.id.startsWith('enemy/drone'));
+    expect(drone.length).toBeGreaterThan(0);
+    expect(sprites().filter(a => a.path.includes('drone') && a.path.includes('@2x'))).toEqual([]);
+  });
+});
+
 describe('requiredAssets', () => {
   it('includes the sprite records', () => {
     expect(requiredAssets().filter(a => a.kind === 'sprite').length).toBeGreaterThan(0);

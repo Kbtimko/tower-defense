@@ -20,11 +20,13 @@ beforeEach(() => {
     spritesPath: join(tmp, 'sprites.js'),
     variantsPath: join(tmp, 'spriteVariants.js'),
     facingPath: join(tmp, 'facing.json'),
+    sprite2xPath: join(tmp, 'sprite2x.js'),
   };
   copyFileSync(join(REPO, 'src/data/sprites.js'), paths.spritesPath);
   // An empty fixture, not the live file: the live one fills up as variants are applied.
   writeFileSync(paths.variantsPath, renderSpriteVariants({}));
   copyFileSync(join(REPO, 'scripts/art/facing.json'), paths.facingPath);
+  copyFileSync(join(REPO, 'src/data/sprite2x.js'), paths.sprite2xPath);
 });
 afterEach(() => rmSync(tmp, { recursive: true, force: true }));
 
@@ -104,8 +106,12 @@ describe('executeSteps', () => {
     expect(calls.map(c => c.slice(0, 3).join(' '))).toEqual([
       'python3 scripts/build-sprite-sheets.py tower_cannon',
       'python3 scripts/art/normalize.py --only',
+      'python3 scripts/build-sprite-sheets.py tower_cannon',
+      'python3 scripts/art/normalize.py --scale',
       'python3 scripts/build-sprite-sheets.py tower_archer.t4a',
       'python3 scripts/art/normalize.py --only',
+      'python3 scripts/build-sprite-sheets.py tower_archer.t4a',
+      'python3 scripts/art/normalize.py --scale',
       'npm run assets',
       'npm test',
     ]);
@@ -118,6 +124,24 @@ describe('executeSteps', () => {
     const first = readFileSync(paths.variantsPath);
     expect((await executeSteps(steps, { repoRoot: tmp, ...paths, run })).ok).toBe(true);
     expect(readFileSync(paths.variantsPath)).toEqual(first);
+  });
+
+  it('restores a sprite2x.js that an earlier step rewrote when a later step fails', async () => {
+    // normalize.py --scale 2 regenerates this file; a failed apply must not leave
+    // the game declaring @2x sheets that were not built.
+    writeFileSync(paths.sprite2xPath, 'export const SPRITE_2X = new Set([]);\n');
+    const before = readFileSync(paths.sprite2xPath);
+    const steps = [{ op: 'run', cmd: ['rewrite-2x'] }, { op: 'run', cmd: ['boom'] }];
+    const run = async (cmd) => {
+      if (cmd[0] === 'rewrite-2x') {
+        writeFileSync(paths.sprite2xPath, 'export const SPRITE_2X = new Set(["x"]);\n');
+        return { code: 0, output: 'ok' };
+      }
+      return { code: 1, output: 'boom' };
+    };
+    const res = await executeSteps(steps, { repoRoot: tmp, ...paths, run });
+    expect(res.ok).toBe(false);
+    expect(readFileSync(paths.sprite2xPath)).toEqual(before);
   });
 
   it('keeps other variant entries when writing one', async () => {
@@ -253,7 +277,7 @@ describe('prepareApply', () => {
     await fakeCandidate('tower_cannon', 0);
     const r = prepareApply({ repoRoot: tmp, picks: { batch: 'b', picks: { tower_cannon: 0 }, flip: [], reroll: [] }, cache, timestamp: 'TS' });
     expect(r.errors).toEqual([]);
-    expect(r.steps.map(s => s.op)).toEqual(['copy', 'run', 'run', 'setGround', 'check', 'check']);
+    expect(r.steps.map(s => s.op)).toEqual(['copy', 'run', 'run', 'setGround', 'run', 'run', 'check', 'check']);
   });
 
   it('re-applying the same flipped picks three times leaves facing.json as the first apply set it', async () => {
@@ -300,7 +324,7 @@ describe('prepareApply', () => {
     const r = prepareApply({ repoRoot: tmp, picks, cache, timestamp: 'TS' });
     expect(r.errors).toEqual(['tower_cannon #0 is a fake candidate; pass --allow-fake to apply it anyway']);
     expect(r.steps).toEqual([]);
-    expect(prepareApply({ repoRoot: tmp, picks, cache, timestamp: 'TS', allowFake: true }).steps.length).toBe(6);
+    expect(prepareApply({ repoRoot: tmp, picks, cache, timestamp: 'TS', allowFake: true }).steps.length).toBe(8);
   });
 
   it('reports a job whose batch differs from its file name', () => {
@@ -372,6 +396,21 @@ describe('failureHints', () => {
     expect(hints.join('\n')).not.toMatch(/loosen|widen|raise the tolerance/i);
     // The asset check's output is not vitest's: no file list there.
     expect(failureHints(steps, steps[0], { error: VITEST_FAIL }).join('\n')).not.toContain('Failing test files');
+  });
+
+  it('names sprite2x.js among the restored files and the undo list', () => {
+    const steps = [{ op: 'run', cmd: ['python3', 'build'] }];
+    const hints = failureHints(steps, steps[0]).join('\n');
+    expect(hints).toContain('src/data/sprite2x.js');
+  });
+
+  it('explains the pinned 1x drone set when spriteResolution.test.js fails', () => {
+    const steps = [...CHECK_STEPS];
+    const hints = failureHints(steps, steps[1], { error: ' FAIL  src/systems/spriteResolution.test.js > exactly enemy:drone stays 1x at k=2' }).join('\n');
+    expect(hints).toContain('spriteResolution.test.js failing');
+    expect(hints).toContain('enemy:drone');
+    expect(hints).toContain('on purpose');
+    expect(failureHints(steps, steps[1], { error: ' FAIL  src/a.test.js > x' }).join('\n')).not.toContain('enemy:drone');
   });
 
   it('gives no footprint advice when the pad-fit test passed', () => {

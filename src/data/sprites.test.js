@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { SPRITE_MANIFEST, getSpriteConfig, mergeVariants } from './sprites.js';
 import { SPRITE_VARIANTS } from './spriteVariants.js';
 import { VARIANT_KEYS } from '../assets/artJob.js';
 import { TOWER_DEFS } from './towers.js';
 import { HEROES } from './heroes.js';
+import { setRenderScale } from '../systems/renderScale.js';
 
 describe('SPRITE_MANIFEST', () => {
   it('registers every tower and hero under its runtime id', () => {
@@ -70,5 +71,17 @@ describe('SPRITE_VARIANTS contract', () => {
       expect(getSpriteConfig(cat, type), key).not.toBeNull();
       for (const v of Object.keys(variants)) expect(VARIANT_KEYS, `${key} ${v}`).toContain(v);
     }
+  });
+});
+
+describe('getSpriteConfig by render scale', () => {
+  afterEach(() => setRenderScale(1));
+
+  it('at k=2 resolves the archer to its @2x art at half the scale', () => {
+    const base = getSpriteConfig('tower', 'archer');
+    setRenderScale(2);
+    const at2 = getSpriteConfig('tower', 'archer');
+    expect(at2.scale).toBeCloseTo(base.scale / 2, 6);
+    expect(at2.states.idle.path.endsWith('@2x.png')).toBe(true);
   });
 });

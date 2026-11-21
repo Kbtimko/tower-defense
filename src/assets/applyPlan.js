@@ -58,14 +58,20 @@ function spriteSteps(asset, { raw, cache, batch, timestamp, refExists, facing, f
   // normalize.py reads the variant from SPRITE_MANIFEST, so declare it first.
   if (variant) steps.push({ op: 'writeVariant', key, variant, def: { states: variantStates(entry, variant) } });
 
+  const debris = asset.keepDebris ? ['--keep-debris'] : [];
   const build = ['python3', 'scripts/build-sprite-sheets.py', assetId, '--ref-dir', refDir];
-  if (asset.keepDebris) build.push('--keep-debris');
-  steps.push({ op: 'run', cmd: build });
+  steps.push({ op: 'run', cmd: [...build, ...debris] });
   steps.push({ op: 'run', cmd: ['python3', 'scripts/art/normalize.py', '--only',
     variant ? `${key}.${variant}` : key, '--ground-json', groundJson] });
   steps.push(variant
     ? { op: 'setGround', target: 'variants', key, variant, fromJson: groundJson }
     : { op: 'setGround', target: 'sprites', key, fromJson: groundJson });
+
+  // The @2x sheet is rebuilt from the same reference so the two sets never
+  // disagree. Ground stays from the 1x step; normalize --scale 2 only verifies it.
+  steps.push({ op: 'run', cmd: [...build, '--scale', '2', ...debris] });
+  steps.push({ op: 'run', cmd: ['python3', 'scripts/art/normalize.py', '--scale', '2', '--only',
+    variant ? `${key}.${variant}` : key] });
   return steps;
 }
 

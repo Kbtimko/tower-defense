@@ -1,4 +1,7 @@
 import { SPRITE_VARIANTS } from './spriteVariants.js';
+import { SPRITE_2X } from './sprite2x.js';
+import { resolveManifest } from '../systems/spriteResolution.js';
+import { getRenderScale } from '../systems/renderScale.js';
 
 // Declarative entity-art manifest. Tunables live here (no Phaser import).
 //
@@ -295,9 +298,24 @@ export function mergeVariants(manifest, variants) {
   });
 }
 
+// The 1x manifest, kept for tooling (asset check, art:apply, normalize via node).
+// Runtime code must use spriteManifest() / getSpriteConfig so render scale 2 resolves
+// to the @2x sheets; reading this directly would silently pin the game to 1x art.
 export const SPRITE_MANIFEST = mergeVariants(BASE_SPRITE_MANIFEST, SPRITE_VARIANTS);
+
+// The manifest the runtime loads and reads. Resolved at call time because
+// main.js sets the render scale AFTER this module is imported; memoised per k so
+// callers get a stable array (and the same entry objects) within a scale.
+const resolvedByScale = new Map();
+export function spriteManifest() {
+  const k = getRenderScale();
+  if (!resolvedByScale.has(k)) {
+    resolvedByScale.set(k, resolveManifest(SPRITE_MANIFEST, k, p => SPRITE_2X.has(p)));
+  }
+  return resolvedByScale.get(k);
+}
 
 // Look up the manifest entry for an entity, or null if none is registered.
 export function getSpriteConfig(category, type) {
-  return SPRITE_MANIFEST.find(e => e.category === category && e.type === type) ?? null;
+  return spriteManifest().find(e => e.category === category && e.type === type) ?? null;
 }

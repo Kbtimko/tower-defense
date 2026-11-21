@@ -17,6 +17,7 @@ const dataPaths = repoRoot => ({
   spritesPath: join(repoRoot, 'src/data/sprites.js'),
   variantsPath: join(repoRoot, 'src/data/spriteVariants.js'),
   facingPath: join(repoRoot, 'scripts/art/facing.json'),
+  sprite2xPath: join(repoRoot, 'src/data/sprite2x.js'),
 });
 
 // The mirror prepare_review.py drew the preview with; undefined when the
@@ -41,11 +42,12 @@ export function failingTestFiles(output) {
 }
 
 const PAD_FIT_TEST = 'src/systems/tierLookPadFit.test.js';
+const RESOLUTION_TEST = 'src/systems/spriteResolution.test.js';
 
 // What a failed apply leaves behind and how to undo it. Only backups that ran.
 export function failureHints(steps, failedStep, { error = '' } = {}) {
   const ran = steps.slice(0, steps.indexOf(failedStep) + 1);
-  const lines = ['src/data/sprites.js, src/data/spriteVariants.js and scripts/art/facing.json were restored;',
+  const lines = ['src/data/sprites.js, src/data/spriteVariants.js, src/data/sprite2x.js and scripts/art/facing.json were restored;',
     'copied references and built sheets were left in place for inspection.'];
   if (failedStep?.op === 'check' && failedStep.cmd.join(' ') === 'npm test') {
     const files = failingTestFiles(error);
@@ -55,6 +57,10 @@ export function failureHints(steps, failedStep, { error = '' } = {}) {
         '  a footprint clash: check the overlaps in the game; change the pinned set only on purpose.',
         '  off the 36px footprint: set that variant\'s `scale` in src/data/spriteVariants.js to scale * 36 / width',
         '    (width is in the failure message), then re-run apply. The tolerance stays as is.');
+    }
+    if (files.includes(RESOLUTION_TEST)) {
+      lines.push(`${RESOLUTION_TEST} failing after a drone pick is expected: it pins enemy:drone to 1x at render scale 2.`,
+        '  Once the new drone art has a @2x sheet, update that pinned set on purpose; do not loosen the test.');
     }
   }
   lines.push('To undo the art it wrote:',
