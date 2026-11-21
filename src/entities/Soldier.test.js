@@ -28,6 +28,11 @@ vi.mock('../data/sprites.js', async (importOriginal) => {
 });
 
 import { Soldier } from './Soldier.js';
+import { SPRITE_MANIFEST } from '../data/sprites.js';
+
+// Derived so a future soldier resize doesn't strand hardcoded 0.36-era numbers.
+const SOLDIER_ART = SPRITE_MANIFEST.find((m) => m.category === 'soldier' && m.type === 'default');
+const SOLDIER_SCALE = SOLDIER_ART.scale;
 import { SOLDIER_FORMATION, WALK_BOB } from '../data/soldiers.js';
 import { formationOffsets } from '../systems/soldierFormation.js';
 import { getSpriteConfig } from '../data/sprites.js';
@@ -100,7 +105,7 @@ function makeSquad({ at = 0.5, count = 3, path = ROAD } = {}) {
   return barracks;
 }
 // Stands in for registered art so state/facing calls are observable.
-const ART_WIDTH = 17.28;
+const ART_WIDTH = 48 * SOLDIER_SCALE;
 function withSpySprite(s) {
   s._sprite = {
     active: true, states: [], facings: [],
@@ -338,7 +343,7 @@ describe('Soldier tier look (R16, R16b, S9, S10)', () => {
     const { s } = squad({ level: 3, keys: [...BASE_KEYS, 'sprite-soldier-default-idle-t3'] });
     expect(s._sprite.active).toBe(true);
     expect(s._sprite.resolvedKey('idle')).toMatch(/-t3$/);
-    expect(s._sprite.sprite.scaleX).toBeCloseTo(0.36 * 1.2, 9);
+    expect(s._sprite.sprite.scaleX).toBeCloseTo(SOLDIER_SCALE * 1.2, 9);
   });
 
   it('E12: with no art the fallback body takes the tier colour and grows from its foot', () => {
@@ -388,7 +393,7 @@ describe('Soldier tier look (R16, R16b, S9, S10)', () => {
 
     it('stands on the foot (art ground line, or the fallback body bottom), scaled by the tier', () => {
       const art = squad({ level: 4, branch: 'A', keys: BASE_KEYS }).s;
-      expect(art._shield.y).toBeCloseTo(8.6 - 2.4, 9);
+      expect(art._shield.y).toBeCloseTo(SOLDIER_ART.ground.footY - 2.4, 9);
       expect(art._shield.x).toBeCloseTo(3.6, 9);
       expect(art._shield.scaleX).toBeCloseTo(1.3, 9);
       expect(art._shield.scaleY).toBeCloseTo(1.3, 9);
@@ -447,7 +452,7 @@ describe('Soldier tier look (R16, R16b, S9, S10)', () => {
     s.update(0.016);
     expect(s._variant).toBe('t3');
     expect(s._sprite.tierScale()).toBe(1.2);
-    expect(s._sprite.sprite.scaleX).toBeCloseTo(0.36 * 1.2, 9);
+    expect(s._sprite.sprite.scaleX).toBeCloseTo(SOLDIER_SCALE * 1.2, 9);
     expect(s._sprite.resolvedKey('idle')).toBe('sprite-soldier-default-idle-t3');
     expect(s.lookSnapshot().key).toBe('sprite-soldier-default-idle-t3');
   });
@@ -463,7 +468,7 @@ describe('Soldier tier look (R16, R16b, S9, S10)', () => {
     const t1 = squad({ keys: BASE_KEYS }).s;
     const t4 = squad({ level: 4, branch: 'B', keys: BASE_KEYS }).s;
     const t1Width = t1._sprite.getDisplaySize().width;
-    expect(t1Width).toBeCloseTo(CELL * 0.36, 9);
+    expect(t1Width).toBeCloseTo(CELL * SOLDIER_SCALE, 9);
     expect(t4._targetLayout().spacing).toBeCloseTo(SOLDIER_FORMATION.spacingFrac * 1.3 * t1Width, 9);
   });
 });

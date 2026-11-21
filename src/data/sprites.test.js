@@ -85,3 +85,14 @@ describe('getSpriteConfig by render scale', () => {
     expect(at2.states.idle.path.endsWith('@2x.png')).toBe(true);
   });
 });
+
+describe('soldier size (4.5)', () => {
+  // Spec value: 0.36 pre-4.5 x 1.5, so squads read at a glance.
+  it('soldier draws at 1.5x its pre-4.5 size', () => {
+    expect(getSpriteConfig('soldier', 'default').scale).toBeCloseTo(0.54, 5);
+    const PRE_45 = 0.36;
+    for (const e of SPRITE_MANIFEST.filter((m) => m.category === 'soldier')) {
+      if (e.scale !== undefined) expect(e.scale, e.type).toBeCloseTo(PRE_45 * 1.5, 5);
+    }
+  });
+});
