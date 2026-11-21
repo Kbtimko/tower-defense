@@ -70,6 +70,9 @@ ALPHA_FLOOR = 20 / 255
 SPECK_FRACTION = 0.01      # components under 1 % of the frame's largest are noise
 # Per-entity opt-out (risk table: "normalization makes sprites look flat").
 SKIP_TONE = set()          # e.g. {'hero/pyro'}
+# The 2x pass must not move the ground line the manifest was measured at 1x.
+GROUND_TOLERANCE = 0.5
+SPRITE2X_JS = ROOT / 'src' / 'data' / 'sprite2x.js'
 
 LUMA = np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
 
@@ -242,19 +245,27 @@ def preview_frame(cut_rgba, entry, *, tone_params=None):
     return _to_image(np.dstack([rgb, a]))
 
 
+def sheet_rel(path, px):
+    """The on-disk name of a manifest sheet path at `px` times the 1x pixels."""
+    return path if px == 1 else path.replace('.png', f'@{px}x.png')
+
+
 def _normalize_states(key, category, states, params, scale, anchor_y, src_root, out_root,
-                      tiles, clipped):
+                      tiles, clipped, px=1):
     """Restyle one set of states; returns its ground record or None if the
-    first state's source is missing."""
+    first state's source is missing. At px=2 the sheets are the @2x files: cells
+    are 2x the manifest's and `scale` halves, so display sizes are unchanged."""
     ground = None
+    scale = scale / px
     for n, (state, d) in enumerate(states.items()):
-        src = src_root / d['path'].removeprefix('assets/')
-        dst = out_root / d['path']
+        rel = sheet_rel(d['path'], px)
+        src = src_root / rel.removeprefix('assets/')
+        dst = out_root / rel
         if not src.exists():
             print(f'  ! {key} {state}: missing {src}')
             continue
         img = _read(src)
-        fw, fh = d['frameWidth'], d['frameHeight']
+        fw, fh = d['frameWidth'] * px, d['frameHeight'] * px
         out = np.zeros_like(img)
         tone_after = None
         for sl in frames_of(img, fw, fh):
@@ -280,7 +291,7 @@ def _normalize_states(key, category, states, params, scale, anchor_y, src_root, 
 
 
 def normalize_entry(entry, *, only_variants=None, include_base=True, src_root, out_root,
-                    tiles=None, clipped=None):
+                    tiles=None, clipped=None, px=1):
     """Normalise an entry's base states (if include_base) and its variants
     (all, or just `only_variants`). Variants take the BASE's first-state tone,
     computed even when only a variant is requested."""
@@ -295,25 +306,53 @@ def normalize_entry(entry, *, only_variants=None, include_base=True, src_root, o
         variants = {v: variants[v] for v in only_variants}
 
     d0 = next(iter(entry['states'].values()))
-    base_src = src_root / d0['path'].removeprefix('assets/')
+    base_src = src_root / sheet_rel(d0['path'], px).removeprefix('assets/')
     if not base_src.exists():
         print(f'  ! {key}: missing {base_src}')
         return []
     img = _read(base_src)
-    first = next(frames_of(img, d0['frameWidth'], d0['frameHeight']))
+    first = next(frames_of(img, d0['frameWidth'] * px, d0['frameHeight'] * px))
     params = _params_for(img[first][..., :3], img[first][..., 3], category, key)
 
     records = []
-    jobs = ([(key, entry['states'], scale, anchor_y)] if include_base else []) + [
+    jobs = ([(key, entry['states'], scale, anchor_y, entry.get('ground'))] if include_base else []) + [
         (f'{key}.{v}', vd['states'], vd.get('scale', scale),
-         vd.get('anchor', entry.get('anchor', {})).get('y', 0.5))
+         vd.get('anchor', entry.get('anchor', {})).get('y', 0.5),
+         vd.get('ground', entry.get('ground')))
         for v, vd in variants.items()]
-    for k, states, sc, ay in jobs:
+    for k, states, sc, ay, expected in jobs:
         ground = _normalize_states(k, category, states, params, sc, ay, src_root, out_root,
-                                   tiles, clipped)
+                                   tiles, clipped, px)
         if ground is not None:
-            records.append({'key': k, 'ground': ground})
+            record = {'key': k, 'ground': ground}
+            # Only 2x runs are checked against the manifest; 1x records stay as they were.
+            if px > 1 and expected:
+                record['expected'] = expected
+            records.append(record)
     return records
+
+
+def ground_drift(records, tolerance=GROUND_TOLERANCE):
+    """Messages for each measured footY/width that strays from the manifest's
+    1x ground by more than `tolerance` display px."""
+    msgs = []
+    for r in records:
+        for field, want in r.get('expected', {}).items():
+            got = r['ground'][field]
+            if abs(got - want) > tolerance:
+                msgs.append(f"{r['key']}: {field} {got} vs manifest {want}")
+    return msgs
+
+
+def write_sprite2x_module(out_root, path):
+    """Regenerate the 2x coverage set from every @2x sheet on disk, not just
+    this run's, so a partial --only run never drops entries."""
+    sheets = sorted(p.relative_to(out_root).as_posix().replace('@2x.png', '.png')
+                    for p in (out_root / 'assets' / 'sprites').rglob('*@2x.png'))
+    body = ''.join(f"  '{s}',\n" for s in sheets)
+    path.write_text('// GENERATED by scripts/art/normalize.py --scale 2. Do not edit.\n'
+                    '// The 1x paths that have an @2x sibling in public/.\n'
+                    f'export const SPRITE_2X = new Set([\n{body}]);\n')
 
 
 def write_contact_sheet(tiles):
@@ -340,6 +379,10 @@ def main(argv=None):
                     help='tower/archer (base only) or tower/archer.t4a (that variant only)')
     ap.add_argument('--src-root', type=Path, default=SRC_ROOT)
     ap.add_argument('--out-root', type=Path, default=OUT_ROOT)
+    ap.add_argument('--scale', type=int, choices=(1, 2), default=1,
+                    help='2 reads <name>@2x.png sources and writes @2x shipped sheets')
+    ap.add_argument('--sprite2x-js', type=Path, default=SPRITE2X_JS,
+                    help='where --scale 2 writes the 2x coverage module')
     ap.add_argument('--ground-json', type=Path, help='write the measured ground records here')
     args = ap.parse_args(argv)
     manifest = load_manifest()
@@ -356,7 +399,7 @@ def main(argv=None):
                 continue
             kw = dict(only_variants=vs, include_base=key in wanted)
         records += normalize_entry(entry, src_root=args.src_root, out_root=args.out_root,
-                                   tiles=tiles, clipped=clipped, **kw)
+                                   tiles=tiles, clipped=clipped, px=args.scale, **kw)
 
     write_contact_sheet(tiles)
     print(f'\ncontact sheet: {REVIEW / "normalize-contact.png"}')
@@ -364,6 +407,12 @@ def main(argv=None):
         args.ground_json.write_text(json.dumps(records, indent=2) + '\n')
     if clipped:
         print('outline touches the cell edge (art may be cropped):', ', '.join(sorted(set(clipped))))
+    if args.scale > 1:
+        write_sprite2x_module(args.out_root, args.sprite2x_js)
+        drift = ground_drift(records)
+        if drift:
+            print('\nGROUND DRIFT (2x vs manifest, display px):\n  ' + '\n  '.join(drift))
+            return 1
     return 0
 
 

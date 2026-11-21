@@ -70,6 +70,12 @@ class OutputPaths(unittest.TestCase):
         self.assertEqual(p, Path('/o/sentry/default_attack.png'))
 
 
+class OutputPathsAt2x(unittest.TestCase):
+    def test_scale_2_filename(self):
+        p = bs.sheet_path(Path('/o'), 'tower', 'archer', 't4a', 'idle', scale=2)
+        self.assertEqual(p, Path('/o/towers/archer_t4a_idle@2x.png'))
+
+
 class FacingFile(unittest.TestCase):
     def test_shipped_table(self):
         f = bs.load_facing()
@@ -152,6 +158,25 @@ class BuildLoop(unittest.TestCase):
     def test_all_includes_variants_and_skips_not_reproducible(self):
         out = self.build('--all')
         self.assertTrue((self.out / 'towers/archer_t4a_idle.png').exists())
+        self.assertFalse((self.out / 'enemies').exists())
+        self.assertIn('enemy_drone: SKIP in --all', out)
+
+    def test_scale_2_doubles_cell_and_names_at2x(self):
+        self.build('tower_archer', 'tower_archer.t4a')
+        self.build('tower_archer', 'tower_archer.t4a', '--scale', '2')
+        for name in ('archer', 'archer_t4a'):
+            for st in ('idle', 'attack'):
+                one = self.sheet(f'towers/{name}_{st}.png')
+                two = self.sheet(f'towers/{name}_{st}@2x.png')
+                self.assertEqual(two.size, (one.width * 2, one.height * 2), f'{name} {st}')
+        # --cell is a 1x cell size: it is doubled too, so 2x stays 2x of 1x.
+        self.build('tower_cannon', '--cell', '40', '--scale', '2')
+        self.assertEqual(self.sheet('towers/cannon_idle@2x.png').size, (80, 80))
+        self.assertFalse((self.out / 'towers/cannon_idle.png').exists())
+
+    def test_scale_2_all_still_skips_not_reproducible(self):
+        out = self.build('--all', '--scale', '2')
+        self.assertTrue((self.out / 'towers/archer_idle@2x.png').exists())
         self.assertFalse((self.out / 'enemies').exists())
         self.assertIn('enemy_drone: SKIP in --all', out)
 

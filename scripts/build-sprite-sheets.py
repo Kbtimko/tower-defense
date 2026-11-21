@@ -151,9 +151,11 @@ def mirror_for(name, facing):
     return bool(facing.get('default', True))
 
 
-def sheet_path(out_root, category, etype, variant, state):
+def sheet_path(out_root, category, etype, variant, state, scale=1):
     stem = f'{etype}_{variant}' if variant else etype
-    return Path(out_root) / OUT_DIRS[category] / f'{stem}_{state}.png'
+    # The 2x set sits beside the 1x one; the runtime picks by file name.
+    suffix = '' if scale == 1 else f'@{scale}x'
+    return Path(out_root) / OUT_DIRS[category] / f'{stem}_{state}{suffix}.png'
 
 
 def largest_component(rgba, min_alpha=24):
@@ -319,6 +321,8 @@ def main():
     ap.add_argument('--all', action='store_true', help='every reference present')
     ap.add_argument('--cell', type=int, default=None,
                     help='override the cell size for every entity built')
+    ap.add_argument('--scale', type=int, choices=(1, 2), default=1,
+                    help='2 builds <name>@2x.png sheets at twice the cell size')
     ap.add_argument('--ref-dir', type=Path, default=REF_DIR,
                     help='where the references live (default .art-cache/sprites)')
     ap.add_argument('--out-root', type=Path, default=SPRITE_ROOT,
@@ -357,9 +361,11 @@ def main():
             continue
 
         states = STATE_OVERRIDES.get((category, etype), PLAN[category]['states'])
-        cell = args.cell or CELL_OVERRIDES.get((category, etype), PLAN[category]['cell'])
+        # --cell and the override tables are 1x sizes; --scale multiplies them so
+        # a 2x sheet is always exactly twice its 1x sibling.
+        cell = (args.cell or CELL_OVERRIDES.get((category, etype), PLAN[category]['cell'])) * args.scale
         tint = TINTS.get((category, etype), (255, 255, 255))
-        out_dir = sheet_path(args.out_root, category, etype, variant, 'x').parent
+        out_dir = sheet_path(args.out_root, category, etype, variant, 'x', args.scale).parent
         out_dir.mkdir(parents=True, exist_ok=True)
 
         ref = cutout(ref_path, keep_largest=not args.keep_debris)
@@ -371,7 +377,7 @@ def main():
             ref = ref.transpose(Image.FLIP_LEFT_RIGHT)
 
         for st in states:
-            out_path = sheet_path(args.out_root, category, etype, variant, st)
+            out_path = sheet_path(args.out_root, category, etype, variant, st, args.scale)
             if st == 'move':
                 build_move(ref, out_path, cell=cell,
                            hover=(category, etype) in HOVER)
