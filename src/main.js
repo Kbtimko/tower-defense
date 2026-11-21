@@ -23,7 +23,9 @@ function pickRenderScale() {
       : null;
   if (override) return override;
   return renderScaleFor({
-    ...viewportCssSize(document.getElementById('game').getBoundingClientRect(), window),
+    ...viewportCssSize(document.getElementById('game').getBoundingClientRect(), window, {
+      useScreen: !POINTER_FINE,
+    }),
     dpr: window.devicePixelRatio,
     // Phones boot upright behind the rotate prompt but play landscape.
     landscape: !POINTER_FINE,

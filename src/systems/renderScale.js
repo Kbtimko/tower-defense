@@ -23,7 +23,12 @@ export function renderScaleFor({ cssWidth, cssHeight, dpr, landscape = false }) 
 
 // The #game rect is zero before layout settles (or when hidden); the window is
 // the fallback so boot never measures a 0x0 viewport.
-export function viewportCssSize(rect, win) {
+// `useScreen` (coarse pointers): browser bars eat portrait height, and the screen
+// is what the game gets once the player rotates, so size k from it instead.
+export function viewportCssSize(rect, win, { useScreen = false } = {}) {
+  if (useScreen && win.screen?.width > 0 && win.screen?.height > 0) {
+    return { cssWidth: win.screen.width, cssHeight: win.screen.height };
+  }
   return rect && rect.width > 0 && rect.height > 0
     ? { cssWidth: rect.width, cssHeight: rect.height }
     : { cssWidth: win.innerWidth, cssHeight: win.innerHeight };

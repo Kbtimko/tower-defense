@@ -85,6 +85,23 @@ describe('viewportCssSize', () => {
   it('falls back to the window for a null rect', () => {
     expect(viewportCssSize(null, win)).toEqual({ cssWidth: 1000, cssHeight: 700 });
   });
+  it('prefers the screen over the rect when useScreen is set', () => {
+    const w = { ...win, screen: { width: 390, height: 844 } };
+    expect(viewportCssSize({ width: 390, height: 664 }, w, { useScreen: true }))
+      .toEqual({ cssWidth: 390, cssHeight: 844 });
+  });
+  it('falls back to the rect when the screen is 0x0', () => {
+    const w = { ...win, screen: { width: 0, height: 0 } };
+    expect(viewportCssSize({ width: 390, height: 664 }, w, { useScreen: true }))
+      .toEqual({ cssWidth: 390, cssHeight: 664 });
+  });
+  it('sizes a portrait phone with browser bars at k = 2 only via the screen', () => {
+    const rect = { width: 390, height: 664 };
+    const w = { screen: { width: 390, height: 844 }, innerWidth: 390, innerHeight: 664 };
+    expect(renderScaleFor({ ...viewportCssSize(rect, w, { useScreen: true }), dpr: 3, landscape: true })).toBe(2);
+    // Documents the bug: bars eat portrait height, so the viewport alone stays at 1.
+    expect(renderScaleFor({ ...viewportCssSize(rect, w), dpr: 3, landscape: true })).toBe(1);
+  });
 });
 
 describe('parseRenderScaleOverride', () => {
