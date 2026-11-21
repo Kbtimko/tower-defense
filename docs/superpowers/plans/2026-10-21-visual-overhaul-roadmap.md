@@ -106,7 +106,7 @@ Failing tests after two attempts at the same fix; any change that would alter ba
 - [ ] **4.3 [LOCAL→G2] Enemy refresh.** Only regenerate enemies that still look off after 1.3 (likely skitter/phantom); add a hurt-pose variant per enemy for hit reactions where it pays off.
 - [ ] **4.4 [LOCAL→G2] Pads & set dressing.** 4 build-pad variants, 6 biome road tiles (feeds 1.7), ~25 prop cutouts per biome family (rocks, crystals, wrecks, antennae, ruins), placed by a seeded scatter (`src/systems/propScatter.js`, tested) that avoids road/pads/UI.
 - [ ] **4.5 [LOCAL→G2] Spawn portal, base beacon, hero & soldier refresh, portraits.** Lower priority; do after the MVP cut if time is short.
-- [ ] **4.6 [AUTO] Licence ledger.** `docs/licenses.md`: model (FLUX.1 [schnell], Apache-2.0 — confirm the exact weights Draw Things serves), rembg, fonts (OFL), existing `public/audio/ATTRIBUTIONS.md`. Needed before any commercial release.
+- [x] **4.6 [AUTO] Licence ledger.** `docs/licenses.md`: model (FLUX.1 [schnell], Apache-2.0 — confirm the exact weights Draw Things serves), rembg, fonts (OFL), existing `public/audio/ATTRIBUTIONS.md`. Needed before any commercial release. *Done 2026-11-21: docs/licenses.md + src/assets/licenseLedger.test.js.*
 
 ### Phase 5 — Gameplay depth (measured with `npm run balance`)  *(post-v1 updates)*
 - [ ] **5.1 [AUTO] Map mechanics.** Spec first (brainstorm → spec → plan, per `CLAUDE.md`). Three data-driven mechanics: `altPaths` (forks with weighted spawn), `hazardZones` (telegraphed asteroid impacts, ion storm slows towers), `padRestrictions` (locked/special pads). Teach `src/sim/` the same rules so balance stays measurable. Give each of maps 3–9 one signature mechanic.

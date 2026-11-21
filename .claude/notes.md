@@ -5,6 +5,30 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 
 ## Current Status (2026-11-21)
 
+**2026-11-21 (latest): roadmap 4.6, the licence ledger. PR into `visual/integration` (`docs/4.6-licence-ledger`).**
+- `docs/licenses.md` lists, with sources, what every shipped third-party or generated thing is and its licence:
+  - code: Phaser MIT, eventemitter3 MIT, vendored Earcut ISC, and Vite's modulepreload polyfill;
+  - fonts: Orbitron and Rajdhani, OFL-1.1;
+  - art: FLUX.1 [schnell] `flux_1_schnell_q8p.ckpt` via Draw Things (Apache-2.0) for sprites, portraits and the overworld; the map backgrounds are ChatGPT Plus image generation, recorded as DALL-E 3 in a5ad396. Midjourney was planned but never used;
+  - audio: CC0 from Kenney, freesound and opengameart;
+  - project-made: `spark.png` and the code-drawn art.
+- The ledger ends with a "before a commercial release" checklist:
+  - generate third-party notices (MIT/ISC/OFL texts) from the production bundle; **the build does not ship them today**;
+  - verify the converted T5/CLIP files;
+  - note that copyright in AI output is uncertain;
+  - record the OpenAI terms version;
+  - make the store AI-content disclosure;
+  - keep provenance evidence;
+  - **title/trademark clearance: "Last Light" vs *Metro: Last Light*.**
+- `src/assets/licenseLedger.test.js` derives all of its checks from disk:
+  - every transitive runtime dependency is in the ledger with its declared licence;
+  - every shipped asset folder is named;
+  - every audio file has a first-column ATTRIBUTIONS row.
+  Each hole was proven to fail by mutation.
+- Verified: 4113 tests in 248 files, exit 0; `npm run build`, exit 0. Only docs and a test changed. Opus final review returned "with fixes"; its fix wave was re-reviewed.
+
+## Earlier 2026-11-21 (4.1b)
+
 **2026-11-21 (later): roadmap 4.1b, 2x sprite sheets for the 2x canvas. PR into `visual/integration` (`visual/4.1b-2x-sprite-rebake`), stacked on 4.1a (#133). Merge #133 first; this PR's diff shrinks to its own commits after that.**
 - **Why two sheet sets:** measured before building. Phaser 3.90 runs WebGL1, which mipmaps only power-of-two textures, so a 128px sheet sampled down to about 33px at k = 1 speckles (simulated GPU bilinear on the real skitter). So the 1x sheets stay for k = 1 (byte-identical) and a `@2x` set loads only at k = 2.
 - **What shipped:**
@@ -263,7 +287,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
-- **2026-11-21:** 4.1b PR open into `visual/integration` (`visual/4.1b-2x-sprite-rebake`), stacked on 4.1a #133 — merge #133 first.
+- **2026-11-21:** #133 (4.1a) and #134 (4.1b) merged. 4.6 licence ledger PR open into `visual/integration` (`docs/4.6-licence-ledger`).
 - **2026-11-21:** #132 (bug bundle #68/#64/#57) merged. Roadmap 4.1a PR open into `visual/integration` (`visual/4.1-2x-rebake`); 4.1b (2x re-bake) next.
 - **2026-11-20:** #131 (#59) merged. Bug bundle #68/#64/#57 PR merged as #132.
 - **2026-11-20:** #130 (#37) merged. #59 PR open into `visual/integration` (`fix/59-merged-wave-story-beats`).
@@ -530,6 +554,8 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 78. `[auto]` **Stale story-banner dismiss after a mid-sequence send** _(#59 final review, unreachable today)_. `StoryManager.hideBanner()` never clears `_onDismiss`, so after a wave is sent while banner 1 of 2 is up, a later click on the hidden `#story-dismiss` would show banner 2 without holding the countdown, and a later send wouldn't hide it. It's unreachable while each map has at most 2 panels and the button can't be clicked or focused while hidden. Fix: clear the callback when `_startWave` hides a held banner (needs a small `StoryManager` API, e.g. `hideBanner({ clear: true })`).
 79. `[auto]` **Capture harness renders in SwiftShader, so k = 2 slows the phone gates** _(raised 2026-11-21 by 4.1a)_. Headless Chromium uses software GL, so 2x canvases cost 2-3x per frame (iphone p95 50 to 100 ms) and timing-sensitive `--screens` steps miss more often. On Metal (`--use-angle=metal --enable-gpu --ignore-gpu-blocklist`) both k hold 60 fps. Options: launch the harness on the GPU on macOS, or pin `?res=1` for timing-only steps. A one-off GPU run was tainted by host network changes, so it is unproven.
 80. `[auto]` ✅ **DONE 2026-11-21 (visual/4.1b-2x-sprite-rebake)** ~~**Roadmap 4.1b: 2x sprite re-bake**~~ — shipped as a second `@2x` set loaded only at k = 2 (see Current Status). _(split from 4.1 on 2026-11-21)_. Rebuild every sheet at 2x cells from the 1024px references in `.claude/worktrees/tower-art-42/.art-cache/sprites` (copy them; the primary cache is stale), halve `sprites.js` scales, re-measure `ground`, keep `enemy_drone` (NOT_REPRODUCIBLE) as is. Size it from 4.1a: at k = 2 a typical sprite needs ~62 device px and today's 64px sheets give ~52.
+81. `[auto]` **Ship third-party notices in the build** _(raised 2026-11-21 by 4.6)_. The build bundles Phaser (MIT), eventemitter3 (MIT), vendored Earcut (ISC), Vite's modulepreload polyfill (MIT) and the Orbitron/Rajdhani fonts (OFL-1.1), but ships none of their licence texts. Generate a notices file from the production bundle (e.g. a rollup licence plugin) and include the OFL texts from `node_modules/@fontsource/*/LICENSE`. Needed before any commercial release; see `docs/licenses.md`.
+82. `[review]` **Title / trademark clearance for "Last Light"** _(raised 2026-11-21 by the 4.6 review)_. It overlaps the video-game trademark *Metro: Last Light*. This is the user's call: run a trademark search before a commercial release or store page.
 
 ## Completed
 <!-- Tags below are retrospective/illustrative — runner skips done items regardless. -->
