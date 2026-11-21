@@ -34,5 +34,21 @@
     "additionalDirectories": [
       "/Users/keithtimko/.config/superpowers/worktrees/tower-defense/feature/phase-2-core-engine/src"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/related-tests.sh\"",
+            "asyncRewake": true,
+            "timeout": 300,
+            "statusMessage": "Running related tests"
+          }
+        ]
+      }
+    ]
   }
 }
