@@ -2,7 +2,7 @@
 vi.mock('phaser', () => ({
   default: { Scene: class { constructor(key) { this._key = key; } }, GameObjects: { Container: class {} } },
 }));
-vi.mock('../systems/RoadRenderer.js', () => ({ bakeRoad: vi.fn((s, o) => o.key) }));
+vi.mock('../systems/RoadRenderer.js', () => ({ bakeRoad: vi.fn((s, o) => o.key), evictOtherRoads: vi.fn() }));
 vi.mock('../systems/PathEndpoints.js', () => ({
   PathEndpoints: vi.fn(function (scene, opts) { this.opts = opts; this.update = vi.fn(); this.destroy = vi.fn(); }),
 }));
@@ -12,7 +12,7 @@ vi.mock('../systems/BlockerPlacement.js', () => ({ computeBlockerPlacements: () 
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import GameScene from './GameScene.js';
-import { bakeRoad } from '../systems/RoadRenderer.js';
+import { bakeRoad, evictOtherRoads } from '../systems/RoadRenderer.js';
 import { PathEndpoints } from '../systems/PathEndpoints.js';
 import { renderPath } from '../systems/PathRenderer.js';
 import { ROAD_DEPTH, ROAD_RENDERER, roadRendererFor, ROAD_STYLES } from '../data/roads.js';
@@ -68,6 +68,13 @@ describe('procedural road in GameScene', () => {
     expect(ctx.add.image).toHaveBeenCalledWith(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, `road_map_${map.id}@1`);
     expect(image.setDisplaySize).toHaveBeenCalledWith(WORLD_WIDTH, WORLD_HEIGHT);
     expect(image.setDepth).toHaveBeenCalledWith(ROAD_DEPTH);
+  });
+
+  it('evicts other maps\' roads before baking the current one', () => {
+    const { ctx } = makeScene();
+    ctx._setupRoad(map);
+    expect(evictOtherRoads).toHaveBeenCalledWith(ctx.textures, `road_map_${map.id}@1`);
+    expect(evictOtherRoads.mock.invocationCallOrder[0]).toBeLessThan(bakeRoad.mock.invocationCallOrder[0]);
   });
 
   it('creates endpoints from the first/last dense path points and adds no IN/OUT labels', () => {

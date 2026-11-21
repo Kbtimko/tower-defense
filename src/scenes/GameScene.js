@@ -56,7 +56,7 @@ import { InputController } from './InputController.js';
 import { resolveTap, hasMode } from '../systems/tapResolve.js';
 import { SentryTurret } from '../entities/SentryTurret.js';
 import { renderPath } from '../systems/PathRenderer.js';
-import { bakeRoad } from '../systems/RoadRenderer.js';
+import { bakeRoad, evictOtherRoads } from '../systems/RoadRenderer.js';
 import { PathEndpoints } from '../systems/PathEndpoints.js';
 import { ROAD_DEPTH, ROAD_STYLES, roadRendererFor } from '../data/roads.js';
 import { renderPlatforms } from '../systems/PlatformRenderer.js';
@@ -2282,8 +2282,11 @@ export default class GameScene extends Phaser.Scene {
     // The key carries k: bakeRoad reuses an existing key, so a k=1 texture must
     // never be served at k=2.
     const k = getRenderScale();
+    const roadKey = `road_map_${map.id}@${k}`;
+    // Only the current map's road is ever drawn; replays still reuse it.
+    evictOtherRoads(this.textures, roadKey);
     const key = bakeRoad(this, {
-      key: `road_map_${map.id}@${k}`, resolution: k, waypoints: this.pathMgr.waypoints,
+      key: roadKey, resolution: k, waypoints: this.pathMgr.waypoints,
       styleKey: map.pathRenderStyle, seed: map.blockerSeed, width: WORLD_WIDTH, height: WORLD_HEIGHT,
     });
     this._roadImage = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, key).setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT).setDepth(ROAD_DEPTH);

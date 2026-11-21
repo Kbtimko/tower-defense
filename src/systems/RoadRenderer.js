@@ -101,6 +101,16 @@ function makeTileCanvas(seed, style) {
 }
 
 /**
+ * Drop every baked road except `keepKey`: each is a full-map canvas texture
+ * (4x the memory at k = 2) and only the current map's is ever drawn.
+ */
+export function evictOtherRoads(textures, keepKey) {
+  for (const key of textures.getTextureKeys()) {
+    if (key.startsWith('road_map_') && key !== keepKey) textures.remove(key);
+  }
+}
+
+/**
  * Bake the road for one map into a CanvasTexture under `key` (reused if it exists,
  * so replays never repaint). Returns the texture key.
  */

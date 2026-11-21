@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { paintRoad, bakeRoad } from './RoadRenderer.js';
+import { paintRoad, bakeRoad, evictOtherRoads } from './RoadRenderer.js';
 import { ROAD_STYLES, ROAD_PAINT } from '../data/roads.js';
 import { featherSteps } from './roadMath.js';
 
@@ -249,5 +249,15 @@ describe('bakeRoad', () => {
     expect(bakeRoad(scene, opts)).toBe('road_map_1');
     expect(ctx.strokes.length).toBeGreaterThan(0);
     expect(refresh).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('evictOtherRoads', () => {
+  it('removes every road texture except the kept one, and nothing else', () => {
+    const keys = ['road_map_0@2', 'road_map_3@2', 'bg_map_0'];
+    const textures = { getTextureKeys: () => [...keys], remove: vi.fn() };
+    evictOtherRoads(textures, 'road_map_3@2');
+    expect(textures.remove).toHaveBeenCalledTimes(1);
+    expect(textures.remove).toHaveBeenCalledWith('road_map_0@2');
   });
 });
