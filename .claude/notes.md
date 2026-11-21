@@ -5,6 +5,26 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 
 ## Current Status (2026-11-21)
 
+**2026-11-21 (later): roadmap 4.1b, 2x sprite sheets for the 2x canvas. PR into `visual/integration` (`visual/4.1b-2x-sprite-rebake`), stacked on 4.1a (#133). Merge #133 first; this PR's diff shrinks to its own commits after that.**
+- **Why two sheet sets:** measured before building. Phaser 3.90 runs WebGL1, which mipmaps only power-of-two textures, so a 128px sheet sampled down to about 33px at k = 1 speckles (simulated GPU bilinear on the real skitter). So the 1x sheets stay for k = 1 (byte-identical) and a `@2x` set loads only at k = 2.
+- **What shipped:**
+  - 81 `<name>@2x.png` sheets in `assets-src/sprites` and `public/assets/sprites` (+4.33 MB shipped). They were rebuilt from the 4.2 references, which reproduce all 81 1x sheets byte-identical. The drone stays 1x (`NOT_REPRODUCIBLE`).
+  - The generated `src/data/sprite2x.js`.
+  - `build-sprite-sheets.py` / `normalize.py` `--scale 2`. The ground gate tolerance is width ≤ 1.5 (the outline) and footY ≤ max(0.75, 1x scale) (1x source-pixel quantisation).
+  - The pure resolver `src/systems/spriteResolution.js` plus `spriteManifest()` / `getSpriteConfig`, which resolve at call time, all-or-nothing per entity (base plus every variant).
+  - The asset check requires each `@2x` at exactly 2x. `art:apply` rebuilds the 2x sheet after each pick and restores `sprite2x.js` on failure.
+- **Verified:**
+  - 4110 tests in 247 files, exit 0. `assets --strict`, the Python art tests (52) and `npm run build`, exit 0.
+  - Opus final review; its fix wave was re-reviewed. The re-measured 2x ground vs the manifest is at most footY 0.58 / width 1.41, with no misalignment.
+  - Live (capture build, Metal GPU, dpr 2):
+    - At `?res=2`: 81 `@2x` requests and 0 4xx. Textures: archer T4A 192, skitter 128, soldier plus its T3 recolour 96, drone 64 (1x). Every sprite is art, not Graphics.
+    - At `?res=1`: 0 `@2x` requests and 1x textures. Frames match 4.1a within noise (0.67% of pixels differ by more than 2 levels).
+    - `?res=2` crops are visibly crisper than 4.1a (mage spire, sniper barrel) at the same size and position.
+    - Flow matrix: desktop 17/17, desktop1440x2 17/17, iphone/pixel/ipad 18/18.
+  - Decoded sprite memory at k = 2 is about 28 MB (4x of 7.2 MB).
+
+## Earlier 2026-11-21
+
 **2026-11-21: roadmap 4.1a, the canvas renders at screen resolution. PR into `visual/integration` (`visual/4.1-2x-rebake`).**
 - **Why 4.1 split:** measured first. The game drew into a fixed 1488x720 canvas (1632x720 on phones) that the browser stretched about 1.6-1.9x on retina screens, so a 2x sprite re-bake alone would not have shown. User: do both, as two PRs, canvas first. **4.1b (the 2x re-bake) is next.** It needs no generation: all 42 1024px references (incl. the 24 tier looks) are in `.claude/worktrees/tower-art-42/.art-cache/sprites`; the primary checkout's cache is stale.
 - **What shipped:**
@@ -243,6 +263,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
+- **2026-11-21:** 4.1b PR open into `visual/integration` (`visual/4.1b-2x-sprite-rebake`), stacked on 4.1a #133 — merge #133 first.
 - **2026-11-21:** #132 (bug bundle #68/#64/#57) merged. Roadmap 4.1a PR open into `visual/integration` (`visual/4.1-2x-rebake`); 4.1b (2x re-bake) next.
 - **2026-11-20:** #131 (#59) merged. Bug bundle #68/#64/#57 PR merged as #132.
 - **2026-11-20:** #130 (#37) merged. #59 PR open into `visual/integration` (`fix/59-merged-wave-story-beats`).
@@ -508,7 +529,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 77. `[auto]` ✅ **DONE 2026-11-19 (balance/76-77-t4-pricing)** ~~The sim's purchase heuristic doesn't price tier-4 abilities~~. Prices `shots` and Shatter's self-slowed 2x (upper bound), with splash/chain/cluster unpriced. Inert today: no default run reaches tier 4.
 78. `[auto]` **Stale story-banner dismiss after a mid-sequence send** _(#59 final review, unreachable today)_. `StoryManager.hideBanner()` never clears `_onDismiss`, so after a wave is sent while banner 1 of 2 is up, a later click on the hidden `#story-dismiss` would show banner 2 without holding the countdown, and a later send wouldn't hide it. It's unreachable while each map has at most 2 panels and the button can't be clicked or focused while hidden. Fix: clear the callback when `_startWave` hides a held banner (needs a small `StoryManager` API, e.g. `hideBanner({ clear: true })`).
 79. `[auto]` **Capture harness renders in SwiftShader, so k = 2 slows the phone gates** _(raised 2026-11-21 by 4.1a)_. Headless Chromium uses software GL, so 2x canvases cost 2-3x per frame (iphone p95 50 to 100 ms) and timing-sensitive `--screens` steps miss more often. On Metal (`--use-angle=metal --enable-gpu --ignore-gpu-blocklist`) both k hold 60 fps. Options: launch the harness on the GPU on macOS, or pin `?res=1` for timing-only steps. A one-off GPU run was tainted by host network changes, so it is unproven.
-80. `[auto]` **Roadmap 4.1b: 2x sprite re-bake** _(split from 4.1 on 2026-11-21)_. Rebuild every sheet at 2x cells from the 1024px references in `.claude/worktrees/tower-art-42/.art-cache/sprites` (copy them; the primary cache is stale), halve `sprites.js` scales, re-measure `ground`, keep `enemy_drone` (NOT_REPRODUCIBLE) as is. Size it from 4.1a: at k = 2 a typical sprite needs ~62 device px and today's 64px sheets give ~52.
+80. `[auto]` ✅ **DONE 2026-11-21 (visual/4.1b-2x-sprite-rebake)** ~~**Roadmap 4.1b: 2x sprite re-bake**~~ — shipped as a second `@2x` set loaded only at k = 2 (see Current Status). _(split from 4.1 on 2026-11-21)_. Rebuild every sheet at 2x cells from the 1024px references in `.claude/worktrees/tower-art-42/.art-cache/sprites` (copy them; the primary cache is stale), halve `sprites.js` scales, re-measure `ground`, keep `enemy_drone` (NOT_REPRODUCIBLE) as is. Size it from 4.1a: at k = 2 a typical sprite needs ~62 device px and today's 64px sheets give ~52.
 
 ## Completed
 <!-- Tags below are retrospective/illustrative — runner skips done items regardless. -->
