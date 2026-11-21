@@ -3,6 +3,7 @@ import { SOLDIER_RECOLOR } from '../data/tierLooks.js';
 import { SPRITE_MANIFEST } from '../data/sprites.js';
 import { spriteTextureKey, variantTextureKey } from './spriteKeys.js';
 import { filterStages, applyColorStages } from './colorMatrix.js';
+import { setRenderScale } from './renderScale.js';
 
 const SOLDIER = SPRITE_MANIFEST.find(e => e.category === 'soldier' && e.type === 'default');
 const VARIANTS = Object.keys(SOLDIER_RECOLOR);
@@ -135,5 +136,22 @@ describe('generateSoldierTierTextures', () => {
     const { scene } = makeScene();
     expect(generateSoldierTierTextures(scene, [])).toEqual({ added: [], failed: [] });
     expect(scene.textures.createCanvas).not.toHaveBeenCalled();
+  });
+});
+
+describe('generateSoldierTierTextures at render scale 2', () => {
+  afterEach(() => setRenderScale(1));
+
+  it('soldier tier textures use the resolved frame size', () => {
+    setRenderScale(2);
+    const { scene } = makeScene();
+    generateSoldierTierTextures(scene, [base('idle')]);
+
+    const sizes = scene.textures.addSpriteSheet.mock.calls.map(c => [c[2].frameWidth, c[2].frameHeight]);
+    expect(sizes.length).toBeGreaterThan(0);
+    for (const [w, h] of sizes) {
+      expect(w).toBe(SOLDIER.states.idle.frameWidth * 2);
+      expect(h).toBe(SOLDIER.states.idle.frameHeight * 2);
+    }
   });
 });

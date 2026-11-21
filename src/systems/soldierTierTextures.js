@@ -2,7 +2,7 @@
 // once at boot and register them under tier keys. A pixel colour matrix, never
 // Phaser tint or postFX: tint can only darken, and per-sprite FX cost every frame.
 // Touches only the scene it is handed; no Phaser import.
-import { SPRITE_MANIFEST } from '../data/sprites.js';
+import { spriteManifest } from '../data/sprites.js';
 import { SOLDIER_RECOLOR } from '../data/tierLooks.js';
 import { spriteTextureKey, variantTextureKey } from './spriteKeys.js';
 import { filterStages, applyColorStages } from './colorMatrix.js';
@@ -11,7 +11,7 @@ const SOLDIER = { category: 'soldier', type: 'default' };
 
 export function generateSoldierTierTextures(scene, registeredKeys) {
   const textures = scene.textures;
-  const entry = SPRITE_MANIFEST.find(e => e.category === SOLDIER.category && e.type === SOLDIER.type);
+  const entry = spriteManifest().find(e => e.category === SOLDIER.category && e.type === SOLDIER.type);
   const added = [];
   const failed = [];
   if (!entry) return { added, failed };

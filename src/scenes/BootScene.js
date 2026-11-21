@@ -3,7 +3,7 @@ import { SaveManager } from '../systems/SaveManager.js';
 import { getOrCreateAudioManager } from '../systems/AudioManager.js';
 import { MAPS } from '../data/maps.js';
 import { resolveAmbientMotion } from '../systems/AmbientBackgroundLayer.js';
-import { SPRITE_MANIFEST } from '../data/sprites.js';
+import { spriteManifest } from '../data/sprites.js';
 import { spriteTextureKey, variantTextureKey } from '../systems/spriteKeys.js';
 import { STORY_SPEAKERS } from '../data/story.js';
 import { portraitPath, registerPortraits } from '../systems/portraitFallback.js';
@@ -85,7 +85,7 @@ export default class BootScene extends Phaser.Scene {
         this.load.image(key, def.path);
       }
     };
-    for (const entry of SPRITE_MANIFEST) {
+    for (const entry of spriteManifest()) {
       for (const [state, def] of Object.entries(entry.states ?? {})) {
         loadState(spriteTextureKey(entry.category, entry.type, state), def);
       }
@@ -105,7 +105,7 @@ export default class BootScene extends Phaser.Scene {
     // tell "registered" from "fall back". Textures are guaranteed present by
     // the time create() runs.
     const registeredSpriteKeys = [];
-    for (const entry of SPRITE_MANIFEST) {
+    for (const entry of spriteManifest()) {
       for (const state of Object.keys(entry.states ?? {})) {
         const key = spriteTextureKey(entry.category, entry.type, state);
         if (this.textures.exists(key)) registeredSpriteKeys.push(key);
