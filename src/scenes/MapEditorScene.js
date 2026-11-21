@@ -5,6 +5,9 @@ import { renderPath } from '../systems/PathRenderer.js';
 import { renderPlatforms } from '../systems/PlatformRenderer.js';
 import { serializeMapArrays, slotInPathCorridor } from '../systems/mapEditorUtils.js';
 import { WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH } from '../data/layout.js';
+import { applyWorldCamera } from '../systems/worldCamera.js';
+import { getRenderScale } from '../systems/renderScale.js';
+import { addText } from '../ui/hiDpiText.js';
 
 /**
  * Dev-only overlay editor. Activated by BootScene when the URL has
@@ -28,7 +31,7 @@ export default class MapEditorScene extends Phaser.Scene {
     this.W = WORLD_WIDTH; this.H = WORLD_HEIGHT;
     const map = MAPS[this.mapId];
 
-    this.cameras.main.setViewport(RAIL_WIDTH, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    applyWorldCamera(this.cameras.main, { x: RAIL_WIDTH, y: 0, width: WORLD_WIDTH, height: WORLD_HEIGHT }, getRenderScale());
     this.cameras.main.setBackgroundColor(map.background);
     const bgKey = `bg_map_${map.id}`;
     if (this.textures.exists(bgKey)) {
@@ -38,7 +41,7 @@ export default class MapEditorScene extends Phaser.Scene {
     this.layer = this.add.graphics().setDepth(10);   // curve + platforms + corridor
     this.handles = this.add.graphics().setDepth(20); // waypoint/slot handles
     this.labelLayer = this.add.container(0, 0).setDepth(21);
-    this.hud = this.add.text(8, 8, '', {
+    this.hud = addText(this, 8, 8, '', {
       fontSize: '13px', color: '#fff', fontFamily: 'monospace',
       backgroundColor: '#000a', padding: { x: 6, y: 4 },
     }).setDepth(30);
@@ -127,7 +130,7 @@ export default class MapEditorScene extends Phaser.Scene {
   }
 
   _label(x, y, text, color) {
-    this.labelLayer.add(this.add.text(x, y, text, {
+    this.labelLayer.add(addText(this, x, y, text, {
       fontSize: '11px', color, fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5));
   }

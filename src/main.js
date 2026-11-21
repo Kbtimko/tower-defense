@@ -6,24 +6,47 @@ import GameScene from './scenes/GameScene.js';
 import UIScene from './scenes/UIScene.js';
 import MapEditorScene from './scenes/MapEditorScene.js';
 import { resumeAudio } from './systems/shellLifecycle.js';
-import { CANVAS_WIDTH, WORLD_HEIGHT } from './data/layout.js';
+import { CANVAS_WIDTH, WORLD_HEIGHT, POINTER_FINE } from './data/layout.js';
+import { parseRenderScaleOverride, renderScaleFor, setRenderScale, viewportCssSize } from './systems/renderScale.js';
+import { pipelineConfig } from './systems/rendererConfig.js';
 import { applyHudLayerSize, fitHudLayer } from './ui/hudLayer.js';
 import { applyTheme, loadThemeFonts } from './ui/theme.js';
 import { watchRailLabels } from './ui/fitLabels.js';
 import { coalesceFrame } from './utils/coalesceFrame.js';
+
+// Picked once: a mid-session change would need every camera and text resolution
+// rebuilt. The ?res= override is a dev/capture aid, not a player setting.
+function pickRenderScale() {
+  const override =
+    import.meta.env.DEV || import.meta.env.MODE === 'capture'
+      ? parseRenderScaleOverride(window.location.search)
+      : null;
+  if (override) return override;
+  return renderScaleFor({
+    ...viewportCssSize(document.getElementById('game').getBoundingClientRect(), window, {
+      useScreen: !POINTER_FINE,
+    }),
+    dpr: window.devicePixelRatio,
+    // Phones boot upright behind the rotate prompt but play landscape.
+    landscape: !POINTER_FINE,
+  });
+}
+const renderScale = pickRenderScale();
+setRenderScale(renderScale);
 
 // The canvas is the map world plus a HUD rail each side; GameScene's camera
 // viewport keeps the map itself 1:1 in world coordinates.
 const config = {
   type: Phaser.AUTO,
   parent: 'game',
-  width: CANVAS_WIDTH,
-  height: WORLD_HEIGHT,
+  width: CANVAS_WIDTH * renderScale,
+  height: WORLD_HEIGHT * renderScale,
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
   backgroundColor: '#1a1a2e',
+  pipeline: pipelineConfig({ canvasWidth: CANVAS_WIDTH * renderScale, canvasHeight: WORLD_HEIGHT * renderScale }),
   scene: [BootScene, TitleScene, MapSelectScene, GameScene, UIScene, MapEditorScene],
 };
 

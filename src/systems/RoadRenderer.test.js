@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { paintRoad, bakeRoad } from './RoadRenderer.js';
+import { paintRoad, bakeRoad, evictOtherRoads } from './RoadRenderer.js';
 import { ROAD_STYLES, ROAD_PAINT } from '../data/roads.js';
 import { featherSteps } from './roadMath.js';
 
@@ -19,7 +19,8 @@ function makeCtx() {
     beginPath() {}, moveTo() {}, lineTo() {},
     setLineDash(d) { state.dash = [...d]; },
     createPattern(src, rep) { return { pattern: src, rep }; },
-    stroke() { strokes.push({ ...state, dash: [...state.dash] }); },
+    stroke() { calls.push('stroke'); strokes.push({ ...state, dash: [...state.dash] }); },
+    scale: vi.fn(() => calls.push('scale')),
   };
   for (const k of ['strokeStyle', 'lineWidth', 'globalAlpha', 'lineJoin', 'lineCap']) {
     Object.defineProperty(ctx, k, { get: () => state[k], set: (v) => { state[k] = v; } });
@@ -210,6 +211,24 @@ describe('bakeRoad', () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
+  it('texture size follows resolution and the paint is scaled before the first stroke', () => {
+    stubTileCanvas();
+    const hi = makeScene();
+    bakeRoad(hi.scene, { ...opts, resolution: 2 });
+    expect(hi.createCanvas).toHaveBeenCalledWith('road_map_1', 2560, 1440);
+    expect(hi.ctx.scale).toHaveBeenCalledWith(2, 2);
+    expect(hi.ctx.calls.indexOf('scale')).toBeGreaterThanOrEqual(0);
+    expect(hi.ctx.calls.indexOf('scale')).toBeLessThan(hi.ctx.calls.indexOf('stroke'));
+  });
+
+  it('resolution 1 (default) creates the world-size canvas and never calls ctx.scale', () => {
+    stubTileCanvas();
+    const lo = makeScene();
+    bakeRoad(lo.scene, opts);
+    expect(lo.createCanvas).toHaveBeenCalledWith('road_map_1', 1280, 720);
+    expect(lo.ctx.scale).not.toHaveBeenCalled();
+  });
+
   it('is deterministic: same seed + style yields identical tile pixels', () => {
     const { putImageData } = stubTileCanvas();
     bakeRoad(makeScene().scene, opts);
@@ -230,5 +249,15 @@ describe('bakeRoad', () => {
     expect(bakeRoad(scene, opts)).toBe('road_map_1');
     expect(ctx.strokes.length).toBeGreaterThan(0);
     expect(refresh).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('evictOtherRoads', () => {
+  it('removes every road texture except the kept one, and nothing else', () => {
+    const keys = ['road_map_0@2', 'road_map_3@2', 'bg_map_0'];
+    const textures = { getTextureKeys: () => [...keys], remove: vi.fn() };
+    evictOtherRoads(textures, 'road_map_3@2');
+    expect(textures.remove).toHaveBeenCalledTimes(1);
+    expect(textures.remove).toHaveBeenCalledWith('road_map_0@2');
   });
 });

@@ -10,6 +10,7 @@ import { FONTS } from '../data/theme.js';
 import { hexToInt } from '../ui/theme.js';
 import { corePulse, emberPose } from './tierLookMath.js';
 import { tierVariant } from './spriteKeys.js';
+import { addText } from '../ui/hiDpiText.js';
 
 const BLEND_ADD = 1; // Phaser.BlendModes.ADD
 // Not taken from expectedTowerLook: the capture compares snapshot() against it,
@@ -112,7 +113,7 @@ export class TowerTierLook {
       g.fillRoundedRect(-w / 2, y - h / 2, w, h, badge.cornerPx);
       g.strokeRoundedRect(-w / 2, y - h / 2, w, h, badge.cornerPx);
       if (!this._badgeText) {
-        this._badgeText = this.scene.add.text(0, y, pips, {
+        this._badgeText = addText(this.scene, 0, y, pips, {
           fontFamily: FONTS.body, fontStyle: 'bold',
           fontSize: `${badge.fontPx}px`, color: badge.ink,
         }).setOrigin(0.5);

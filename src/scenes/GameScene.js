@@ -31,6 +31,9 @@ import { placeLeftOf, placeBeside } from '../systems/viewport.js';
 import { attachHint } from '../ui/HintPeek.js';
 import { HINTS } from '../data/hints.js';
 import { WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH } from '../data/layout.js';
+import { applyWorldCamera } from '../systems/worldCamera.js';
+import { getRenderScale } from '../systems/renderScale.js';
+import { addText } from '../ui/hiDpiText.js';
 import {
   PANEL_EDGE_MARGIN, TAP_TOWER_RADIUS, TAP_SLOT_RADIUS, TAP_PATH_RADIUS, REPOSITION_SNAP_RADIUS, PEEK_GAP_PX,
 } from '../data/input.js';
@@ -53,7 +56,7 @@ import { InputController } from './InputController.js';
 import { resolveTap, hasMode } from '../systems/tapResolve.js';
 import { SentryTurret } from '../entities/SentryTurret.js';
 import { renderPath } from '../systems/PathRenderer.js';
-import { bakeRoad } from '../systems/RoadRenderer.js';
+import { bakeRoad, evictOtherRoads } from '../systems/RoadRenderer.js';
 import { PathEndpoints } from '../systems/PathEndpoints.js';
 import { ROAD_DEPTH, ROAD_STYLES, roadRendererFor } from '../data/roads.js';
 import { renderPlatforms } from '../systems/PlatformRenderer.js';
@@ -162,6 +165,8 @@ function applyDebugCapture(scene) {
   if (errors.length) console.warn('[capture] ignored:', errors.join('; '));
   window.__capture = {
     simMs: 0, enemies: 0, errors,
+    // Lets the harness assert the backing store (canvas = world * k).
+    renderScale: getRenderScale(),
     // Game-time ms left on the countdown (null when none runs): unlike simMs it
     // stops during hit-stop, so auto-send waits key on it.
     countdownMs: null,
@@ -324,7 +329,7 @@ export default class GameScene extends Phaser.Scene {
     // The map renders between the HUD rails; scroll stays 0, so world coords are
     // unchanged and only the viewport moves. The background colour (solid
     // fallback if the bitmap PNG isn't present) fills that viewport only.
-    this.cameras.main.setViewport(RAIL_WIDTH, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    applyWorldCamera(this.cameras.main, { x: RAIL_WIDTH, y: 0, width: WORLD_WIDTH, height: WORLD_HEIGHT }, getRenderScale());
     this.cameras.main.setBackgroundColor(map.background);
 
     // Bitmap backdrop (depth 0) — Phaser logs 404 if PNG missing; game still runs.
@@ -2270,15 +2275,21 @@ export default class GameScene extends Phaser.Scene {
   _setupRoad(map) {
     const p = this.pathMgr.path;
     if (roadRendererFor(map) === 'legacy') {
-      this.add.text(p[0].x, p[0].y, 'IN',  { fontSize: '10px', color: '#fff', fontFamily: FONTS.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
-      this.add.text(p[p.length-1].x, p[p.length-1].y, 'OUT', { fontSize: '10px', color: '#fff', fontFamily: FONTS.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
+      addText(this, p[0].x, p[0].y, 'IN',  { fontSize: '10px', color: '#fff', fontFamily: FONTS.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
+      addText(this, p[p.length-1].x, p[p.length-1].y, 'OUT', { fontSize: '10px', color: '#fff', fontFamily: FONTS.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
       return;
     }
+    // The key carries k: bakeRoad reuses an existing key, so a k=1 texture must
+    // never be served at k=2.
+    const k = getRenderScale();
+    const roadKey = `road_map_${map.id}@${k}`;
+    // Only the current map's road is ever drawn; replays still reuse it.
+    evictOtherRoads(this.textures, roadKey);
     const key = bakeRoad(this, {
-      key: `road_map_${map.id}`, waypoints: this.pathMgr.waypoints,
+      key: roadKey, resolution: k, waypoints: this.pathMgr.waypoints,
       styleKey: map.pathRenderStyle, seed: map.blockerSeed, width: WORLD_WIDTH, height: WORLD_HEIGHT,
     });
-    this._roadImage = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, key).setDepth(ROAD_DEPTH);
+    this._roadImage = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, key).setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT).setDepth(ROAD_DEPTH);
     this._endpoints = new PathEndpoints(this, {
       start: p[0], end: p[p.length - 1], family: ROAD_STYLES[map.pathRenderStyle].family,
     });

@@ -16,6 +16,7 @@ const phone = (width, height) => ({
 export const DEVICES = {
   desktop: { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 },
   desktop1440: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 },
+  desktop1440x2: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 },
   desktop1080: { viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 },
   phone844: phone(844, 390),
   phone932: phone(932, 430),

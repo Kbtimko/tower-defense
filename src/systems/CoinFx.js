@@ -3,6 +3,7 @@ import { arcPoint } from './juiceMath.js';
 import { pageToWorld } from './viewport.js';
 import { WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH } from '../data/layout.js';
 import { pulseClass } from '../ui/pulse.js';
+import { addText } from '../ui/hiDpiText.js';
 
 const PULSE_CLASS = 'gold-gain-pulse';
 
@@ -29,7 +30,7 @@ export class CoinFx {
     }
     this._texts = [];
     for (let i = 0; i < GOLD_POP.maxLive; i++) {
-      const txt = scene.add.text(0, 0, '', {
+      const txt = addText(scene, 0, 0, '', {
         fontFamily: GOLD_POP.fontFamily, fontSize: GOLD_POP.fontSize, color: GOLD_POP.color, stroke: GOLD_POP.stroke, strokeThickness: GOLD_POP.strokeThickness,
         fontStyle: GOLD_POP.fontStyle,
       });

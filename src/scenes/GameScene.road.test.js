@@ -2,7 +2,7 @@
 vi.mock('phaser', () => ({
   default: { Scene: class { constructor(key) { this._key = key; } }, GameObjects: { Container: class {} } },
 }));
-vi.mock('../systems/RoadRenderer.js', () => ({ bakeRoad: vi.fn((s, o) => o.key) }));
+vi.mock('../systems/RoadRenderer.js', () => ({ bakeRoad: vi.fn((s, o) => o.key), evictOtherRoads: vi.fn() }));
 vi.mock('../systems/PathEndpoints.js', () => ({
   PathEndpoints: vi.fn(function (scene, opts) { this.opts = opts; this.update = vi.fn(); this.destroy = vi.fn(); }),
 }));
@@ -12,7 +12,7 @@ vi.mock('../systems/BlockerPlacement.js', () => ({ computeBlockerPlacements: () 
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import GameScene from './GameScene.js';
-import { bakeRoad } from '../systems/RoadRenderer.js';
+import { bakeRoad, evictOtherRoads } from '../systems/RoadRenderer.js';
 import { PathEndpoints } from '../systems/PathEndpoints.js';
 import { renderPath } from '../systems/PathRenderer.js';
 import { ROAD_DEPTH, ROAD_RENDERER, roadRendererFor, ROAD_STYLES } from '../data/roads.js';
@@ -22,7 +22,7 @@ import { WORLD_WIDTH, WORLD_HEIGHT, CANVAS_WIDTH } from '../data/layout.js';
 
 const map = { ...MAPS[0], blockerSeed: 7 };
 const makeScene = (textures = new Set()) => {
-  const image = { setDepth: vi.fn().mockReturnThis(), destroy: vi.fn() };
+  const image = { setDepth: vi.fn().mockReturnThis(), setDisplaySize: vi.fn().mockReturnThis(), destroy: vi.fn() };
   const ctx = Object.create(GameScene.prototype);
   Object.assign(ctx, {
     // The canvas is wider than the world (HUD rails): world-space art must not
@@ -57,16 +57,24 @@ describe('roadRendererFor', () => {
 });
 
 describe('procedural road in GameScene', () => {
-  it('bakes under road_map_<id> and adds the image at ROAD_DEPTH', () => {
+  it('bakes under road_map_<id>@<k> and adds the image at ROAD_DEPTH', () => {
     const { ctx, image } = makeScene();
     ctx._setupRoad(map);
     expect(bakeRoad).toHaveBeenCalledTimes(1);
     expect(bakeRoad.mock.calls[0][1]).toMatchObject({
-      key: `road_map_${map.id}`, waypoints: ctx.pathMgr.waypoints,
+      key: `road_map_${map.id}@1`, resolution: 1, waypoints: ctx.pathMgr.waypoints,
       styleKey: map.pathRenderStyle, seed: map.blockerSeed, width: WORLD_WIDTH, height: WORLD_HEIGHT,
     });
-    expect(ctx.add.image).toHaveBeenCalledWith(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, `road_map_${map.id}`);
+    expect(ctx.add.image).toHaveBeenCalledWith(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, `road_map_${map.id}@1`);
+    expect(image.setDisplaySize).toHaveBeenCalledWith(WORLD_WIDTH, WORLD_HEIGHT);
     expect(image.setDepth).toHaveBeenCalledWith(ROAD_DEPTH);
+  });
+
+  it('evicts other maps\' roads before baking the current one', () => {
+    const { ctx } = makeScene();
+    ctx._setupRoad(map);
+    expect(evictOtherRoads).toHaveBeenCalledWith(ctx.textures, `road_map_${map.id}@1`);
+    expect(evictOtherRoads.mock.invocationCallOrder[0]).toBeLessThan(bakeRoad.mock.invocationCallOrder[0]);
   });
 
   it('creates endpoints from the first/last dense path points and adds no IN/OUT labels', () => {
@@ -93,7 +101,7 @@ describe('procedural road in GameScene', () => {
   });
 
   it('replay: the texture already exists, bakeRoad is still asked but a second scene run adds a fresh image', () => {
-    const { ctx } = makeScene(new Set([`road_map_${map.id}`]));
+    const { ctx } = makeScene(new Set([`road_map_${map.id}@1`]));
     ctx._setupRoad(map);
     // bakeRoad owns the exists() short-circuit; the scene must never remove the texture
     expect(bakeRoad).toHaveBeenCalledTimes(1);

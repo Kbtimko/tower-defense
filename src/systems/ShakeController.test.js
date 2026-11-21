@@ -1,5 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { ShakeController } from './ShakeController.js';
+import { setRenderScale } from './renderScale.js';
+
+afterEach(() => setRenderScale(1));
 
 function makeScene() {
   const camShake = vi.fn();
@@ -27,5 +30,13 @@ describe('ShakeController', () => {
     new ShakeController(scene);
     scene.events.emit('emp-pulse', { x: 0, y: 0, radius: 80 });
     expect(scene._shake).toHaveBeenCalledWith(200, 0.008);
+  });
+
+  it('divides intensity by k^2 at k=2 (Phaser scales the offset by width and zoom)', () => {
+    const scene = makeScene();
+    new ShakeController(scene);
+    setRenderScale(2); // set after construction: k is read at shake time
+    scene.events.emit('boss-died', { bossType: 'titan' });
+    expect(scene._shake).toHaveBeenCalledWith(600, 0.020 / 4);
   });
 });

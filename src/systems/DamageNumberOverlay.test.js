@@ -211,3 +211,20 @@ describe('absorbed hits', () => {
     expect(overlay._absorbedAt).not.toBe(before);
   });
 });
+
+describe('DamageNumberOverlay resolution', () => {
+  it('restyled numbers keep render resolution', async () => {
+    const { setRenderScale } = await import('./renderScale.js');
+    setRenderScale(2);
+    try {
+      const scene = makeScene();
+      const txt = makeText();
+      scene.add.text = vi.fn(() => txt);
+      new DamageNumberOverlay(scene);
+      scene.events.emit('damage-dealt', { target: { x: 0, y: 0 }, amount: 50 });
+      expect(txt.setStyle.mock.calls[0][0].resolution).toBe(2);
+    } finally {
+      setRenderScale(1);
+    }
+  });
+});

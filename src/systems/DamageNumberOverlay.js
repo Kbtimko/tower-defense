@@ -1,4 +1,5 @@
 import { FONTS } from '../data/theme.js';
+import { addText, hiDpiStyle } from '../ui/hiDpiText.js';
 
 const POOL_SIZE = 24;
 const THRESHOLD = 30;
@@ -50,7 +51,7 @@ export class DamageNumberOverlay {
     if (this._pool.length) {
       txt = this._pool.pop();
     } else if (this._inUse.size < POOL_SIZE) {
-      txt = this._scene.add.text(0, 0, '', STYLES.big);
+      txt = addText(this._scene, 0, 0, '', STYLES.big);
       txt.setOrigin(0.5, 0.5);
       txt.setDepth(100);
     } else {
@@ -67,7 +68,7 @@ export class DamageNumberOverlay {
     const label = absorbed ? `🛡${amount}`
                 : (abilityLabel ? `${abilityLabel} ${amount}` : String(amount));
     txt.setText(label);
-    txt.setStyle(style);
+    txt.setStyle(hiDpiStyle(style));
     txt.setStroke(style.stroke, style.strokeThickness);
     txt.setShadow(0, 0, '#000000', 4, false, true);
     const jitterX = (Math.random() - 0.5) * 16;

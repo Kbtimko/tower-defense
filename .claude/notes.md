@@ -3,7 +3,24 @@
 ## Goal
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
-## Current Status (2026-11-20)
+## Current Status (2026-11-21)
+
+**2026-11-21: roadmap 4.1a, the canvas renders at screen resolution. PR into `visual/integration` (`visual/4.1-2x-rebake`).**
+- **Why 4.1 split:** measured first. The game drew into a fixed 1488x720 canvas (1632x720 on phones) that the browser stretched about 1.6-1.9x on retina screens, so a 2x sprite re-bake alone would not have shown. User: do both, as two PRs, canvas first. **4.1b (the 2x re-bake) is next.** It needs no generation: all 42 1024px references (incl. the 24 tier looks) are in `.claude/worktrees/tower-art-42/.art-cache/sprites`; the primary checkout's cache is stale.
+- **What shipped:**
+  - Render scale k (1 or 2) is picked once at boot by the pure `renderScaleFor` (`src/systems/renderScale.js`, tunables `RENDER_SCALE = { threshold: 1.25, max: 2, minDpr: 1.5 }`). k = 2 needs dpr >= 1.5 and >= 1.25x the canvas width in device px. Phones size k from the landscape-normalised `screen`, because a portrait boot loses height to browser bars. `?res=1|2` overrides it in dev/capture builds.
+  - The Phaser game is k times larger. World cameras use `applyWorldCamera` (viewport x k, zoom k, `centerOn`), `viewport.js` maps DOM to world with k, text goes through `addText`/`hiDpiStyle` (resolution k, source-scan guard), the road bakes at k and evicts other maps' roads, and shake intensity is divided by k^2 (Phaser applies its offset after the zoom).
+  - **Phaser PreFX pool:** Phaser pre-allocated 69 render targets (~57 MB of GPU memory) at boot, about 420 MB at k = 2. A non-enumerable `pipeline.frameInc` (`src/systems/rendererConfig.js`) now leaves only the 3 full-size targets the backdrop grade already used. Measured: 12 MB at k = 1, 49-54 MB at k = 2.
+- **Verified:**
+  - 4091 tests in 246 files, exit 0. `npm run build`, exit 0. Final review on Opus, its fix wave re-reviewed.
+  - Live (capture build): `desktop1440x2`/iphone/pixel/ipad back the canvas at 2976/3264 x 1440 with k = 2; DPR-1 desktops (incl. 1080p) stay 1488x720; an iphone booted portrait then rotated gets k = 2. 0 page errors.
+  - k = 1 vs base `70fd45e`: 0.97% of pixels differ by > 2 levels, under the 2.60% head-vs-head ambient noise.
+  - `?res=2` crops are visibly sharper (pad rims, road dashes, outlines, pips, backdrop grain) with identical layout.
+  - Flow matrix with real input: desktop 17/17, desktop1440x2 17/17, iphone/pixel/ipad 18/18.
+  - Frame time on the real GPU (Metal, M4): p95 16.8 ms at both k on iphone and desktop1440x2.
+- **Not clean, recorded honestly:** `--screens` on iphone failed at base AND head on this host (load 3-7, the network changed and the Mac slept mid-run). Head's misses are the same timing class but more of them, because the harness renders in SwiftShader where k = 2 frames are 2-3x slower (backlog #79).
+
+## Previous Status (2026-11-20)
 
 **2026-11-20 (later): bug bundle — backlog #68, #64, #57. PR into `visual/integration` (`fix/68-64-57-bug-bundle`).**
 - **#68:** a barracks moved with Move kept the depth of its OLD pad (`Tower` sets `unitDepth(y)` only in its constructor). `_repositionTo` now re-sorts it with `setDepth(unitDepth(slot.y))`.
@@ -211,7 +228,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 **The most valuable next thing is a human playtest (#30).** Every difficulty number in this project is simulated, against a model that is pessimistic by construction. #78 just shipped a balance change to production on that basis.
 
 ## NEEDS HUMAN (visual roadmap gates)
-- **G3 — phone + desktop playtest of Phase 1** (PRs #96-#99 merged 2026-10-22): play the `visual/integration` preview; list what feels wrong in `docs/visual-baseline.md`. **Phone half PASSED 2026-10-22** (user, real phone, after #100). **Desktop half still to do.** After the 2.1 PR merges, also try on the phone: long-press an enemy / tower button / ability / Send Wave (incl. while a wave runs or an ability is on cooldown), two-tap Upgrade and Sell (the panel scrolls on phones), ✕ Cancel. Also judge whether the new FX read at 1x scale.
+- **G3 — phone + desktop playtest of Phase 1** (PRs #96-#99 merged 2026-10-22): play the `visual/integration` preview; list what feels wrong in `docs/visual-baseline.md`. **Phone half PASSED 2026-10-22** (user, real phone, after #100). **Desktop half still to do.** After the 2.1 PR merges, also try on the phone: long-press an enemy / tower button / ability / Send Wave (incl. while a wave runs or an ability is on cooldown), two-tap Upgrade and Sell (the panel scrolls on phones), ✕ Cancel. Also judge whether the new FX read at 1x scale. **Added 2026-11-21 (4.1a):** on a real phone, check the game feels as smooth as before (it now renders at 2x; headless emulation can only measure software GL) and that nothing reloads or goes black after a few maps (GPU memory). If it stutters, set `RENDER_SCALE.max = 1` in `src/data/renderScale.js`.
 - ~~G1 — art bible~~ **approved 2026-10-21**: adopt Appendix A sizes; brute emissive -> bronze `#9a7b4f`; plain navy outlines for all; shadow 50% as shipped. FLUX anchor replacement was NOT in the 4.0 spec — do it first in 4.2 (PROMPTS.md shared style anchor), before any real batch.
 - ~~Enemy name~~ **resolved 2026-10-21: "Veth"** everywhere (story text, speaker key `veth`, `portrait-veth.png`).
 - ~~Draw Things API server off~~ **on 2026-11-16**: HTTP on port 7860, FLUX.1 [schnell] loaded; img2img works. Quit Chrome before generating (swap was 15.2/16 GB with it open).
@@ -226,7 +243,8 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
-- **2026-11-20:** #131 (#59) merged. Bug bundle #68/#64/#57 PR open into `visual/integration` (`fix/68-64-57-bug-bundle`).
+- **2026-11-21:** #132 (bug bundle #68/#64/#57) merged. Roadmap 4.1a PR open into `visual/integration` (`visual/4.1-2x-rebake`); 4.1b (2x re-bake) next.
+- **2026-11-20:** #131 (#59) merged. Bug bundle #68/#64/#57 PR merged as #132.
 - **2026-11-20:** #130 (#37) merged. #59 PR open into `visual/integration` (`fix/59-merged-wave-story-beats`).
 - **2026-11-19:** #129 (#76+#77) merged. #37 PR open into `visual/integration` (`balance/37-map9-funding`).
 - **2026-11-19:** #128 (#75 tier-4 abilities) merged. #76+#77 PR open into `visual/integration` (`balance/76-77-t4-pricing`).
@@ -489,6 +507,8 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 76. `[review]` ✅ **DONE 2026-11-19 (balance/76-77-t4-pricing)** ~~Rapid Cannon weaker than before #75~~. User: "Damage 140" (measured sweep). Back at or above its pre-#75 strength on maps 4–9.
 77. `[auto]` ✅ **DONE 2026-11-19 (balance/76-77-t4-pricing)** ~~The sim's purchase heuristic doesn't price tier-4 abilities~~. Prices `shots` and Shatter's self-slowed 2x (upper bound), with splash/chain/cluster unpriced. Inert today: no default run reaches tier 4.
 78. `[auto]` **Stale story-banner dismiss after a mid-sequence send** _(#59 final review, unreachable today)_. `StoryManager.hideBanner()` never clears `_onDismiss`, so after a wave is sent while banner 1 of 2 is up, a later click on the hidden `#story-dismiss` would show banner 2 without holding the countdown, and a later send wouldn't hide it. It's unreachable while each map has at most 2 panels and the button can't be clicked or focused while hidden. Fix: clear the callback when `_startWave` hides a held banner (needs a small `StoryManager` API, e.g. `hideBanner({ clear: true })`).
+79. `[auto]` **Capture harness renders in SwiftShader, so k = 2 slows the phone gates** _(raised 2026-11-21 by 4.1a)_. Headless Chromium uses software GL, so 2x canvases cost 2-3x per frame (iphone p95 50 to 100 ms) and timing-sensitive `--screens` steps miss more often. On Metal (`--use-angle=metal --enable-gpu --ignore-gpu-blocklist`) both k hold 60 fps. Options: launch the harness on the GPU on macOS, or pin `?res=1` for timing-only steps. A one-off GPU run was tainted by host network changes, so it is unproven.
+80. `[auto]` **Roadmap 4.1b: 2x sprite re-bake** _(split from 4.1 on 2026-11-21)_. Rebuild every sheet at 2x cells from the 1024px references in `.claude/worktrees/tower-art-42/.art-cache/sprites` (copy them; the primary cache is stale), halve `sprites.js` scales, re-measure `ground`, keep `enemy_drone` (NOT_REPRODUCIBLE) as is. Size it from 4.1a: at k = 2 a typical sprite needs ~62 device px and today's 64px sheets give ~52.
 
 ## Completed
 <!-- Tags below are retrospective/illustrative — runner skips done items regardless. -->

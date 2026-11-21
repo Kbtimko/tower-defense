@@ -101,18 +101,30 @@ function makeTileCanvas(seed, style) {
 }
 
 /**
+ * Drop every baked road except `keepKey`: each is a full-map canvas texture
+ * (4x the memory at k = 2) and only the current map's is ever drawn.
+ */
+export function evictOtherRoads(textures, keepKey) {
+  for (const key of textures.getTextureKeys()) {
+    if (key.startsWith('road_map_') && key !== keepKey) textures.remove(key);
+  }
+}
+
+/**
  * Bake the road for one map into a CanvasTexture under `key` (reused if it exists,
  * so replays never repaint). Returns the texture key.
  */
-export function bakeRoad(scene, { key, waypoints, styleKey, seed, width, height }) {
+export function bakeRoad(scene, { key, waypoints, styleKey, seed, width, height, resolution = 1 }) {
   if (scene.textures.exists(key)) return key;
   const style = ROAD_STYLES[styleKey];
   // Throw before createCanvas so an unknown key never leaves a blank texture registered.
   if (!style) throw new Error(`bakeRoad: unknown road style "${styleKey}"`);
-  const texture = scene.textures.createCanvas(key, width, height);
+  const texture = scene.textures.createCanvas(key, width * resolution, height * resolution);
   const ctx = texture.getContext();
   // jsdom (tests) has no canvas 2D; the texture still exists, just blank.
   if (!ctx) return key;
+  // World-unit painting on a k-times canvas; skipped at 1 so k = 1 is untouched.
+  if (resolution !== 1) ctx.scale(resolution, resolution);
   const curve = samplePath(waypoints, ROAD_CURVE_SAMPLES);
   paintRoad(ctx, { curve, style, tile: makeTileCanvas(seed, style) });
   texture.refresh();
