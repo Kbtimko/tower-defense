@@ -27,7 +27,7 @@ function makeRepo() {
     'public/assets/sprites/PROMPTS.md', 'public/assets/overworld/PROMPTS.md',
     'public/assets/portraits/PROMPTS.md', 'public/assets/backgrounds/map_0_outpost_sigma.webp',
     'scripts/art/jobs/smoke.json', 'scripts/art/facing.json',
-    'src/data/sprites.js', 'src/data/spriteVariants.js',
+    'src/data/sprites.js', 'src/data/spriteVariants.js', 'src/data/sprite2x.js',
   ]) copy(rel);
   expect(readFileSync(join(tmp, 'public/assets/sprites/PROMPTS.md'), 'utf8')).toMatch(/^- \*\*archer\.t4a\*\*/m);
   return tmp;
@@ -97,6 +97,7 @@ describe('pipeline end to end (--fake, no Python, no Draw Things)', () => {
       spritesPath: join(root, 'src/data/sprites.js'),
       variantsPath: join(root, 'src/data/spriteVariants.js'),
       facingPath: join(root, 'scripts/art/facing.json'),
+      sprite2xPath: join(root, 'src/data/sprite2x.js'),
     };
     const { run, calls } = stubRun();
     const res = await executeSteps(plan.steps, { repoRoot: root, ...paths, run });
