@@ -71,7 +71,12 @@ SPECK_FRACTION = 0.01      # components under 1 % of the frame's largest are noi
 # Per-entity opt-out (risk table: "normalization makes sprites look flat").
 SKIP_TONE = set()          # e.g. {'hero/pyro'}
 # The 2x pass must not move the ground line the manifest was measured at 1x.
-GROUND_TOLERANCE = 0.5
+# Drift is bounded by the outline, not zero: the 1.5 display-px outline rasterises
+# differently at 1x and 2x, so the measured silhouette grows or shrinks by up to one
+# outline width across its two sides (width) and half that on the one ground edge (footY).
+GROUND_WIDTH_TOLERANCE = OUTLINE_DISPLAY_PX
+GROUND_FOOTY_TOLERANCE = OUTLINE_DISPLAY_PX / 2
+GROUND_TOLERANCES = {'width': GROUND_WIDTH_TOLERANCE, 'footY': GROUND_FOOTY_TOLERANCE}
 SPRITE2X_JS = ROOT / 'src' / 'data' / 'sprite2x.js'
 
 LUMA = np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
@@ -332,14 +337,14 @@ def normalize_entry(entry, *, only_variants=None, include_base=True, src_root, o
     return records
 
 
-def ground_drift(records, tolerance=GROUND_TOLERANCE):
+def ground_drift(records):
     """Messages for each measured footY/width that strays from the manifest's
-    1x ground by more than `tolerance` display px."""
+    1x ground by more than its GROUND_TOLERANCES entry (display px)."""
     msgs = []
     for r in records:
         for field, want in r.get('expected', {}).items():
             got = r['ground'][field]
-            if abs(got - want) > tolerance:
+            if abs(got - want) > GROUND_TOLERANCES[field]:
                 msgs.append(f"{r['key']}: {field} {got} vs manifest {want}")
     return msgs
 

@@ -230,6 +230,21 @@ class Scale2(unittest.TestCase):
         self.assertNotEqual(rc, 0)
         self.assertIn('tower/blob', out)
 
+    def drift_msgs(self, field, delta):
+        rec = {'key': 'tower/blob', 'ground': {field: 30 + delta}, 'expected': {field: 30}}
+        return nz.ground_drift([rec])
+
+    def test_width_tolerance_is_the_outline_width(self):
+        tol = nz.OUTLINE_DISPLAY_PX
+        self.assertEqual(self.drift_msgs('width', tol - 0.1), [])
+        self.assertEqual(len(self.drift_msgs('width', tol + 0.1)), 1)
+        self.assertEqual(len(self.drift_msgs('width', -(tol + 0.1))), 1)
+
+    def test_footY_tolerance_is_half_the_outline_width(self):
+        tol = nz.OUTLINE_DISPLAY_PX / 2
+        self.assertEqual(self.drift_msgs('footY', tol - 0.05), [])
+        self.assertEqual(len(self.drift_msgs('footY', tol + 0.05)), 1)
+
     def test_scale_2_skips_entry_without_at2x_source(self):
         write_sheet(self.t / 'src/sprites/towers/blob_idle.png', 120)   # 1x only
         rc, out = self.run_main([one_state_entry('blob')], '--scale', '2')
