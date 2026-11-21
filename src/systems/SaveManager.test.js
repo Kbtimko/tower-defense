@@ -1,5 +1,6 @@
 import { vi } from 'vitest';
 import { SaveManager } from './SaveManager.js';
+import { HEROES } from '../data/heroes.js';
 
 const STORAGE_KEY = 'lastlight_save';
 const LEGACY_KEY  = 'lastlight_progress';
@@ -544,5 +545,61 @@ describe('SaveManager v5 — per-map records', () => {
     a.recordRun(1, { livesLost: 2, timeMs: 61000 });
     b.setSettings({ masterVol: 0.1 });
     expect(new SaveManager().getRecord(1)).toEqual({ livesLost: 2, timeMs: 61000 });
+  });
+});
+
+describe('SaveManager — reads see writes from another instance (#57)', () => {
+  let reader, writer;
+  beforeEach(() => {
+    localStorage.clear();
+    reader = new SaveManager();
+    writer = new SaveManager();
+  });
+
+  it('getStars / isUnlocked / getTotalStars', () => {
+    writer.setStars(0, 3);
+    expect(reader.getStars(0)).toBe(3);
+    expect(reader.isUnlocked(1)).toBe(true);
+    expect(reader.getTotalStars()).toBe(3);
+  });
+
+  it('getRecord', () => {
+    writer.recordRun(0, { livesLost: 1, timeMs: 80000 });
+    expect(reader.getRecord(0)).not.toBeNull();
+    expect(reader.getRecord(0)).toEqual(writer.getRecord(0));
+  });
+
+  it('getPurchasedUpgrades', () => {
+    writer.setPurchasedUpgrades(['x']);
+    expect(reader.getPurchasedUpgrades()).toEqual(['x']);
+  });
+
+  it('getStats', () => {
+    writer.setStats({ kills: 7 });
+    expect(reader.getStats().kills).toBe(7);
+  });
+
+  it('getSettings', () => {
+    writer.setSettings({ muted: true });
+    expect(reader.getSettings().muted).toBe(true);
+  });
+
+  it('getSelectedHero', () => {
+    const id = Object.keys(HEROES).find((k) => k !== 'rael');
+    writer.setSelectedHero(id);
+    expect(reader.getSelectedHero()).toBe(id);
+  });
+
+  it('isHeroUnlocked', () => {
+    const def = Object.values(HEROES).find((h) => typeof h.unlockMapAfter === 'number');
+    expect(reader.isHeroUnlocked(def.id)).toBe(false);
+    writer.setStars(def.unlockMapAfter, 1);
+    expect(reader.isHeroUnlocked(def.id)).toBe(true);
+  });
+
+  it('hasSeenBeat / getSeenBeats', () => {
+    writer.markBeatSeen('b1');
+    expect(reader.hasSeenBeat('b1')).toBe(true);
+    expect(reader.getSeenBeats().b1).toBe(true);
   });
 });

@@ -54,6 +54,7 @@ import { RALLY_FLAG, SOLDIER_MARCH } from '../data/soldiers.js';
 import { hexToInt } from '../ui/theme.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { previewRange } from '../systems/rangePreview.js';
+import { unitDepth } from '../systems/grounding.js';
 
 const OK = hexToInt(RALLY_FLAG.ok);
 const BAD = hexToInt(RALLY_FLAG.bad);
@@ -138,6 +139,10 @@ const routeGfx = (scene) => scene._rallyRouteGfx;
 function enterRally(scene, b) {
   scene._openRing(b);
   scene._onRadialActivate(scene.radial._items.find(i => i.id === 'rally'));
+}
+function enterMove(scene, b) {
+  scene._openRing(b);
+  scene._onRadialActivate(scene.radial._items.find(i => i.id === 'reposition'));
 }
 function rallyTo(scene, b, p) {
   enterRally(scene, b);
@@ -867,5 +872,78 @@ describe('rally visuals sit on a halo (ruling 15)', () => {
     const alpha = b.rallyFlag.fadeLeftMs / RALLY_FLAG.fadeMs;
     expect(alpha).toBeLessThan(1);
     expectFlagOnHalo(marks(routeGfx(s)), OK, alpha);
+  });
+});
+
+describe('Move re-sorts the barracks by its new pad (#68)', () => {
+  beforeEach(() => { localStorage.clear(); loadShippedDOM(); });
+
+  it('a moved barracks takes the depth of its new pad', () => {
+    const s = level();
+    const b = buildBarracks(s);
+    const zones = s.placementManager.getZones();
+    const target = zones.findIndex(z => !z.occupied && Math.abs(z.cy - b.y) > 1);
+    expect(target).toBeGreaterThan(-1);
+    const z = zones[target];
+    const spy = vi.spyOn(b, 'setDepth');
+    enterMove(s, b);
+    s._onTap(z.cx, z.cy);
+    expect(b.zoneIndex).toBe(target);
+    expect(spy).toHaveBeenLastCalledWith(unitDepth(z.cy));
+  });
+
+  it('a Move tap that finds no free pad leaves depth alone', () => {
+    const s = level();
+    const b = buildBarracks(s);
+    const spy = vi.spyOn(b, 'setDepth');
+    enterMove(s, b);
+    expect(s.repositionMode).toBe(true);
+    s._onTap(-500, -500);
+    expect(spy).not.toHaveBeenCalled();
+    expect(b.zoneIndex).toBe(PAD);
+  });
+});
+
+describe('newest intent wins over a pending Move (#64)', () => {
+  beforeEach(() => { localStorage.clear(); loadShippedDOM(); });
+
+  it('arming Archer during a Move drops the Move, and a pad tap builds instead of moving', () => {
+    const s = level();
+    s.economy.gold = 10000;
+    const b = buildBarracks(s);
+    enterMove(s, b);
+    expect(s.repositionMode).toBe(true);
+    s._selectTowerType('archer', document.querySelector('.tower-btn[data-type="archer"]'));
+    expect(s.repositionMode).toBe(false);
+    expect(s.repositioningBarracks).toBeNull();
+    expect(s.selectedType).toBe('archer');
+    expect(cancelShown()).toBe(true);
+
+    const idx = s.placementManager.getZones().findIndex((z, i) => !z.occupied && i !== b.zoneIndex);
+    expect(idx).toBeGreaterThan(-1);
+    const pad = s.placementManager.getZones()[idx];
+    s._buildCursorX = pad.cx; s._buildCursorY = pad.cy;
+    frame(s);
+    const drawn = sinceClear(s.gfx);
+    expect(drawn).toContainEqual(['strokeCircle', pad.cx, pad.cy, previewRange(TOWER_DEFS.archer.range, s._towerRangeMult)]);
+    expect(drawn).not.toContainEqual(['lineStyle', 2, 0x4fc3f7, 0.7]);
+
+    const from = b.zoneIndex;
+    s._onTap(pad.cx, pad.cy);
+    expect(s.placementManager.getTowers().find(t => t.zoneIndex === idx)?.type).toBe('archer');
+    expect(b.zoneIndex).toBe(from);
+  });
+
+  it('arming a hero aim during a Move drops the Move', () => {
+    const s = level();
+    const b = buildBarracks(s);
+    s.hero.level = s.hero.def.stats.abilityUnlockLevels.w;
+    enterMove(s, b);
+    expect(s.repositionMode).toBe(true);
+    s._onAbility({ slot: 'w' });
+    expect(s.aimMode).toBe(true);
+    expect(s.repositionMode).toBe(false);
+    expect(s.repositioningBarracks).toBeNull();
+    expect(cancelShown()).toBe(true);
   });
 });
