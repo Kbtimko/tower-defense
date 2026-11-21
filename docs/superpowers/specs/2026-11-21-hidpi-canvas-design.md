@@ -118,8 +118,8 @@ User decision (2026-11-21): do both, as two PRs, canvas first.
     844 x 390 @3x → 2418 → k = 2. 390 x 844 portrait phone @3x: computed the same way.
 - **When.** Computed once in `main.js` before `new Phaser.Game`, from `window.innerWidth`,
   `innerHeight` and `devicePixelRatio`, and exported (a module-level getter, set once)
-  so `viewport.js`, scenes and `RoadRenderer` read the same value. It is also put in the
-  game registry for scenes that prefer it.
+  so `viewport.js`, scenes and `RoadRenderer` read the same value. (No registry copy: nothing
+  would read it; one source of truth.)
 - **Override.** Capture build and dev only (same gate as `?debug=`): `?res=1` or `?res=2`
   forces k. Production ignores it.
 - **Camera recipe.** One shared helper (e.g. `applyRenderScale(camera, { x, y, w, h })`)

@@ -117,7 +117,7 @@ git commit -m "feat(render): world cameras zoom by the render scale; DOM mapping
 **Files:**
 - Create: `src/ui/hiDpiText.js`, `src/ui/hiDpiText.test.js`
 - Modify the nine call sites: `src/ui/loadingBar.js:20`, `src/scenes/MapEditorScene.js:41,130`, `src/scenes/GameScene.js:2273,2274`, `src/systems/DamageNumberOverlay.js:53,70`, `src/systems/CoinFx.js:32`, `src/systems/TowerTierLook.js:115`, `src/entities/Tower.js:41`
-- Modify: `src/systems/DamageNumberOverlay.test.js` (or the nearest existing test for it)
+- Modify: `src/systems/DamageNumberOverlay.test.js`
 
 **Interfaces:**
 - Consumes: `getRenderScale()` (Task 1).
@@ -152,10 +152,10 @@ git commit -m "feat(render): canvas text rasterises at the render scale (4.1a)"
 
 **Interfaces:**
 - Consumes: `getRenderScale()` (Task 1).
-- Produces: `bakeRoad(scene, { key, waypoints, styleKey, seed, width, height, resolution = 1 })` — creates the canvas at `width*resolution × height*resolution` and calls `ctx.scale(resolution, resolution)` before `paintRoad`; `__capture.renderScale: number`; preset `desktop1440x2: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 }`.
+- Produces: `bakeRoad(scene, { key, waypoints, styleKey, seed, width, height, resolution = 1 })` — creates the canvas at `width*resolution × height*resolution` and calls `ctx.scale(resolution, resolution)` before `paintRoad` (skip the `scale` call when `resolution === 1`, so k = 1 paints exactly as today); `__capture.renderScale: number`; preset `desktop1440x2: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 }`.
 
 - [ ] **Step 1: Write failing tests.**
-  - `RoadRenderer.test.js` `texture key and size follow resolution`: with a mock scene whose `textures.createCanvas` records `(key, w, h)` and returns a texture whose `getContext()` is the existing fake ctx extended with a `scale` spy: `resolution: 2` → created `WORLD_WIDTH*2 × WORLD_HEIGHT*2` and `ctx.scale(2, 2)` called before the first stroke; default → 1x and `scale` not called (or called with 1).
+  - `RoadRenderer.test.js` `texture key and size follow resolution`: with a mock scene whose `textures.createCanvas` records `(key, w, h)` and returns a texture whose `getContext()` is the existing fake ctx extended with a `scale` spy: `resolution: 2` → created `WORLD_WIDTH*2 × WORLD_HEIGHT*2` and `ctx.scale(2, 2)` called before the first stroke; no `resolution` → created `WORLD_WIDTH × WORLD_HEIGHT` and `ctx.scale` not called.
   - `GameScene.tierLooks.test.js` (it already drives `applyDebugCapture` through the harness): `__capture.renderScale` equals `getRenderScale()` (set it to 2 in the test).
 
 - [ ] **Step 2: Run** both files — Expected: FAIL.
