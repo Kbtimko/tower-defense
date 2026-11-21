@@ -27,6 +27,26 @@
 
 ---
 
+### Task 0: Art-pipeline fixes found by the generation run (added 2026-11-21)
+
+The `enemies-refresh` run lost 4 of 24 candidates to `FAILED (fetch failed)`, and refilling them would have re-rendered existing seeds. Two bugs:
+
+- **Slow images time out.** `post()` in `scripts/art/drawThings.mjs` uses global `fetch`, whose undici default `headersTimeout` is 300 s. Under host load an image takes over 5 min (timestamps: drone #1 14:57 → #3 15:06; titan #0 15:44 → #1 16:08), so the client gives up while Draw Things is still rendering.
+- **Gap refills collide.** `planCandidates` in `src/assets/candidates.js` derives new seeds from `inRound + k`, which assumes the existing candidates are a contiguous prefix. Today's dry run plans drone `#8 seed 88007, #9 seed 88008`, but `#7` already used 88008 and FLUX is deterministic, so it would render a duplicate.
+
+**Files:** `scripts/art/drawThings.mjs`, `src/assets/drawThingsRequest.test.js` (or a new `scripts/art/drawThings.test.js`), `src/assets/candidates.js`, `src/assets/candidates.test.js`.
+
+- [ ] **Step 1: Failing tests.**
+  - `candidates.test.js`, `refills a mid-round gap with the missing seeds, not used ones`: existing round-0 entries at indices 0,1,3,4,5,7 with seeds 88001,88002,88004,88005,88006,88008, `candidates: 8`, `seed: 88001` → the plan's seeds are `[88003, 88007]`, its indices are `[8, 9]` (indices are never reused), and its round is 0.
+  - Keep `resumes an interrupted round with the same seeds` green. A contiguous prefix is the same case.
+  - `drawThings`, `post() waits for a response slower than undici's 300 s default`: start a local `node:http` server that answers after a delay longer than an injectable/overridden timeout floor. Prove it the cheap way. `post` must accept an options arg `{ timeoutMs }` (default 30 min) and must not use global `fetch`; the test asserts a 1.5 s response succeeds with `timeoutMs: 5000`, and a 300 ms `timeoutMs` against a 1.5 s response rejects with a timeout error. Run → FAIL.
+- [ ] **Step 2: Implement.**
+  - `readExisting` also returns `seed` from the meta.
+  - `planCandidates` picks the lowest round positions `p ≥ 0` that are unused, where used means `e.seed - (seed + round*1000)` for in-round entries with a numeric seed. Fall back to today's `inRound + k` positions when any in-round entry has no numeric seed. The seed is `seed + round*1000 + p` and the index is `nextIndex + k`.
+  - `post(port, endpoint, body, { timeoutMs = 30 * 60_000 } = {})` uses `node:http` `request`, keeps the same return shape `{ ok, status, json }`, and rejects on its own timeout or on a socket error.
+  - Probes (`fetch(..., AbortSignal.timeout(400))` port discovery) stay as they are.
+- [ ] **Step 3:** `npx vitest run src/assets scripts/art` passes, then the full `npx vitest run` passes. `node scripts/generate-art.mjs --job enemies-refresh --dry-run` must now plan drone `#8 seed 88003, #9 seed 88007` and titan `#8 seed 88003, #9 seed 88004`. Commit `fix(art): refill failed candidates with their own seeds; no 300 s cap on Draw Things requests`.
+
 ### Task 1: Drone becomes reproducible, then install the picks
 
 **Files:** `src/systems/spriteResolution.test.js` (pinned set), `src/assets/assetManifest.test.js` (drone @2x rows), `scripts/build-sprite-sheets.py` (`NOT_REPRODUCIBLE` loses `enemy_drone`), plus everything `art:apply` changes (refs in `.art-cache/sprites`, `assets-src/sprites/enemies/{drone,phantom,titan}_*`, `public/assets/sprites/enemies/{drone,phantom,titan}_*` incl. `@2x`, `src/data/sprites.js` ground, `src/data/sprite2x.js`, `scripts/art/facing.json`).
