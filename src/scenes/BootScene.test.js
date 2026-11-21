@@ -8,6 +8,7 @@ import { backgroundUrl } from '../systems/backgroundAsset.js';
 import { BACKGROUND_VARIANTS } from '../data/backgroundAssets.js';
 import { BACKDROP_ART } from '../data/worldMap.js';
 import { SOLDIER_RECOLOR } from '../data/tierLooks.js';
+import { setRenderScale } from '../systems/renderScale.js';
 
 vi.mock('phaser', () => ({
   default: { Scene: class { constructor() {} } },
@@ -107,6 +108,45 @@ describe('BootScene', () => {
       expect(found).toBeDefined();
       expect(found.path).toBe(portraitPath(sp.portraitKey));
     }
+  });
+});
+
+describe('BootScene sprite loading by render scale', () => {
+  afterEach(() => setRenderScale(1));
+
+  function preloadSprites() {
+    const scene = new BootScene();
+    const sheets = [];
+    const images = [];
+    scene.game = { registry: { set() {} }, events: { on() {} } };
+    scene.load = {
+      image: (key, path) => images.push({ key, path }),
+      spritesheet: (key, path, cfg) => sheets.push({ key, path, cfg }),
+    };
+    scene.preload();
+    return { sheets, images };
+  }
+
+  it('at k=2 queues @2x sheets with doubled frames, and keeps the drone at 1x', () => {
+    setRenderScale(2);
+    const { sheets, images } = preloadSprites();
+    // Archer idle is a single frame, so it loads as an image; attack is the sheet.
+    const attack = sheets.find(s => s.key === spriteTextureKey('tower', 'archer', 'attack'));
+    expect(attack.path).toBe('assets/sprites/towers/archer_attack@2x.png');
+    expect(attack.cfg).toEqual({ frameWidth: 192, frameHeight: 192 });
+    expect(images.find(i => i.key === spriteTextureKey('tower', 'archer', 'idle')).path)
+      .toBe('assets/sprites/towers/archer_idle@2x.png');
+    const drone = sheets.find(s => s.key === spriteTextureKey('enemy', 'drone', 'move'));
+    const drone1x = SPRITE_MANIFEST.find(e => e.category === 'enemy' && e.type === 'drone').states.move;
+    expect(drone.path).toBe(drone1x.path);
+    expect(drone.cfg).toEqual({ frameWidth: drone1x.frameWidth, frameHeight: drone1x.frameHeight });
+  });
+
+  it('at k=1 queues no @2x url', () => {
+    setRenderScale(1);
+    const { sheets, images } = preloadSprites();
+    const urls = [...sheets, ...images].map(l => l.path);
+    expect(urls.filter(u => u.includes('@2x'))).toEqual([]);
   });
 });
 
