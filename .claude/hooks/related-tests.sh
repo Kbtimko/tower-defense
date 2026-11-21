@@ -9,6 +9,10 @@ case "$f" in */node_modules/*|*/dist/*) exit 0 ;; esac
 
 root=$(dirname "$f")
 while [ "$root" != "/" ] && [ ! -f "$root/package.json" ]; do root=$(dirname "$root"); done
+# Only run inside this repo or one of its worktrees, never another tree's vitest.
+common() { (cd "$1" 2>/dev/null && cd "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd -P); }
+mine=$(common "${CLAUDE_PROJECT_DIR:-}")
+[ -n "$mine" ] && [ "$mine" = "$(common "$root")" ] || exit 0
 [ -x "$root/node_modules/.bin/vitest" ] || exit 0
 # Stale install (lockfile changed since the last npm ci): results would be noise.
 [ "$root/package-lock.json" -nt "$root/node_modules/.package-lock.json" ] && exit 0
