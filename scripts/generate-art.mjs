@@ -25,7 +25,7 @@ import {
 import { requiredAssets } from '../src/assets/assetManifest.js';
 import { FLUX } from '../src/assets/drawThingsRequest.js';
 import { LEGACY_SEED } from '../src/assets/artJob.js';
-import { candidatePorts, discoverPort, noServerHelp } from './art/drawThings.mjs';
+import { candidatePorts, discoverPort, noServerHelp, post } from './art/drawThings.mjs';
 
 const argv = process.argv.slice(2);
 const flag = name => argv.includes(`--${name}`);
@@ -158,14 +158,10 @@ for (const j of selected) {
     batch_size: 1,
   };
   try {
-    const res = await fetch(`http://127.0.0.1:${port}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    const res = await post(port, endpoint, body);
     if (!res.ok) { console.log(`FAILED (HTTP ${res.status})`); continue; }
-    const json = await res.json();
-    const b64 = json.images?.[0] ?? json.image;
+    const json = res.json;
+    const b64 = json?.images?.[0] ?? json?.image;
     if (!b64) { console.log('FAILED (no image in response)'); continue; }
     mkdirSync(dirname(j.path), { recursive: true });
     writeFileSync(j.path, Buffer.from(b64.replace(/^data:image\/\w+;base64,/, ''), 'base64'));
@@ -173,7 +169,7 @@ for (const j of selected) {
       console.log(`ok -> ${j.path}  (${FLUX.width}x${FLUX.height} reference)`);
       continue;
     }
-    // Generated at 1024x1024; the game wants 512 (nodes) / 256 (portraits).
+    // Generated at 1024x1024; the game wants 512 (nodes and portraits).
     // sips ships with macOS, so this needs no dependency.
     try {
       execFileSync('sips', ['-z', String(j.size.height), String(j.size.width), j.path],
