@@ -29,6 +29,8 @@ const plan = ({ assets, picks, flip = [], metas, refExists = () => false, allowF
 const GROUND = id => `/c/apply/b-${id}.ground.json`;
 const build = (name, ...extra) => ({ op: 'run', cmd: ['python3', 'scripts/build-sprite-sheets.py', name, '--ref-dir', '/c/sprites', ...extra] });
 const normalize = (only, id) => ({ op: 'run', cmd: ['python3', 'scripts/art/normalize.py', '--only', only, '--ground-json', GROUND(id)] });
+const build2 = (name, ...extra) => ({ op: 'run', cmd: ['python3', 'scripts/build-sprite-sheets.py', name, '--ref-dir', '/c/sprites', '--scale', '2', ...extra] });
+const normalize2 = only => ({ op: 'run', cmd: ['python3', 'scripts/art/normalize.py', '--scale', '2', '--only', only] });
 const T4A_STATES = {
   idle: { path: 'assets/sprites/towers/archer_t4a_idle.png', frameWidth: 96, frameHeight: 96, frames: 1 },
   attack: { path: 'assets/sprites/towers/archer_t4a_attack.png', frameWidth: 96, frameHeight: 96, frames: 5, frameRate: 14 },
@@ -43,6 +45,8 @@ describe('planApply', () => {
       build('tower_cannon'),
       normalize('tower/cannon', 'tower_cannon'),
       { op: 'setGround', target: 'sprites', key: 'tower/cannon', fromJson: GROUND('tower_cannon') },
+      build2('tower_cannon'),
+      normalize2('tower/cannon'),
       ...CHECK_STEPS,
     ]);
     expect(CHECK_STEPS).toEqual([
@@ -70,8 +74,21 @@ describe('planApply', () => {
       build('tower_archer.t4a'),
       normalize('tower/archer.t4a', 'tower_archer.t4a'),
       { op: 'setGround', target: 'variants', key: 'tower/archer', variant: 't4a', fromJson: GROUND('tower_archer.t4a') },
+      build2('tower_archer.t4a'),
+      normalize2('tower/archer.t4a'),
       ...CHECK_STEPS,
     ]);
+  });
+
+  it('apply plans a 2x build and normalize after the 1x steps', () => {
+    const base = plan({ assets: [{ ...cannon, keepDebris: true }], picks: { tower_cannon: 0 } });
+    const variant = plan({ assets: [archerT4a], picks: { 'tower_archer.t4a': 0 } });
+    const tail = steps => steps.slice(-4, -2);
+    expect(base.at(-5).op).toBe('setGround');
+    expect(tail(base)).toEqual([build2('tower_cannon', '--keep-debris'), normalize2('tower/cannon')]);
+    expect(variant.at(-5).op).toBe('setGround');
+    expect(tail(variant)).toEqual([build2('tower_archer.t4a'), normalize2('tower/archer.t4a')]);
+    expect(base.flatMap(s => s.cmd ?? []).filter(a => a === '--ground-json')).toHaveLength(1);
   });
 
   it('flipped variant: records the inverted facing before declaring and building', () => {

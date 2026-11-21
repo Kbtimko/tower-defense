@@ -104,8 +104,12 @@ describe('executeSteps', () => {
     expect(calls.map(c => c.slice(0, 3).join(' '))).toEqual([
       'python3 scripts/build-sprite-sheets.py tower_cannon',
       'python3 scripts/art/normalize.py --only',
+      'python3 scripts/build-sprite-sheets.py tower_cannon',
+      'python3 scripts/art/normalize.py --scale',
       'python3 scripts/build-sprite-sheets.py tower_archer.t4a',
       'python3 scripts/art/normalize.py --only',
+      'python3 scripts/build-sprite-sheets.py tower_archer.t4a',
+      'python3 scripts/art/normalize.py --scale',
       'npm run assets',
       'npm test',
     ]);
@@ -253,7 +257,7 @@ describe('prepareApply', () => {
     await fakeCandidate('tower_cannon', 0);
     const r = prepareApply({ repoRoot: tmp, picks: { batch: 'b', picks: { tower_cannon: 0 }, flip: [], reroll: [] }, cache, timestamp: 'TS' });
     expect(r.errors).toEqual([]);
-    expect(r.steps.map(s => s.op)).toEqual(['copy', 'run', 'run', 'setGround', 'check', 'check']);
+    expect(r.steps.map(s => s.op)).toEqual(['copy', 'run', 'run', 'setGround', 'run', 'run', 'check', 'check']);
   });
 
   it('re-applying the same flipped picks three times leaves facing.json as the first apply set it', async () => {
@@ -300,7 +304,7 @@ describe('prepareApply', () => {
     const r = prepareApply({ repoRoot: tmp, picks, cache, timestamp: 'TS' });
     expect(r.errors).toEqual(['tower_cannon #0 is a fake candidate; pass --allow-fake to apply it anyway']);
     expect(r.steps).toEqual([]);
-    expect(prepareApply({ repoRoot: tmp, picks, cache, timestamp: 'TS', allowFake: true }).steps.length).toBe(6);
+    expect(prepareApply({ repoRoot: tmp, picks, cache, timestamp: 'TS', allowFake: true }).steps.length).toBe(8);
   });
 
   it('reports a job whose batch differs from its file name', () => {
