@@ -68,8 +68,10 @@ export const SOLDIER_FALLBACK_BODY = deepFreeze({
   t4b: { fill: 0xffd34d, stroke: 0xffe9a0 },
 });
 
+// Sizes are display px, so they track the soldier's drawn size: tuned at scale
+// 0.36 (6.5 / 7.5 / 3.6 / 2.4), x1.5 when the soldier grew to 0.54 in 4.5.
 export const SOLDIER_SHIELD = deepFreeze({
-  variant: 't4a', w: 6.5, h: 7.5, dx: 3.6, footLiftPx: 2.4,
+  variant: 't4a', w: 9.75, h: 11.25, dx: 5.4, footLiftPx: 3.6,
   top: '#cfe8ff', bottom: '#6fb6ff', outline: PALETTE.panel,
 });
 
