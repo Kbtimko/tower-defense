@@ -121,7 +121,8 @@ User decision (2026-11-21): do both, as two PRs, canvas first.
   - capped at `RENDER_SCALE.max` (2). Integer k only: non-integer zoom shimmers on
     sprite edges and misaligns 1px Graphics strokes.
   - Measured examples: 1440 x 900 @2x → 2880 ≥ 1860 → k = 2. 1440 x 900 @1x → 1440 → k = 1.
-    844 x 390 @3x → 2418 → k = 2. 390 x 844 portrait phone @3x: computed the same way.
+    844 x 390 @3x → 2418 → k = 2. On a coarse pointer k comes from the landscape-normalised *screen* (390 x 844 portrait
+    phone @3x → 844 x 390 → k = 2), since browser bars shrink the portrait viewport.
 - **When.** Computed once in `main.js` before `new Phaser.Game`, from `window.innerWidth`,
   `innerHeight` and `devicePixelRatio`, and exported (a module-level getter, set once)
   so `viewport.js`, scenes and `RoadRenderer` read the same value. (No registry copy: nothing
@@ -212,3 +213,6 @@ User decision (2026-11-21): do both, as two PRs, canvas first.
   without it 1080p+ desktops went to k = 2, against Goal 3.
 - **F4 Road textures.** `_setupRoad` evicts every other `road_map_*` texture before
   baking, so only the current map's (4x larger at k = 2) road stays resident.
+- **F2 follow-up (live).** Portrait viewports lose height to browser bars (iPhone 14:
+  390 x 664 viewport vs 390 x 844 screen), which kept k = 1. On a coarse pointer
+  `viewportCssSize` now takes `screen.width/height` (`useScreen`), then landscape-normalises.
