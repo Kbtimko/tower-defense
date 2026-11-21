@@ -8,6 +8,10 @@ This is a **vanilla JavaScript** project — the root `~/projects/CLAUDE.md` Typ
 
 Read `.claude/notes.md` first — it has current state, blockers, and the prioritized backlog.
 
+## Testing
+
+- For every bug fix or new behavior, confirm the test FAILS with the fix reverted before calling it done (mutation check). Never use assertions where the expected and actual fields could share the same value by coincidence.
+
 ## Tech stack
 
 - **Phaser 3** (`^3.88`) — game engine
