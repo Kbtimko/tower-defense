@@ -223,8 +223,8 @@ const BASE_SPRITE_MANIFEST = [
   },
   {
     category: 'hero', type: 'engineer',
-    scale: 0.78, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
-    ground: { footY: 20.3, width: 23.4 },
+    scale: 0.75, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 21.0, width: 30.0 },
     states: {
       idle:   { path: 'assets/sprites/heroes/engineer_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 6, frameRate: 8 },
@@ -267,8 +267,8 @@ const BASE_SPRITE_MANIFEST = [
   // The sentry is bolted down — just idle and attack, like the towers.
   {
     category: 'soldier', type: 'default',
-    scale: 0.36, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
-    ground: { footY: 8.6, width: 11.5 },
+    scale: 0.54, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 12.4, width: 16.2 },
     states: {
       idle:   { path: 'assets/sprites/soldiers/default_idle.png',
                 frameWidth: 48, frameHeight: 48, frames: 6, frameRate: 8 },
