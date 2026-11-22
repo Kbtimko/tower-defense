@@ -116,7 +116,7 @@ Failing tests after two attempts at the same fix; any change that would alter ba
 - [ ] **5.5 [AUTO] Onboarding.** Guided first-map hints (place, upgrade, ability, send-early), dismissible, stored in save data.
 
 ### Phase 6 — Release
-- [ ] **6.1 [AUTO] Performance pass.** Profile with Playwright traces; pool everything hot; confirm 60 fps desktop, ≥ 30 fps on a mid-range phone capture; quality toggle in settings (bloom/grade/particles).
+- [x] **6.1 [AUTO] Performance pass.** Profile with Playwright traces; pool everything hot; confirm 60 fps desktop, ≥ 30 fps on a mid-range phone capture; quality toggle in settings (bloom/grade/particles). *Done 2026-11-22 (`perf/6.1-performance-pass`): the profile showed static Graphics re-triangulated every frame, so the static layer is baked once (Canvas2D at k); `npm run perf` gate (all 10 maps 60 fps desktop and 4x-phone); `?fps=1` counter in every build; Graphics Auto/High/Low replaces Map grade, Reduce motion replaces Ambient motion. No pooling (GC ~2% of frame) and no bloom (none exists).*
 - [ ] **6.2 [AUTO] Build & package.** `vite build --base=./`, `scripts/package-itch.mjs` → zip; auto-generated screenshots + a 15 s gameplay clip from the capture harness.
 - [ ] **6.3 [AUTO] Portfolio README.** Before/after gallery, architecture (sim + balance tool + 1,500+ tests), pipeline write-up.
 - [ ] **6.4 [GATE G5] Publish.** itch.io page + feedback link; decide after real plays whether to pursue Capacitor (mobile stores: Apple ~$99/yr, Google ~$25 once) or Steam (~$100/app) — verify current fees then.

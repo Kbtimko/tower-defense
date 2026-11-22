@@ -59,7 +59,7 @@ Probe: the capture build, Chromium on the real GPU (`--use-angle=metal --enable-
 
 - **Changing what the game looks like.** A baked layer that is blurrier at k = 2, misaligned by a pixel, or that misses an occupancy change counts as a failure even if the fps number is great.
 - **Turning off visuals by default to pass the gate.** The gate runs at the Auto setting.
-- **A perf gate that passes vacuously.** The gate's failure was proven on the bake at 8x (23.1 fps, exit 1) and 10x (18.4 fps, exit 1); 6x passed at 31.3 fps, so 6x is not a failure proof.
+- **A perf gate that passes vacuously.** The gate's failure was proven on the pre-bake base (1a0aa52) at 8x (23.1 fps, exit 1) and 10x (18.4 fps, exit 1); 6x passed there at 31.3 fps, so 6x is not a failure proof. After the bake, 10x passes (43.9 fps) and the gate is shown failing at 20x (22.4 fps, exit 1).
 
 ## Constraints
 
