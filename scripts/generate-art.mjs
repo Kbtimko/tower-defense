@@ -169,7 +169,7 @@ for (const j of selected) {
       console.log(`ok -> ${j.path}  (${FLUX.width}x${FLUX.height} reference)`);
       continue;
     }
-    // Generated at 1024x1024; the game wants 512 (nodes and portraits).
+    // Generated at 1024x1024; the game wants 512 (nodes) / 256 (portraits).
     // sips ships with macOS, so this needs no dependency.
     try {
       execFileSync('sips', ['-z', String(j.size.height), String(j.size.width), j.path],

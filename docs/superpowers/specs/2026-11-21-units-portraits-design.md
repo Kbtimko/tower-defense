@@ -2,6 +2,12 @@
 
 Status: design · 2026-11-21 · branch `visual/4.5-units-portraits`
 
+**Outcome (2026-11-21).** Shipped: the soldier x1.5 (scale 0.54) and the shadow-free engineer.
+The engineer holds its drawn height (scale 0.75), not its ground width, because the new pick
+has a wider stance. Portraits at 512 were deferred by the user after the sameness gate
+failed (see `docs/art-bible.md` §7, "Consistency: what a prompt can and cannot hold"); the
+portraits stay at 256.
+
 **Intent.** Roadmap 4.5 lists "spawn portal, base beacon, hero & soldier refresh,
 portraits". User picks (2026-11-21), from contact sheets at 2x game scale:
 - **Portraits at 512 px**: the 3 speaker portraits are 256 px, so the ~240 CSS px dialog

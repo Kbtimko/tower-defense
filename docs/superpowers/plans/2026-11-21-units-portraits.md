@@ -53,8 +53,8 @@
 **Files:** whatever `art:apply` changes (`.art-cache` refs, `assets-src/sprites/heroes/engineer_*`, `public/assets/sprites/heroes/engineer_*` 1x and @2x, `src/data/sprites.js` ground, `src/data/sprite2x.js`, `scripts/art/facing.json`).
 
 - [ ] **Step 1:** `PATH=/usr/bin:$PATH npm run art:apply -- <picks.json path given by the controller>` → exit 0 (its own gates: assets strict + npm test).
-- [ ] **Step 2: Hold size:** compare the new engineer `ground.width` with the old (from `git show HEAD:src/data/sprites.js`); if it differs by more than 15 %, set `scale` so the width matches within 5 % and re-run both normalize passes for `hero/engineer`.
+- [ ] **Step 2: Hold size:** compare the new engineer `ground.width` with the old (from `git show HEAD:src/data/sprites.js`); if it differs by more than 15 %, set `scale` so the width matches within 5 % and re-run both normalize passes for `hero/engineer`. *(Superseded: the engineer shipped at scale 0.75, holding drawn height, because the new pick has a wider stance.)*
 - [ ] **Step 3:** Confirm no baked ground blob: render the new idle frame on a light background and check the pixels under the feet (report). `npx vitest run` → pass. Commit `feat(heroes): engineer art without the baked ground shadow (4.5)` listing the exact changed paths from `git status`.
 
 ## After the tasks (controller)
-Opus final review; live capture A/B vs base (k=1 and k=2): dialog portraits 512 and sharper at 2x, squads legible at every tier and not over pads, engineer shadow-free; flow matrix.
+Opus final review; live capture A/B vs base (k=1 and k=2): dialog portraits 512 and sharper at 2x *(deferred: Task 2 did not ship; portraits stay 256)*, squads legible at every tier and not over pads, engineer shadow-free; flow matrix.
