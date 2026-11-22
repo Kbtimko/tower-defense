@@ -51,7 +51,8 @@ Works right now with no server:  npm run art -- --dry-run
 // Resolves to { ok, status, json }; json is null when the response is not OK or the
 // body is not JSON. node:http, not global fetch: undici's fetch gives up on response
 // headers after 300 s, and a FLUX image under host load can take longer than that.
-export function post(port, endpoint, body, { timeoutMs = 30 * 60_000 } = {}) {
+export const DEFAULT_TIMEOUT_MS = 30 * 60_000;
+export function post(port, endpoint, body, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify(body);
     const req = httpRequest({

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, afterEach } from 'vitest';
 import { createServer } from 'node:http';
-import { post } from './drawThings.mjs';
+import { post, DEFAULT_TIMEOUT_MS } from './drawThings.mjs';
 
 let server;
 afterEach(() => new Promise((r) => (server ? server.close(r) : r())));
@@ -46,5 +46,13 @@ describe('post()', () => {
     });
     const res = await post(port, '/x', {}, { timeoutMs: 5000 });
     expect(res).toEqual({ ok: true, status: 200, json: null });
+  });
+});
+
+describe('post default timeout', () => {
+  it('stays above undici\'s 300 s headers timeout so a slow FLUX image is not cut off', () => {
+    const UNDICI_DEFAULT_MS = 300_000;
+    expect(DEFAULT_TIMEOUT_MS).toBeGreaterThanOrEqual(30 * 60_000);
+    expect(DEFAULT_TIMEOUT_MS).toBeGreaterThan(UNDICI_DEFAULT_MS);
   });
 });
