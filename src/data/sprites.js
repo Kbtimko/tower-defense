@@ -120,8 +120,8 @@ const BASE_SPRITE_MANIFEST = [
   // colossus, and it is a tall standing silhouette rather than a low one.
   {
     category: 'enemy', type: 'titan',
-    scale: 1.08, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
-    ground: { footY: 62.6, width: 104.2 },
+    scale: 0.99, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 57.4, width: 95.5 },
     states: {
       move:  { path: 'assets/sprites/enemies/titan_move.png',
                frameWidth: 128, frameHeight: 128, frames: 8, frameRate: 8 },

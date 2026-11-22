@@ -72,7 +72,7 @@ of those exact converted files, only the upstream projects they derive from. Che
 a commercial release (see checklist).
 
 Sprites ship in two sets, 1x and `@2x` (roadmap 4.1b), both derived from the same FLUX
-references (except the drone, 1x only). Prompts are in each folder's `PROMPTS.md`.
+references. Prompts are in each folder's `PROMPTS.md`.
 
 ### Cutouts (rembg, IS-Net)
 
