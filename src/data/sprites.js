@@ -117,7 +117,8 @@ const BASE_SPRITE_MANIFEST = [
     },
   },
   // Veth Titan — boss, def.radius 22. 128px cell for the same reason as the
-  // colossus, and it is a tall standing silhouette rather than a low one.
+  // colossus. The art is a four-legged beast, about 93 x 104 display px drawn;
+  // scale 0.99 holds its longest side at 104.
   {
     category: 'enemy', type: 'titan',
     scale: 0.99, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
