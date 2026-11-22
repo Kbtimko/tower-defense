@@ -404,13 +404,14 @@ describe('failureHints', () => {
     expect(hints).toContain('src/data/sprite2x.js');
   });
 
-  it('explains the pinned 1x drone set when spriteResolution.test.js fails', () => {
+  it('tells you to run the 2x pass, not pin to 1x, when spriteResolution.test.js fails', () => {
     const steps = [...CHECK_STEPS];
-    const hints = failureHints(steps, steps[1], { error: ' FAIL  src/systems/spriteResolution.test.js > exactly enemy:drone stays 1x at k=2' }).join('\n');
+    const hints = failureHints(steps, steps[1], { error: ' FAIL  src/systems/spriteResolution.test.js > some entity has a 2x sheet' }).join('\n');
     expect(hints).toContain('spriteResolution.test.js failing');
-    expect(hints).toContain('enemy:drone');
-    expect(hints).toContain('on purpose');
-    expect(failureHints(steps, steps[1], { error: ' FAIL  src/a.test.js > x' }).join('\n')).not.toContain('enemy:drone');
+    expect(hints).toContain('@2x');
+    expect(hints).toContain('--scale 2');
+    expect(hints).not.toContain('enemy:drone');
+    expect(failureHints(steps, steps[1], { error: ' FAIL  src/a.test.js > x' }).join('\n')).not.toContain('@2x');
   });
 
   it('gives no footprint advice when the pad-fit test passed', () => {
