@@ -42,10 +42,14 @@ describe('2x sprite sheets', () => {
     expect(two.url).toBe(one.url.replace('.png', '@2x.png'));
   });
 
-  it('drone has no @2x row', () => {
-    const drone = sprites().filter(a => a.id.startsWith('enemy/drone'));
+  it('drone has @2x rows at twice its 1x size', () => {
+    const drone = sprites().filter(a => a.id.startsWith('enemy/drone') && !a.path.includes('@2x'));
     expect(drone.length).toBeGreaterThan(0);
-    expect(sprites().filter(a => a.path.includes('drone') && a.path.includes('@2x'))).toEqual([]);
+    for (const one of drone) {
+      const two = sprites().find(a => a.path === one.path.replace('.png', '@2x.png'));
+      expect(two, one.path).toBeDefined();
+      expect(two.expected).toEqual({ width: one.expected.width * 2, height: one.expected.height * 2 });
+    }
   });
 });
 

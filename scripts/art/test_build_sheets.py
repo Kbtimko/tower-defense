@@ -155,7 +155,14 @@ class BuildLoop(unittest.TestCase):
         self.build('tower_archer', 'tower_cannon', '--no-mirror')
         self.assertTrue(self.left_is_red('towers/cannon_idle.png'))
 
+    # The shipped table is empty; inject an entry so the skip mechanism stays covered.
+    def not_reproducible(self):
+        p = mock.patch.dict(bs.NOT_REPRODUCIBLE, {'enemy_drone': 'test reason'})
+        p.start()
+        self.addCleanup(p.stop)
+
     def test_all_includes_variants_and_skips_not_reproducible(self):
+        self.not_reproducible()
         out = self.build('--all')
         self.assertTrue((self.out / 'towers/archer_t4a_idle.png').exists())
         self.assertFalse((self.out / 'enemies').exists())
@@ -175,12 +182,14 @@ class BuildLoop(unittest.TestCase):
         self.assertFalse((self.out / 'towers/cannon_idle.png').exists())
 
     def test_scale_2_all_still_skips_not_reproducible(self):
+        self.not_reproducible()
         out = self.build('--all', '--scale', '2')
         self.assertTrue((self.out / 'towers/archer_idle@2x.png').exists())
         self.assertFalse((self.out / 'enemies').exists())
         self.assertIn('enemy_drone: SKIP in --all', out)
 
     def test_explicit_name_builds_not_reproducible(self):
+        self.not_reproducible()
         self.build('enemy_drone')
         self.assertTrue((self.out / 'enemies/drone_move.png').exists())
 

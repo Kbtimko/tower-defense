@@ -127,7 +127,7 @@ describe('BootScene sprite loading by render scale', () => {
     return { sheets, images };
   }
 
-  it('at k=2 queues @2x sheets with doubled frames, and keeps the drone at 1x', () => {
+  it('at k=2 queues @2x sheets with doubled frames, and the drone too', () => {
     setRenderScale(2);
     const { sheets, images } = preloadSprites();
     // Archer idle is a single frame, so it loads as an image; attack is the sheet.
@@ -138,8 +138,8 @@ describe('BootScene sprite loading by render scale', () => {
       .toBe('assets/sprites/towers/archer_idle@2x.png');
     const drone = sheets.find(s => s.key === spriteTextureKey('enemy', 'drone', 'move'));
     const drone1x = SPRITE_MANIFEST.find(e => e.category === 'enemy' && e.type === 'drone').states.move;
-    expect(drone.path).toBe(drone1x.path);
-    expect(drone.cfg).toEqual({ frameWidth: drone1x.frameWidth, frameHeight: drone1x.frameHeight });
+    expect(drone.path).toBe(drone1x.path.replace('.png', '@2x.png'));
+    expect(drone.cfg).toEqual({ frameWidth: drone1x.frameWidth * 2, frameHeight: drone1x.frameHeight * 2 });
   });
 
   it('at k=1 queues no @2x url', () => {

@@ -76,10 +76,10 @@ describe('real manifest at k=2', () => {
     });
   });
 
-  it('exactly enemy:drone stays 1x at k=2', () => {
+  it('no entity stays 1x at k=2', () => {
     const resolved = resolveManifest(SPRITE_MANIFEST, 2, has2x);
     const stayed = SPRITE_MANIFEST.filter((e, i) => resolved[i] === e).map(key);
-    expect(stayed).toEqual(['enemy:drone']);
+    expect(stayed).toEqual([]);
   });
 
   it('every SPRITE_2X path is a manifest sheet path', () => {

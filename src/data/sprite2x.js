@@ -5,6 +5,8 @@ export const SPRITE_2X = new Set([
   'assets/sprites/enemies/brute_move.png',
   'assets/sprites/enemies/colossus_death.png',
   'assets/sprites/enemies/colossus_move.png',
+  'assets/sprites/enemies/drone_death.png',
+  'assets/sprites/enemies/drone_move.png',
   'assets/sprites/enemies/phantom_death.png',
   'assets/sprites/enemies/phantom_move.png',
   'assets/sprites/enemies/skitter_death.png',

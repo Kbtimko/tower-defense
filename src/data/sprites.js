@@ -58,7 +58,7 @@ const BASE_SPRITE_MANIFEST = [
   {
     category: 'enemy', type: 'drone',
     scale: 0.59, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
-    ground: { footY: 17.1, width: 32.2 },
+    ground: { footY: 17.7, width: 32.2 },
     states: {
       move:  { path: 'assets/sprites/enemies/drone_move.png',
                frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 12 },
@@ -108,7 +108,7 @@ const BASE_SPRITE_MANIFEST = [
   {
     category: 'enemy', type: 'phantom',
     scale: 0.58, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
-    ground: { footY: 8.7, width: 30.2 },
+    ground: { footY: 15.1, width: 31.3 },
     states: {
       move:  { path: 'assets/sprites/enemies/phantom_move.png',
                frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 14 },
@@ -121,7 +121,7 @@ const BASE_SPRITE_MANIFEST = [
   {
     category: 'enemy', type: 'titan',
     scale: 1.08, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
-    ground: { footY: 62.6, width: 52.4 },
+    ground: { footY: 62.6, width: 104.2 },
     states: {
       move:  { path: 'assets/sprites/enemies/titan_move.png',
                frameWidth: 128, frameHeight: 128, frames: 8, frameRate: 8 },
