@@ -271,8 +271,8 @@ were re-rendered at seed 77021 with the same prompt rows, anchor and request set
 fine detail did not: the mean per-channel diff was 7.1 and 10.5 out of 255. The cause is not
 established. Two hypotheses: Draw Things updated between the renders (app version 26.1020.0,
 dated 2026-10-20), or an app-side setting the HTTP request does not pin (the model selected
-in the UI, the seed mode). The model file itself did not change (`flux_1_schnell_q8p.ckpt`
-is dated Jun 28, before both renders). Reproduction can hold on a single build: on
+in the UI, the seed mode). The model file's modification date (`flux_1_schnell_q8p.ckpt`,
+Jun 28) predates both renders. Reproduction can hold on a single build: on
 2026-11-16 a sprite job's candidate #0 matched the shipped reference pixel for pixel. It is
 not guaranteed across builds, so re-prompting cannot be relied on to reproduce existing art.
 The rules that follow from it:
@@ -286,8 +286,9 @@ The rules that follow from it:
    pass a sameness diff against the shipped asset; this upsizing path is untested. txt2img is for new designs
    only (4.3 enemies, 4.5 engineer).
 3. **One batch, one sitting, one build.** The assets in a batch share fine detail only
-   when they are rendered on the same Draw Things build and model file (today
-   `flux_1_schnell_q8p.ckpt`). Note both in the session journal for every batch.
+   when they are rendered on the same Draw Things build, model file (today
+   `flux_1_schnell_q8p.ckpt`) and app-side settings (the model selected in the UI, the
+   seed mode). Note all three in the session journal for every batch.
 4. **Cross-asset sameness comes from the shared parts:** the anchor above, the §2 palette
    words, and the `normalize.py` tone pass (§5). Per-asset subjects carry only silhouette,
    features and colour. Style words added to one subject drift it away from the set.
