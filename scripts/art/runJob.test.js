@@ -127,6 +127,29 @@ describe('runJob against a stub server', () => {
   });
 });
 
+describe('runJob gap refill', () => {
+  it('refills a mid-round hole with the hole\'s own seed, read back from the metas', async () => {
+    requests = []; img2imgStatus = 200; txt2imgStatus = 200;
+    const root = makeRepo({});
+    const dir = join(root, 'cache/candidates/t/tower_cannon');
+    mkdirSync(dir, { recursive: true });
+    // Position 2 failed in an earlier run; 0, 1 and 3 survived with the seeds they had.
+    for (const i of [0, 1, 3]) {
+      writeFileSync(join(dir, `${i}.png`), await solid(8, 8, { r: 1, g: 2, b: 3 }).toBuffer());
+      writeFileSync(join(dir, `${i}.json`), JSON.stringify({ index: i, round: 0, seed: DEFAULT_SEED + i, mode: 'txt2img' }));
+    }
+    const jobPath = join(root, 'scripts/art/jobs/t.json');
+    const job = JSON.parse(readFileSync(jobPath, 'utf8'));
+    writeFileSync(jobPath, JSON.stringify({ ...job, candidates: 4, assets: [job.assets[0]] }));
+    const code = await runJob({ repoRoot: root, batch: 't', cache: join(root, 'cache'), port, noPrepare: true, log: () => {} });
+    expect(code).toBe(0);
+    const hits = requests.filter(r => r.url === '/sdapi/v1/txt2img');
+    expect(hits).toHaveLength(1);
+    expect(hits[0].body.seed).toBe(DEFAULT_SEED + 2);
+    rmSync(root, { recursive: true, force: true });
+  });
+});
+
 describe('runJob --fake / --dry-run / resume / reroll', () => {
   const run = (root, extra = {}) => runJob({ repoRoot: root, batch: 't', cache: join(root, 'cache'), log: () => {}, noPrepare: true, ...extra });
   const dir = (root, id) => join(root, 'cache/candidates/t', id);

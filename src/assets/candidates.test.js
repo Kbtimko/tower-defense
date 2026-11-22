@@ -81,6 +81,12 @@ describe('readExisting', () => {
     ]);
   });
 
+  it('passes each meta seed through, so gap refills can read positions', () => {
+    const names = ['0.png', '1.png'];
+    const metas = { 0: { round: 0, seed: 88001 }, 1: { round: 0, seed: 88002 } };
+    expect(readExisting(names, metas).map((e) => e.seed)).toEqual([88001, 88002]);
+  });
+
   it('returns entries sorted by index', () => {
     const names = ['10.png', '2.png', '7.png'];
     const metas = { 10: { round: 0 }, 2: { round: 0 }, 7: { round: 0 } };
