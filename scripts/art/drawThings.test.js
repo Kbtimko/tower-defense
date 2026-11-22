@@ -19,7 +19,7 @@ function slowServer(delayMs) {
 }
 
 describe('post()', () => {
-  it("waits for a response slower than undici's 300 s default", async () => {
+  it('resolves {ok,status,json} for a slow 2xx response', async () => {
     const port = await slowServer(1500);
     const res = await post(port, '/x', { a: 1 }, { timeoutMs: 5000 });
     expect(res).toEqual({ ok: true, status: 200, json: { images: ['x'] } });
@@ -28,5 +28,23 @@ describe('post()', () => {
   it('rejects with a timeout error when the response exceeds timeoutMs', async () => {
     const port = await slowServer(1500);
     await expect(post(port, '/x', {}, { timeoutMs: 300 })).rejects.toThrow(/timed out/);
+  });
+
+  it('gives ok:false and json:null for a non-2xx response', async () => {
+    const port = await new Promise((resolve) => {
+      server = createServer((req, res) => { req.resume(); res.statusCode = 500; res.end('boom'); })
+        .listen(0, '127.0.0.1', () => resolve(server.address().port));
+    });
+    const res = await post(port, '/x', {}, { timeoutMs: 5000 });
+    expect(res).toEqual({ ok: false, status: 500, json: null });
+  });
+
+  it('gives json:null for a 2xx with a non-JSON body', async () => {
+    const port = await new Promise((resolve) => {
+      server = createServer((req, res) => { req.resume(); res.end('not json'); })
+        .listen(0, '127.0.0.1', () => resolve(server.address().port));
+    });
+    const res = await post(port, '/x', {}, { timeoutMs: 5000 });
+    expect(res).toEqual({ ok: true, status: 200, json: null });
   });
 });
