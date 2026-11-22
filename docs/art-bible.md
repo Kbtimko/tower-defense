@@ -261,6 +261,31 @@ shadow, no outline, no text, no lettering
 Review checklist per candidate: one subject; faces right; no stray lettering;
 no baked shadow; silhouette reads at 32 px; palette matches §2.
 
+### Consistency: what a prompt can and cannot hold
+
+The anchor and the subject wording set the look: camera, lighting, palette and
+silhouette. Fine detail such as brushwork, texture and small features comes from the seed
+**plus the generator build**. On 2026-11-21 the portraits were re-rendered with the same
+prompt, seed and settings as in 2026-08-19. The faces, poses and backdrops matched, but the
+brushwork did not: the mean diff was 7–10 per channel out of 255, with a 30-minute render
+each. In between, Draw Things and its model file had changed. Re-prompting therefore cannot
+reproduce existing art, and no wording fixes that. The rules that follow from it:
+
+1. **Existing art comes from its reference, not its prompt.** The cached reference in
+   `.art-cache/sprites` (or the shipped PNG for portraits and nodes) is the source of
+   truth. Sheets are rebuilt from references; an asset is never re-prompted in order to
+   "get it back".
+2. **To keep art but change it, use img2img; to replace it, use txt2img.** Upsizing or
+   touching up a shipped asset starts from that asset upscaled to 1024 at low strength
+   (about 0.25–0.35; the default 0.45 starts to redesign it). txt2img is for new designs
+   only (4.3 enemies, 4.5 engineer).
+3. **One batch, one sitting, one build.** The assets in a batch share fine detail only
+   when they are rendered on the same Draw Things build and model file (today
+   `flux_1_schnell_q8p.ckpt`). Note both in the session journal for every batch.
+4. **Cross-asset sameness comes from the shared parts:** the anchor above, the §2 palette
+   words, and the `normalize.py` tone pass (§5). Per-asset subjects carry only silhouette,
+   features and colour. Style words added to one subject drift it away from the set.
+
 ## 8. Motion (summary; details in 1.5–1.9)
 
 Animation is transforms + FX (`scripts/build-sprite-sheets.py`): bob, rock,

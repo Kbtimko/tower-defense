@@ -35,7 +35,7 @@
 - [ ] **Step 2:** Set `scale: 0.54`. Run `/usr/bin/python3 scripts/art/normalize.py --only soldier/default --ground-json /private/tmp/claude-501/soldier-ground.json`, copy the reported ground into the entry; then `/usr/bin/python3 scripts/art/normalize.py --scale 2 --only soldier/default` must exit 0 (ground within tolerance). Confirm `git status` shows no 1x PNG change except what normalize rewrote deterministically (normalize output depends on scale via outline width: if the soldier PNGs change, that is expected — commit them).
 - [ ] **Step 3:** `npx vitest run`, `npm run assets -- --strict` → pass. Commit `feat(soldiers): draw soldiers 1.5x larger so squads read (4.5)`.
 
-### Task 2: Portraits at 512
+### Task 2: Portraits at 512 — DEFERRED 2026-11-21 (sameness gate failed; user: improve the instructions, come back later via img2img — see art-bible §7 Consistency). Step 1b shipped as d0e9acc.
 
 **Files:** Modify `src/assets/assetManifest.js:108` (portrait `expected` 256 → 512) and its test; regenerate `public/assets/portraits/portrait-{command,rael,veth}.png`.
 
