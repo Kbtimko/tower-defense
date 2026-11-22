@@ -67,6 +67,7 @@ export function liveScene({ registry = { ambientMotion: false } } = {}) {
     cameras: { main: { setViewport: vi.fn(), setZoom: vi.fn(), centerOn: vi.fn(), setBackgroundColor: vi.fn(), shake: vi.fn() } },
     textures: { exists: () => false },
     add: new Proxy({}, { get: () => () => gameObject() }),
+    make: { graphics: () => gameObject() },
   });
   scene.scene = {
     isActive: () => true, launch: vi.fn(), start: vi.fn(), pause: vi.fn(), resume: vi.fn(), isPaused: () => false,
