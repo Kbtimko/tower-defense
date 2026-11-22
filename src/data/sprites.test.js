@@ -14,6 +14,16 @@ describe('SPRITE_MANIFEST', () => {
     expect(getSpriteConfig('sentry',  'default')).not.toBeNull();
   });
 
+  it('engineer holds its pre-4.5 drawn height', () => {
+    // Old drawn height 42.1 display px (0.78 x 54 source px) over the 4.5 art's source
+    // bbox height of 56 px (alpha > 40) = 0.752; the new pick is wider, so holding the
+    // ground width (0.585) shrank the hero.
+    const oldDrawnHeight = 42.1;
+    const newSourceHeight = 56;
+    expect(getSpriteConfig('hero', 'engineer').scale)
+      .toBeCloseTo(Math.round(oldDrawnHeight / newSourceHeight * 100) / 100, 5);
+  });
+
   it('gives every one-shot state more than one frame', () => {
     // A single-frame one-shot never fires animationcomplete, so the entity
     // would stay stuck on that frame forever (and a dead enemy never destroys).

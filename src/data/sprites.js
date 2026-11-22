@@ -222,8 +222,8 @@ const BASE_SPRITE_MANIFEST = [
   },
   {
     category: 'hero', type: 'engineer',
-    scale: 0.585, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
-    ground: { footY: 16.4, width: 23.4 },
+    scale: 0.75, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 21.0, width: 30.0 },
     states: {
       idle:   { path: 'assets/sprites/heroes/engineer_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 6, frameRate: 8 },
