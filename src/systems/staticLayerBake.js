@@ -24,8 +24,10 @@ export function createStaticBake(scene, { width, height, resolution, depth }) {
   return {
     surface,
     image,
-    // generateTexture draws ON TOP of an existing canvas, so wipe it first.
-    rebake() { texture.clear(); surface.generateTexture(key, pxW, pxH); },
+    // generateTexture draws ON TOP of an existing canvas, so wipe it first. update=false:
+    // the default re-reads the whole canvas (14.7 MB ImageData at k=2) and uploads it,
+    // and generateTexture uploads again.
+    rebake() { texture.clear(0, 0, pxW, pxH, false); surface.generateTexture(key, pxW, pxH); },
     destroy() { surface.destroy(); image.destroy(); scene.textures.remove(key); },
   };
 }

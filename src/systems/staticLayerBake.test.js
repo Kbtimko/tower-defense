@@ -5,7 +5,7 @@ import { createStaticBake } from './staticLayerBake.js';
 function fakeScene() {
   const calls = [];
   const existing = new Set();
-  const texture = { clear: vi.fn(() => calls.push('clear')) };
+  const texture = { clear: vi.fn((...a) => calls.push(['clear', ...a])) };
   const surface = {
     scale: 1,
     setScale: vi.fn(function (k) { this.scale = k; return this; }),
@@ -49,7 +49,9 @@ describe('createStaticBake', () => {
     const s = fakeScene();
     const b = createStaticBake(s, { width: 1280, height: 720, resolution: 2, depth: 10 });
     b.rebake();
-    expect(s.calls).toEqual(['clear', ['generate', 'static_layer@2', 2560, 1440]]);
+    // update=false: clear() would otherwise getImageData the whole canvas (14.7 MB at k=2)
+    // and upload it, only for generateTexture to upload again.
+    expect(s.calls).toEqual([['clear', 0, 0, 2560, 1440, false], ['generate', 'static_layer@2', 2560, 1440]]);
   });
 
   it('destroy destroys surface and image and removes the texture', () => {
