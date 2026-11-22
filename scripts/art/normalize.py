@@ -77,14 +77,17 @@ SKIP_TONE = set()          # e.g. {'hero/pyro'}
 # footY also quantises to the 1x source: one 1x source pixel is `scale` display px, so a
 # scale above half the outline (titan, 1.08, drifted 0.58) can sit a whole source pixel
 # off with no real change. Its floor is therefore max(outline / 2, that job's 1x scale).
+# Width quantises the same way on BOTH edges: two source pixels (2 x scale) plus the
+# manifest's 1-decimal rounding, so its floor is max(outline, 2 * scale + GROUND_ROUNDING).
 GROUND_WIDTH_TOLERANCE = OUTLINE_DISPLAY_PX
+GROUND_ROUNDING = 0.1      # the manifest stores ground to 1 decimal
 GROUND_FOOTY_TOLERANCE = OUTLINE_DISPLAY_PX / 2
 
 
 def ground_tolerance(field, scale_1x=0):
     if field == 'footY':
         return max(GROUND_FOOTY_TOLERANCE, scale_1x)
-    return GROUND_WIDTH_TOLERANCE
+    return max(GROUND_WIDTH_TOLERANCE, 2 * scale_1x + GROUND_ROUNDING)
 SPRITE2X_JS = ROOT / 'src' / 'data' / 'sprite2x.js'
 
 LUMA = np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)

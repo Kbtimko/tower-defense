@@ -181,6 +181,17 @@ def ring_coverage(path):
     return float(px[h // 2, : h // 4, 3].sum())
 
 
+class GroundTolerance(unittest.TestCase):
+    def test_width_allows_one_source_pixel_per_edge_plus_rounding(self):
+        self.assertAlmostEqual(nz.ground_tolerance('width', 1.08), 2.26)
+
+    def test_width_outline_floor_wins_at_small_scale(self):
+        self.assertAlmostEqual(nz.ground_tolerance('width', 0.3), 1.5)
+
+    def test_footy_unchanged(self):
+        self.assertAlmostEqual(nz.ground_tolerance('footY', 1.08), 1.08)
+
+
 class Scale2(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -261,9 +272,12 @@ class Scale2(unittest.TestCase):
         self.assertEqual(self.foot_msgs(0.5, 0.7), [])
         self.assertEqual(len(self.foot_msgs(0.5, 0.8)), 1)
 
-    def test_width_tolerance_ignores_scale(self):
-        rec = {'key': 'k', 'scale': 1.08, 'ground': {'width': 31.7}, 'expected': {'width': 30}}
-        self.assertEqual(len(nz.ground_drift([rec])), 1)
+    def test_width_tolerance_follows_one_source_pixel_per_edge(self):
+        def msgs(got):
+            rec = {'key': 'k', 'scale': 1.08, 'ground': {'width': got}, 'expected': {'width': 30}}
+            return nz.ground_drift([rec])
+        self.assertEqual(msgs(32.2), [])
+        self.assertEqual(len(msgs(32.4)), 1)
 
     def test_normalize_records_carry_the_1x_job_scale(self):
         write_sheet_2x(self.t / 'src/sprites/towers/blob_idle@2x.png', 120)
