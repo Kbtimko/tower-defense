@@ -6,7 +6,7 @@ import { ParticleSpawner, TINT_AT_SPAWN } from './ParticleSpawner.js';
 import { TRAIL_FX, MUZZLE_FX, IMPACT_FX, SOLDIER_MUZZLE, STATUS_FX, STATUS_EMIT_FX, DEATH_FX, PROJECTILE_FX } from '../data/fx.js';
 import { projectileFx } from './fxResolve.js';
 
-function makeScene() {
+function makeScene(registry = {}) {
   const created = [];
   const emitter = {
     config: null,
@@ -39,8 +39,52 @@ function makeScene() {
     },
     tweens: { add: vi.fn() },
     time:   { delayedCall: vi.fn((ms, cb) => cb()) },
+    registry: { get: (k) => registry[k] },
   };
 }
+
+describe('ParticleSpawner particleScale', () => {
+  // A def that scales to a different count (7 -> 4) so the assertion is not vacuous.
+  function withMuzzle7(run) {
+    MUZZLE_FX.__scale7 = { ...MUZZLE_FX[SOLDIER_MUZZLE], quantity: 7 };
+    try { run(); } finally { delete MUZZLE_FX.__scale7; }
+  }
+
+  it('particleScale 0.5 explodes 4 of a 7-particle muzzle', () => {
+    withMuzzle7(() => {
+      const scene = makeScene({ particleScale: 0.5 });
+      new ParticleSpawner(scene).spawnMuzzleFlash(1, 2, '__scale7');
+      expect(scene._emitter.explode).toHaveBeenCalledWith(4, 1, 2);
+    });
+  });
+
+  it('a missing particleScale explodes the full 7', () => {
+    withMuzzle7(() => {
+      const scene = makeScene();
+      new ParticleSpawner(scene).spawnMuzzleFlash(1, 2, '__scale7');
+      expect(scene._emitter.explode).toHaveBeenCalledWith(7, 1, 2);
+    });
+  });
+
+  it('impacts and the hero airstrike burst of 30 scale too (15)', () => {
+    const scene = makeScene({ particleScale: 0.5 });
+    const sp = new ParticleSpawner(scene);
+    sp.spawnImpact('spark', 3, 4);
+    expect(scene._emitter.explode).toHaveBeenCalledWith(Math.ceil(IMPACT_FX.spark.quantity * 0.5), 3, 4);
+    scene._emitter.explode.mockClear();
+    sp.spawnHeroAbilityVFX('airstrike', 50, 50, 60);
+    expect(scene._emitter.explode).toHaveBeenCalledWith(15, 50, 50);
+  });
+
+  it('trail and status emits scale but never below one particle', () => {
+    const scene = makeScene({ particleScale: 0.5 });
+    const sp = new ParticleSpawner(scene);
+    const trailKey = Object.keys(TRAIL_FX).find((k) => TRAIL_FX[k].rate);
+    const proj = { fx: { trail: trailKey }, _trailAcc: 0, x: 1, drawnY: 2 };
+    sp.emitTrail(proj, 1);
+    for (const call of scene._emitter.emitParticleAt.mock.calls) expect(call[2]).toBeGreaterThanOrEqual(1);
+  });
+});
 
 describe('ParticleSpawner', () => {
   describe('shared emitters', () => {

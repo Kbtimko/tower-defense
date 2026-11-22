@@ -31,14 +31,19 @@ function setupDom() {
   overlay.appendChild(mute);
 
   const ambient = document.createElement('input');
-  ambient.id = 'ambient-motion';
+  ambient.id = 'reduce-motion';
   ambient.type = 'checkbox';
   overlay.appendChild(ambient);
 
-  const grade = document.createElement('input');
-  grade.id = 'map-grade';
-  grade.type = 'checkbox';
-  overlay.appendChild(grade);
+  const graphics = document.createElement('select');
+  graphics.id = 'graphics-quality';
+  for (const v of ['auto', 'high', 'low']) {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = v;
+    graphics.appendChild(o);
+  }
+  overlay.appendChild(graphics);
 
   const autoSend = document.createElement('input');
   autoSend.id = 'auto-send';
@@ -48,8 +53,12 @@ function setupDom() {
   document.body.appendChild(overlay);
 }
 
-function makeGame(initial = true) {
-  const store = { ambientMotion: initial, mapGrade: initial, autoSend: initial, save: { setSettings: vi.fn() } };
+function makeGame(initial = true, graphics = 'auto') {
+  const store = {
+    ambientMotion: initial, mapGrade: initial, autoSend: initial,
+    graphicsEnv: { webgl: true, touch: true },
+    save: { setSettings: vi.fn(), getSettings: () => ({ graphics }) },
+  };
   return {
     _store: store,
     registry: {
@@ -170,41 +179,76 @@ describe('SettingsOverlay', () => {
     expect(document.getElementById('settings-overlay').style.display).toBe('flex');
   });
 
-  it('ambient-motion checkbox reflects the registry flag on open', () => {
-    const am = makeAm();
-    const game = makeGame(false);
-    const ov = new SettingsOverlay(am, game);
-    ov.open();
-    expect(document.getElementById('ambient-motion').checked).toBe(false);
+  // Reduce motion is the inverse of ambientMotion: checked = ambientMotion false.
+  it('reduce-motion is checked when ambientMotion is false, unchecked when true', () => {
+    const off = new SettingsOverlay(makeAm(), makeGame(false));
+    off.open();
+    expect(document.getElementById('reduce-motion').checked).toBe(true);
+    off.close();
+    new SettingsOverlay(makeAm(), makeGame(true)).open();
+    expect(document.getElementById('reduce-motion').checked).toBe(false);
   });
 
-  it('toggling ambient-motion updates the registry and persists', () => {
-    const am = makeAm();
+  it('checking reduce-motion sets ambientMotion false in the registry and the save', () => {
     const game = makeGame(true);
-    const ov = new SettingsOverlay(am, game);
-    ov.open();
-    const cb = document.getElementById('ambient-motion');
-    cb.checked = false;
+    new SettingsOverlay(makeAm(), game).open();
+    const cb = document.getElementById('reduce-motion');
+    cb.checked = true;
     cb.dispatchEvent(new Event('change', { bubbles: true }));
     expect(game.registry.get('ambientMotion')).toBe(false);
     expect(game._store.save.setSettings).toHaveBeenCalledWith({ ambientMotion: false });
   });
 
-  it('map-grade checkbox reflects the registry flag on open', () => {
-    const ov = new SettingsOverlay(makeAm(), makeGame(true));
-    ov.open();
-    expect(document.getElementById('map-grade').checked).toBe(true);
+  it('the old ambient-motion and map-grade controls are gone from the fixture contract', () => {
+    expect(document.getElementById('ambient-motion')).toBeNull();
+    expect(document.getElementById('map-grade')).toBeNull();
   });
 
-  it('toggling map-grade updates the registry and persists', () => {
-    const game = makeGame(true);
+  it('graphics-quality shows the saved level on open', () => {
+    new SettingsOverlay(makeAm(), makeGame(true, 'low')).open();
+    expect(document.getElementById('graphics-quality').value).toBe('low');
+  });
+
+  it('choosing High saves graphics and sets mapGrade, ambientFx and particleScale live', () => {
+    const game = makeGame(true, 'low');
+    game._store.mapGrade = false;
+    game._store.ambientFx = false;
+    game._store.particleScale = 0.5;
+    new SettingsOverlay(makeAm(), game).open();
+    const sel = document.getElementById('graphics-quality');
+    sel.value = 'high';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(game._store.save.setSettings).toHaveBeenCalledWith({ graphics: 'high' });
+    expect(game.registry.get('mapGrade')).toBe(true);
+    expect(game.registry.get('ambientFx')).toBe(true);
+    expect(game.registry.get('particleScale')).toBe(1);
+  });
+
+  it('choosing Low turns grading and ambient off and halves particles', () => {
+    const game = makeGame(true, 'high');
+    new SettingsOverlay(makeAm(), game).open();
+    const sel = document.getElementById('graphics-quality');
+    sel.value = 'low';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(game.registry.get('mapGrade')).toBe(false);
+    expect(game.registry.get('ambientFx')).toBe(false);
+    expect(game.registry.get('particleScale')).toBe(0.5);
+  });
+
+  it('close() removes both listeners: later changes do not touch the registry', () => {
+    const game = makeGame(true, 'high');
     const ov = new SettingsOverlay(makeAm(), game);
     ov.open();
-    const cb = document.getElementById('map-grade');
-    cb.checked = false;
+    ov.close();
+    const sel = document.getElementById('graphics-quality');
+    sel.value = 'low';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    const cb = document.getElementById('reduce-motion');
+    cb.checked = true;
     cb.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(game.registry.get('mapGrade')).toBe(false);
-    expect(game._store.save.setSettings).toHaveBeenCalledWith({ graphics: 'low' });
+    expect(game._store.mapGrade).toBe(true);
+    expect(game._store.ambientMotion).toBe(true);
+    expect(game._store.save.setSettings).not.toHaveBeenCalled();
   });
 
   // Both polarities: an unwired checkbox starts unchecked, so the false case

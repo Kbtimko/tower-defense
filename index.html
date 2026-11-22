@@ -1023,6 +1023,9 @@
     .settings-row input[type=range] { flex:1; }
     .settings-row .settings-val { width:34px; text-align:right; color:#8ab; }
     .settings-mute { margin-top:12px; font-size:12px; color:#cfd8e8; }
+    /* Paint comes from the kit's .ui-btn; geometry here keeps it a 44 px touch target. */
+    #graphics-quality { min-height:44px; padding:0 10px; font:inherit; border-radius:4px; }
+    .settings-hint { margin-top:2px; font-size:11px; color:#8ab; }
 
     /* Wave preview popover. Inside the HUD layer, so in game px: it opens LEFT
        of Send Wave, over the map; WavePreviewPopover sets its top (centred on
@@ -1445,10 +1448,17 @@
           <label><input id="mute-all" type="checkbox" /> Mute all audio</label>
         </div>
         <div class="settings-mute">
-          <label><input id="ambient-motion" type="checkbox" /> Ambient motion</label>
+          <label><input id="reduce-motion" type="checkbox" /> Reduce motion</label>
         </div>
-        <div class="settings-mute">
-          <label><input id="map-grade" type="checkbox" /> Colour grading (from next level)</label>
+        <div class="settings-mute settings-graphics">
+          <label>Graphics
+            <select id="graphics-quality" class="ui-btn">
+              <option value="auto">Auto</option>
+              <option value="high">High</option>
+              <option value="low">Low</option>
+            </select>
+          </label>
+          <div class="settings-hint">colour grading applies from the next level</div>
         </div>
         <div class="settings-mute">
           <label><input id="auto-send" type="checkbox" /> Auto-send waves</label>

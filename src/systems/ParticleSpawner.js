@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { TRAIL_FX, MUZZLE_FX, IMPACT_FX, STATUS_FX, STATUS_EMIT_FX, DEATH_FX } from '../data/fx.js';
 import { projectileFx } from './fxResolve.js';
+import { scaleBurst } from './graphicsQuality.js';
 
 // Just above projectiles (depth 16) so effects read over the shot.
 const FX_DEPTH = 17;
@@ -29,6 +30,11 @@ export class ParticleSpawner {
     this._emitters = new Map();
   }
 
+  // Read at each burst so the Graphics select takes effect mid-level.
+  _n(count) {
+    return scaleBurst(count, this._scene.registry?.get('particleScale') ?? 1);
+  }
+
   _emitter(cacheKey, def) {
     let emitter = this._emitters.get(cacheKey);
     if (!emitter) {
@@ -43,7 +49,7 @@ export class ParticleSpawner {
   spawnMuzzleFlash(x, y, towerType, tier = 1, branch = null) {
     const key = MUZZLE_FX[towerType] ? towerType : projectileFx(towerType, tier, branch).muzzle;
     const def = MUZZLE_FX[key];
-    this._emitter(`muzzle:${key}`, def).explode(def.quantity, x, y);
+    this._emitter(`muzzle:${key}`, def).explode(this._n(def.quantity), x, y);
   }
 
   spawnImpact(impactKey, x, y) {
@@ -51,7 +57,7 @@ export class ParticleSpawner {
     if (!fx) return;
     const layers = Array.isArray(fx) ? fx : [fx];
     layers.forEach((def, i) => {
-      this._emitter(`impact:${impactKey}:${i}`, def).explode(def.quantity, x, y);
+      this._emitter(`impact:${impactKey}:${i}`, def).explode(this._n(def.quantity), x, y);
     });
   }
 
@@ -82,7 +88,7 @@ export class ParticleSpawner {
     if (n < 1) return;
     projectile._trailAcc -= n;
     this._emitter(`trail:${key}`, def)
-      .emitParticleAt(projectile.x, projectile.drawnY, n);
+      .emitParticleAt(projectile.x, projectile.drawnY, this._n(n));
   }
 
   // Continuous status particles (burn embers) at the enemy; `enemy._statusAcc`
@@ -97,7 +103,7 @@ export class ParticleSpawner {
     enemy._statusAcc -= n;
     // Spread across the art so embers read on wide sprites, not just the centre.
     const dx = (Math.random() * 2 - 1) * enemy._artHalfWidth * (def.spread ?? 0);
-    this._emitter(`status:${kind}`, def).emitParticleAt(enemy.x + dx, enemy.y, n);
+    this._emitter(`status:${kind}`, def).emitParticleAt(enemy.x + dx, enemy.y, this._n(n));
   }
 
   destroy() {
@@ -112,7 +118,7 @@ export class ParticleSpawner {
         scale: { start: 1.0, end: 0 }, quantity: 30, blendMode: 'ADD',
         angle: { min: 0, max: 360 },
       });
-      if (e.explode) e.explode(30, x, y);
+      if (e.explode) e.explode(this._n(30), x, y);
       this._scene.time.delayedCall(500, () => e.destroy && e.destroy());
       this.spawnAirstrikeRing(x, y);
       return e;
@@ -123,7 +129,7 @@ export class ParticleSpawner {
         scale: { start: 0.5, end: 0 }, quantity: 20, blendMode: 'ADD',
         angle: { min: 0, max: 360 },
       });
-      if (e.explode) e.explode(20, x, y);
+      if (e.explode) e.explode(this._n(20), x, y);
       this._scene.time.delayedCall(700, () => e.destroy && e.destroy());
       this.spawnEMPRing(x, y, radius);
       return e;
