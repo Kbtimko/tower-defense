@@ -1,5 +1,32 @@
+// loadShippedDOM pulls in GameScene, so Phaser and its heavy collaborators are stubbed.
+vi.mock('phaser', () => ({
+  default: {
+    Scene: class { constructor(key) { this._key = key; } },
+    GameObjects: { Container: class {} },
+  },
+}));
+vi.mock('../entities/Hero.js', async () => {
+  const { HEROES } = await import('../data/heroes.js');
+  return {
+    Hero: class {
+      constructor(scene, { x, y, heroId }) {
+        Object.assign(this, { x, y, heroId, def: HEROES[heroId], level: 1, dead: false });
+      }
+      update() {}
+      destroy() {}
+    },
+  };
+});
+vi.mock('../entities/Enemy.js', () => ({
+  Enemy: class { constructor(scene, opts) { Object.assign(this, opts, { dead: false }); } },
+}));
+vi.mock('../systems/AmbientBackgroundLayer.js', () => ({
+  AmbientBackgroundLayer: class { update() {} destroy() {} },
+}));
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SettingsOverlay } from './SettingsOverlay.js';
+import { loadShippedDOM } from '../scenes/gameSceneHarness.js';
+import { GRAPHICS_LEVELS } from '../data/graphicsQuality.js';
 
 function setupDom() {
   while (document.body.firstChild) document.body.removeChild(document.body.firstChild);
@@ -199,7 +226,11 @@ describe('SettingsOverlay', () => {
     expect(game._store.save.setSettings).toHaveBeenCalledWith({ ambientMotion: false });
   });
 
-  it('the old ambient-motion and map-grade controls are gone from the fixture contract', () => {
+  it('the shipped index.html has the reduce-motion checkbox, the graphics select, and no old controls', () => {
+    loadShippedDOM();
+    expect(document.getElementById('reduce-motion').type).toBe('checkbox');
+    const opts = [...document.getElementById('graphics-quality').options].map((o) => o.value);
+    expect(opts).toEqual(GRAPHICS_LEVELS);
     expect(document.getElementById('ambient-motion')).toBeNull();
     expect(document.getElementById('map-grade')).toBeNull();
   });

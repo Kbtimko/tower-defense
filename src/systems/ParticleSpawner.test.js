@@ -76,13 +76,18 @@ describe('ParticleSpawner particleScale', () => {
     expect(scene._emitter.explode).toHaveBeenCalledWith(15, 50, 50);
   });
 
-  it('trail and status emits scale but never below one particle', () => {
-    const scene = makeScene({ particleScale: 0.5 });
-    const sp = new ParticleSpawner(scene);
-    const trailKey = Object.keys(TRAIL_FX).find((k) => TRAIL_FX[k].rate);
-    const proj = { fx: { trail: trailKey }, _trailAcc: 0, x: 1, drawnY: 2 };
-    sp.emitTrail(proj, 1);
-    for (const call of scene._emitter.emitParticleAt.mock.calls) expect(call[2]).toBeGreaterThanOrEqual(1);
+  it('trail and status emits scale: n=3 -> 2, and never below one particle', () => {
+    const emitted = (fn, scene) => { fn(); return scene._emitter.emitParticleAt.mock.calls.map((c) => c[2]); };
+    const trailRate = TRAIL_FX.smoke.rate;
+    const burnRate = STATUS_FX.burn.emberRate;
+    for (const [n, want] of [[1, 1], [3, 2]]) {
+      const t = makeScene({ particleScale: 0.5 });
+      const proj = { fx: { trail: 'smoke' }, _trailAcc: 0, x: 1, drawnY: 2 };
+      expect(emitted(() => new ParticleSpawner(t).emitTrail(proj, (n + 0.5) / trailRate), t)).toEqual([want]);
+      const st = makeScene({ particleScale: 0.5 });
+      const enemy = { x: 1, y: 2, _statusAcc: 0, _artHalfWidth: 0 };
+      expect(emitted(() => new ParticleSpawner(st).emitStatus('burn', enemy, (n + 0.5) / burnRate), st)).toEqual([want]);
+    }
   });
 });
 
