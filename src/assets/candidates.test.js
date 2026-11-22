@@ -20,6 +20,15 @@ describe('planCandidates', () => {
     ]);
   });
 
+  it('refills a mid-round gap with the missing seeds, not used ones', () => {
+    const e = (index, seed) => ({ index, round: 0, seed });
+    const existing = [e(0, 88001), e(1, 88002), e(3, 88004), e(4, 88005), e(5, 88006), e(7, 88008)];
+    const plan = planCandidates({ existing, candidates: 8, seed: 88001, reroll: false });
+    expect(plan.map((c) => c.seed)).toEqual([88003, 88007]);
+    expect(plan.map((c) => c.index)).toEqual([8, 9]);
+    expect(plan.every((c) => c.round === 0)).toBe(true);
+  });
+
   it('a complete round plans nothing', () => {
     const existing = [entry(0), entry(1), entry(2)];
     expect(planCandidates({ existing, candidates: 3, seed: 100, reroll: false })).toEqual([]);
@@ -70,6 +79,12 @@ describe('readExisting', () => {
       { index: 2, round: 1, hasCut: true, hasPreview: true },
       { index: 5, round: 0, hasCut: false, hasPreview: false },
     ]);
+  });
+
+  it('passes each meta seed through, so gap refills can read positions', () => {
+    const names = ['0.png', '1.png'];
+    const metas = { 0: { round: 0, seed: 88001 }, 1: { round: 0, seed: 88002 } };
+    expect(readExisting(names, metas).map((e) => e.seed)).toEqual([88001, 88002]);
   });
 
   it('returns entries sorted by index', () => {

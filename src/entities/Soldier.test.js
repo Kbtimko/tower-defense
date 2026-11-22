@@ -28,6 +28,12 @@ vi.mock('../data/sprites.js', async (importOriginal) => {
 });
 
 import { Soldier } from './Soldier.js';
+import { SPRITE_MANIFEST } from '../data/sprites.js';
+import { SOLDIER_SHIELD } from '../data/tierLooks.js';
+
+// Derived so a future soldier resize doesn't strand hardcoded 0.36-era numbers.
+const SOLDIER_ART = SPRITE_MANIFEST.find((m) => m.category === 'soldier' && m.type === 'default');
+const SOLDIER_SCALE = SOLDIER_ART.scale;
 import { SOLDIER_FORMATION, WALK_BOB } from '../data/soldiers.js';
 import { formationOffsets } from '../systems/soldierFormation.js';
 import { getSpriteConfig } from '../data/sprites.js';
@@ -100,7 +106,7 @@ function makeSquad({ at = 0.5, count = 3, path = ROAD } = {}) {
   return barracks;
 }
 // Stands in for registered art so state/facing calls are observable.
-const ART_WIDTH = 17.28;
+const ART_WIDTH = 48 * SOLDIER_SCALE;
 function withSpySprite(s) {
   s._sprite = {
     active: true, states: [], facings: [],
@@ -338,7 +344,7 @@ describe('Soldier tier look (R16, R16b, S9, S10)', () => {
     const { s } = squad({ level: 3, keys: [...BASE_KEYS, 'sprite-soldier-default-idle-t3'] });
     expect(s._sprite.active).toBe(true);
     expect(s._sprite.resolvedKey('idle')).toMatch(/-t3$/);
-    expect(s._sprite.sprite.scaleX).toBeCloseTo(0.36 * 1.2, 9);
+    expect(s._sprite.sprite.scaleX).toBeCloseTo(SOLDIER_SCALE * 1.2, 9);
   });
 
   it('E12: with no art the fallback body takes the tier colour and grows from its foot', () => {
@@ -388,12 +394,12 @@ describe('Soldier tier look (R16, R16b, S9, S10)', () => {
 
     it('stands on the foot (art ground line, or the fallback body bottom), scaled by the tier', () => {
       const art = squad({ level: 4, branch: 'A', keys: BASE_KEYS }).s;
-      expect(art._shield.y).toBeCloseTo(8.6 - 2.4, 9);
-      expect(art._shield.x).toBeCloseTo(3.6, 9);
+      expect(art._shield.y).toBeCloseTo(SOLDIER_ART.ground.footY - SOLDIER_SHIELD.footLiftPx, 9);
+      expect(art._shield.x).toBeCloseTo(SOLDIER_SHIELD.dx, 9);
       expect(art._shield.scaleX).toBeCloseTo(1.3, 9);
       expect(art._shield.scaleY).toBeCloseTo(1.3, 9);
       const fallback = squad({ level: 4, branch: 'A' }).s;
-      expect(fallback._shield.y).toBeCloseTo(4 - 2.4, 9);
+      expect(fallback._shield.y).toBeCloseTo(4 - SOLDIER_SHIELD.footLiftPx, 9);
     });
 
     it('is a gradient kite drawn with its bottom on its own origin', () => {
@@ -401,7 +407,7 @@ describe('Soldier tier look (R16, R16b, S9, S10)', () => {
       const ys = s._shield.calls.filter(c => c[0] === 'fillTriangle').flatMap(c => [c[2], c[4], c[6]]);
       expect(ys.length).toBeGreaterThan(0);
       expect(Math.max(...ys)).toBeCloseTo(0, 9);
-      expect(Math.min(...ys)).toBeCloseTo(-7.5, 9);
+      expect(Math.min(...ys)).toBeCloseTo(-SOLDIER_SHIELD.h, 9);
       const grads = s._shield.calls.filter(c => c[0] === 'fillGradientStyle');
       const colours = new Set(grads.flatMap(c => c.slice(1, 5)));
       expect(colours.has(0xcfe8ff)).toBe(true); // top
@@ -424,7 +430,7 @@ describe('Soldier tier look (R16, R16b, S9, S10)', () => {
       s.setPathProgress(0.6, L); // on the vertical leg: facingDirX gives 0
       s.update(0.1);
       expect(s._shield.scaleX).toBeCloseTo(-1.3, 9);
-      expect(s._shield.x).toBeCloseTo(-3.6, 9);
+      expect(s._shield.x).toBeCloseTo(-SOLDIER_SHIELD.dx, 9);
     });
 
     it(`E41: the shield hides on death and shows on respawn ${label}`, () => {
@@ -447,7 +453,7 @@ describe('Soldier tier look (R16, R16b, S9, S10)', () => {
     s.update(0.016);
     expect(s._variant).toBe('t3');
     expect(s._sprite.tierScale()).toBe(1.2);
-    expect(s._sprite.sprite.scaleX).toBeCloseTo(0.36 * 1.2, 9);
+    expect(s._sprite.sprite.scaleX).toBeCloseTo(SOLDIER_SCALE * 1.2, 9);
     expect(s._sprite.resolvedKey('idle')).toBe('sprite-soldier-default-idle-t3');
     expect(s.lookSnapshot().key).toBe('sprite-soldier-default-idle-t3');
   });
@@ -463,7 +469,22 @@ describe('Soldier tier look (R16, R16b, S9, S10)', () => {
     const t1 = squad({ keys: BASE_KEYS }).s;
     const t4 = squad({ level: 4, branch: 'B', keys: BASE_KEYS }).s;
     const t1Width = t1._sprite.getDisplaySize().width;
-    expect(t1Width).toBeCloseTo(CELL * 0.36, 9);
+    expect(t1Width).toBeCloseTo(CELL * SOLDIER_SCALE, 9);
     expect(t4._targetLayout().spacing).toBeCloseTo(SOLDIER_FORMATION.spacingFrac * 1.3 * t1Width, 9);
+  });
+});
+
+describe('4A shield proportion (4.5)', () => {
+  const drawn = SOLDIER_ART.states.idle.frameWidth * SOLDIER_ART.scale;
+  // Pre-4.5 ratios: shield tuned for the 48px frame drawn at scale 0.36.
+  const PRE_W = 6.5 / (48 * 0.36);
+  const PRE_DX = 3.6 / (48 * 0.36);
+  it('keeps the shield width in proportion to the drawn soldier', () => {
+    expect(SOLDIER_SHIELD.w / drawn).toBeGreaterThan(PRE_W * 0.95);
+    expect(SOLDIER_SHIELD.w / drawn).toBeLessThan(PRE_W * 1.05);
+  });
+  it('keeps the shield offset in proportion to the drawn soldier', () => {
+    expect(SOLDIER_SHIELD.dx / drawn).toBeGreaterThan(PRE_DX * 0.95);
+    expect(SOLDIER_SHIELD.dx / drawn).toBeLessThan(PRE_DX * 1.05);
   });
 });

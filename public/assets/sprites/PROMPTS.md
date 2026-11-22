@@ -175,8 +175,9 @@ shatter) optional. Author facing right, moving right.
 
 - **drone** — `Veth Drone`, hp 70, ground, tint `#33ff66`:
   ```
-  small alien recon drone, hexagonal chitin carapace, single glowing green
-  optic, four skittering biomech legs, toxic-green emissive accents
+  small alien recon drone seen from a high angle, walking to the right, compact
+  rounded hexagonal chitin carapace in dark charcoal, one large glowing
+  toxic-green optic on the front, four short biomech legs, green emissive seams
   ```
 - **skitter** — `Veth Skitter`, fast, ground, tint `#ff6600`:
   ```
@@ -196,15 +197,18 @@ shatter) optional. Author facing right, moving right.
   ```
 - **phantom** — `Veth Phantom`, flying, fast, tint `#9b59b6`:
   ```
-  one single ghostly flying alien creature, translucent violet organic body with
-  long trailing wisp tendrils, faint glowing core, ethereal semi-transparent
-  edges, airborne in mid-air with nothing touching the ground, a floating
-  living wraith, not a monolith, not a tower, not a structure
+  one single flying alien creature seen from above at a high angle, gliding to
+  the right, broad solid manta-ray wing membrane of dark violet chitin with a
+  thick central body, a bright glowing violet core and glowing violet wing
+  edges, short trailing tendrils, airborne with nothing touching the ground,
+  wide bold silhouette
   ```
 - **titan** — `Veth Titan` (boss), huge & armored, tint `#e74c3c`:
   ```
-  colossal alien boss titan, towering layered red-chitin armor, multiple glowing
-  red eyes, jagged crown of spines, menacing hive-overlord presence, epic scale
+  colossal four-legged alien boss beast seen from above at a high angle, walking
+  to the right, long broad body of layered dark chitin armor plates with glowing
+  red seams, a jagged crown of spines along its back, a heavy head pointing right
+  with several glowing red eyes, low wide stance, hive overlord
   ```
 
 ### (c) Towers — `assets/sprites/towers/`

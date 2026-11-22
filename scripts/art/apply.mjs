@@ -59,8 +59,8 @@ export function failureHints(steps, failedStep, { error = '' } = {}) {
         '    (width is in the failure message), then re-run apply. The tolerance stays as is.');
     }
     if (files.includes(RESOLUTION_TEST)) {
-      lines.push(`${RESOLUTION_TEST} failing after a drone pick is expected: it pins enemy:drone to 1x at render scale 2.`,
-        '  Once the new drone art has a @2x sheet, update that pinned set on purpose; do not loosen the test.');
+      lines.push(`${RESOLUTION_TEST} failing means an entity has no @2x sheet at render scale 2.`,
+        '  Run the --scale 2 pass for it (build-sprite-sheets.py --scale 2 / normalize.py --scale 2); do not pin it to 1x.');
     }
   }
   lines.push('To undo the art it wrote:',

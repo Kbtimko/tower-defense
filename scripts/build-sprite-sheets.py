@@ -120,10 +120,7 @@ TINTS = {
 # (no facing / --keep-debris combination reproduces them). `--all` skips them
 # so a bulk rebuild cannot overwrite the shipped pixels; naming one explicitly
 # still builds it, e.g. after a new reference is applied.
-NOT_REPRODUCIBLE = {
-    'enemy_drone': 'shipped sheets do not match the cached reference under any '
-                   'facing/--keep-debris combination',
-}
+NOT_REPRODUCIBLE = {}
 
 
 def load_facing(path=FACING_FILE):

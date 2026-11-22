@@ -14,6 +14,16 @@ describe('SPRITE_MANIFEST', () => {
     expect(getSpriteConfig('sentry',  'default')).not.toBeNull();
   });
 
+  it('engineer holds its pre-4.5 drawn height', () => {
+    // Old drawn height 42.1 display px (0.78 x 54 source px) over the 4.5 art's source
+    // bbox height of 56 px (alpha > 40) = 0.752; the new pick is wider, so holding the
+    // ground width (0.585) shrank the hero.
+    const oldDrawnHeight = 42.1;
+    const newSourceHeight = 56;
+    expect(getSpriteConfig('hero', 'engineer').scale)
+      .toBeCloseTo(Math.round(oldDrawnHeight / newSourceHeight * 100) / 100, 5);
+  });
+
   it('gives every one-shot state more than one frame', () => {
     // A single-frame one-shot never fires animationcomplete, so the entity
     // would stay stuck on that frame forever (and a dead enemy never destroys).
@@ -83,5 +93,16 @@ describe('getSpriteConfig by render scale', () => {
     const at2 = getSpriteConfig('tower', 'archer');
     expect(at2.scale).toBeCloseTo(base.scale / 2, 6);
     expect(at2.states.idle.path.endsWith('@2x.png')).toBe(true);
+  });
+});
+
+describe('soldier size (4.5)', () => {
+  // Spec value: 0.36 pre-4.5 x 1.5, so squads read at a glance.
+  it('soldier draws at 1.5x its pre-4.5 size', () => {
+    expect(getSpriteConfig('soldier', 'default').scale).toBeCloseTo(0.54, 5);
+    const PRE_45 = 0.36;
+    for (const e of SPRITE_MANIFEST.filter((m) => m.category === 'soldier')) {
+      if (e.scale !== undefined) expect(e.scale, e.type).toBeCloseTo(PRE_45 * 1.5, 5);
+    }
   });
 });

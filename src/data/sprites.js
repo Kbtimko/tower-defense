@@ -58,7 +58,7 @@ const BASE_SPRITE_MANIFEST = [
   {
     category: 'enemy', type: 'drone',
     scale: 0.59, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
-    ground: { footY: 17.1, width: 32.2 },
+    ground: { footY: 17.7, width: 32.2 },
     states: {
       move:  { path: 'assets/sprites/enemies/drone_move.png',
                frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 12 },
@@ -108,7 +108,7 @@ const BASE_SPRITE_MANIFEST = [
   {
     category: 'enemy', type: 'phantom',
     scale: 0.58, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
-    ground: { footY: 8.7, width: 30.2 },
+    ground: { footY: 15.1, width: 31.3 },
     states: {
       move:  { path: 'assets/sprites/enemies/phantom_move.png',
                frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 14 },
@@ -117,11 +117,12 @@ const BASE_SPRITE_MANIFEST = [
     },
   },
   // Veth Titan — boss, def.radius 22. 128px cell for the same reason as the
-  // colossus, and it is a tall standing silhouette rather than a low one.
+  // colossus. The art is a four-legged beast, about 93 x 104 display px drawn;
+  // scale 0.99 holds its longest side at 104.
   {
     category: 'enemy', type: 'titan',
-    scale: 1.08, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
-    ground: { footY: 62.6, width: 52.4 },
+    scale: 0.99, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 57.4, width: 95.5 },
     states: {
       move:  { path: 'assets/sprites/enemies/titan_move.png',
                frameWidth: 128, frameHeight: 128, frames: 8, frameRate: 8 },
@@ -222,8 +223,8 @@ const BASE_SPRITE_MANIFEST = [
   },
   {
     category: 'hero', type: 'engineer',
-    scale: 0.78, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
-    ground: { footY: 20.3, width: 23.4 },
+    scale: 0.75, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 21.0, width: 30.0 },
     states: {
       idle:   { path: 'assets/sprites/heroes/engineer_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 6, frameRate: 8 },
@@ -266,8 +267,8 @@ const BASE_SPRITE_MANIFEST = [
   // The sentry is bolted down — just idle and attack, like the towers.
   {
     category: 'soldier', type: 'default',
-    scale: 0.36, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
-    ground: { footY: 8.6, width: 11.5 },
+    scale: 0.54, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 12.4, width: 16.2 },
     states: {
       idle:   { path: 'assets/sprites/soldiers/default_idle.png',
                 frameWidth: 48, frameHeight: 48, frames: 6, frameRate: 8 },
