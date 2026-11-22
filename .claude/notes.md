@@ -5,7 +5,14 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 
 ## Current Status (2026-11-21)
 
-**2026-11-21 (latest): roadmap 4.6, the licence ledger. PR into `visual/integration` (`docs/4.6-licence-ledger`).**
+**2026-11-21 (latest): roadmap 4.5, soldier legibility and engineer re-gen. PR into `visual/integration` (`visual/4.5-units-portraits`).**
+- Soldiers draw 1.5x larger: `scale` 0.36 -> 0.54, re-measured `ground`, and the 4A shield scaled to match. Squads now read at a glance; they stand where they did before, and flankers touch pad rims slightly more (frozen-frame A/B on map 8, k = 1 and 2).
+- The engineer has new art (job `hero-engineer`, pick #6) with no baked ground shadow. It holds its old drawn height (scale 0.75, about 30 x 42 px) rather than its foot width, because the new pick stands wider. Its contact shadow is about 28% wider than before.
+- **Portraits at 512 were deferred by the user.** Re-rendering them with the same prompt, seed and settings gave the same faces with different brushwork (mean diff 7.1 and 10.5 out of 255). The art bible §7 "Consistency" now records what a prompt can and cannot hold; the img2img route is backlog #83.
+- Art-pipeline fixes, also on the 4.3 branch: failed candidates refill with their own seeds instead of duplicating used ones, and Draw Things requests (`post()`, now also used by the legacy generator) wait up to 30 min instead of fetch's 300 s cap, which lost 5 renders under load.
+- Verified: 4126 tests in 249 files, exit 0 (the last commit is docs only); `assets --strict` and `npm run build` exit 0; flow matrix PASS on desktop, iphone, pixel and ipad. Opus final review returned "with fixes"; its fix wave was re-reviewed, and the two residual art-bible lines were fixed by the controller.
+
+**2026-11-21 (earlier): roadmap 4.6, the licence ledger. PR into `visual/integration` (`docs/4.6-licence-ledger`).**
 - `docs/licenses.md` lists, with sources, what every shipped third-party or generated thing is and its licence:
   - code: Phaser MIT, eventemitter3 MIT, vendored Earcut ISC, and Vite's modulepreload polyfill;
   - fonts: Orbitron and Rajdhani, OFL-1.1;
@@ -287,6 +294,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
+- **2026-11-21:** #136 (4.6) merged. Roadmap 4.5 PR open into `visual/integration` (`visual/4.5-units-portraits`); roadmap 4.3 PR to follow (`visual/4.3-enemy-refresh`).
 - **2026-11-21:** #133 (4.1a) and #134 (4.1b) merged. 4.6 licence ledger PR open into `visual/integration` (`docs/4.6-licence-ledger`).
 - **2026-11-21:** #132 (bug bundle #68/#64/#57) merged. Roadmap 4.1a PR open into `visual/integration` (`visual/4.1-2x-rebake`); 4.1b (2x re-bake) next.
 - **2026-11-20:** #131 (#59) merged. Bug bundle #68/#64/#57 PR merged as #132.
@@ -556,6 +564,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 80. `[auto]` ✅ **DONE 2026-11-21 (visual/4.1b-2x-sprite-rebake)** ~~**Roadmap 4.1b: 2x sprite re-bake**~~ — shipped as a second `@2x` set loaded only at k = 2 (see Current Status). _(split from 4.1 on 2026-11-21)_. Rebuild every sheet at 2x cells from the 1024px references in `.claude/worktrees/tower-art-42/.art-cache/sprites` (copy them; the primary cache is stale), halve `sprites.js` scales, re-measure `ground`, keep `enemy_drone` (NOT_REPRODUCIBLE) as is. Size it from 4.1a: at k = 2 a typical sprite needs ~62 device px and today's 64px sheets give ~52.
 81. `[auto]` **Ship third-party notices in the build** _(raised 2026-11-21 by 4.6)_. The build bundles Phaser (MIT), eventemitter3 (MIT), vendored Earcut (ISC), Vite's modulepreload polyfill (MIT) and the Orbitron/Rajdhani fonts (OFL-1.1), but ships none of their licence texts. Generate a notices file from the production bundle (e.g. a rollup licence plugin) and include the OFL texts from `node_modules/@fontsource/*/LICENSE`. Needed before any commercial release; see `docs/licenses.md`.
 82. `[review]` **Title / trademark clearance for "Last Light"** _(raised 2026-11-21 by the 4.6 review)_. It overlaps the video-game trademark *Metro: Last Light*. This is the user's call: run a trademark search before a commercial release or store page.
+83. `[auto]` **Speaker portraits at 512 via img2img** _(raised 2026-11-21 by 4.5, deferred by the user)_. The 256 px portraits upsample in the ~240 CSS px dialog frame on 2x screens. Re-prompting did not reproduce them (see art-bible §7 Consistency). Instead upscale each shipped 256 to 1024, img2img at low strength (about 0.3), downscale to 512 and require the sameness diff (mean < 4 per channel against the shipped 256) before shipping. The manifest change is saved as `/private/tmp/claude-501/portraits-512-manifest.patch` (scratch; re-derive if gone: `assetManifest.js` portrait `expected` 256 -> 512 plus its test).
 
 ## Completed
 <!-- Tags below are retrospective/illustrative — runner skips done items regardless. -->
