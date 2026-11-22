@@ -15,7 +15,7 @@ Probe: the capture build, Chromium on the real GPU (`--use-angle=metal --enable-
 |---|---|---|
 | desktop1440x2 (2976×1440), map 9 w10, 1x CPU | 60.1 | 16.7 ms |
 | iphone (3264×1440), map 9 w10, 4x CPU | 45.3 | 33.4 ms |
-| iphone, map 9 w12, 6x CPU | 25.8 | 50.0 ms |
+| iphone, map 9 w12, 6x CPU (single recon reading) | 25.8 | 50.0 ms |
 | same, `_staticLayers` hidden | **59.8** | 16.8 ms |
 | same, `_staticLayers` + `_padGlow` + ambient hidden | 60.0 | 16.7 ms |
 | desktop1440x2, map 9 w18, 4x CPU, grade + ambient on / off | 44.5 / 50.0 | 33.4 / 33.4 ms |
@@ -59,7 +59,7 @@ Probe: the capture build, Chromium on the real GPU (`--use-angle=metal --enable-
 
 - **Changing what the game looks like.** A baked layer that is blurrier at k = 2, misaligned by a pixel, or that misses an occupancy change counts as a failure even if the fps number is great.
 - **Turning off visuals by default to pass the gate.** The gate runs at the Auto setting.
-- **A perf gate that passes vacuously.** The gate has to fail on the base commit (6x is shown failing above; at 4x the phone proxy measured 44–45 fps at base, so the gate must also be proven against something that does fail, e.g. a 6x run on the base).
+- **A perf gate that passes vacuously.** The gate's failure was proven on the bake at 8x (23.1 fps, exit 1) and 10x (18.4 fps, exit 1); 6x passed at 31.3 fps, so 6x is not a failure proof.
 
 ## Constraints
 
