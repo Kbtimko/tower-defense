@@ -98,7 +98,7 @@ describe('SaveManager — v2 settings', () => {
       musicVol:  0.6,
       muted:     false,
       ambientMotion: null,
-      mapGrade: null,
+      graphics: 'auto',
       autoSend: true,
     });
   });
@@ -112,7 +112,7 @@ describe('SaveManager — v2 settings', () => {
       musicVol:  0.6,
       muted:     true,
       ambientMotion: null,
-      mapGrade: null,
+      graphics: 'auto',
       autoSend: true,
     });
     const env = JSON.parse(localStorage.getItem('lastlight_save'));
@@ -152,7 +152,7 @@ describe('SaveManager — v2 settings', () => {
       musicVol:  0.6,
       muted:     false,
       ambientMotion: null,
-      mapGrade: null,
+      graphics: 'auto',
       autoSend: true,
     });
   });
@@ -169,7 +169,7 @@ describe('SaveManager — autoSend setting (#51)', () => {
       maps: new Array(10).fill(0),
       upgrades: [],
       stats: { kills: 0, gamesPlayed: 0, victories: 0, defeats: 0, bestWave: 0 },
-      settings: { masterVol: 0.8, sfxVol: 1, musicVol: 0.6, muted: false, ambientMotion: null, mapGrade: null },
+      settings: { masterVol: 0.8, sfxVol: 1, musicVol: 0.6, muted: false, ambientMotion: null, graphics: 'auto' },
       selectedHeroId: 'rael',
       seenStoryBeats: {},
       records: new Array(10).fill(null),
@@ -411,7 +411,7 @@ describe('SaveManager v5 — per-map records', () => {
     maps: [3, 2, 1, 0, 0, 0, 0, 0, 0, 0],
     upgrades: ['rael_hp'],
     stats: { kills: 9, gamesPlayed: 4, victories: 3, defeats: 1, bestWave: 7 },
-    settings: { masterVol: 0.5, sfxVol: 1, musicVol: 0.6, muted: true, ambientMotion: 'off', mapGrade: null },
+    settings: { masterVol: 0.5, sfxVol: 1, musicVol: 0.6, muted: true, ambientMotion: 'off', graphics: 'auto' },
     selectedHeroId: 'rael',
     seenStoryBeats: { intro: true },
   });
@@ -601,5 +601,36 @@ describe('SaveManager — reads see writes from another instance (#57)', () => {
     writer.markBeatSeen('b1');
     expect(reader.hasSeenBeat('b1')).toBe(true);
     expect(reader.getSeenBeats().b1).toBe(true);
+  });
+});
+
+describe('SaveManager — graphics setting (roadmap 6.1)', () => {
+  const v5 = (settings) => ({
+    version: 5,
+    maps: new Array(10).fill(0),
+    upgrades: [],
+    stats: { kills: 0, gamesPlayed: 0, victories: 0, defeats: 0, bestWave: 0 },
+    settings,
+    selectedHeroId: 'rael',
+    seenStoryBeats: {},
+    records: new Array(10).fill(null),
+  });
+
+  it('a stored mapGrade:false save loads as graphics low, keeps ambientMotion, drops mapGrade', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(v5({ mapGrade: false, ambientMotion: false })));
+    const s = new SaveManager().getSettings();
+    expect(s.graphics).toBe('low');
+    expect(s.ambientMotion).toBe(false);
+    expect('mapGrade' in s).toBe(false);
+  });
+
+  it('a fresh save has graphics auto', () => {
+    expect(new SaveManager().getSettings().graphics).toBe('auto');
+  });
+
+  it('setSettings({ graphics: "high" }) round-trips through storage', () => {
+    new SaveManager().setSettings({ graphics: 'high' });
+    expect(new SaveManager().getSettings().graphics).toBe('high');
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)).settings.graphics).toBe('high');
   });
 });

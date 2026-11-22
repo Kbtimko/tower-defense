@@ -204,7 +204,7 @@ describe('SettingsOverlay', () => {
     cb.checked = false;
     cb.dispatchEvent(new Event('change', { bubbles: true }));
     expect(game.registry.get('mapGrade')).toBe(false);
-    expect(game._store.save.setSettings).toHaveBeenCalledWith({ mapGrade: false });
+    expect(game._store.save.setSettings).toHaveBeenCalledWith({ graphics: 'low' });
   });
 
   // Both polarities: an unwired checkbox starts unchecked, so the false case

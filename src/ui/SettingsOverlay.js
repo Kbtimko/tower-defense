@@ -57,7 +57,7 @@ export class SettingsOverlay {
       const gradeHandler = (e) => {
         const v = e.target.checked;
         this._game.registry.set('mapGrade', v);
-        this._game.registry.get('save')?.setSettings({ mapGrade: v });
+        this._game.registry.get('save')?.setSettings({ graphics: v ? 'high' : 'low' });
       };
       gradeCb.addEventListener('change', gradeHandler);
       this._listeners.push({ el: gradeCb, evt: 'change', fn: gradeHandler });
