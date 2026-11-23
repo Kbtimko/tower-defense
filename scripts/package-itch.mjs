@@ -9,6 +9,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { VENDORED_NOTICES } from '../src/data/vendoredNotices.js';
 import { ITCH_LIMITS, JUNK_FILES } from '../src/data/release.js';
 import { buildIdentity, checkItchLimits, findAbsoluteUrls, missingNotices, zipName } from '../src/systems/itchPackage.js';
 
@@ -82,9 +83,9 @@ if (problems.length) {
 }
 
 // MIT/ISC/OFL require the notice to travel with copies. eventemitter3 (inlined
-// by Phaser), Earcut and the Vite polyfill are not package.json dependencies.
+// by Phaser) and the vendored entries are not package.json dependencies.
 const noticesPath = path.join(OUT, 'THIRD_PARTY_NOTICES.txt');
-const required = [...Object.keys(JSON.parse(fs.readFileSync('package.json', 'utf8')).dependencies || {}), 'eventemitter3', 'Earcut', 'Vite'];
+const required = [...Object.keys(JSON.parse(fs.readFileSync('package.json', 'utf8')).dependencies || {}), 'eventemitter3', ...VENDORED_NOTICES.map(v => v.name)];
 if (!fs.existsSync(noticesPath)) {
   console.error('itch package problems:\n  - THIRD_PARTY_NOTICES.txt missing from the build');
   process.exit(1);

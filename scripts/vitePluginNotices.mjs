@@ -1,9 +1,10 @@
 // Vite build plugin: emit THIRD_PARTY_NOTICES.txt listing every npm package
-// that reached the bundle, plus the code no package.json enumerates (Earcut
-// inside Phaser, Vite's modulepreload polyfill). MIT/ISC/OFL require the
-// notice to travel with copies, and a build is a copy.
+// that reached the bundle, plus the code no package.json enumerates (Earcut,
+// Matter.js and Simplify.js inside Phaser, Vite's modulepreload polyfill).
+// MIT/ISC/OFL require the notice to travel with copies, and a build is a copy.
 
 import fs from 'node:fs';
+import { version as viteVersion } from 'vite';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { packageDirOf, formatNotices, collectPackages } from '../src/systems/thirdPartyNotices.js';
@@ -53,7 +54,6 @@ export default function thirdPartyNotices() {
       const all = collectPackages([...dirs], readPkg, resolveDep);
       const entries = [...all].sort().map(readEntry);
 
-      const viteVersion = JSON.parse(fs.readFileSync(path.resolve('node_modules/vite/package.json'), 'utf8')).version;
       for (const v of VENDORED_NOTICES) {
         entries.push(v.version === null ? { ...v, version: viteVersion } : v);
       }
