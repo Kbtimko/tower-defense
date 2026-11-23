@@ -56,16 +56,24 @@ Phase 6 puts v1 on itch.io. 6.4 (publish, gate G5) needs two things ready to upl
 ## Constraints
 
 - No new runtime dependencies. Allowed dev tooling: what is already installed (Vite, Playwright, `sharp`), the system `zip` and `ffmpeg` (both on this Mac; the scripts check for them and exit 2 with a clear message if missing).
-- Limits and the media shot list live in `src/data/` (for example `src/data/release.js`); pure logic (the limit check, the zip name) gets Vitest tests.
+- Limits and the media shot list live in `src/data/` (`src/data/release.js`); pure logic (the limit check, the zip name, the media geometry in `src/systems/releaseMedia.js`, and the board-build policy `releaseBuild` in `src/systems/debugCapture.js`) gets Vitest tests.
 - Respect the shared-host rules from 6.1: the browser steps are timing-insensitive (no fps budget), so no load gate is needed, but waits use game time as `capture.mjs` does.
 
 ## Decisions (controller's calls, within the approved design)
 
-- **Shot list:** maps 0, 3, 4, 6, 8, 9 at each map's last wave with `defaultCaptureBuild`. These six cover outpost, station, asteroid, corridor, homeworld and the finale. **Cover:** a centred 630×500 crop from the map 9 shot, downscaled from a 1260×1000 crop of the 1920×1080 frame.
-- **Clip:** map 9, last wave, `desktop1080`, 15 s, with `autosend=1` so enemies keep coming.
+*Revised 2026-11-23 (Ruling F, after the controller judged the first media weak storefront material: half the pads were empty and enemies sat at the spawn edge).*
+- **Shot list:** maps 0, 3, 4, 6, 8 and 9. These six cover outpost, station, asteroid, corridor, homeworld and the finale. For each map:
+  - the scene is the last wave with `autosend=1`;
+  - a tower goes on **every** pad via `releaseBuild(slotCount, map.maxTierAllowed)`, mostly tier 3 with some 4a/4b, capped at the map's max tier (uncapped, maps 0 and 3 killed everything before it reached the middle of the road);
+  - the shot is the frame with the most live enemies in the road's middle band (path progress 0.15–0.85, inclusive; ties go to total live enemies), searched between sim 8 s and 45 s;
+  - the script exits 1 if a shot has fewer than 3 mid-road enemies.
+- **Cover:** a 1134×900 crop of the map 9 shot (1260×1000 reached the letterbox), centred on the mid-road enemies' centroid. It is shifted, never shrunk, to stay inside the board, so no rails or letterbox show, then resized to 630×500.
+- **Clip:** map 9 on `desktop1080`, with the same board, wave and auto-send, 15 s long. The trim starts at the first moment at least 3 enemies are mid-road. The script exits 1 if no such crowd forms within 45 s of sim time.
   - `clip.mp4`: H.264, yuv420p, faststart.
-  - `clip.gif`: 960 px wide, 15 fps, palette-optimised with ffmpeg. The target is under 10 MB; the script warns when it is over.
-- **Sharing with `capture.mjs`:** reuse it by extracting the pieces needed (the build-and-serve helper, `shootBusiestFrame`, the video path) into an importable module rather than shelling out to the CLI. Keep `npm run capture` and `npm run matrix` behaviour unchanged.
+  - `clip.gif`: 640 px wide, 8 fps (960 px at 15 fps came to 28 MB), palette-optimised with ffmpeg. The target is under 10 MB, and the script warns when it is over.
+- **Capture hook:** a capture-only `window.__capture.crowd()` returns the live enemies with their path progress. It sits with the rest of `applyDebugCapture`, and the production bundle is byte-identical without it.
+- **Portraits (Ruling D):** the subfolder check found root-absolute portrait URLs in `StoryDialogOverlay.js` and `ResultsScreen.js`, which would have 404'd on itch. Both are now page-relative, the one game-code change the Non-goals allow.
+- **Sharing with `capture.mjs`:** `scripts/captureCore.mjs` holds `captureUrl` (with an `autosend` option), `watchProblems`, `shootBusiestFrame`, `MIN_ENEMIES` and `contextOptions`, plus the new `boardRect`, `middleBand` and `shootBestFrame`. `release-media.mjs` keeps its own build-and-serve (port 4192) and video recording. `npm run capture` and `npm run matrix` behave as before.
 - **Zip tool:** the system `zip -r -X` run from inside `release/itch/`, so `index.html` sits at the root and no `__MACOSX` or extra attributes are added.
 - **The version** comes from `package.json` (0.1.0 today). Bumping it is 6.4's call.
 

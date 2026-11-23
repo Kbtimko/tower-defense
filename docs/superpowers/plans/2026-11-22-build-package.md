@@ -13,6 +13,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-22-build-package-design.md`
 
+> **As built (2026-11-23):** Task 4's shot policy changed during execution (Ruling F). It now uses a full board via `releaseBuild`, auto-send, a mid-road frame chosen between 8 s and 45 s of sim time, a 1134×900 crop centred on the action, and a GIF at 640 px / 8 fps. Task 1's `RELEASE_MEDIA` block and Task 4 Step 2 below show the original values; the spec's Decisions section is current.
+
 ## Global Constraints
 
 - itch limits:
