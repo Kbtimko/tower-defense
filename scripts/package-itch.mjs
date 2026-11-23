@@ -9,8 +9,9 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ITCH_LIMITS, JUNK_FILES } from '../src/data/release.js';
-import { buildIdentity, checkItchLimits, findAbsoluteUrls, zipName } from '../src/systems/itchPackage.js';
+import { VENDORED_NOTICES } from '../src/data/vendoredNotices.js';
+import { FORBIDDEN_BUNDLE_MARKERS, ITCH_LIMITS, JUNK_FILES } from '../src/data/release.js';
+import { buildIdentity, checkItchLimits, findAbsoluteUrls, missingNotices, zipName } from '../src/systems/itchPackage.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 process.chdir(ROOT);
@@ -78,6 +79,33 @@ for (const f of files) {
 if (problems.length) {
   console.error('itch package problems:');
   for (const p of problems) console.error(`  - ${p}`);
+  process.exit(1);
+}
+
+// MIT/ISC/OFL require the notice to travel with copies. eventemitter3 (inlined
+// by Phaser) and the vendored entries are not package.json dependencies.
+const noticesPath = path.join(OUT, 'THIRD_PARTY_NOTICES.txt');
+const required = [...Object.keys(JSON.parse(fs.readFileSync('package.json', 'utf8')).dependencies || {}), 'eventemitter3', ...VENDORED_NOTICES.map(v => v.name)];
+if (!fs.existsSync(noticesPath)) {
+  console.error('itch package problems:\n  - THIRD_PARTY_NOTICES.txt missing from the build');
+  process.exit(1);
+}
+const lacking = missingNotices(fs.readFileSync(noticesPath, 'utf8'), required);
+if (lacking.length) {
+  console.error(`itch package problems:\n  - THIRD_PARTY_NOTICES.txt has no section for: ${lacking.join(', ')}`);
+  process.exit(1);
+}
+
+// Phaser's dist inlines a GPL-3.0 polyfill that strip-gpl-polyfill removes; if
+// it is back (plugin unregistered, Phaser changed), the build must not ship.
+const gpl = [];
+for (const f of files) {
+  if (!f.path.startsWith('assets/') || !f.path.endsWith('.js')) continue;
+  const src = fs.readFileSync(f.abs, 'utf8');
+  for (const m of FORBIDDEN_BUNDLE_MARKERS) if (src.includes(m)) gpl.push(`${m} in ${f.path}`);
+}
+if (gpl.length) {
+  console.error(`itch package problems:\n${gpl.map(g => `  - forbidden GPL code in the bundle: ${g}`).join('\n')}`);
   process.exit(1);
 }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildIdentity, checkItchLimits, findAbsoluteUrls, zipName } from './itchPackage.js';
+import { buildIdentity, checkItchLimits, findAbsoluteUrls, missingNotices, zipName } from './itchPackage.js';
 
 const ok = [{ path: 'index.html', bytes: 2_000 }, { path: 'assets/index-abc.js', bytes: 1_500_000 }];
 it('a small build with index.html at the root passes', () => expect(checkItchLimits(ok)).toEqual([]));
@@ -53,4 +53,20 @@ it('buildIdentity treats missing git or an unresolvable HEAD as nogit and dirty'
   expect(buildIdentity(() => ({ status: 0, stdout: '' }))).toEqual(nogit);
   expect(buildIdentity(() => ({ status: 128, stdout: 'abc\n' }))).toEqual(nogit);
   expect(buildIdentity(a => (a[0] === 'rev-parse' ? { status: 0, stdout: 'abc\n' } : { status: 128, stdout: '' }))).toEqual({ sha: 'abc', dirty: true });
+});
+
+describe('missingNotices', () => {
+  const header = t => `====\n${t}\n====\nLicence body.`;
+  const text = `Intro.\n\n${header('phaser 3.90.0 (MIT)')}\n\n${header('eventemitter3 5.0.4 (MIT)')}\n`;
+  it('returns the required names with no section header', () => {
+    expect(missingNotices(text, ['phaser', 'eventemitter3', '@fontsource/orbitron'])).toEqual(['@fontsource/orbitron']);
+  });
+  it('a name found only in a licence body still counts as missing', () => {
+    const body = `${header('phaser 3.90.0 (MIT)')}\n\n====\nother 1.0.0 (MIT)\n====\nDerived from eventemitter3.\n`;
+    expect(missingNotices(body, ['eventemitter3'])).toEqual(['eventemitter3']);
+  });
+  it('matches a name that is a prefix of a longer header (Earcut, Vite)', () => {
+    const v = header('Earcut (vendored in Phaser) 2.2.4 (ISC)');
+    expect(missingNotices(v, ['Earcut', 'Vite'])).toEqual(['Vite']);
+  });
 });

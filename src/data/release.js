@@ -11,6 +11,10 @@ export const ITCH_LIMITS = {
 // OS and VCS droppings that must never reach the zip.
 export const JUNK_FILES = ['.DS_Store', '.gitkeep'];
 
+// Strings that must not appear in a shipped bundle: the GPL-3.0 rvfc-polyfill
+// that Phaser's dist inlines, which strip-gpl-polyfill removes at build time.
+export const FORBIDDEN_BUNDLE_MARKERS = ['_rvfcpolyfillmap', 'ThaUnknown/rvfc-polyfill'];
+
 export const RELEASE_MEDIA = {
   device: 'desktop1080',
   shotMaps: [0, 3, 4, 6, 8, 9],
