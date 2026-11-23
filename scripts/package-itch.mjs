@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VENDORED_NOTICES } from '../src/data/vendoredNotices.js';
-import { ITCH_LIMITS, JUNK_FILES } from '../src/data/release.js';
+import { FORBIDDEN_BUNDLE_MARKERS, ITCH_LIMITS, JUNK_FILES } from '../src/data/release.js';
 import { buildIdentity, checkItchLimits, findAbsoluteUrls, missingNotices, zipName } from '../src/systems/itchPackage.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -93,6 +93,19 @@ if (!fs.existsSync(noticesPath)) {
 const lacking = missingNotices(fs.readFileSync(noticesPath, 'utf8'), required);
 if (lacking.length) {
   console.error(`itch package problems:\n  - THIRD_PARTY_NOTICES.txt has no section for: ${lacking.join(', ')}`);
+  process.exit(1);
+}
+
+// Phaser's dist inlines a GPL-3.0 polyfill that strip-gpl-polyfill removes; if
+// it is back (plugin unregistered, Phaser changed), the build must not ship.
+const gpl = [];
+for (const f of files) {
+  if (!f.path.startsWith('assets/') || !f.path.endsWith('.js')) continue;
+  const src = fs.readFileSync(f.abs, 'utf8');
+  for (const m of FORBIDDEN_BUNDLE_MARKERS) if (src.includes(m)) gpl.push(`${m} in ${f.path}`);
+}
+if (gpl.length) {
+  console.error(`itch package problems:\n${gpl.map(g => `  - forbidden GPL code in the bundle: ${g}`).join('\n')}`);
   process.exit(1);
 }
 
