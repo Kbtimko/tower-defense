@@ -6,7 +6,9 @@ allows. **This is a record of facts and sources, not legal advice.** Last verifi
 transitive npm runtime dependency, a folder under `public/` or `public/assets/`, or an audio
 file is missing from this ledger or from `public/audio/ATTRIBUTIONS.md`. It does not catch
 vendored code (such as Earcut inside Phaser) or code Vite injects; those are listed by hand
-below.
+below. Every build ships a generated `THIRD_PARTY_NOTICES.txt` with the licence texts,
+produced by `scripts/vitePluginNotices.mjs` from the bundle; Earcut and the Vite polyfill
+come from `src/data/vendoredNotices.js`. `npm run package:itch` refuses a build without it.
 
 ## Summary
 
@@ -38,6 +40,11 @@ not ship.
 - Vite injects its MIT-licensed modulepreload polyfill into the built JS.
   Source: https://github.com/vitejs/vite
 
+Their licence texts ship in each build's `THIRD_PARTY_NOTICES.txt`. The plugin lists every
+package in the bundle, adds Phaser's own dependencies (`eventemitter3`; Phaser's ES build
+inlines it, so it never appears as a module), and appends Earcut and the Vite polyfill from
+`src/data/vendoredNotices.js`.
+
 ## Fonts
 
 - `@fontsource/orbitron` 5.3.0, OFL-1.1. Orbitron by Matt McInerney; "Copyright 2018 The
@@ -47,7 +54,8 @@ not ship.
   2014 Indian Type Foundry".
   Source: https://fonts.google.com/specimen/Rajdhani
 - Licence text: https://openfontlicense.org. The exact copyright lines are in
-  `node_modules/@fontsource/*/LICENSE`.
+  `node_modules/@fontsource/*/LICENSE`; the generated `THIRD_PARTY_NOTICES.txt` includes
+  each font's full OFL text and copyright line.
 
 ## AI-generated art
 
@@ -126,12 +134,9 @@ test the game and are not part of the shipped bundle.
 
 ## Before a commercial release
 
-- [ ] Generate a third-party notices file from the production bundle (e.g. a rollup licence
-      plugin) so transitive and vendored code (eventemitter3, Earcut, Vite's polyfill) is
-      covered, and include the OFL texts with copyright lines from
-      `node_modules/@fontsource/*/LICENSE`. Today the build ships the font files and
-      Phaser's code without their licence texts; MIT, ISC and OFL require the notice to
-      travel with copies.
+- [x] Third-party notices: every build ships a generated `THIRD_PARTY_NOTICES.txt`
+      (OFL texts with copyright lines for the fonts; MIT/ISC for Phaser, eventemitter3,
+      Earcut and Vite's polyfill), and `npm run package:itch` fails without it.
 - [ ] Take legal advice on copyright in AI-generated art; ownership of output may be
       limited or non-exclusive depending on jurisdiction.
 - [ ] Re-check the OpenAI terms and the FLUX.1 [schnell] licence at release time, and

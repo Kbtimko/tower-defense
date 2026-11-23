@@ -66,3 +66,15 @@ export function buildIdentity(run) {
   const dirty = !(st && st.status === 0 && typeof st.stdout === 'string') || st.stdout.trim() !== '';
   return { sha, dirty };
 }
+
+// Section headers in THIRD_PARTY_NOTICES.txt are the single line between two
+// `====` rules. Only those count: a name can appear in a licence body (or in a
+// longer package name) without its own notice being shipped.
+export function missingNotices(noticesText, required) {
+  const lines = noticesText.split('\n');
+  const headers = [];
+  for (let i = 1; i < lines.length - 1; i++) {
+    if (lines[i - 1] === '====' && lines[i + 1] === '====') headers.push(lines[i]);
+  }
+  return required.filter(name => !headers.some(h => h.startsWith(`${name} `)));
+}

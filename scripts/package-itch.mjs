@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ITCH_LIMITS, JUNK_FILES } from '../src/data/release.js';
-import { buildIdentity, checkItchLimits, findAbsoluteUrls, zipName } from '../src/systems/itchPackage.js';
+import { buildIdentity, checkItchLimits, findAbsoluteUrls, missingNotices, zipName } from '../src/systems/itchPackage.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 process.chdir(ROOT);
@@ -78,6 +78,20 @@ for (const f of files) {
 if (problems.length) {
   console.error('itch package problems:');
   for (const p of problems) console.error(`  - ${p}`);
+  process.exit(1);
+}
+
+// MIT/ISC/OFL require the notice to travel with copies. eventemitter3 (inlined
+// by Phaser), Earcut and the Vite polyfill are not package.json dependencies.
+const noticesPath = path.join(OUT, 'THIRD_PARTY_NOTICES.txt');
+const required = [...Object.keys(JSON.parse(fs.readFileSync('package.json', 'utf8')).dependencies || {}), 'eventemitter3', 'Earcut', 'Vite'];
+if (!fs.existsSync(noticesPath)) {
+  console.error('itch package problems:\n  - THIRD_PARTY_NOTICES.txt missing from the build');
+  process.exit(1);
+}
+const lacking = missingNotices(fs.readFileSync(noticesPath, 'utf8'), required);
+if (lacking.length) {
+  console.error(`itch package problems:\n  - THIRD_PARTY_NOTICES.txt has no section for: ${lacking.join(', ')}`);
   process.exit(1);
 }
 
