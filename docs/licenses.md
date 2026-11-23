@@ -2,13 +2,13 @@
 
 Where every shipped third-party or generated asset in "Last Light" came from and what it
 allows. **This is a record of facts and sources, not legal advice.** Last verified
-2026-11-21. Guarded by `src/assets/licenseLedger.test.js`, which fails when a direct or
+2026-11-23. Guarded by `src/assets/licenseLedger.test.js`, which fails when a direct or
 transitive npm runtime dependency, a folder under `public/` or `public/assets/`, or an audio
 file is missing from this ledger or from `public/audio/ATTRIBUTIONS.md`. It does not catch
-vendored code (such as Earcut inside Phaser) or code Vite injects; those are listed by hand
-below. Every build ships a generated `THIRD_PARTY_NOTICES.txt` with the licence texts,
-produced by `scripts/vitePluginNotices.mjs` from the bundle; Earcut and the Vite polyfill
-come from `src/data/vendoredNotices.js`. `npm run package:itch` refuses a build without it.
+vendored code (such as Earcut, Matter.js and Simplify.js inside Phaser) or code Vite injects;
+those are listed by hand below. Every build ships a generated `THIRD_PARTY_NOTICES.txt` with the licence texts,
+produced by `scripts/vitePluginNotices.mjs` from the bundle; Earcut, Matter.js, Simplify.js
+and the Vite polyfill come from `src/data/vendoredNotices.js`. `npm run package:itch` refuses a build without it.
 
 ## Summary
 
@@ -17,6 +17,9 @@ come from `src/data/vendoredNotices.js`. `npm run package:itch` refuses a build 
 | `phaser` 3.90.0 | Game engine (bundled JS) | Yes | MIT | Keep the copyright and licence notice with copies | [phaserjs/phaser](https://github.com/phaserjs/phaser) |
 | `eventemitter3` 5.0.4 | Event emitter, Phaser's npm dependency (bundled) | Yes | MIT | Keep the notice with copies | [eventemitter3](https://github.com/primus/eventemitter3) |
 | Earcut 2.2.4 (vendored in Phaser) | Polygon triangulation inside `phaser.esm.js` | Yes | ISC, (c) 2016 Mapbox | Keep the notice with copies | [mapbox/earcut](https://github.com/mapbox/earcut) |
+| Matter.js 0.20.0 (vendored in Phaser) | Physics engine inside `phaser.esm.js` (the game does not use Matter physics, but the code ships) | Yes | MIT, (c) Liam Brummitt and contributors | Keep the notice with copies | [liabru/matter-js](https://github.com/liabru/matter-js) |
+| Simplify.js (vendored in Phaser) | Polygon simplification (`Phaser.Geom.Polygon.Simplify`) inside `phaser.esm.js` | Yes | BSD-2-Clause, (c) 2017 Vladimir Agafonkin | Reproduce the copyright, conditions and disclaimer with binary copies | [mourner/simplify-js](https://github.com/mourner/simplify-js) |
+| `rvfc-polyfill` (vendored in Phaser) | `requestVideoFrameCallback` shim in `phaser.esm.js` (the game does not use Phaser video) | Yes | **OPEN: GPL-3.0 upstream** (Phaser relabels it MIT) | **Unresolved, see "Open pre-release item" below** | [ThaUnknown/rvfc-polyfill](https://github.com/ThaUnknown/rvfc-polyfill) |
 | Vite modulepreload polyfill | Injected into the built JS by Vite | Yes | MIT | Keep the notice with copies | [vitejs/vite](https://github.com/vitejs/vite) |
 | `@fontsource/orbitron` 5.3.0 | Display font files (Orbitron, Matt McInerney) | Yes | OFL-1.1 | Ship the OFL text and copyright; no selling the font alone | [Orbitron](https://fonts.google.com/specimen/Orbitron), [OFL](https://openfontlicense.org) |
 | `@fontsource/rajdhani` 5.3.0 | Body font files (Rajdhani, Indian Type Foundry) | Yes | OFL-1.1 | As above | [Rajdhani](https://fonts.google.com/specimen/Rajdhani), [OFL](https://openfontlicense.org) |
@@ -37,13 +40,43 @@ not ship.
   Source: https://github.com/primus/eventemitter3
 - Earcut 2.2.4, ISC, (c) 2016 Mapbox: vendored inside Phaser (`phaser.esm.js`), so it is
   not an npm dependency of this project. Source: https://github.com/mapbox/earcut
+- Matter.js 0.20.0, MIT, (c) Liam Brummitt and contributors: vendored inside Phaser
+  (`phaser.esm.js`, source `src/physics/matter-js`). Source: https://github.com/liabru/matter-js
+- Simplify.js, BSD-2-Clause, (c) 2017 Vladimir Agafonkin: vendored inside Phaser
+  (`src/geom/polygon/Simplify.js`). The source names no version. Source:
+  https://github.com/mourner/simplify-js
 - Vite injects its MIT-licensed modulepreload polyfill into the built JS.
   Source: https://github.com/vitejs/vite
 
 Their licence texts ship in each build's `THIRD_PARTY_NOTICES.txt`. The plugin lists every
 package in the bundle, adds their `dependencies` transitively (`eventemitter3`: Phaser's
-ES build inlines it, so it never appears as a module), and appends Earcut and the Vite polyfill from
+ES build inlines it, so it never appears as a module), and appends Earcut, Matter.js, Simplify.js and the Vite polyfill from
 `src/data/vendoredNotices.js`.
+
+### Other code Phaser adapts (recorded, not reproduced)
+
+Phaser 3.90.0's source credits these snippets. Each is licensed as stated below, taken from
+the Phaser file header and the upstream npm metadata (`npm view <pkg> license`, checked
+2026-11-23). No `THIRD_PARTY_NOTICES.txt` entry exists for them: the texts and copyright
+lines are not in the Phaser source, so there is nothing to copy verbatim.
+
+- rbush, MIT, Vladimir Agafonkin: forked in `src/structs/RTree.js`.
+- stable 0.1.8, MIT, Angry Bytes (and contributors): `src/utils/array/StableSort.js`.
+- base64-arraybuffer, MIT, Niklas von Hertzen: `src/utils/base64/*`.
+- gl-matrix, MIT, toji: "Adapted from" in `src/math/Vector2.js`, `Vector3.js`, `Vector4.js`,
+  `Matrix3.js`, `Matrix4.js` and `Quaternion.js`.
+- line-circle-collision, MIT, Matt DesLauriers: `src/geom/intersects/LineToCircle.js`.
+- javascript-algorithms snippet, MIT, Minko Gechev; and an SVG-path snippet credited to Gavin
+  Kistner: inside the Matter.js sources.
+- QuickSelect, based on code by Vladimir Agafonkin (`src/utils/array/QuickSelect.js`), and
+  small snippets "based on code by" Mike Reinstein, Michael Jackson, Jonas Raoni Soares Silva
+  and tylerjpeterson, with no licence named in the Phaser source.
+- **klasse, BSD-2-Clause, Matt DesLauriers:** "Taken from klasse" in `src/utils/Class.js`.
+  BSD-2-Clause asks for the copyright and conditions to travel with binary copies, which
+  would make this the same case as Simplify.js. It has no `VENDORED_NOTICES` entry because
+  neither Phaser's source nor the klasse npm package (1.0.9) carries the licence text or a
+  copyright line, and this ledger will not invent one. Decide before release: take advice, or
+  fetch the upstream licence text from the klasse repository.
 
 ## Fonts
 
@@ -134,9 +167,20 @@ test the game and are not part of the shipped bundle.
 
 ## Before a commercial release
 
-- [x] Third-party notices: every build ships a generated `THIRD_PARTY_NOTICES.txt`
-      (OFL texts with copyright lines for the fonts; MIT/ISC for Phaser, eventemitter3,
-      Earcut and Vite's polyfill), and `npm run package:itch` fails without it.
+- [x] Third-party notices for the npm packages and the vendored code with a licence text to
+      copy: every build ships a generated `THIRD_PARTY_NOTICES.txt` (OFL texts with
+      copyright lines for the fonts; MIT/ISC/BSD-2-Clause for Phaser, eventemitter3, Earcut,
+      Matter.js, Simplify.js and Vite's polyfill), and `npm run package:itch` fails without
+      it. This does NOT cover rvfc-polyfill or klasse; see the two OPEN items below.
+- [ ] **OPEN, decision needed (Keith): `rvfc-polyfill` licence.** Phaser 3.90's
+      `src/polyfills/requestVideoFrame.js` is copied from
+      https://github.com/ThaUnknown/rvfc-polyfill. That package is GPL-3.0 on npm (1.0.5
+      onward; 1.0.0 to 1.0.4 say "GPT-3", a typo) and on GitHub. The code is present in our
+      built bundle. The game does not use Phaser video. Phaser's MIT header does not change
+      what upstream is licensed under, and a notice cannot satisfy GPL-3.0. Not fixed:
+      take legal advice, or remove the polyfill from the bundle (for example a build
+      transform), before any commercial release.
+- [ ] **OPEN: klasse (BSD-2-Clause)** notice text, see "Other code Phaser adapts".
 - [ ] Take legal advice on copyright in AI-generated art; ownership of output may be
       limited or non-exclusive depending on jurisdiction.
 - [ ] Re-check the OpenAI terms and the FLUX.1 [schnell] licence at release time, and
