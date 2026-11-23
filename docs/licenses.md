@@ -41,8 +41,8 @@ not ship.
   Source: https://github.com/vitejs/vite
 
 Their licence texts ship in each build's `THIRD_PARTY_NOTICES.txt`. The plugin lists every
-package in the bundle, adds Phaser's own dependencies (`eventemitter3`; Phaser's ES build
-inlines it, so it never appears as a module), and appends Earcut and the Vite polyfill from
+package in the bundle, adds their `dependencies` transitively (`eventemitter3`: Phaser's
+ES build inlines it, so it never appears as a module), and appends Earcut and the Vite polyfill from
 `src/data/vendoredNotices.js`.
 
 ## Fonts

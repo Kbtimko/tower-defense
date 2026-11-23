@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { packageDirOf, formatNotices } from './thirdPartyNotices.js';
+import { packageDirOf, formatNotices, collectPackages } from './thirdPartyNotices.js';
 import { VENDORED_NOTICES } from '../data/vendoredNotices.js';
 
 describe('packageDirOf', () => {
@@ -82,5 +82,28 @@ describe('VENDORED_NOTICES', () => {
     expect(vite.version).toBeNull();
     expect(vite.license).toBe('MIT');
     expect(vite.text).toContain('MIT License');
+  });
+});
+
+describe('collectPackages', () => {
+  const tree = {
+    '/n/a': { name: 'a', dependencies: { b: '1' } },
+    '/n/b': { name: 'b', dependencies: { c: '1' } },
+    '/n/c': { name: 'c' },
+  };
+  const readPkg = dir => tree[dir];
+  const resolveDep = name => (tree[`/n/${name}`] ? `/n/${name}` : null);
+
+  it('includes transitive dependencies, each once, even when also required directly', () => {
+    const dirs = collectPackages(['/n/a', '/n/b'], readPkg, resolveDep);
+    expect([...dirs].sort()).toEqual(['/n/a', '/n/b', '/n/c']);
+  });
+  it('terminates on a dependency cycle', () => {
+    const cyc = { '/n/x': { dependencies: { y: '1' } }, '/n/y': { dependencies: { x: '1' } } };
+    const dirs = collectPackages(['/n/x'], d => cyc[d], n => `/n/${n}`);
+    expect([...dirs].sort()).toEqual(['/n/x', '/n/y']);
+  });
+  it('throws naming a dependency that cannot be found', () => {
+    expect(() => collectPackages(['/n/a'], readPkg, () => null)).toThrow(/b/);
   });
 });

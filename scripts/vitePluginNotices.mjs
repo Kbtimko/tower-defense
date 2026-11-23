@@ -5,13 +5,29 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { packageDirOf, formatNotices } from '../src/systems/thirdPartyNotices.js';
+import { createRequire } from 'node:module';
+import { packageDirOf, formatNotices, collectPackages } from '../src/systems/thirdPartyNotices.js';
 import { VENDORED_NOTICES } from '../src/data/vendoredNotices.js';
 
 const LICENCE_FILE = /^(licen[cs]e|copying)(\..*)?$/i;
 
+const readPkg = dir => JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+
+// Node-style lookup from the parent's directory. Packages whose `exports`
+// block package.json fall back to walking up node_modules folders by hand.
+function resolveDep(name, fromDir) {
+  try {
+    return path.dirname(createRequire(path.join(fromDir, 'package.json')).resolve(`${name}/package.json`));
+  } catch { /* exports-blocked or absent: walk */ }
+  for (let dir = fromDir; ; dir = path.dirname(dir)) {
+    const cand = path.join(dir, 'node_modules', name);
+    if (fs.existsSync(path.join(cand, 'package.json'))) return cand;
+    if (path.dirname(dir) === dir) return null;
+  }
+}
+
 function readEntry(dir) {
-  const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+  const pkg = readPkg(dir);
   const file = fs.readdirSync(dir).sort().find(f => LICENCE_FILE.test(f));
   if (!file) throw new Error(`third-party-notices: ${pkg.name} has no licence file`);
   const license = typeof pkg.license === 'string' ? pkg.license : (pkg.license && pkg.license.type) || 'UNKNOWN';
@@ -34,15 +50,8 @@ export default function thirdPartyNotices() {
         const dir = packageDirOf(id);
         if (dir) dirs.add(dir);
       }
-      // dist/phaser.esm.js (our entry via package.json "module") inlines
-      // Phaser's npm dependencies instead of importing them, so they never
-      // show up as module ids. Their code is in the bundle; list them.
-      for (const dir of [...dirs]) {
-        const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
-        if (pkg.name !== 'phaser') continue;
-        for (const dep of Object.keys(pkg.dependencies || {})) dirs.add(path.join(path.dirname(dir), dep));
-      }
-      const entries = [...dirs].map(readEntry);
+      const all = collectPackages([...dirs], readPkg, resolveDep);
+      const entries = [...all].sort().map(readEntry);
 
       const viteVersion = JSON.parse(fs.readFileSync(path.resolve('node_modules/vite/package.json'), 'utf8')).version;
       for (const v of VENDORED_NOTICES) {

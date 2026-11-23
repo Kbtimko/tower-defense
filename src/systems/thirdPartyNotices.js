@@ -41,3 +41,25 @@ export function formatNotices(entries) {
     );
   return `${HEADER}\n\n${sections.join('\n\n')}\n`;
 }
+
+// A pre-bundled dist (phaser.esm.js) can inline its npm dependencies, so they
+// never appear as module ids. Walk `dependencies` transitively from every
+// package found in the bundle; listing one that was tree-shaken is harmless,
+// missing one breaks a licence. Only `dependencies` count: optional peers are
+// not shipped. `readPkg(dir)` and `resolveDep(name, fromDir)` are injected so
+// the traversal stays pure.
+export function collectPackages(startDirs, readPkg, resolveDep) {
+  const seen = new Set();
+  const queue = [...startDirs];
+  while (queue.length) {
+    const dir = queue.pop();
+    if (seen.has(dir)) continue;
+    seen.add(dir);
+    for (const dep of Object.keys(readPkg(dir).dependencies || {})) {
+      const depDir = resolveDep(dep, dir);
+      if (!depDir) throw new Error(`third-party-notices: cannot find dependency ${dep} of ${dir}`);
+      queue.push(depDir);
+    }
+  }
+  return seen;
+}
