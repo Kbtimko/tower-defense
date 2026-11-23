@@ -170,6 +170,10 @@ function applyDebugCapture(scene) {
     // Game-time ms left on the countdown (null when none runs): unlike simMs it
     // stops during hit-stop, so auto-send waits key on it.
     countdownMs: null,
+    // Live enemies in world coords with their share of the road walked (0..1), so the
+    // release-media script can pick the busiest mid-road frame.
+    crowd: () => scene.enemies.filter(e => !e.dead)
+      .map(e => ({ x: e.x, y: e.y, progress: scene.pathMgr.getNearestPathProgress(e.x, e.y) })),
     // Game-space positions, so the harness can click a tower to open its ring.
     towers: placed.map(t => ({ type: t.type, x: t.x, y: t.y })),
     // Jumps straight to a results screen without playing a level out; overrides

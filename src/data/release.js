@@ -14,7 +14,17 @@ export const JUNK_FILES = ['.DS_Store', '.gitkeep'];
 export const RELEASE_MEDIA = {
   device: 'desktop1080',
   shotMaps: [0, 3, 4, 6, 8, 9],
-  warmupSimMs: 6000,
+  // Shots and the clip open this many waves before the last, with auto-send on, so the final
+  // waves overlap on the road.
+  wavesFromEnd: 0,
+  // A shot is the best frame between these sim times;.
+  shotFromSimMs: 8000,
+  shotToSimMs: 45000,
+  // Only enemies this far along the road count as "the action" (not the spawn or the exit),
+  // and a shot needs at least minMiddleEnemies of them.
+  midBand: { from: 0.15, to: 0.85 },
+  minMiddleEnemies: 3,
   cover: { map: 9, cropWidth: 1134, cropHeight: 900, width: 630, height: 500 },
-  clip: { map: 9, seconds: 15, gifWidth: 640, gifFps: 10, gifWarnBytes: 10_000_000 },
+  // The clip trims from the first crowded mid-road moment, giving up waiting at maxLeadSimMs.
+  clip: { map: 9, seconds: 15, maxLeadSimMs: 45000, gifWidth: 640, gifFps: 8, gifWarnBytes: 10_000_000 },
 };

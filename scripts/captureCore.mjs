@@ -2,6 +2,9 @@
 import { MAPS } from '../src/data/maps.js';
 import { MAP_WAVES } from '../src/data/waves.js';
 import { defaultCaptureBuild } from '../src/systems/debugCapture.js';
+import { POINTER_FINE_QUERY } from '../src/data/mobile.js';
+import { WORLD_WIDTH, WORLD_HEIGHT } from '../src/data/layout.js';
+import { worldToPagePoint } from '../src/systems/deviceFlow.js';
 
 export const MIN_ENEMIES = 3;
 
@@ -57,3 +60,47 @@ export async function shootBusiestFrame(page, waitMs, file) {
   return { errors, towers, enemies: best, simMs: shotSimMs };
 }
 
+
+const GAME_CANVAS = '#game > canvas';
+
+// The playfield (world 0..WORLD_WIDTH x 0..WORLD_HEIGHT) in page pixels, rails and letterbox excluded.
+export async function boardRect(page) {
+  const pointerFine = await page.evaluate(q => matchMedia(q).matches, POINTER_FINE_QUERY);
+  const box = await page.locator(GAME_CANVAS).boundingBox();
+  const a = worldToPagePoint({ x: 0, y: 0 }, box, { pointerFine });
+  const b = worldToPagePoint({ x: WORLD_WIDTH, y: WORLD_HEIGHT }, box, { pointerFine });
+  return { x0: a.x, y0: a.y, x1: b.x, y1: b.y, pointerFine, box };
+}
+
+// Enemies on the middle of the road, in page pixels. Pure: shared by the shot and the clip.
+export function middleBand(crowd, { from, to }, board) {
+  const mid = crowd.filter(e => e.progress >= from && e.progress <= to);
+  if (mid.length === 0) return { count: 0, centroid: null };
+  const pts = mid.map(e => worldToPagePoint(e, board.box, { pointerFine: board.pointerFine }));
+  return {
+    count: mid.length,
+    centroid: { x: pts.reduce((s, p) => s + p.x, 0) / pts.length, y: pts.reduce((s, p) => s + p.y, 0) / pts.length },
+  };
+}
+
+// Polls game time from `fromSimMs` to `toSimMs`, scoring each frame by the enemies in the
+// middle band of the road (ties: total live enemies), and keeps a screenshot of the best.
+// Game time, not wall time: a headless browser may run well under 60 fps.
+export async function shootBestFrame(page, { fromSimMs, toSimMs, file, midBand }) {
+  await page.waitForFunction(() => window.__capture, null, { timeout: 30_000 });
+  await page.waitForFunction(ms => window.__capture.simMs >= ms, fromSimMs, { timeout: fromSimMs * 8 + 30_000, polling: 100 });
+  const board = await boardRect(page);
+  let best = -1, bestTotal = -1, simMs = 0, centroid = null, total = 0;
+  for (;;) {
+    const c = await page.evaluate(() => ({ crowd: window.__capture.crowd(), simMs: window.__capture.simMs }));
+    const mid = middleBand(c.crowd, midBand, board);
+    if (mid.count > best || (mid.count === best && c.crowd.length > bestTotal)) {
+      best = mid.count; bestTotal = c.crowd.length; simMs = c.simMs; centroid = mid.centroid; total = c.crowd.length;
+      await page.screenshot({ path: file });
+    }
+    if (c.simMs >= toSimMs) break;
+    await page.waitForTimeout(150);
+  }
+  const { errors, towers } = await page.evaluate(() => ({ errors: window.__capture.errors, towers: window.__capture.towers }));
+  return { best, total, simMs, centroid, board, errors, towers };
+}

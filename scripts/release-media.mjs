@@ -6,7 +6,7 @@
 // Builds the debug-hook `capture` mode (the production build strips them), serves it with
 // `vite preview`, and drives it with Playwright on the real GPU so the clip is full frame rate.
 // Output: release/media/{shot-map<N>.png, cover.png, clip.mp4, clip.gif, media.json}.
-// Exit 1 on a page error or a shot with fewer than MIN_ENEMIES enemies; 2 if ffmpeg is missing.
+// Exit 1 on a page error or a shot with fewer than minMiddleEnemies mid-road enemies; 2 if ffmpeg is missing.
 import { mkdirSync, writeFileSync, rmSync, statSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -14,8 +14,10 @@ import { build, preview } from 'vite';
 import { chromium } from 'playwright';
 import sharp from 'sharp';
 import { DEVICES } from './captureDevices.mjs';
-import { captureUrl, watchProblems, shootBusiestFrame, MIN_ENEMIES, contextOptions } from './captureCore.mjs';
+import { captureUrl, watchProblems, shootBestFrame, boardRect, middleBand, contextOptions } from './captureCore.mjs';
 import { MAP_WAVES } from '../src/data/waves.js';
+import { releaseBuild } from '../src/systems/debugCapture.js';
+import { MAPS } from '../src/data/maps.js';
 import { RELEASE_MEDIA } from '../src/data/release.js';
 
 const OUT_DIR = 'release/media';
@@ -38,37 +40,60 @@ function run(cmd, args) {
   return r.stdout;
 }
 
+// Every pad built, opened a couple of waves before the end with auto-send on, so the last
+// waves overlap on the road.
+function mediaUrl(mapId) {
+  const wave = Math.max(1, MAP_WAVES[mapId].length - RELEASE_MEDIA.wavesFromEnd);
+  return captureUrl(mapId, { wave, autosend: true, build: releaseBuild(MAPS[mapId].towerSlots.length, MAPS[mapId].maxTierAllowed) }).path;
+}
+
 async function shoot(browser, base, mapId, device) {
   const context = await browser.newContext(contextOptions(device));
   try {
     const page = await context.newPage();
     const problems = watchProblems(page);
-    const { path } = captureUrl(mapId, { wave: MAP_WAVES[mapId].length });
-    await page.goto(base + path);
+    await page.goto(base + mediaUrl(mapId));
     const file = join(OUT_DIR, `shot-map${mapId}.png`);
-    const r = await shootBusiestFrame(page, RELEASE_MEDIA.warmupSimMs, file);
-    return { map: mapId, file, enemies: r.enemies, simMs: r.simMs, towers: r.towers, problems: [...problems, ...r.errors] };
+    const { shotFromSimMs, shotToSimMs, midBand } = RELEASE_MEDIA;
+    const r = await shootBestFrame(page, { fromSimMs: shotFromSimMs, toSimMs: shotToSimMs, file, midBand });
+    const hud = await page.evaluate(() => document.getElementById('stat-kills')?.textContent);
+    return { map: mapId, file, middle: r.best, total: r.total, simMs: r.simMs, centroid: r.centroid, board: r.board,
+      kills: Number(hud), towers: r.towers.length, problems: [...problems, ...r.errors] };
   } finally {
     await context.close();
   }
 }
 
-async function makeCover() {
+// The crop is centred on the mid-road enemies, then clamped inside the board so it never
+// takes in a rail or the letterbox.
+function coverCrop(cover, shot) {
+  const { x0, y0, x1, y1 } = shot.board;
+  const cx = shot.centroid?.x ?? (x0 + x1) / 2;
+  const cy = shot.centroid?.y ?? (y0 + y1) / 2;
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const w = Math.min(cover.cropWidth, Math.floor(x1 - x0));
+  const h = Math.min(cover.cropHeight, Math.floor(y1 - y0));
+  return {
+    left: Math.round(clamp(cx - w / 2, x0, x1 - w)),
+    top: Math.round(clamp(cy - h / 2, y0, y1 - h)),
+    width: w, height: h,
+  };
+}
+
+async function makeCover(shot) {
   const { cover } = RELEASE_MEDIA;
   const src = join(OUT_DIR, `shot-map${cover.map}.png`);
-  const { width, height } = await sharp(src).metadata();
-  const left = Math.max(0, Math.floor((width - cover.cropWidth) / 2));
-  const top = Math.max(0, Math.floor((height - cover.cropHeight) / 2));
+  const region = coverCrop(cover, shot);
   const file = join(OUT_DIR, 'cover.png');
   await sharp(src)
-    .extract({ left, top, width: Math.min(cover.cropWidth, width), height: Math.min(cover.cropHeight, height) })
+    .extract(region)
     .resize(cover.width, cover.height)
     .toFile(file);
-  return file;
+  return { file, region };
 }
 
 async function recordClip(browser, base, device) {
-  const { clip, warmupSimMs } = RELEASE_MEDIA;
+  const { clip, midBand, minMiddleEnemies } = RELEASE_MEDIA;
   rmSync(VIDEO_DIR, { recursive: true, force: true });
   const context = await browser.newContext({
     ...contextOptions(device),
@@ -78,15 +103,22 @@ async function recordClip(browser, base, device) {
   // The recording starts when the page opens; offset is measured from here.
   const t0 = Date.now();
   const problems = watchProblems(page);
-  const { path } = captureUrl(clip.map, { wave: MAP_WAVES[clip.map].length, autosend: true });
-  await page.goto(base + path);
+  await page.goto(base + mediaUrl(clip.map));
   await page.waitForFunction(() => window.__capture, null, { timeout: 30_000 });
-  await page.waitForFunction(ms => window.__capture.simMs >= ms, warmupSimMs, { timeout: warmupSimMs * 8 + 30_000, polling: 50 });
+  const board = await boardRect(page);
+  // Trim from the first moment the road's middle holds a crowd (or clip.maxLeadSimMs if that
+  // comes first), so the clip shows towers engaging rather than the wave entering.
+  let startSimMs;
+  for (;;) {
+    const c = await page.evaluate(() => ({ crowd: window.__capture.crowd(), simMs: window.__capture.simMs }));
+    if (middleBand(c.crowd, midBand, board).count >= minMiddleEnemies || c.simMs >= clip.maxLeadSimMs) { startSimMs = c.simMs; break; }
+    await page.waitForTimeout(50);
+  }
   const offsetS = (Date.now() - t0) / 1000;
   await page.waitForTimeout(clip.seconds * 1000);
   await context.close();
   const webm = readdirSync(VIDEO_DIR).find(f => f.endsWith('.webm'));
-  return { webm: join(VIDEO_DIR, webm), offsetS, problems };
+  return { webm: join(VIDEO_DIR, webm), offsetS, startSimMs, problems };
 }
 
 function encodeClip({ webm, offsetS }) {
@@ -119,30 +151,32 @@ async function main() {
     for (const mapId of RELEASE_MEDIA.shotMaps) {
       const s = await shoot(browser, base, mapId, device);
       shots.push(s);
-      console.log(`${s.file}  sim ${(s.simMs / 1000).toFixed(1)}s, ${s.enemies} enemies${s.problems.length ? `  (${s.problems.length} problems)` : ''}`);
+      console.log(`${s.file}  sim ${(s.simMs / 1000).toFixed(1)}s, ${s.middle} mid-road of ${s.total} enemies, ${s.kills} kills, ${s.towers} towers${s.problems.length ? `  (${s.problems.length} problems)` : ''}`);
     }
     clipInfo = await recordClip(browser, base, device);
   } finally {
     await browser.close();
     await new Promise(res => server.httpServer.close(res));
   }
-  const cover = await makeCover();
+  const cover = await makeCover(shots.find(s => s.map === RELEASE_MEDIA.cover.map));
   const [mp4, gif] = encodeClip(clipInfo);
 
-  const files = [...shots.map(s => s.file), cover, mp4, gif].map(f => ({ file: f, bytes: statSync(f).size }));
+  const files = [...shots.map(s => s.file), cover.file, mp4, gif].map(f => ({ file: f, bytes: statSync(f).size }));
   const report = {
     device: RELEASE_MEDIA.device,
     files,
-    shots: shots.map(s => ({ map: s.map, enemies: s.enemies, simMs: s.simMs, towers: s.towers })),
-    clip: { offsetS: clipInfo.offsetS },
+    shots: shots.map(s => ({ map: s.map, middleEnemies: s.middle, totalEnemies: s.total, kills: s.kills, simMs: s.simMs, towers: s.towers })),
+    cover: cover.region,
+    clip: { offsetS: clipInfo.offsetS, startSimMs: clipInfo.startSimMs },
   };
   writeFileSync(join(OUT_DIR, 'media.json'), JSON.stringify(report, null, 2));
   files.forEach(f => console.log(`${f.file}  ${(f.bytes / 1024).toFixed(0)} KB`));
 
   const problems = [...shots.flatMap(s => s.problems.map(p => `map ${s.map}: ${p}`)), ...clipInfo.problems.map(p => `clip: ${p}`)];
-  const thin = shots.filter(s => s.enemies < MIN_ENEMIES);
+  const { minMiddleEnemies } = RELEASE_MEDIA;
+  const thin = shots.filter(s => s.middle < minMiddleEnemies);
   if (problems.length) console.error(`\n${problems.length} page problem(s):\n${problems.join('\n')}`);
-  if (thin.length) console.error(`\nshots with fewer than ${MIN_ENEMIES} enemies: maps ${thin.map(s => `${s.map} (${s.enemies})`).join(', ')}; raise RELEASE_MEDIA.warmupSimMs`);
+  if (thin.length) console.error(`\nshots with fewer than ${minMiddleEnemies} mid-road enemies: maps ${thin.map(s => `${s.map} (${s.middle})`).join(', ')}; widen RELEASE_MEDIA.shotFromSimMs/shotToSimMs`);
   if (problems.length || thin.length) process.exitCode = 1;
 }
 

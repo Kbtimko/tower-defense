@@ -132,7 +132,7 @@ describe('defaultCaptureBuild', () => {
 });
 
 describe('releaseBuild', () => {
-  const parseBuild = (n) => parse(`?debug=1&map=0&build=${releaseBuild(n)}`);
+  const parseBuild = (n, cap) => parse(`?debug=1&map=0&build=${releaseBuild(n, cap)}`);
 
   it('puts exactly one tower on every slot, with no parse errors, on every real map', () => {
     for (const [i, map] of MAPS.entries()) {
@@ -157,5 +157,13 @@ describe('releaseBuild', () => {
   it('is deterministic and empty for no slots', () => {
     expect(releaseBuild(14)).toBe(releaseBuild(14));
     expect(releaseBuild(0)).toBe('');
+  });
+
+  it('never exceeds the tier cap it is given', () => {
+    for (const cap of [2, 3, 4]) {
+      const { build } = parseBuild(20, cap);
+      expect(Math.max(...build.map(b => b.tier))).toBeLessThanOrEqual(cap);
+      expect(build.filter(b => b.branch).length > 0).toBe(cap === 4);
+    }
   });
 });
