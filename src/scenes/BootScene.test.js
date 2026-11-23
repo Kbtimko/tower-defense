@@ -317,3 +317,18 @@ describe('BootScene soldier tier textures (#49 R2, R15)', () => {
     expect(keys.indexOf(vKey)).toBeGreaterThanOrEqual(scanned.length);
   });
 });
+
+describe('BootScene graphics registry seed (roadmap 6.1)', () => {
+  it('a saved graphics:low seeds the resolved flags and the env for live re-resolve', () => {
+    savedSettings.value = { ambientMotion: null, graphics: 'low' };
+    const scene = new BootScene();
+    const set = new Map();
+    scene.game = { registry: { set: (k, v) => set.set(k, v) }, events: { on() {} } };
+    scene.load = { image() {}, spritesheet() {} };
+    try { scene.preload(); } finally { savedSettings.value = { ambientMotion: null }; }
+    expect(set.get('mapGrade')).toBe(false);
+    expect(set.get('ambientFx')).toBe(false);
+    expect(set.get('particleScale')).toBe(0.5);
+    expect(set.get('graphicsEnv')).toEqual({ webgl: expect.any(Boolean), touch: expect.any(Boolean) });
+  });
+});

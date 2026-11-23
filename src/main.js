@@ -13,6 +13,7 @@ import { applyHudLayerSize, fitHudLayer } from './ui/hudLayer.js';
 import { applyTheme, loadThemeFonts } from './ui/theme.js';
 import { watchRailLabels } from './ui/fitLabels.js';
 import { coalesceFrame } from './utils/coalesceFrame.js';
+import { installFpsMeter } from './ui/FpsMeter.js';
 
 // Picked once: a mid-session change would need every camera and text resolution
 // rebuilt. The ?res= override is a dev/capture aid, not a player setting.
@@ -50,6 +51,8 @@ const config = {
   scene: [BootScene, TitleScene, MapSelectScene, GameScene, UIScene, MapEditorScene],
 };
 
+// Not behind import.meta.env: the perf gate measures the production bundle.
+installFpsMeter();
 applyHudLayerSize(document);
 applyTheme(document);
 // Deliberately not awaited: boot must not wait on fonts; the fallback stack covers the gap.

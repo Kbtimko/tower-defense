@@ -1,3 +1,5 @@
+import { resolveGraphics } from '../systems/graphicsQuality.js';
+
 const CHANNELS = [
   { id: 'master', input: 'vol-master', val: 'vol-master-val', setter: 'setMasterVolume', key: 'masterVol' },
   { id: 'sfx',    input: 'vol-sfx',    val: 'vol-sfx-val',    setter: 'setSfxVolume',    key: 'sfxVol'    },
@@ -38,29 +40,35 @@ export class SettingsOverlay {
     const muteHandler = (e) => this._am.setMuted(e.target.checked);
     this._mute.addEventListener('change', muteHandler);
     this._listeners.push({ el: this._mute, evt: 'change', fn: muteHandler });
-    const ambientCb = document.getElementById('ambient-motion');
-    if (this._game && ambientCb) {
-      ambientCb.checked = this._game.registry.get('ambientMotion') !== false;
-      const ambientHandler = (e) => {
-        const v = e.target.checked;
+    // Reduce motion is the old Ambient motion with the polarity flipped; every
+    // consumer still reads the registry's ambientMotion.
+    const reduceCb = document.getElementById('reduce-motion');
+    if (this._game && reduceCb) {
+      reduceCb.checked = this._game.registry.get('ambientMotion') === false;
+      const reduceHandler = (e) => {
+        const v = !e.target.checked;
         this._game.registry.set('ambientMotion', v);
         this._game.registry.get('save')?.setSettings({ ambientMotion: v });
       };
-      ambientCb.addEventListener('change', ambientHandler);
-      this._listeners.push({ el: ambientCb, evt: 'change', fn: ambientHandler });
+      reduceCb.addEventListener('change', reduceHandler);
+      this._listeners.push({ el: reduceCb, evt: 'change', fn: reduceHandler });
     }
-    // Same shape as ambient motion. Read by GameScene at level start, so a
-    // change shows from the next level on.
-    const gradeCb = document.getElementById('map-grade');
-    if (this._game && gradeCb) {
-      gradeCb.checked = this._game.registry.get('mapGrade') === true;
-      const gradeHandler = (e) => {
-        const v = e.target.checked;
-        this._game.registry.set('mapGrade', v);
-        this._game.registry.get('save')?.setSettings({ mapGrade: v });
+    // The ambient layer and particles read their flags live; the grade is read
+    // by GameScene at level start, so it shows from the next level on.
+    const graphicsSel = document.getElementById('graphics-quality');
+    if (this._game && graphicsSel) {
+      const registry = this._game.registry;
+      graphicsSel.value = registry.get('save')?.getSettings().graphics ?? 'auto';
+      const graphicsHandler = (e) => {
+        const graphics = e.target.value;
+        registry.get('save')?.setSettings({ graphics });
+        const r = resolveGraphics(graphics, registry.get('graphicsEnv') ?? { webgl: false, touch: false });
+        registry.set('mapGrade', r.mapGrade);
+        registry.set('ambientFx', r.ambientFx);
+        registry.set('particleScale', r.particleScale);
       };
-      gradeCb.addEventListener('change', gradeHandler);
-      this._listeners.push({ el: gradeCb, evt: 'change', fn: gradeHandler });
+      graphicsSel.addEventListener('change', graphicsHandler);
+      this._listeners.push({ el: graphicsSel, evt: 'change', fn: graphicsHandler });
     }
     const autoSendCb = document.getElementById('auto-send');
     if (this._game && autoSendCb) {

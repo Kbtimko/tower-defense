@@ -1,5 +1,6 @@
 import { HEROES } from '../data/heroes.js';
 import { sanitizeRecord, mergeRecord } from './runRecord.js';
+import { migrateGraphicsSetting } from './graphicsQuality.js';
 
 const STORAGE_KEY = 'lastlight_save';
 const LEGACY_KEY  = 'lastlight_progress';
@@ -7,7 +8,7 @@ const MAP_COUNT   = 10;
 const VERSION     = 5;
 
 function defaultSettings() {
-  return { masterVol: 0.8, sfxVol: 1.0, musicVol: 0.6, muted: false, ambientMotion: null, mapGrade: null, autoSend: true };
+  return { masterVol: 0.8, sfxVol: 1.0, musicVol: 0.6, muted: false, ambientMotion: null, graphics: 'auto', autoSend: true };
 }
 
 function freshEnvelope() {
@@ -125,6 +126,10 @@ export class SaveManager {
     if (parsed.settings && typeof parsed.settings === 'object' && !Array.isArray(parsed.settings)) {
       env.settings = { ...env.settings, ...parsed.settings };
     }
+    // The old mapGrade boolean folds into `graphics`; the version stays 5 because
+    // load already merges settings over the defaults.
+    env.settings.graphics = migrateGraphicsSetting(parsed.settings);
+    delete env.settings.mapGrade;
     if (typeof parsed.selectedHeroId === 'string') env.selectedHeroId = parsed.selectedHeroId;
     if (parsed.seenStoryBeats && typeof parsed.seenStoryBeats === 'object'
         && !Array.isArray(parsed.seenStoryBeats)) {

@@ -9,7 +9,7 @@ import { STORY_SPEAKERS } from '../data/story.js';
 import { portraitPath, registerPortraits } from '../systems/portraitFallback.js';
 import { backgroundUrl, pickBackgroundVariant, mapCssWidth } from '../systems/backgroundAsset.js';
 import { attachLoadingBar } from '../ui/loadingBar.js';
-import { resolveMapGrade } from '../systems/mapGrade.js';
+import { resolveGraphics } from '../systems/graphicsQuality.js';
 import { parseDebugParams } from '../systems/debugCapture.js';
 import { MAP_WAVES } from '../data/waves.js';
 import { TOWER_DEFS } from '../data/towers.js';
@@ -42,10 +42,13 @@ export default class BootScene extends Phaser.Scene {
     // A coarse pointer, not "has touch": touch-screen laptops still grade.
     const coarse = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
       && window.matchMedia('(pointer: coarse)').matches;
-    this.game.registry.set('mapGrade', resolveMapGrade(sm.getSettings().mapGrade, {
-      webgl: this.game.renderer?.type === Phaser.WEBGL,
-      touch: coarse,
-    }));
+    // graphicsEnv lets the settings overlay re-resolve live without re-detecting.
+    const graphicsEnv = { webgl: this.game.renderer?.type === Phaser.WEBGL, touch: coarse };
+    const gfx = resolveGraphics(sm.getSettings().graphics, graphicsEnv);
+    this.game.registry.set('graphicsEnv', graphicsEnv);
+    this.game.registry.set('mapGrade', gfx.mapGrade);
+    this.game.registry.set('ambientFx', gfx.ambientFx);
+    this.game.registry.set('particleScale', gfx.particleScale);
     // Only an explicit false opts out, so a missing key keeps the default on.
     this.game.registry.set('autoSend', sm.getSettings().autoSend !== false);
     const am = getOrCreateAudioManager(this.game, sm);

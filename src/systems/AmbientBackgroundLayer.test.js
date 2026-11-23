@@ -24,11 +24,11 @@ function makeGfx() {
   };
   return gfx;
 }
-function makeScene(gfx, enabled) {
+function makeScene(gfx, enabled, fx = undefined) {
   return {
     scale: { width: 800, height: 600 },
     add: { graphics: () => gfx },
-    registry: { get: (k) => (k === 'ambientMotion' ? enabled : undefined) },
+    registry: { get: (k) => (k === 'ambientMotion' ? enabled : k === 'ambientFx' ? fx : undefined) },
   };
 }
 
@@ -83,6 +83,24 @@ describe('AmbientBackgroundLayer', () => {
     layer.update(16);
     expect(gfx._calls()).toContain('clear');
     expect(gfx._calls()).not.toContain('fillCircle');
+  });
+
+  // Graphics Low sets ambientFx false: the layer must idle even with motion on.
+  it('ambientFx false clears but neither steps nor draws, even with motion on', () => {
+    const gfx = makeGfx();
+    const layer = new AmbientBackgroundLayer(makeScene(gfx, true, false), { family: 'dust', seed: 7341 });
+    layer.update(100);
+    expect(gfx._calls()).toContain('clear');
+    expect(gfx._calls()).not.toContain('fillCircle');
+    expect(layer._layers.map((l) => l.state.t)).toEqual([0, 0]);
+  });
+
+  it('ambientFx true with motion on steps and draws', () => {
+    const gfx = makeGfx();
+    const layer = new AmbientBackgroundLayer(makeScene(gfx, true, true), { family: 'dust', seed: 7341 });
+    layer.update(100);
+    expect(gfx._calls()).toContain('fillCircle');
+    expect(layer._layers[0].state.t).toBeGreaterThan(0);
   });
 
   it('destroy() destroys the gfx', () => {

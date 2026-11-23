@@ -1,6 +1,6 @@
 // Per-map colour grade (roadmap 1.4). Pure: builds the 4x5 colour matrix that
 // Phaser's ColorMatrix FX takes (`set()`, offsets in 0-255 units) from a map's
-// `grade` in maps.js, and decides whether grading runs at all.
+// `grade` in maps.js.
 
 const LUM = [0.2126, 0.7152, 0.0722];
 
@@ -44,15 +44,4 @@ export function gradeMatrix({ tint = [1, 1, 1], contrast = 1, saturation = 1, br
 // For tests and tooling: run an RGB triple (0-255) through a matrix.
 export function applyMatrix(m, [r, g, b], a = 255) {
   return [0, 1, 2].map(i => m[i * 5] * r + m[i * 5 + 1] * g + m[i * 5 + 2] * b + m[i * 5 + 3] * a + m[i * 5 + 4]);
-}
-
-/**
- * Same shape as resolveAmbientMotion: a saved boolean wins; null means auto,
- * which grades only on a non-touch device — phones are where the FX cost
- * hurts. Canvas has no FX pipeline, so it never grades.
- */
-export function resolveMapGrade(saved, { webgl, touch }) {
-  if (!webgl) return false;
-  if (typeof saved === 'boolean') return saved;
-  return !touch;
 }

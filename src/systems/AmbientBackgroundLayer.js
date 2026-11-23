@@ -40,7 +40,9 @@ export class AmbientBackgroundLayer {
 
   update(dtMs) {
     if (!this._layers) return;
-    const off = this._scene.registry.get('ambientMotion') === false;
+    // Reduce motion and Graphics Low both silence it; read live so a change in Settings lands at once.
+    const off = this._scene.registry.get('ambientMotion') === false
+      || this._scene.registry.get('ambientFx') === false;
     for (const layer of this._layers) {
       layer.gfx.clear();
       if (off) continue;
