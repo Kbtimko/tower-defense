@@ -2,7 +2,7 @@
 
 "Before" images are the 2026-10-21 baseline (`docs/baseline/2026-10-21/`,
 described in `docs/visual-baseline.md`). "After" images were reshot on
-2026-11-23 from `main` + this branch with the same harness commands:
+2026-11-23 from `visual/integration` at `4d6c9ee` with the same harness commands:
 
 ```
 npm run capture -- --screens --maps 0 --devices desktop,iphone   # -> .art-cache/captures/<device>/screens/
