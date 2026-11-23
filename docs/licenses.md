@@ -57,8 +57,8 @@ ES build inlines it, so it never appears as a module), and appends Earcut, Matte
 
 Phaser 3.90.0's source credits these snippets. Each is licensed as stated below, taken from
 the Phaser file header and the upstream npm metadata (`npm view <pkg> license`, checked
-2026-11-23). No `THIRD_PARTY_NOTICES.txt` entry exists for them: the texts and copyright
-lines are not in the Phaser source, so there is nothing to copy verbatim.
+2026-11-23). Except klasse (below), no `THIRD_PARTY_NOTICES.txt` entry exists for them: the
+texts and copyright lines are not in the Phaser source, so there is nothing to copy verbatim.
 
 - rbush, MIT, Vladimir Agafonkin: forked in `src/structs/RTree.js`.
 - stable 0.1.8, MIT, Angry Bytes (and contributors): `src/utils/array/StableSort.js`.
@@ -180,9 +180,10 @@ test the game and are not part of the shipped bundle.
       `src/systems/stripVendored.js`) removes the block at build time, leaving an empty
       webpack module so the rest of Phaser is untouched. This is safe because the game never
       uses Phaser video and current browsers implement `requestVideoFrameCallback` natively.
-      Guards: `npm run package:itch` fails if `_rvfcpolyfillmap` or `ThaUnknown/rvfc-polyfill`
-      is in the bundle (`FORBIDDEN_BUNDLE_MARKERS`), and the strip throws if the marker is not
-      found exactly once, so a Phaser upgrade fails the build until the strip is re-checked.
+      Guards: every build (`strip-gpl-polyfill`'s `generateBundle`) fails if `_rvfcpolyfillmap`
+      or `ThaUnknown/rvfc-polyfill` (`FORBIDDEN_BUNDLE_MARKERS`) reaches the output, and
+      `npm run package:itch` re-checks it; the strip also throws if the marker is not found
+      exactly once, so a Phaser upgrade fails the build until the strip is re-checked.
 - [x] **klasse (BSD-2-Clause):** notice added, see "Other code Phaser adapts".
 - [ ] Take legal advice on copyright in AI-generated art; ownership of output may be
       limited or non-exclusive depending on jurisdiction.
