@@ -6,3 +6,4 @@ dist/
 screenshot-*.png
 .vercel
 .art-cache/
+release/

@@ -28,16 +28,22 @@
 // the game state after every step and shooting <device>/flow/NN-id.png. It
 // always uses map 0 and ignores --maps/--wave/--build/--hero/--video; without
 // --devices it runs desktop,iphone,pixel,ipad. Exits 1 if any device fails.
+//
+// --flow --serve <dir> [--base-path /html/12345] skips the capture build and Vite
+// preview and instead serves <dir> (e.g. an unpacked itch zip) with scripts/staticServer.mjs
+// mounted at --base-path (default /), the way itch hosts a game. <dir> must be a
+// production build, so the flow can only use real input and DOM reads.
 import { mkdirSync, writeFileSync, renameSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { build, preview } from 'vite';
 import { chromium, devices } from 'playwright';
 import { DEVICES } from './captureDevices.mjs';
+import { startStaticServer } from './staticServer.mjs';
+import { captureUrl, watchProblems, shootBusiestFrame, contextOptions } from './captureCore.mjs';
 import { MAPS } from '../src/data/maps.js';
 import { MAP_WAVES } from '../src/data/waves.js';
 import { TOWER_DEFS } from '../src/data/towers.js';
-import { defaultCaptureBuild } from '../src/systems/debugCapture.js';
 import { countdownMsFor, lastSpawnMs } from '../src/systems/waveCountdown.js';
 import { WAVE_COUNTDOWN } from '../src/data/waveCountdown.js';
 import { HIT_STOP } from '../src/data/fx.js';
@@ -71,7 +77,6 @@ import { SPRITE_MANIFEST } from '../src/data/sprites.js';
 const OUT_DIR   = '.art-cache/captures';
 const DIST_DIR  = '.art-cache/capture-dist';
 const PORT      = 4188;
-const MIN_ENEMIES = 3;
 // The roadmap's three touch devices plus a fine-pointer desktop (104-px rails).
 const FLOW_DEVICES = ['desktop', 'iphone', 'pixel', 'ipad'];
 const FLOW_TOWER = 'archer';
@@ -172,15 +177,9 @@ const REPLAY_SAVE = {
 };
 const REPLAY_RUN = { lives: MAPS[0].startLives, timeMs: 500_000 };
 
-// Playwright rejects unknown context options, so strip ours before newContext.
-function contextOptions(device) {
-  const { portrait, ...options } = device;
-  return options;
-}
-
 function parseArgs(argv) {
   const opts = { maps: [0, 3, 5, 9], wave: null, seconds: 6, build: null, hero: null,
-    devices: null, video: 0, rebuild: true, screens: false, flow: false };
+    devices: null, video: 0, rebuild: true, screens: false, flow: false, serve: null, basePath: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => argv[++i];
@@ -193,60 +192,23 @@ function parseArgs(argv) {
     else if (a === '--no-build') opts.rebuild = false;
     else if (a === '--screens')  opts.screens = true;
     else if (a === '--flow')     opts.flow = true;
+    else if (a === '--serve' || a === '--base-path') {
+      const v = next();
+      if (!v) throw new Error(`${a} needs a value`);
+      opts[a === '--serve' ? 'serve' : 'basePath'] = v;
+    }
     else if (a === '--video') {
       const secs = Number(argv[i + 1]);
       opts.video = Number.isFinite(secs) && secs > 0 ? (i++, secs) : 10;
     } else throw new Error(`unknown argument ${a}`);
   }
   if (opts.flow && opts.screens) throw new Error('--flow and --screens are separate modes; pass one');
+  if (opts.serve && !opts.flow) throw new Error('--serve applies to --flow only');
+  if (opts.basePath && !opts.serve) throw new Error('--base-path needs --serve');
+  if (opts.basePath !== null && !opts.basePath.startsWith('/')) throw new Error('--base-path must start with /');
   opts.devices ??= opts.flow ? FLOW_DEVICES : ['desktop'];
   for (const d of opts.devices) if (!DEVICES[d]) throw new Error(`unknown device ${d} (have ${Object.keys(DEVICES)})`);
   return opts;
-}
-
-function captureUrl(mapId, opts) {
-  const wave = opts.wave ?? Math.ceil(MAP_WAVES[mapId].length / 2);
-  const params = new URLSearchParams({ debug: '1', map: String(mapId), wave: String(wave) });
-  params.set('build', opts.build ?? defaultCaptureBuild(MAPS[mapId].towerSlots.length));
-  if (opts.hero) params.set('hero', opts.hero);
-  return { wave, path: `/?${params}` };
-}
-
-// `blockedUrl`: a run that aborts those requests on purpose expects their load
-// errors, and only theirs.
-function watchProblems(page, { blockedUrl = null } = {}) {
-  const problems = [];
-  page.on('pageerror', e => problems.push(`pageerror: ${e.message}`));
-  page.on('console', m => {
-    // Headless GPU chatter (ReadPixels stalls from the screenshot itself).
-    if (m.text().includes('GL Driver Message')) return;
-    if (blockedUrl && m.text().startsWith('Failed to load resource') && blockedUrl.test(m.location().url)) return;
-    if (m.type() === 'error' || m.type() === 'warning') problems.push(`${m.type()}: ${m.text()}`);
-  });
-  return problems;
-}
-
-// Waits `waitMs` of game time, then holds out for a crowd on the path,
-// keeping the busiest frame seen: a strong scripted build can kill fast
-// enemies before three are ever alive. Gives up at 3x the wait.
-async function shootBusiestFrame(page, waitMs, file) {
-  await page.waitForFunction(() => window.__capture, null, { timeout: 30_000 });
-  // Game time, not wall time: a headless browser may run well under 60 fps.
-  await page.waitForFunction(ms => window.__capture.simMs >= ms, waitMs, { timeout: waitMs * 8 + 30_000, polling: 100 });
-  let best = -1;
-  let shotSimMs = 0;
-  for (;;) {
-    const c = await page.evaluate(() => ({ enemies: window.__capture.enemies, simMs: window.__capture.simMs }));
-    if (c.enemies > best) {
-      best = c.enemies;
-      shotSimMs = c.simMs;
-      await page.screenshot({ path: file });
-    }
-    if (best >= MIN_ENEMIES || c.simMs >= waitMs * 3) break;
-    await page.waitForTimeout(150);
-  }
-  const { errors, towers } = await page.evaluate(() => ({ errors: window.__capture.errors, towers: window.__capture.towers }));
-  return { errors, towers, enemies: best, simMs: shotSimMs };
 }
 
 // World point -> page point: the map sits one rail into the FIT-scaled canvas. Rail width depends
@@ -2506,11 +2468,19 @@ async function main() {
   const opts = parseArgs(process.argv.slice(2));
   // Throws before any build or browser if map 0 can no longer afford the flow.
   const exp = opts.flow ? flowExpectations({ map: MAPS[0], towerType: FLOW_TOWER }) : null;
-  if (opts.rebuild || !existsSync(DIST_DIR)) {
-    await build({ mode: 'capture', logLevel: 'warn', build: { outDir: DIST_DIR, emptyOutDir: true } });
+  let base, closeServer;
+  if (opts.serve) {
+    const served = await startStaticServer({ root: opts.serve, mountPath: opts.basePath ?? '/' });
+    base = served.url;
+    closeServer = served.close;
+  } else {
+    if (opts.rebuild || !existsSync(DIST_DIR)) {
+      await build({ mode: 'capture', logLevel: 'warn', build: { outDir: DIST_DIR, emptyOutDir: true } });
+    }
+    const server = await preview({ logLevel: 'warn', build: { outDir: DIST_DIR }, preview: { port: PORT, strictPort: true } });
+    base = `http://localhost:${PORT}`;
+    closeServer = () => new Promise(res => server.httpServer.close(res));
   }
-  const server = await preview({ logLevel: 'warn', build: { outDir: DIST_DIR }, preview: { port: PORT, strictPort: true } });
-  const base = `http://localhost:${PORT}`;
   const browser = await chromium.launch();
   const results = [];
   try {
@@ -2535,7 +2505,7 @@ async function main() {
     }
   } finally {
     await browser.close();
-    await new Promise(res => server.httpServer.close(res));
+    await closeServer();
   }
   writeFileSync(join(OUT_DIR, 'report.json'), JSON.stringify(results, null, 2));
   const bad = results.filter(r => r.problems.length || r.ignoredBuild?.length);

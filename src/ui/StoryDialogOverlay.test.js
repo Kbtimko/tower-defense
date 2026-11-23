@@ -701,7 +701,7 @@ describe('StoryDialogOverlay', () => {
       registerPortraits(['portrait-command']);
       make().play('campaign_intro', () => {});
       const img = $('#story-dialog-portrait img');
-      expect(img.getAttribute('src')).toBe('/assets/portraits/portrait-command.png');
+      expect(img.getAttribute('src')).toBe('assets/portraits/portrait-command.png');
       expect(img.getAttribute('alt')).toBe('');
       img.dispatchEvent(new Event('error'));
       expect($('#story-dialog-portrait img')).toBeNull();

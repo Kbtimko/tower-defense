@@ -3,7 +3,30 @@
 ## Goal
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
-## Current Status (2026-11-22)
+## Current Status (2026-11-23)
+
+**2026-11-23 (latest): roadmap 6.2, build and package. PR into `visual/integration` (`release/6.2-build-package`). Builds on 6.1 (#140, merged).**
+- **`npm run package:itch`** (`scripts/package-itch.mjs`):
+  - builds the production mode with `base: './'` into `release/itch/` and strips `.DS_Store` and `.gitkeep`;
+  - checks itch's limits (`ITCH_LIMITS` in `src/data/release.js`: 1,000 files, 500 MB, 200 MB per file, 240-character paths, root `index.html`, no dotfiles) and scans `index.html` and the CSS for root-absolute URLs;
+  - zips to `release/last-light-<version>-<sha>[-dirty][-unverified].zip`;
+  - unpacks the zip and plays the device flow from `/html/12345/` on desktop and iphone, using the exact-case, no-fallback `scripts/staticServer.mjs` via `capture.mjs --flow --serve … --base-path …`.
+
+  It deletes old zips at start and the zip itself if the flow fails, so a plain-named zip in `release/` is always a verified one. Exit 0 ok, 1 a check failed, 2 `zip`/`unzip` missing. **Last run: 306 files, 32.5 MB, desktop 17/17, iphone 18/18.**
+- **A real shipping bug, found and fixed:** the story dialog and the results screen loaded portraits from `/assets/portraits/…` (root-absolute). Under itch's subfolder they would 404 and fall back to the initial letter. They are now relative. Also checked: all 251 manifest and audio URLs resolve with exact case in the production tree.
+- **`npm run release:media`** (`scripts/release-media.mjs`, about 5 min, real GPU) writes to `release/media/`:
+  - 6 shots at 1920×1080 (maps 0, 3, 4, 6, 8, 9). Each is a full board (`releaseBuild`, capped at each map's max tier) on the last wave with auto-send, taken at the frame with the most enemies mid-road;
+  - a 630×500 cover centred on the action;
+  - `clip.mp4` (15 s) and `clip.gif` (640 px at 8 fps, about 9 MB).
+
+  The first version shot half-empty boards with enemies at the spawn edge, so the policy was redone after I looked at the output. Nothing in `release/` is committed.
+- Verified:
+  - 4161 tests in 253 files, exit 0; build exit 0; matrix desktop PASS;
+  - package:itch live, plus its failure paths: a dotfile, the file-count limit and a missing `zip` give exit 1/1/2; a failed flow removes the zip; `--no-verify` gives `-unverified`;
+  - no capture/debug code in the production bundle.
+  - Opus final review "with fixes"; its fix wave was re-reviewed.
+- For 6.4 (G5): upload the plain-named zip from `release/`, and pick images from `release/media/`. itch can't host video, so put `clip.mp4` on YouTube for a trailer link, or use `clip.gif` in the gallery.
+## Earlier Status (2026-11-22)
 
 **2026-11-22 (latest): roadmap 6.1, the performance pass. PR into `visual/integration` (`perf/6.1-performance-pass`).**
 - **Cause found by profiling:** Phaser's WebGL Graphics renderer re-triangulates every filled path every frame (earcut ~47% of CPU at 6x throttle). `GameScene._staticLayers` (blockers, platforms, pads: ~348 of ~490 fill paths) only changes on build/sell/move, so it is now baked once into a canvas texture `static_layer@k` (`src/systems/staticLayerBake.js`) and re-baked at the end of `_renderStaticLayers`. Canvas2D via `Graphics.generateTexture`, not a RenderTexture: the RT lost MSAA and pad edges went jagged. Rebake at k = 2: 5-6 ms at 1x CPU, 11-13 ms at 4x.
@@ -317,6 +340,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
+- **2026-11-23:** Roadmap 6.2 PR open into `visual/integration` (`release/6.2-build-package`). #140 (6.1) merged. Next in Phase 6: 6.3 portfolio README.
 - **2026-11-22:** #138 and #139 merged. Roadmap 6.1 PR open into `visual/integration` (`perf/6.1-performance-pass`). Next in Phase 6: 6.2 build & package.
 - **2026-11-21:** #136 (4.6) merged. Roadmap 4.5 PR #138 open into `visual/integration` (`visual/4.5-units-portraits`). Roadmap 4.3 PR open into `visual/integration` (`visual/4.3-enemy-refresh`), containing #138: merge #138 first.
 - **2026-11-21:** #133 (4.1a) and #134 (4.1b) merged. 4.6 licence ledger PR open into `visual/integration` (`docs/4.6-licence-ledger`).
@@ -591,6 +615,14 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 83. `[auto]` **Speaker portraits at 512 via img2img** _(raised 2026-11-21 by 4.5, deferred by the user)_. The 256 px portraits upsample in the ~240 CSS px dialog frame on 2x screens. Re-prompting did not reproduce them (see art-bible §7 Consistency). Instead upscale each shipped 256 to 1024, img2img at low strength (about 0.3), downscale to 512 and require the sameness diff (mean < 4 per channel against the shipped 256) before shipping. The manifest change is saved as `/private/tmp/claude-501/portraits-512-manifest.patch` (scratch; re-derive if gone: `assetManifest.js` portrait `expected` 256 -> 512 plus its test).
 84. `[review]` **Roster-wide enemy sizes vs art-bible Appendix A** _(raised 2026-11-21 by 4.3)_. 4.3 held each refreshed enemy at its old footprint instead of applying the Appendix A targets, because resizing 3 of 6 enemies would break the size hierarchy. Decide whether to move all six (skitter, drone, phantom, brute, colossus, titan) to Appendix A in one pass, and check the titan reads bigger than the colossus. The user should eyeball the titan at scale 0.99 vs 1.08 (longest side 104 vs 113) during that pass.
 85. `[auto]` **Perf gate: a heavier scenario and tidier reporting** _(raised 2026-11-22 by 6.1)_. The gate samples 12 s after a 3 s warm-up of each map's last wave, which peaks at 3-17 enemies (map 9: 3), so it under-tests crowded late waves; consider `autosend=1` or a longer window. Also: `report.json` should flag a dirty tree, and a build/launch error before the run loop should still write a report. Each `rebake()` adds one entry to Phaser's `Graphics.TargetCamera.renderList`, which is never cleared (tiny; check on a long session).
+86. `[auto]` **Release tooling tidy-ups** _(raised 2026-11-23 by 6.2)_:
+  - the zip carries directory entries (no `zip -D`);
+  - `package-itch.mjs --devices` with no value falls back silently;
+  - `capture.mjs --serve --flow` would read `--flow` as the directory;
+  - a media deadline message reports the best frame's simMs rather than the latest;
+  - the clip's deadline throw skips `context.close()`;
+  - `findAbsoluteUrls` misses unquoted or uppercase `src=`.
+  - the `zip failed` branch exits without deleting a possibly partial zip. This is unlikely, because Info-ZIP writes to a temporary file and renames it only on success.
 
 ## Completed
 <!-- Tags below are retrospective/illustrative — runner skips done items regardless. -->
