@@ -49,8 +49,8 @@ I directed; Claude Code, Anthropic's coding agent, implemented. Concretely:
 
 | Me | Claude Code |
 |---|---|
-| Chose what to build and in what order (the prioritized backlog in [`.claude/notes.md`](.claude/notes.md)) | Wrote the design specs and implementation plans for my approval |
-| Answered the design questions in each brainstorm and approved the spec and plan before any code | Wrote the code, the tests and the docs, including this README |
+| Chose what to build and in what order (the prioritized backlog in [`.claude/notes.md`](.claude/notes.md)) | Wrote the design specs and implementation plans |
+| Answered the design questions in each brainstorm; approved specs and plans, except on `[auto]` items (see step 2 below) | Wrote the code, the tests and the docs, including this README |
 | Made the design and legal calls: for example, strip a GPL-3.0 polyfill out of Phaser rather than ship it, and raise map 9's starting gold from 300 to 690 | Ran the reviews, as separate reviewer agents |
 | Merged the PRs; kept the visual sign-off gates, the `visual/integration` → `main` release, deploys and the trademark check | Ran the verification: the browser harness, the perf gate, the balance simulator |
 
@@ -73,7 +73,11 @@ brainstorm → spec → plan
    top (see [this README's own spec](docs/superpowers/specs/2026-11-23-portfolio-readme-design.md)).
 2. **Plan.** A task-by-task plan in [`docs/superpowers/plans/`](docs/superpowers/plans/):
    the files each task touches, the failing test to write first, and the commands that
-   prove it. I approve it before any code is written.
+   prove it. An untagged backlog item waits for my approval of the spec and plan. On an
+   item I tag `[auto]`, Claude Code approves its own and runs through to an open PR, but
+   still stops to ask on a scope change, a missing requirement, a legal question or
+   anything irreversible. Backlog #81 was one: it stopped to ask me about the GPL polyfill
+   (incident 6).
 3. **One fresh agent per task.** The session running the plan does not write the code. For
    each task it dispatches a new implementer subagent, which starts with no memory of
    earlier tasks and works from that task's brief, then a separate reviewer subagent that
@@ -133,7 +137,7 @@ One complete chain, from design to merge:
 It also records a judgement call mid-build: the first policy for the store screenshots
 produced half-empty boards, and the controlling session looked at the output, rejected it
 and had the policy redone ("Ruling F" in the PR body). The portrait bug in incident 5 below
-was caught on this branch.
+was caught in PR #141.
 
 ## What the process caught
 
@@ -175,7 +179,7 @@ tightened afterwards.
 ### 6. A GPL-3.0 polyfill inside Phaser
 
 - **Symptom:** none in play. Phaser 3.90's `requestVideoFrame` polyfill is a copy of `rvfc-polyfill`, which is GPL-3.0, and it was in the shipped bundle. A notice does not satisfy the GPL.
-- **Caught by:** the Opus whole-branch review of the third-party-notices work, which also found code Phaser inlines with no notice (Matter.js, Simplify.js, klasse). The implementer confirmed it on npm, on GitHub and in the built JS.
+- **Caught by:** the final review of the third-party-notices work, which also found code Phaser inlines with no notice (Matter.js, Simplify.js, klasse). The implementer confirmed it on npm, on GitHub and in the built JS.
 - **Decision and fix:** my call was to strip it, since the game never uses Phaser video. A Vite plugin removes the block at build time and throws unless Phaser's marker appears exactly once, so a Phaser upgrade fails the build until it is rechecked; every build also fails if the polyfill reaches the output, and `package:itch` rescans the zip.
 - **Links:** [`c81175c`](https://github.com/Kbtimko/tower-defense/commit/c81175c), [`4fc3b3c`](https://github.com/Kbtimko/tower-defense/commit/4fc3b3c), [PR #142](https://github.com/Kbtimko/tower-defense/pull/142), [`vitePluginNotices.mjs`](scripts/vitePluginNotices.mjs), [`docs/licenses.md`](docs/licenses.md)
 
