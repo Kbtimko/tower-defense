@@ -5,7 +5,7 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 
 ## Current Status (2026-11-23)
 
-**2026-11-23 (latest): roadmap 6.2, build and package. PR into `visual/integration` (`release/6.2-build-package`). Roadmap 6.1 (PR #140) is a separate open PR; whichever merges second resolves a small conflict in this notes file.**
+**2026-11-23 (latest): roadmap 6.2, build and package. PR into `visual/integration` (`release/6.2-build-package`). Builds on 6.1 (#140, merged).**
 - **`npm run package:itch`** (`scripts/package-itch.mjs`):
   - builds the production mode with `base: './'` into `release/itch/` and strips `.DS_Store` and `.gitkeep`;
   - checks itch's limits (`ITCH_LIMITS` in `src/data/release.js`: 1,000 files, 500 MB, 200 MB per file, 240-character paths, root `index.html`, no dotfiles) and scans `index.html` and the CSS for root-absolute URLs;
@@ -26,6 +26,18 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
   - no capture/debug code in the production bundle.
   - Opus final review "with fixes"; its fix wave was re-reviewed.
 - For 6.4 (G5): upload the plain-named zip from `release/`, and pick images from `release/media/`. itch can't host video, so put `clip.mp4` on YouTube for a trailer link, or use `clip.gif` in the gallery.
+## Earlier Status (2026-11-22)
+
+**2026-11-22 (latest): roadmap 6.1, the performance pass. PR into `visual/integration` (`perf/6.1-performance-pass`).**
+- **Cause found by profiling:** Phaser's WebGL Graphics renderer re-triangulates every filled path every frame (earcut ~47% of CPU at 6x throttle). `GameScene._staticLayers` (blockers, platforms, pads: ~348 of ~490 fill paths) only changes on build/sell/move, so it is now baked once into a canvas texture `static_layer@k` (`src/systems/staticLayerBake.js`) and re-baked at the end of `_renderStaticLayers`. Canvas2D via `Graphics.generateTexture`, not a RenderTexture: the RT lost MSAA and pad edges went jagged. Rebake at k = 2: 5-6 ms at 1x CPU, 11-13 ms at 4x.
+- **`npm run perf`** (`scripts/perf.mjs`, budget in `src/data/perfBudget.js`): rebuilds the capture build (`--no-build` to reuse), plays each map's last wave on the real GPU and fails unless desktop1440x2 at 1x is >= 57 fps / p95 <= 20 ms and iphone at 4x CPU is >= 30 fps / p95 <= 34 ms. Exit 0 pass, 1 a verdict failed, 2 unmeasurable (load >= 6 at any run start, software or non-WebGL renderer, a run errored). Writes `.art-cache/perf/report.json` with the commit, per-run load and errors. **This Mac is shared with other sessions: wait for load < 4 or it exits 2.**
+- **Before / after (map 9, last wave, iphone):** 8x CPU 22.6 fps FAIL -> 59.3 PASS; 10x 18.4 -> 43.9. Full gate at 7e56f4c: all 10 maps 60 fps desktop and 4x phone (load 2.6-4.5). The gate still fails at 20x (22.5 fps, exit 1). The base already passed the 4x budget (46-60 fps), so the gain is headroom.
+- **`?fps=1`** shows fps and p95 over the last 2 s in every build, production included (`src/ui/FpsMeter.js`, pure `src/systems/frameStats.js`). The gate reads the same numbers (`window.__fps`).
+- **Settings:** Graphics Auto/High/Low (`graphics` save key; `resolveGraphics` in `src/systems/graphicsQuality.js`) replaces "Map grade". Low = no grade, no in-game ambient particles, bursts halved (rounded up). Auto = today. Old saves migrate `mapGrade` false -> low, true -> high. "Ambient motion" became **Reduce motion** (checked = `ambientMotion: false`), with every job it had.
+- **Not done, by the profile:** no pooling (GC ~2% of the frame), no bloom (none exists), pad glow and the ambient layer left as Graphics (no measurable gain once the static layer was baked).
+- **Look:** frozen-frame A/B vs base at k = 1 and 2 on maps 3 and 9: k = 2 within noise (0.22%, 0.48%); k = 1 shows 0.9-1.2% faint anti-aliasing differences on empty pad rims only (Canvas2D vs MSAA), accepted after a 4x crop review.
+- Verified: 4173 tests in 256 files, exit 0; build exit 0; flow matrix PASS on desktop, iphone, pixel and ipad in one run; live check of Low and Reduce motion on the capture build. Opus final review "with fixes"; its fix wave was re-reviewed clean.
+- Follow-ups (not blocking): the gate's scenario is light (map 9's last wave peaks at 3 enemies in the 12 s window); `report.json` does not flag a dirty tree; a build/launch error before the run loop writes no report.
 
 ## Earlier Status (2026-11-21)
 
@@ -313,7 +325,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 **The most valuable next thing is a human playtest (#30).** Every difficulty number in this project is simulated, against a model that is pessimistic by construction. #78 just shipped a balance change to production on that basis.
 
 ## NEEDS HUMAN (visual roadmap gates)
-- **G3 — phone + desktop playtest of Phase 1** (PRs #96-#99 merged 2026-10-22): play the `visual/integration` preview; list what feels wrong in `docs/visual-baseline.md`. **Phone half PASSED 2026-10-22** (user, real phone, after #100). **Desktop half still to do.** After the 2.1 PR merges, also try on the phone: long-press an enemy / tower button / ability / Send Wave (incl. while a wave runs or an ability is on cooldown), two-tap Upgrade and Sell (the panel scrolls on phones), ✕ Cancel. Also judge whether the new FX read at 1x scale. **Added 2026-11-21 (4.1a):** on a real phone, check the game feels as smooth as before (it now renders at 2x; headless emulation can only measure software GL) and that nothing reloads or goes black after a few maps (GPU memory). If it stutters, set `RENDER_SCALE.max = 1` in `src/data/renderScale.js`.
+- **G3 — phone + desktop playtest of Phase 1** (PRs #96-#99 merged 2026-10-22): play the `visual/integration` preview; list what feels wrong in `docs/visual-baseline.md`. **Phone half PASSED 2026-10-22** (user, real phone, after #100). **Desktop half still to do.** After the 2.1 PR merges, also try on the phone: long-press an enemy / tower button / ability / Send Wave (incl. while a wave runs or an ability is on cooldown), two-tap Upgrade and Sell (the panel scrolls on phones), ✕ Cancel. Also judge whether the new FX read at 1x scale. **Added 2026-11-22 (6.1):** add `?fps=1` to the preview URL on the phone and note the fps/p95 readout on a busy late wave; if it is under 30, try Settings -> Graphics -> Low. **Added 2026-11-21 (4.1a):** on a real phone, check the game feels as smooth as before (it now renders at 2x; headless emulation can only measure software GL) and that nothing reloads or goes black after a few maps (GPU memory). If it stutters, set `RENDER_SCALE.max = 1` in `src/data/renderScale.js`.
 - ~~G1 — art bible~~ **approved 2026-10-21**: adopt Appendix A sizes; brute emissive -> bronze `#9a7b4f`; plain navy outlines for all; shadow 50% as shipped. FLUX anchor replacement was NOT in the 4.0 spec — do it first in 4.2 (PROMPTS.md shared style anchor), before any real batch.
 - ~~Enemy name~~ **resolved 2026-10-21: "Veth"** everywhere (story text, speaker key `veth`, `portrait-veth.png`).
 - ~~Draw Things API server off~~ **on 2026-11-16**: HTTP on port 7860, FLUX.1 [schnell] loaded; img2img works. Quit Chrome before generating (swap was 15.2/16 GB with it open).
@@ -328,7 +340,8 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
-- **2026-11-23:** Roadmap 6.2 PR open into `visual/integration` (`release/6.2-build-package`). #140 (6.1) still open. Next in Phase 6: 6.3 portfolio README.
+- **2026-11-23:** Roadmap 6.2 PR open into `visual/integration` (`release/6.2-build-package`). #140 (6.1) merged. Next in Phase 6: 6.3 portfolio README.
+- **2026-11-22:** #138 and #139 merged. Roadmap 6.1 PR open into `visual/integration` (`perf/6.1-performance-pass`). Next in Phase 6: 6.2 build & package.
 - **2026-11-21:** #136 (4.6) merged. Roadmap 4.5 PR #138 open into `visual/integration` (`visual/4.5-units-portraits`). Roadmap 4.3 PR open into `visual/integration` (`visual/4.3-enemy-refresh`), containing #138: merge #138 first.
 - **2026-11-21:** #133 (4.1a) and #134 (4.1b) merged. 4.6 licence ledger PR open into `visual/integration` (`docs/4.6-licence-ledger`).
 - **2026-11-21:** #132 (bug bundle #68/#64/#57) merged. Roadmap 4.1a PR open into `visual/integration` (`visual/4.1-2x-rebake`); 4.1b (2x re-bake) next.
@@ -601,6 +614,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 82. `[review]` **Title / trademark clearance for "Last Light"** _(raised 2026-11-21 by the 4.6 review)_. It overlaps the video-game trademark *Metro: Last Light*. This is the user's call: run a trademark search before a commercial release or store page.
 83. `[auto]` **Speaker portraits at 512 via img2img** _(raised 2026-11-21 by 4.5, deferred by the user)_. The 256 px portraits upsample in the ~240 CSS px dialog frame on 2x screens. Re-prompting did not reproduce them (see art-bible §7 Consistency). Instead upscale each shipped 256 to 1024, img2img at low strength (about 0.3), downscale to 512 and require the sameness diff (mean < 4 per channel against the shipped 256) before shipping. The manifest change is saved as `/private/tmp/claude-501/portraits-512-manifest.patch` (scratch; re-derive if gone: `assetManifest.js` portrait `expected` 256 -> 512 plus its test).
 84. `[review]` **Roster-wide enemy sizes vs art-bible Appendix A** _(raised 2026-11-21 by 4.3)_. 4.3 held each refreshed enemy at its old footprint instead of applying the Appendix A targets, because resizing 3 of 6 enemies would break the size hierarchy. Decide whether to move all six (skitter, drone, phantom, brute, colossus, titan) to Appendix A in one pass, and check the titan reads bigger than the colossus. The user should eyeball the titan at scale 0.99 vs 1.08 (longest side 104 vs 113) during that pass.
+85. `[auto]` **Perf gate: a heavier scenario and tidier reporting** _(raised 2026-11-22 by 6.1)_. The gate samples 12 s after a 3 s warm-up of each map's last wave, which peaks at 3-17 enemies (map 9: 3), so it under-tests crowded late waves; consider `autosend=1` or a longer window. Also: `report.json` should flag a dirty tree, and a build/launch error before the run loop should still write a report. Each `rebake()` adds one entry to Phaser's `Graphics.TargetCamera.renderList`, which is never cleared (tiny; check on a long session).
 86. `[auto]` **Release tooling tidy-ups** _(raised 2026-11-23 by 6.2)_:
   - the zip carries directory entries (no `zip -D`);
   - `package-itch.mjs --devices` with no value falls back silently;

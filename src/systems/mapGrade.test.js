@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { gradeMatrix, applyMatrix, resolveMapGrade } from './mapGrade.js';
+import { gradeMatrix, applyMatrix } from './mapGrade.js';
 import { MAPS } from '../data/maps.js';
 
 const IDENTITY = [1,0,0,0,0, 0,1,0,0,0, 0,0,1,0,0, 0,0,0,1,0];
@@ -43,20 +43,6 @@ describe('gradeMatrix', () => {
   it('leaves alpha alone', () => {
     const m = gradeMatrix({ tint: [1.2, 0.8, 1], contrast: 1.3, saturation: 0.5 });
     near(m.slice(15), [0, 0, 0, 1, 0]);
-  });
-});
-
-describe('resolveMapGrade', () => {
-  it('auto (no saved choice) grades only on a non-touch WebGL device', () => {
-    expect(resolveMapGrade(null, { webgl: true, touch: false })).toBe(true);
-    expect(resolveMapGrade(null, { webgl: true, touch: true })).toBe(false);
-    expect(resolveMapGrade(undefined, { webgl: false, touch: false })).toBe(false);
-  });
-
-  it('honours an explicit choice, except that Canvas cannot grade', () => {
-    expect(resolveMapGrade(true, { webgl: true, touch: true })).toBe(true);
-    expect(resolveMapGrade(false, { webgl: true, touch: false })).toBe(false);
-    expect(resolveMapGrade(true, { webgl: false, touch: false })).toBe(false);
   });
 });
 

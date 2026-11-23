@@ -33,6 +33,7 @@ import { HINTS } from '../data/hints.js';
 import { WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH } from '../data/layout.js';
 import { applyWorldCamera } from '../systems/worldCamera.js';
 import { getRenderScale } from '../systems/renderScale.js';
+import { createStaticBake } from '../systems/staticLayerBake.js';
 import { addText } from '../ui/hiDpiText.js';
 import {
   PANEL_EDGE_MARGIN, TAP_TOWER_RADIUS, TAP_SLOT_RADIUS, TAP_PATH_RADIUS, REPOSITION_SNAP_RADIUS, PEEK_GAP_PX,
@@ -343,8 +344,10 @@ export default class GameScene extends Phaser.Scene {
       : null;
     this._applyGrade(map, backdrop);
 
-    // Static layers (depth 10) — blockers → platforms → path. Painted once.
-    this._staticLayers = this.add.graphics().setDepth(10);
+    // Static layers (depth 10) — blockers → platforms → path. Painted once, into
+    // an off-display-list surface that is baked to a texture (see staticLayerBake).
+    this._staticBake = createStaticBake(this, { width: WORLD_WIDTH, height: WORLD_HEIGHT, resolution: getRenderScale(), depth: 10 });
+    this._staticLayers = this._staticBake.surface;
     this._renderStaticLayers(map);
 
     // Ambient motion: far layer depth 5 under the road; near layer depth 8.5
@@ -757,7 +760,8 @@ export default class GameScene extends Phaser.Scene {
     this._projectilePool?.destroyAll();
     this._projectilePool = null;
     this.particleSpawner?.destroy();
-    this._staticLayers?.destroy();
+    this._staticBake?.destroy();
+    this._staticBake = null;
     this._staticLayers = null;
     this._ambient?.destroy();
     this._ambient = null;
@@ -2271,6 +2275,9 @@ export default class GameScene extends Phaser.Scene {
     // Path on top so it sits above platforms/blockers per spec §4.
     // The procedural road is a baked texture at ROAD_DEPTH, not part of this layer.
     if (roadRendererFor(map) === 'legacy') renderPath(g, this.pathMgr.waypoints, map.pathRenderStyle);
+
+    // Redrawing the surface does nothing visible until it is baked into the texture.
+    this._staticBake?.rebake();
   }
 
   // Procedural maps get a baked road image + animated endpoints; legacy maps keep
