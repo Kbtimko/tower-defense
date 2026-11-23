@@ -214,14 +214,18 @@ for every image: [`docs/readme/PAIRS.md`](docs/readme/PAIRS.md).
 ## Architecture
 
 ```
-src/scenes/   Phaser scenes (Title, MapSelect, Game, UI ...)      src/sim/   balance simulator
-     │                                                                 │
-     └───────────────────────────────┬─────────────────────────────────┘
-                                     ▼  both import
-src/systems/  pure logic: damage, waves, paths, economy, tower shots, render scale ...
-                                     ▼  reads
-src/data/     every tunable number: maps, towers, enemies, waves, heroes, perf budget
+src/scenes/   Phaser scenes (Title, MapSelect, Game, UI ...)
+src/sim/      balance simulator
+     │  both import
+     ▼
+src/systems/  pure logic: damage, waves, paths, economy, tower shots ...
+     │  reads
+     ▼
+src/data/     every tunable number: maps, towers, enemies, waves, heroes
 ```
+
+`src/entities/` and `src/ui/` sit beside the scenes and read `src/data/` too; the diagram
+shows the layering the simulator relies on.
 
 Two rules from [`CLAUDE.md`](CLAUDE.md) shape the code. Tunable numbers live in
 [`src/data/`](src/data/), never in entity logic. Logic that doesn't touch the scene graph is
