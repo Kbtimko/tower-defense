@@ -77,6 +77,29 @@ describe('VENDORED_NOTICES', () => {
     expect(earcut.text).toContain('Copyright (c) 2016, Mapbox');
   });
 
+  it('has a Matter.js MIT entry with its copyright line', () => {
+    const matter = VENDORED_NOTICES.find((n) => n.name === 'Matter.js (vendored in Phaser)');
+    expect(matter).toBeDefined();
+    expect(matter.version).toBe('0.20.0');
+    expect(matter.license).toBe('MIT');
+    expect(matter.text).toContain('MIT License');
+    expect(matter.text).toContain('Copyright (c) Liam Brummitt and contributors.');
+  });
+
+  it('has a Simplify.js BSD-2-Clause entry with the redistribution clause', () => {
+    const simplify = VENDORED_NOTICES.find((n) => n.name === 'Simplify.js (vendored in Phaser)');
+    expect(simplify).toBeDefined();
+    expect(simplify.license).toBe('BSD-2-Clause');
+    expect(simplify.text).toContain('Copyright (c) 2017, Vladimir Agafonkin');
+    expect(simplify.text).toContain('Redistributions in binary form must reproduce the above copyright notice');
+    expect(simplify.text).toContain('SUCH DAMAGE.');
+  });
+
+  it('leaves a null version only on the Vite entry, because the plugin fills every null with its version', () => {
+    const nulls = VENDORED_NOTICES.filter((n) => n.version === null).map((n) => n.name);
+    expect(nulls).toEqual(['Vite modulepreload polyfill']);
+  });
+
   it('has a Vite MIT entry with the full licence text', () => {
     expect(vite).toBeDefined();
     expect(vite.version).toBeNull();
