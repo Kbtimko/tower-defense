@@ -14,7 +14,7 @@ export const JUNK_FILES = ['.DS_Store', '.gitkeep'];
 export const RELEASE_MEDIA = {
   device: 'desktop1080',
   shotMaps: [0, 3, 4, 6, 8, 9],
-  warmupSimMs: 3000,
-  cover: { map: 9, cropWidth: 1260, cropHeight: 1000, width: 630, height: 500 },
-  clip: { map: 9, seconds: 15, gifWidth: 960, gifFps: 15, gifWarnBytes: 10_000_000 },
+  warmupSimMs: 6000,
+  cover: { map: 9, cropWidth: 1134, cropHeight: 900, width: 630, height: 500 },
+  clip: { map: 9, seconds: 15, gifWidth: 640, gifFps: 10, gifWarnBytes: 10_000_000 },
 };

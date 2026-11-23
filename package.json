@@ -16,6 +16,7 @@
     "art:apply": "node scripts/art/apply.mjs",
     "capture": "node scripts/capture.mjs",
     "package:itch": "node scripts/package-itch.mjs",
+    "release:media": "node scripts/release-media.mjs",
     "matrix": "node scripts/capture.mjs --flow",
     "optimize-assets": "node scripts/optimize-assets.mjs"
   },
