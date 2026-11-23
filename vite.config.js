@@ -1,8 +1,8 @@
 import { defineConfig } from 'vite';
-import thirdPartyNotices from './scripts/vitePluginNotices.mjs';
+import thirdPartyNotices, { stripGplPolyfill } from './scripts/vitePluginNotices.mjs';
 
 export default defineConfig({
-  plugins: [thirdPartyNotices()],
+  plugins: [stripGplPolyfill(), thirdPartyNotices()],
   test: {
     environment: 'jsdom',
     globals: true,

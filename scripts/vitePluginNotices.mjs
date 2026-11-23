@@ -8,6 +8,7 @@ import { version as viteVersion } from 'vite';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { packageDirOf, formatNotices, collectPackages } from '../src/systems/thirdPartyNotices.js';
+import { stripRvfcPolyfill } from '../src/systems/stripVendored.js';
 import { VENDORED_NOTICES } from '../src/data/vendoredNotices.js';
 
 const LICENCE_FILE = /^(licen[cs]e|copying)(\..*)?$/i;
@@ -59,6 +60,24 @@ export default function thirdPartyNotices() {
       }
 
       this.emitFile({ type: 'asset', fileName: 'THIRD_PARTY_NOTICES.txt', source: formatNotices(entries) });
+    },
+  };
+}
+
+const PHASER_DIST = /node_modules\/phaser\/dist\/phaser(\.esm)?\.js$/;
+
+// Phaser's dist inlines a GPL-3.0 video polyfill the game never uses; cut it
+// from the bundle. enforce:'pre' so it runs before any other transform.
+export function stripGplPolyfill() {
+  return {
+    name: 'strip-gpl-polyfill',
+    apply: 'build',
+    enforce: 'pre',
+    transform(code, id) {
+      // A ?query id (e.g. ?commonjs-module) is the CommonJS plugin's wrapper
+      // around the real file, not its source; only the bare id carries the code.
+      if (id.includes('?') || !PHASER_DIST.test(id)) return null;
+      return { code: stripRvfcPolyfill(code), map: null };
     },
   };
 }
