@@ -31,6 +31,8 @@ Vite 5, Vitest 2 with jsdom, and Playwright for the browser harness.
 | Source | 215 non-test modules (22,770 lines of JavaScript) in [`src/`](src/) |
 
 Counts are taken on `visual/integration` at `4d6c9ee`, before this README's own commits.
+Maps are numbered from 0 here, as in `src/data/maps.js`; the game shows them as missions 1
+to 10.
 
 ## Contents
 
@@ -50,10 +52,10 @@ I directed; Claude Code, Anthropic's coding agent, implemented. Concretely:
 
 | Me | Claude Code |
 |---|---|
-| Chose what to build and in what order (the prioritized backlog in [`.claude/notes.md`](.claude/notes.md)) | Wrote the design specs and implementation plans |
+| Chose what to build and in what order (the prioritized backlog in [`.claude/notes.md`](.claude/notes.md#prioritized-backlog)) | Wrote the design specs and implementation plans |
 | Answered the design questions in each brainstorm; approved specs and plans, except on `[auto]` items (see step 2 below) | Wrote the code, the tests and the docs, including this README |
 | Made the design and legal calls: for example, strip a GPL-3.0 polyfill out of Phaser rather than ship it, and raise map 9's starting gold from 300 to 690 | Ran the reviews, as separate reviewer agents |
-| Merged the PRs; kept the visual sign-off gates, the `visual/integration` → `main` release, deploys and the trademark check | Ran the verification: the browser harness, the perf gate, the balance simulator |
+| Merged the PRs; kept the visual sign-off gates, the `visual/integration` → `main` release, deploys and the "Last Light" trademark check | Ran the verification: the browser harness, the perf gate, the balance simulator |
 
 Every commit is under my git identity (merges under my GitHub account), except one roadmap
 doc committed as Claude ([`d86ab75`](https://github.com/Kbtimko/tower-defense/commit/d86ab75)).
@@ -144,8 +146,8 @@ One complete chain, from design to merge:
 
 It also records a judgement call mid-build: the first policy for the store screenshots
 produced half-empty boards, and the controlling session looked at the output, rejected it
-and had the policy redone ("Ruling F" in the PR body). The portrait bug in incident 5 below
-was caught in PR #141.
+and had the policy redone (a decision it recorded in the PR body as "Ruling F"). The
+portrait bug in incident 5 below was caught in PR #141.
 
 ## What the process caught
 
@@ -170,7 +172,7 @@ tightened afterwards.
 
 - **Symptom:** during the September 2026 simulator work (PRs [#77](https://github.com/Kbtimko/tower-defense/pull/77) and [#78](https://github.com/Kbtimko/tower-defense/pull/78)), reviewers found several assertions that passed against broken code, nearly all in plans Claude Code had written itself. One guard test in [`mapsEconomy.test.js`](src/data/mapsEconomy.test.js) was defeated by a flat 120-gold campaign that passed all five assertions while leaving the game worse.
 - **Caught by:** the per-task and final reviewers, who built the regression and watched the test stay green.
-- **Fix:** every fix was proven by reintroducing the bug and watching that specific test fail. Prompted by a Claude Code `/insights` review, this became the mutation-check rule in [`CLAUDE.md`](CLAUDE.md) ([PR #135](https://github.com/Kbtimko/tower-defense/pull/135)); the PR bodies of #140 to #142 each record their mutation checks.
+- **Fix:** every fix was proven by reintroducing the bug and watching that specific test fail. Prompted by Claude Code's `/insights` report on my past sessions, this became the mutation-check rule in [`CLAUDE.md`](CLAUDE.md) ([PR #135](https://github.com/Kbtimko/tower-defense/pull/135)); the PR bodies of #140 to #142 each record their mutation checks.
 
 ### 4. Jagged pad edges after a performance bake
 
@@ -235,7 +237,8 @@ scores the game's actual rules rather than a copy of them. See
 
 `npm run balance` ([`scripts/balance.mjs`](scripts/balance.mjs)) plays every map with a
 modelled player and reports; it never edits `src/data/maps.js`. The current headline is a
-hindsight best-of-5 barracks strategy, "a player who retries". As of 2026-11-23 it rates 9
+hindsight best-of-5 barracks strategy (the barracks is the tower that sends soldiers onto
+the road), "a player who retries". As of 2026-11-23 it rates 9
 of 10 maps winnable, flags map 2 as too easy, and finds map 7 unwinnable without 1.05x
 damage. The report itself says the model is pessimistic: it omits hero abilities, meta
 upgrades, soldier repositioning and the send-wave-early bonus. All of these numbers are
@@ -304,7 +307,8 @@ them to 3.
   p95 ≤ 20 ms; the iPhone profile at 4x CPU throttle needs ≥ 30 fps and p95 ≤ 34 ms. It
   refuses a verdict on a loaded machine or a software renderer. In the 6.1 performance pass
   ([PR #140](https://github.com/Kbtimko/tower-defense/pull/140)) profiling found earcut
-  re-triangulating static fills at about 47% of CPU (6x throttle). After that pass, map 9's
+  (Phaser's polygon triangulator) re-triangulating static fills at about 47% of CPU (6x
+  throttle). After that pass, map 9's
   last wave on the iPhone profile at 8x CPU throttle went from 22.6 fps (p95 50.1 ms, a
   fail) to 59.3 fps (p95 16.8 ms), measured on an Apple M4.
 - **Packaging check:** `npm run package:itch` ([`package-itch.mjs`](scripts/package-itch.mjs))
