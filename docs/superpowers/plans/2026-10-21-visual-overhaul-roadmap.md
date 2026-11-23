@@ -117,7 +117,7 @@ Failing tests after two attempts at the same fix; any change that would alter ba
 
 ### Phase 6 — Release
 - [ ] **6.1 [AUTO] Performance pass.** Profile with Playwright traces; pool everything hot; confirm 60 fps desktop, ≥ 30 fps on a mid-range phone capture; quality toggle in settings (bloom/grade/particles).
-- [ ] **6.2 [AUTO] Build & package.** `vite build --base=./`, `scripts/package-itch.mjs` → zip; auto-generated screenshots + a 15 s gameplay clip from the capture harness.
+- [x] **6.2 [AUTO] Build & package.** `vite build --base=./`, `scripts/package-itch.mjs` → zip; auto-generated screenshots + a 15 s gameplay clip from the capture harness. *Done 2026-11-23 (`release/6.2-build-package`): `npm run package:itch` checks itch's limits, zips, and plays the unpacked zip from a subfolder on desktop and iphone (this caught root-absolute portrait URLs, now fixed); `npm run release:media` makes 6 full-board shots, a 630×500 cover and a 15 s MP4/GIF clip.*
 - [ ] **6.3 [AUTO] Portfolio README.** Before/after gallery, architecture (sim + balance tool + 1,500+ tests), pipeline write-up.
 - [ ] **6.4 [GATE G5] Publish.** itch.io page + feedback link; decide after real plays whether to pursue Capacitor (mobile stores: Apple ~$99/yr, Google ~$25 once) or Steam (~$100/app) — verify current fees then.
 

@@ -3,7 +3,31 @@
 ## Goal
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
-## Current Status (2026-11-21)
+## Current Status (2026-11-23)
+
+**2026-11-23 (latest): roadmap 6.2, build and package. PR into `visual/integration` (`release/6.2-build-package`). Roadmap 6.1 (PR #140) is a separate open PR; whichever merges second resolves a small conflict in this notes file.**
+- **`npm run package:itch`** (`scripts/package-itch.mjs`):
+  - builds the production mode with `base: './'` into `release/itch/` and strips `.DS_Store` and `.gitkeep`;
+  - checks itch's limits (`ITCH_LIMITS` in `src/data/release.js`: 1,000 files, 500 MB, 200 MB per file, 240-character paths, root `index.html`, no dotfiles) and scans `index.html` and the CSS for root-absolute URLs;
+  - zips to `release/last-light-<version>-<sha>[-dirty][-unverified].zip`;
+  - unpacks the zip and plays the device flow from `/html/12345/` on desktop and iphone, using the exact-case, no-fallback `scripts/staticServer.mjs` via `capture.mjs --flow --serve … --base-path …`.
+
+  It deletes old zips at start and the zip itself if the flow fails, so a plain-named zip in `release/` is always a verified one. Exit 0 ok, 1 a check failed, 2 `zip`/`unzip` missing. **Last run: 306 files, 32.5 MB, desktop 17/17, iphone 18/18.**
+- **A real shipping bug, found and fixed:** the story dialog and the results screen loaded portraits from `/assets/portraits/…` (root-absolute). Under itch's subfolder they would 404 and fall back to the initial letter. They are now relative. Also checked: all 251 manifest and audio URLs resolve with exact case in the production tree.
+- **`npm run release:media`** (`scripts/release-media.mjs`, about 5 min, real GPU) writes to `release/media/`:
+  - 6 shots at 1920×1080 (maps 0, 3, 4, 6, 8, 9). Each is a full board (`releaseBuild`, capped at each map's max tier) on the last wave with auto-send, taken at the frame with the most enemies mid-road;
+  - a 630×500 cover centred on the action;
+  - `clip.mp4` (15 s) and `clip.gif` (640 px at 8 fps, about 9 MB).
+
+  The first version shot half-empty boards with enemies at the spawn edge, so the policy was redone after I looked at the output. Nothing in `release/` is committed.
+- Verified:
+  - 4161 tests in 253 files, exit 0; build exit 0; matrix desktop PASS;
+  - package:itch live, plus its failure paths: a dotfile, the file-count limit and a missing `zip` give exit 1/1/2; a failed flow removes the zip; `--no-verify` gives `-unverified`;
+  - no capture/debug code in the production bundle.
+  - Opus final review "with fixes"; its fix wave was re-reviewed.
+- For 6.4 (G5): upload the plain-named zip from `release/`, and pick images from `release/media/`. itch can't host video, so put `clip.mp4` on YouTube for a trailer link, or use `clip.gif` in the gallery.
+
+## Earlier Status (2026-11-21)
 
 **2026-11-21 (latest): roadmap 4.3, the enemy refresh. PR into `visual/integration` (`visual/4.3-enemy-refresh`). It contains #138's commits, so merge #138 first; the diff shrinks to 4.3's own commits after that.**
 - New art for the drone (#7), phantom (#1) and titan (#6, flipped), chosen by the user from 8 candidates each (job `enemies-refresh`). Hurt poses were skipped by the user.
@@ -304,6 +328,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
+- **2026-11-23:** Roadmap 6.2 PR open into `visual/integration` (`release/6.2-build-package`). #140 (6.1) still open. Next in Phase 6: 6.3 portfolio README.
 - **2026-11-21:** #136 (4.6) merged. Roadmap 4.5 PR #138 open into `visual/integration` (`visual/4.5-units-portraits`). Roadmap 4.3 PR open into `visual/integration` (`visual/4.3-enemy-refresh`), containing #138: merge #138 first.
 - **2026-11-21:** #133 (4.1a) and #134 (4.1b) merged. 4.6 licence ledger PR open into `visual/integration` (`docs/4.6-licence-ledger`).
 - **2026-11-21:** #132 (bug bundle #68/#64/#57) merged. Roadmap 4.1a PR open into `visual/integration` (`visual/4.1-2x-rebake`); 4.1b (2x re-bake) next.
@@ -576,6 +601,14 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 82. `[review]` **Title / trademark clearance for "Last Light"** _(raised 2026-11-21 by the 4.6 review)_. It overlaps the video-game trademark *Metro: Last Light*. This is the user's call: run a trademark search before a commercial release or store page.
 83. `[auto]` **Speaker portraits at 512 via img2img** _(raised 2026-11-21 by 4.5, deferred by the user)_. The 256 px portraits upsample in the ~240 CSS px dialog frame on 2x screens. Re-prompting did not reproduce them (see art-bible §7 Consistency). Instead upscale each shipped 256 to 1024, img2img at low strength (about 0.3), downscale to 512 and require the sameness diff (mean < 4 per channel against the shipped 256) before shipping. The manifest change is saved as `/private/tmp/claude-501/portraits-512-manifest.patch` (scratch; re-derive if gone: `assetManifest.js` portrait `expected` 256 -> 512 plus its test).
 84. `[review]` **Roster-wide enemy sizes vs art-bible Appendix A** _(raised 2026-11-21 by 4.3)_. 4.3 held each refreshed enemy at its old footprint instead of applying the Appendix A targets, because resizing 3 of 6 enemies would break the size hierarchy. Decide whether to move all six (skitter, drone, phantom, brute, colossus, titan) to Appendix A in one pass, and check the titan reads bigger than the colossus. The user should eyeball the titan at scale 0.99 vs 1.08 (longest side 104 vs 113) during that pass.
+86. `[auto]` **Release tooling tidy-ups** _(raised 2026-11-23 by 6.2)_:
+  - the zip carries directory entries (no `zip -D`);
+  - `package-itch.mjs --devices` with no value falls back silently;
+  - `capture.mjs --serve --flow` would read `--flow` as the directory;
+  - a media deadline message reports the best frame's simMs rather than the latest;
+  - the clip's deadline throw skips `context.close()`;
+  - `findAbsoluteUrls` misses unquoted or uppercase `src=`.
+  - the `zip failed` branch exits without deleting a possibly partial zip. This is unlikely, because Info-ZIP writes to a temporary file and renames it only on success.
 
 ## Completed
 <!-- Tags below are retrospective/illustrative — runner skips done items regardless. -->
