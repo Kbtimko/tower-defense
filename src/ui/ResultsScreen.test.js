@@ -170,7 +170,7 @@ describe('ResultsScreen', () => {
       registerPortraits(['portrait-command']);
       made[0].open(resultsModel(victoryRun()), () => {});
       const img = $('#results-portrait img');
-      expect(img.getAttribute('src')).toBe('/assets/portraits/portrait-command.png');
+      expect(img.getAttribute('src')).toBe('assets/portraits/portrait-command.png');
       expect(img.alt).toBe('');
       img.dispatchEvent(new Event('error'));
       expect($('#results-portrait img')).toBeNull();

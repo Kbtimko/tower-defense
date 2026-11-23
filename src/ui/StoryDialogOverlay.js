@@ -321,7 +321,7 @@ export class StoryDialogOverlay {
       // A late error from a panel that has since changed must not paint over it.
       if (img.isConnected) this._renderInitial(this._fallbackInitial(look.id));
     }, { once: true });
-    img.src = `/${portraitPath(look.portrait.key)}`;
+    img.src = portraitPath(look.portrait.key);
     this._portrait.replaceChildren(img);
   }
 
