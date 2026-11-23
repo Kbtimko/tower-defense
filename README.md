@@ -352,7 +352,7 @@ an asset folder or an audio file is missing from it.
 
 ## Running it
 
-Requires Node and npm.
+Requires Node 20.9 or later (for `sharp` and Playwright) and npm.
 
 ```
 npm install
@@ -378,8 +378,8 @@ npm test
 
 The browser scripts need Playwright's Chromium (`npx playwright install chromium`).
 
-**Licences.** [`docs/licenses.md`](docs/licenses.md) records where every shipped
-third-party or generated asset came from and what it allows. Every build also emits a
+**Licences.** Asset provenance is in [`docs/licenses.md`](docs/licenses.md) (see
+[the art pipeline](#the-art-pipeline)). Every build also emits a
 `THIRD_PARTY_NOTICES.txt` with the licence texts, generated from the bundle by
 [`vitePluginNotices.mjs`](scripts/vitePluginNotices.mjs); `npm run package:itch` refuses a
 build without it.
