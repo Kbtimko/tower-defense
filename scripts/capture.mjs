@@ -28,12 +28,18 @@
 // the game state after every step and shooting <device>/flow/NN-id.png. It
 // always uses map 0 and ignores --maps/--wave/--build/--hero/--video; without
 // --devices it runs desktop,iphone,pixel,ipad. Exits 1 if any device fails.
+//
+// --flow --serve <dir> [--base-path /html/12345] skips the capture build and Vite
+// preview and instead serves <dir> (e.g. an unpacked itch zip) with scripts/staticServer.mjs
+// mounted at --base-path (default /), the way itch hosts a game. <dir> must be a
+// production build, so the flow can only use real input and DOM reads.
 import { mkdirSync, writeFileSync, renameSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { build, preview } from 'vite';
 import { chromium, devices } from 'playwright';
 import { DEVICES } from './captureDevices.mjs';
+import { startStaticServer } from './staticServer.mjs';
 import { MAPS } from '../src/data/maps.js';
 import { MAP_WAVES } from '../src/data/waves.js';
 import { TOWER_DEFS } from '../src/data/towers.js';
@@ -180,7 +186,7 @@ function contextOptions(device) {
 
 function parseArgs(argv) {
   const opts = { maps: [0, 3, 5, 9], wave: null, seconds: 6, build: null, hero: null,
-    devices: null, video: 0, rebuild: true, screens: false, flow: false };
+    devices: null, video: 0, rebuild: true, screens: false, flow: false, serve: null, basePath: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => argv[++i];
@@ -193,12 +199,20 @@ function parseArgs(argv) {
     else if (a === '--no-build') opts.rebuild = false;
     else if (a === '--screens')  opts.screens = true;
     else if (a === '--flow')     opts.flow = true;
+    else if (a === '--serve' || a === '--base-path') {
+      const v = next();
+      if (!v) throw new Error(`${a} needs a value`);
+      opts[a === '--serve' ? 'serve' : 'basePath'] = v;
+    }
     else if (a === '--video') {
       const secs = Number(argv[i + 1]);
       opts.video = Number.isFinite(secs) && secs > 0 ? (i++, secs) : 10;
     } else throw new Error(`unknown argument ${a}`);
   }
   if (opts.flow && opts.screens) throw new Error('--flow and --screens are separate modes; pass one');
+  if (opts.serve && !opts.flow) throw new Error('--serve applies to --flow only');
+  if (opts.basePath && !opts.serve) throw new Error('--base-path needs --serve');
+  if (opts.basePath !== null && !opts.basePath.startsWith('/')) throw new Error('--base-path must start with /');
   opts.devices ??= opts.flow ? FLOW_DEVICES : ['desktop'];
   for (const d of opts.devices) if (!DEVICES[d]) throw new Error(`unknown device ${d} (have ${Object.keys(DEVICES)})`);
   return opts;
@@ -2506,11 +2520,19 @@ async function main() {
   const opts = parseArgs(process.argv.slice(2));
   // Throws before any build or browser if map 0 can no longer afford the flow.
   const exp = opts.flow ? flowExpectations({ map: MAPS[0], towerType: FLOW_TOWER }) : null;
-  if (opts.rebuild || !existsSync(DIST_DIR)) {
-    await build({ mode: 'capture', logLevel: 'warn', build: { outDir: DIST_DIR, emptyOutDir: true } });
+  let base, closeServer;
+  if (opts.serve) {
+    const served = await startStaticServer({ root: opts.serve, mountPath: opts.basePath ?? '/' });
+    base = served.url;
+    closeServer = served.close;
+  } else {
+    if (opts.rebuild || !existsSync(DIST_DIR)) {
+      await build({ mode: 'capture', logLevel: 'warn', build: { outDir: DIST_DIR, emptyOutDir: true } });
+    }
+    const server = await preview({ logLevel: 'warn', build: { outDir: DIST_DIR }, preview: { port: PORT, strictPort: true } });
+    base = `http://localhost:${PORT}`;
+    closeServer = () => new Promise(res => server.httpServer.close(res));
   }
-  const server = await preview({ logLevel: 'warn', build: { outDir: DIST_DIR }, preview: { port: PORT, strictPort: true } });
-  const base = `http://localhost:${PORT}`;
   const browser = await chromium.launch();
   const results = [];
   try {
@@ -2535,7 +2557,7 @@ async function main() {
     }
   } finally {
     await browser.close();
-    await new Promise(res => server.httpServer.close(res));
+    await closeServer();
   }
   writeFileSync(join(OUT_DIR, 'report.json'), JSON.stringify(results, null, 2));
   const bad = results.filter(r => r.problems.length || r.ignoredBuild?.length);
