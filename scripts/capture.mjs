@@ -40,10 +40,10 @@ import { build, preview } from 'vite';
 import { chromium, devices } from 'playwright';
 import { DEVICES } from './captureDevices.mjs';
 import { startStaticServer } from './staticServer.mjs';
+import { captureUrl, watchProblems, shootBusiestFrame, contextOptions } from './captureCore.mjs';
 import { MAPS } from '../src/data/maps.js';
 import { MAP_WAVES } from '../src/data/waves.js';
 import { TOWER_DEFS } from '../src/data/towers.js';
-import { defaultCaptureBuild } from '../src/systems/debugCapture.js';
 import { countdownMsFor, lastSpawnMs } from '../src/systems/waveCountdown.js';
 import { WAVE_COUNTDOWN } from '../src/data/waveCountdown.js';
 import { HIT_STOP } from '../src/data/fx.js';
@@ -77,7 +77,6 @@ import { SPRITE_MANIFEST } from '../src/data/sprites.js';
 const OUT_DIR   = '.art-cache/captures';
 const DIST_DIR  = '.art-cache/capture-dist';
 const PORT      = 4188;
-const MIN_ENEMIES = 3;
 // The roadmap's three touch devices plus a fine-pointer desktop (104-px rails).
 const FLOW_DEVICES = ['desktop', 'iphone', 'pixel', 'ipad'];
 const FLOW_TOWER = 'archer';
@@ -178,12 +177,6 @@ const REPLAY_SAVE = {
 };
 const REPLAY_RUN = { lives: MAPS[0].startLives, timeMs: 500_000 };
 
-// Playwright rejects unknown context options, so strip ours before newContext.
-function contextOptions(device) {
-  const { portrait, ...options } = device;
-  return options;
-}
-
 function parseArgs(argv) {
   const opts = { maps: [0, 3, 5, 9], wave: null, seconds: 6, build: null, hero: null,
     devices: null, video: 0, rebuild: true, screens: false, flow: false, serve: null, basePath: null };
@@ -216,51 +209,6 @@ function parseArgs(argv) {
   opts.devices ??= opts.flow ? FLOW_DEVICES : ['desktop'];
   for (const d of opts.devices) if (!DEVICES[d]) throw new Error(`unknown device ${d} (have ${Object.keys(DEVICES)})`);
   return opts;
-}
-
-function captureUrl(mapId, opts) {
-  const wave = opts.wave ?? Math.ceil(MAP_WAVES[mapId].length / 2);
-  const params = new URLSearchParams({ debug: '1', map: String(mapId), wave: String(wave) });
-  params.set('build', opts.build ?? defaultCaptureBuild(MAPS[mapId].towerSlots.length));
-  if (opts.hero) params.set('hero', opts.hero);
-  return { wave, path: `/?${params}` };
-}
-
-// `blockedUrl`: a run that aborts those requests on purpose expects their load
-// errors, and only theirs.
-function watchProblems(page, { blockedUrl = null } = {}) {
-  const problems = [];
-  page.on('pageerror', e => problems.push(`pageerror: ${e.message}`));
-  page.on('console', m => {
-    // Headless GPU chatter (ReadPixels stalls from the screenshot itself).
-    if (m.text().includes('GL Driver Message')) return;
-    if (blockedUrl && m.text().startsWith('Failed to load resource') && blockedUrl.test(m.location().url)) return;
-    if (m.type() === 'error' || m.type() === 'warning') problems.push(`${m.type()}: ${m.text()}`);
-  });
-  return problems;
-}
-
-// Waits `waitMs` of game time, then holds out for a crowd on the path,
-// keeping the busiest frame seen: a strong scripted build can kill fast
-// enemies before three are ever alive. Gives up at 3x the wait.
-async function shootBusiestFrame(page, waitMs, file) {
-  await page.waitForFunction(() => window.__capture, null, { timeout: 30_000 });
-  // Game time, not wall time: a headless browser may run well under 60 fps.
-  await page.waitForFunction(ms => window.__capture.simMs >= ms, waitMs, { timeout: waitMs * 8 + 30_000, polling: 100 });
-  let best = -1;
-  let shotSimMs = 0;
-  for (;;) {
-    const c = await page.evaluate(() => ({ enemies: window.__capture.enemies, simMs: window.__capture.simMs }));
-    if (c.enemies > best) {
-      best = c.enemies;
-      shotSimMs = c.simMs;
-      await page.screenshot({ path: file });
-    }
-    if (best >= MIN_ENEMIES || c.simMs >= waitMs * 3) break;
-    await page.waitForTimeout(150);
-  }
-  const { errors, towers } = await page.evaluate(() => ({ errors: window.__capture.errors, towers: window.__capture.towers }));
-  return { errors, towers, enemies: best, simMs: shotSimMs };
 }
 
 // World point -> page point: the map sits one rail into the FIT-scaled canvas. Rail width depends
