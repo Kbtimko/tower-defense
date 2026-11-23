@@ -55,6 +55,13 @@ I directed; Claude Code, Anthropic's coding agent, implemented. Concretely:
 | Made the design and legal calls: for example, strip a GPL-3.0 polyfill out of Phaser rather than ship it, and raise map 9's starting gold from 300 to 690 | Ran the reviews, as separate reviewer agents |
 | Merged the PRs; kept the visual sign-off gates, the `visual/integration` → `main` release, deploys and the trademark check | Ran the verification: the browser harness, the perf gate, the balance simulator |
 
+Every commit is under my git identity (merges under my GitHub account), except one roadmap
+doc committed as Claude ([`d86ab75`](https://github.com/Kbtimko/tower-defense/commit/d86ab75)).
+Claude Code wrote the code from the start. The `Co-Authored-By: Claude` trailer first
+appears on 2026-05-10 and is on every commit after 2026-06-24: 890 of the 1,101 non-merge
+commits as of 2026-11-23. The 211 without it are from May and June 2026, before the trailer
+was added consistently.
+
 The pipeline below is what makes that division workable. Every step writes something down
 (a spec, a plan, a PR body, a journal), so the claims below link to their evidence.
 
