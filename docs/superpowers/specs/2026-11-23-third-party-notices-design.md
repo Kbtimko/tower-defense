@@ -47,3 +47,12 @@ The MIT and ISC licences require their copyright and permission notice to travel
 
 - The exact section layout of the text file. It must stay plain text and readable.
 - How the plugin reads module ids, for example `this.getModuleIds()` filtered to those in the output chunks, or each chunk's `modules` plus the CSS-imported font packages. Whichever choice is made must include the `@fontsource` packages, whose CSS is imported.
+
+## Added after the final review (2026-11-23)
+
+The final review built the bundle and found three more pieces of code that Phaser inlines:
+- **Matter.js 0.20.0 (MIT) and Simplify.js (BSD-2-Clause).** These now have entries in `VENDORED_NOTICES`. Phaser's class helper is adapted from klasse (BSD-2-Clause), which now has a notice too. Its copyright line comes from the npm author field (Matt DesLauriers), because upstream has no LICENSE file.
+- **rvfc-polyfill.** Phaser's `src/polyfills/requestVideoFrame.js` is copied from this package, which is **GPL-3.0**, and it was in our shipped bundle. **The user decided to strip it from our build.** The game never uses Phaser video, and current browsers implement `requestVideoFrameCallback` natively.
+  - The `strip-gpl-polyfill` build plugin removes the block from Phaser's dist, and the build throws if Phaser's marker isn't found exactly once.
+  - Every build also fails if `_rvfcpolyfillmap` or `ThaUnknown/rvfc-polyfill` reach the output. `package:itch` checks the zip again.
+
