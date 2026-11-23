@@ -19,7 +19,7 @@ and the Vite polyfill come from `src/data/vendoredNotices.js`. `npm run package:
 | Earcut 2.2.4 (vendored in Phaser) | Polygon triangulation inside `phaser.esm.js` | Yes | ISC, (c) 2016 Mapbox | Keep the notice with copies | [mapbox/earcut](https://github.com/mapbox/earcut) |
 | Matter.js 0.20.0 (vendored in Phaser) | Physics engine inside `phaser.esm.js` (the game does not use Matter physics, but the code ships) | Yes | MIT, (c) Liam Brummitt and contributors | Keep the notice with copies | [liabru/matter-js](https://github.com/liabru/matter-js) |
 | Simplify.js (vendored in Phaser) | Polygon simplification (`Phaser.Geom.Polygon.Simplify`) inside `phaser.esm.js` | Yes | BSD-2-Clause, (c) 2017 Vladimir Agafonkin | Reproduce the copyright, conditions and disclaimer with binary copies | [mourner/simplify-js](https://github.com/mourner/simplify-js) |
-| `rvfc-polyfill` (vendored in Phaser) | `requestVideoFrameCallback` shim in `phaser.esm.js` (the game does not use Phaser video) | Yes | **OPEN: GPL-3.0 upstream** (Phaser relabels it MIT) | **Unresolved, see "Open pre-release item" below** | [ThaUnknown/rvfc-polyfill](https://github.com/ThaUnknown/rvfc-polyfill) |
+| `rvfc-polyfill` (vendored in Phaser) | `requestVideoFrameCallback` shim in `phaser.esm.js` (the game does not use Phaser video) | No (stripped at build) | GPL-3.0 upstream (Phaser relabels it MIT) | **Resolved: stripped from our build** by the `strip-gpl-polyfill` Vite plugin; not shipped, so no notice. See "Before a commercial release" | [ThaUnknown/rvfc-polyfill](https://github.com/ThaUnknown/rvfc-polyfill) |
 | Vite modulepreload polyfill | Injected into the built JS by Vite | Yes | MIT | Keep the notice with copies | [vitejs/vite](https://github.com/vitejs/vite) |
 | `@fontsource/orbitron` 5.3.0 | Display font files (Orbitron, Matt McInerney) | Yes | OFL-1.1 | Ship the OFL text and copyright; no selling the font alone | [Orbitron](https://fonts.google.com/specimen/Orbitron), [OFL](https://openfontlicense.org) |
 | `@fontsource/rajdhani` 5.3.0 | Body font files (Rajdhani, Indian Type Foundry) | Yes | OFL-1.1 | As above | [Rajdhani](https://fonts.google.com/specimen/Rajdhani), [OFL](https://openfontlicense.org) |
@@ -72,11 +72,11 @@ lines are not in the Phaser source, so there is nothing to copy verbatim.
   small snippets "based on code by" Mike Reinstein, Michael Jackson, Jonas Raoni Soares Silva
   and tylerjpeterson, with no licence named in the Phaser source.
 - **klasse, BSD-2-Clause, Matt DesLauriers:** "Taken from klasse" in `src/utils/Class.js`.
-  BSD-2-Clause asks for the copyright and conditions to travel with binary copies, which
-  would make this the same case as Simplify.js. It has no `VENDORED_NOTICES` entry because
-  neither Phaser's source nor the klasse npm package (1.0.9) carries the licence text or a
-  copyright line, and this ledger will not invent one. Decide before release: take advice, or
-  fetch the upstream licence text from the klasse repository.
+  Resolved: it has a `VENDORED_NOTICES` entry (1.0.9). Sourcing: the upstream repository
+  (github.com/mattdesl/klasse) states only "BSD-2-Clause" in its README and has no LICENSE
+  file, and Phaser's source and the npm package carry no licence text. The copyright holder
+  comes from the npm `package.json` author field; the text is the standard BSD-2-Clause
+  with the line "Copyright (c) Matt DesLauriers".
 
 ## Fonts
 
@@ -170,17 +170,20 @@ test the game and are not part of the shipped bundle.
 - [x] Third-party notices for the npm packages and the vendored code with a licence text to
       copy: every build ships a generated `THIRD_PARTY_NOTICES.txt` (OFL texts with
       copyright lines for the fonts; MIT/ISC/BSD-2-Clause for Phaser, eventemitter3, Earcut,
-      Matter.js, Simplify.js and Vite's polyfill), and `npm run package:itch` fails without
-      it. This does NOT cover rvfc-polyfill or klasse; see the two OPEN items below.
-- [ ] **OPEN, decision needed (Keith): `rvfc-polyfill` licence.** Phaser 3.90's
-      `src/polyfills/requestVideoFrame.js` is copied from
-      https://github.com/ThaUnknown/rvfc-polyfill. That package is GPL-3.0 on npm (1.0.5
-      onward; 1.0.0 to 1.0.4 say "GPT-3", a typo) and on GitHub. The code is present in our
-      built bundle. The game does not use Phaser video. Phaser's MIT header does not change
-      what upstream is licensed under, and a notice cannot satisfy GPL-3.0. Not fixed:
-      take legal advice, or remove the polyfill from the bundle (for example a build
-      transform), before any commercial release.
-- [ ] **OPEN: klasse (BSD-2-Clause)** notice text, see "Other code Phaser adapts".
+      Matter.js, Simplify.js, klasse and Vite's polyfill), and `npm run package:itch` fails without
+      it. klasse is covered too; rvfc-polyfill is stripped instead (next item).
+- [x] **`rvfc-polyfill` (GPL-3.0 upstream): resolved by stripping it from our build.**
+      Phaser 3.90's dist inlines `src/polyfills/requestVideoFrame.js`, copied from
+      https://github.com/ThaUnknown/rvfc-polyfill (GPL-3.0 on npm from 1.0.5 and on GitHub;
+      Phaser's MIT header does not change that, and a notice cannot satisfy GPL-3.0). The
+      `strip-gpl-polyfill` Vite plugin (`scripts/vitePluginNotices.mjs`, logic in
+      `src/systems/stripVendored.js`) removes the block at build time, leaving an empty
+      webpack module so the rest of Phaser is untouched. This is safe because the game never
+      uses Phaser video and current browsers implement `requestVideoFrameCallback` natively.
+      Guards: `npm run package:itch` fails if `_rvfcpolyfillmap` or `ThaUnknown/rvfc-polyfill`
+      is in the bundle (`FORBIDDEN_BUNDLE_MARKERS`), and the strip throws if the marker is not
+      found exactly once, so a Phaser upgrade fails the build until the strip is re-checked.
+- [x] **klasse (BSD-2-Clause):** notice added, see "Other code Phaser adapts".
 - [ ] Take legal advice on copyright in AI-generated art; ownership of output may be
       limited or non-exclusive depending on jurisdiction.
 - [ ] Re-check the OpenAI terms and the FLUX.1 [schnell] licence at release time, and
