@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ITCH_LIMITS, JUNK_FILES } from '../src/data/release.js';
-import { checkItchLimits, findAbsoluteUrls, zipName } from '../src/systems/itchPackage.js';
+import { buildIdentity, checkItchLimits, findAbsoluteUrls, zipName } from '../src/systems/itchPackage.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 process.chdir(ROOT);
@@ -36,6 +36,13 @@ for (const tool of ['zip', 'unzip']) {
     console.error(`package:itch needs \`${tool}\` on PATH`);
     process.exit(2);
   }
+}
+
+// A zip left over from an earlier run must never sit beside this run's result:
+// the user uploads release/*.zip by hand, so the folder has to tell the truth.
+fs.mkdirSync('release', { recursive: true });
+for (const f of fs.readdirSync('release')) {
+  if (/^last-light-.*\.zip$/.test(f)) fs.rmSync(path.join('release', f));
 }
 
 const OUT = 'release/itch';
@@ -74,11 +81,12 @@ if (problems.length) {
   process.exit(1);
 }
 
-const git = a => spawnSync('git', a, { encoding: 'utf8' }).stdout.trim();
+const { sha, dirty } = buildIdentity(a => spawnSync('git', a, { encoding: 'utf8' }));
+if (sha === 'nogit') console.warn('WARNING: git unavailable or HEAD unresolved; naming the zip nogit-dirty');
 const version = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
-const name = zipName({ version, sha: git(['rev-parse', '--short', 'HEAD']), dirty: git(['status', '--porcelain']) !== '' });
+const name = zipName({ version, sha, dirty, unverified: !verify });
 const zipPath = path.join('release', name);
-fs.rmSync(zipPath, { force: true });
+const failVerify = msg => { fs.rmSync(zipPath, { force: true }); console.error(msg); process.exit(1); };
 const z = spawnSync('zip', ['-r', '-X', '-q', path.join('..', name), '.'], { cwd: OUT, stdio: 'inherit' });
 if (z.status !== 0) { console.error('zip failed'); process.exit(1); }
 
@@ -87,9 +95,9 @@ if (verify) {
   const dest = 'release/verify/html/12345';
   fs.mkdirSync(dest, { recursive: true });
   const u = spawnSync('unzip', ['-q', zipPath, '-d', dest], { stdio: 'inherit' });
-  if (u.status !== 0) { console.error('unzip failed'); process.exit(1); }
+  if (u.status !== 0) failVerify('unzip failed');
   const r = spawnSync('node', ['scripts/capture.mjs', '--flow', '--devices', devices, '--serve', dest, '--base-path', '/html/12345'], { stdio: 'inherit' });
-  if (r.status !== 0) { console.error('flow verification failed'); process.exit(1); }
+  if (r.status !== 0) failVerify('flow verification failed; zip removed');
 }
 
 console.log(`${zipPath}: ${files.length} files, ${(fs.statSync(zipPath).size / 1e6).toFixed(1)} MB, ${verify ? `verified on ${devices}` : 'NOT verified (--no-verify)'}`);

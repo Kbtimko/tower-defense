@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkItchLimits, findAbsoluteUrls, zipName } from './itchPackage.js';
+import { buildIdentity, checkItchLimits, findAbsoluteUrls, zipName } from './itchPackage.js';
 
 const ok = [{ path: 'index.html', bytes: 2_000 }, { path: 'assets/index-abc.js', bytes: 1_500_000 }];
 it('a small build with index.html at the root passes', () => expect(checkItchLimits(ok)).toEqual([]));
@@ -35,4 +35,22 @@ it('finds root-absolute URLs only', () => {
 it('zip name carries version, sha and dirty (Review Focus 5)', () => {
   expect(zipName({ version: '0.1.0', sha: '18455fc', dirty: false })).toBe('last-light-0.1.0-18455fc.zip');
   expect(zipName({ version: '0.1.0', sha: '18455fc', dirty: true })).toBe('last-light-0.1.0-18455fc-dirty.zip');
+});
+it('zipName marks unverified builds, alone and with dirty', () => {
+  expect(zipName({ version: '0.1.0', sha: 'abc1234', dirty: false, unverified: true })).toBe('last-light-0.1.0-abc1234-unverified.zip');
+  expect(zipName({ version: '0.1.0', sha: 'abc1234', dirty: true, unverified: true })).toBe('last-light-0.1.0-abc1234-dirty-unverified.zip');
+  expect(zipName({ version: '0.1.0', sha: 'abc1234', dirty: false, unverified: false })).toBe('last-light-0.1.0-abc1234.zip');
+});
+it('buildIdentity reads sha and dirtiness from git', () => {
+  const run = out => a => ({ status: 0, stdout: a[0] === 'rev-parse' ? 'abc1234\n' : out });
+  expect(buildIdentity(run(''))).toEqual({ sha: 'abc1234', dirty: false });
+  expect(buildIdentity(run(' M x.js\n'))).toEqual({ sha: 'abc1234', dirty: true });
+});
+it('buildIdentity treats missing git or an unresolvable HEAD as nogit and dirty', () => {
+  const nogit = { sha: 'nogit', dirty: true };
+  expect(buildIdentity(() => ({ status: null, stdout: null, error: new Error('ENOENT') }))).toEqual(nogit);
+  expect(buildIdentity(() => ({ status: 128, stdout: '' }))).toEqual(nogit);
+  expect(buildIdentity(() => ({ status: 0, stdout: '' }))).toEqual(nogit);
+  expect(buildIdentity(() => ({ status: 128, stdout: 'abc\n' }))).toEqual(nogit);
+  expect(buildIdentity(a => (a[0] === 'rev-parse' ? { status: 0, stdout: 'abc\n' } : { status: 128, stdout: '' }))).toEqual({ sha: 'abc', dirty: true });
 });

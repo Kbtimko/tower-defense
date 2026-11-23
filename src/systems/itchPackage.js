@@ -49,6 +49,20 @@ export function findAbsoluteUrls(text) {
   return found;
 }
 
-export function zipName({ version, sha, dirty }) {
-  return `last-light-${version}-${sha}${dirty ? '-dirty' : ''}.zip`;
+// A zip is only named plainly when its device flow passed, so the file name
+// is the only record of verification once the console output is gone.
+export function zipName({ version, sha, dirty, unverified }) {
+  return `last-light-${version}-${sha}${dirty ? '-dirty' : ''}${unverified ? '-unverified' : ''}.zip`;
+}
+
+// `run(args)` returns { status, stdout } like spawnSync. Without git, or when
+// HEAD can't be resolved, report an unknown dirty tree so the name can never
+// pass for a clean commit build.
+export function buildIdentity(run) {
+  const head = run(['rev-parse', '--short', 'HEAD']);
+  const sha = head && head.status === 0 && typeof head.stdout === 'string' ? head.stdout.trim() : '';
+  if (!sha) return { sha: 'nogit', dirty: true };
+  const st = run(['status', '--porcelain']);
+  const dirty = !(st && st.status === 0 && typeof st.stdout === 'string') || st.stdout.trim() !== '';
+  return { sha, dirty };
 }
