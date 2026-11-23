@@ -5,6 +5,7 @@ import { defaultCaptureBuild } from '../src/systems/debugCapture.js';
 import { POINTER_FINE_QUERY } from '../src/data/mobile.js';
 import { WORLD_WIDTH, WORLD_HEIGHT } from '../src/data/layout.js';
 import { worldToPagePoint } from '../src/systems/deviceFlow.js';
+import { inMiddleBand, centroidOf } from '../src/systems/releaseMedia.js';
 
 export const MIN_ENEMIES = 3;
 
@@ -72,26 +73,25 @@ export async function boardRect(page) {
   return { x0: a.x, y0: a.y, x1: b.x, y1: b.y, pointerFine, box };
 }
 
-// Enemies on the middle of the road, in page pixels. Pure: shared by the shot and the clip.
-export function middleBand(crowd, { from, to }, board) {
-  const mid = crowd.filter(e => e.progress >= from && e.progress <= to);
-  if (mid.length === 0) return { count: 0, centroid: null };
+// Enemies on the middle of the road, centroid in page pixels. Shared by the shot and the clip.
+export function middleBand(crowd, band, board) {
+  const mid = crowd.filter(e => inMiddleBand(e.progress, band));
   const pts = mid.map(e => worldToPagePoint(e, board.box, { pointerFine: board.pointerFine }));
-  return {
-    count: mid.length,
-    centroid: { x: pts.reduce((s, p) => s + p.x, 0) / pts.length, y: pts.reduce((s, p) => s + p.y, 0) / pts.length },
-  };
+  return { count: mid.length, centroid: centroidOf(pts) };
 }
 
 // Polls game time from `fromSimMs` to `toSimMs`, scoring each frame by the enemies in the
 // middle band of the road (ties: total live enemies), and keeps a screenshot of the best.
 // Game time, not wall time: a headless browser may run well under 60 fps.
-export async function shootBestFrame(page, { fromSimMs, toSimMs, file, midBand }) {
+export async function shootBestFrame(page, { fromSimMs, toSimMs, file, midBand, label = 'shot' }) {
   await page.waitForFunction(() => window.__capture, null, { timeout: 30_000 });
   await page.waitForFunction(ms => window.__capture.simMs >= ms, fromSimMs, { timeout: fromSimMs * 8 + 30_000, polling: 100 });
   const board = await boardRect(page);
+  // Wall-clock bound: a level that ends or a stalled page must fail loudly, not hang.
+  const deadline = Date.now() + toSimMs * 8 + 30_000;
   let best = -1, bestTotal = -1, simMs = 0, centroid = null, total = 0;
   for (;;) {
+    if (Date.now() > deadline) throw new Error(`${label}: sim time never reached ${toSimMs} ms (stopped at ${simMs} ms of best frame)`);
     const c = await page.evaluate(() => ({ crowd: window.__capture.crowd(), simMs: window.__capture.simMs }));
     const mid = middleBand(c.crowd, midBand, board);
     if (mid.count > best || (mid.count === best && c.crowd.length > bestTotal)) {

@@ -14,10 +14,10 @@ export const JUNK_FILES = ['.DS_Store', '.gitkeep'];
 export const RELEASE_MEDIA = {
   device: 'desktop1080',
   shotMaps: [0, 3, 4, 6, 8, 9],
-  // Shots and the clip open this many waves before the last, with auto-send on, so the final
-  // waves overlap on the road.
+  // Shots and the clip open this many waves before the last (0 = the last wave), with
+  // auto-send on. 2 left maps 3 and 6 with too few enemies mid-road within the window.
   wavesFromEnd: 0,
-  // A shot is the best frame between these sim times;.
+  // A shot is the best frame between these sim times.
   shotFromSimMs: 8000,
   shotToSimMs: 45000,
   // Only enemies this far along the road count as "the action" (not the spawn or the exit),
