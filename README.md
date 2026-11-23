@@ -201,15 +201,42 @@ described in [`docs/visual-baseline.md`](docs/visual-baseline.md). "After" was r
 a pair shows the same moment, device and map, not the same widgets. Sources and commands
 for every image: [`docs/readme/PAIRS.md`](docs/readme/PAIRS.md).
 
-| Before (2026-10-21) | After (2026-11-23) |
+Left: before (2026-10-21). Right: after (2026-11-23).
+
+**Map select, desktop.** First run, map 1 open, nothing unlocked. The plain node graph became a star map of named sectors, and the side panel a mission briefing.
+
+| <img src="docs/readme/before-map-select.jpg" width="400" alt="Map select before: a graph of locked mission nodes beside a large text panel with a PLAY button"> | <img src="docs/readme/after-map-select.jpg" width="400" alt="Map select after: a star map of named sectors with a mission briefing panel"> |
 |---|---|
-| <img src="docs/readme/before-map-select.jpg" width="400" alt="Map select before: a graph of locked mission nodes beside a large text panel with a PLAY button"><br>**Map select, desktop.** First run, map 1 open, nothing unlocked. | <img src="docs/readme/after-map-select.jpg" width="400" alt="Map select after: a star map of named sectors with a mission briefing panel"><br>Same first-run save: the plain node graph became a star map of named sectors, and the side panel a mission briefing. |
-| <img src="docs/readme/before-map-select-iphone.jpg" width="400" alt="Map select on iPhone before: the side panel is cut off below its description, with no PLAY button in view"><br>**Map select, iPhone.** The PLAY button was clipped out of reach. | <img src="docs/readme/after-map-select-iphone.jpg" width="400" alt="Map select on iPhone after: the star map with the mission briefing and its LAUNCH button in view"><br>LAUNCH is visible. |
-| <img src="docs/readme/before-ingame.jpg" width="400" alt="Map 0 in game before: a top stats bar, a bottom bar with the hero, abilities and towers, and dark bars at both sides of the board"><br>**In game, map 0, desktop.** Wave 5 of 10, same save and same towers. | <img src="docs/readme/after-ingame.jpg" width="400" alt="Map 0 in game after: stats, hero, abilities and controls in a left rail, towers and the send-wave button in a right rail"><br>The top stats bar and the bottom hero-and-tower bar became two side rails: stats, hero and controls on the left, towers and the wave button on the right. |
-| <img src="docs/readme/before-ingame-iphone.jpg" width="400" alt="Map 0 on iPhone before: a small board between a top stats bar and a tall bottom bar, with empty space to its left"><br>**In game, map 0, iPhone.** The board filled about a third of the screen. | <img src="docs/readme/after-ingame-iphone.jpg" width="400" alt="Map 0 on iPhone after: the board fills the screen between the two side rails"><br>The phone fix: the board fills the screen between the two rails. |
-| <img src="docs/readme/before-tower.jpg" width="400" alt="Tower panel before: a text-heavy side panel"><br>**Tower panel, desktop.** The same tier-3 archer selected on map 0, wave 5. | <img src="docs/readme/after-tower.jpg" width="400" alt="Tower ring after: radial actions around the selected tower and a stats tooltip"><br>Not the same widget: the panel was replaced by a radial ring of actions and a stats tooltip. The locked tier-4 branches read "Map 5". |
-| <img src="docs/readme/before-results.jpg" width="400" alt="Victory before: a small modal"><br>**Victory, desktop.** A small modal. | <img src="docs/readme/after-results.jpg" width="400" alt="Victory after: a full results screen"><br>A full results screen. It shows 0 kills and 0:00 because the capture harness forces the win (the HUD still reads wave 5 of 10); the before was forced the same way. |
-| <img src="docs/readme/before-ingame-map9.jpg" width="400" alt="Map 9 at wave 9 before"><br>**In game, map 9, desktop.** Wave 9 of 18, 10 lives. | <img src="docs/readme/after-ingame-map9.jpg" width="400" alt="Map 9 at wave 9 after"><br>Same wave and lives. Gold reads 690, not 300, because [PR #130](https://github.com/Kbtimko/tower-defense/pull/130) raised map 9's starting gold. |
+
+**Map select, iPhone.** Before, the PLAY button was clipped out of reach; after, LAUNCH is visible.
+
+| <img src="docs/readme/before-map-select-iphone.jpg" width="400" alt="Map select on iPhone before: the side panel is cut off below its description, with no PLAY button in view"> | <img src="docs/readme/after-map-select-iphone.jpg" width="400" alt="Map select on iPhone after: the star map with the mission briefing and its LAUNCH button in view"> |
+|---|---|
+
+**In game, map 0, desktop.** Wave 5 of 10, same save and same towers. The top stats bar and the bottom hero-and-tower bar became two side rails: stats, hero and controls on the left, towers and the wave button on the right.
+
+| <img src="docs/readme/before-ingame.jpg" width="400" alt="Map 0 in game before: a top stats bar, a bottom bar with the hero, abilities and towers, and dark bars at both sides of the board"> | <img src="docs/readme/after-ingame.jpg" width="400" alt="Map 0 in game after: stats, hero, abilities and controls in a left rail, towers and the send-wave button in a right rail"> |
+|---|---|
+
+**In game, map 0, iPhone.** The phone fix: the board went from about a third of the screen to filling it between the two rails.
+
+| <img src="docs/readme/before-ingame-iphone.jpg" width="400" alt="Map 0 on iPhone before: a small board between a top stats bar and a tall bottom bar, with empty space to its left"> | <img src="docs/readme/after-ingame-iphone.jpg" width="400" alt="Map 0 on iPhone after: the board fills the screen between the two side rails"> |
+|---|---|
+
+**Tower panel, desktop.** The same tier-3 archer selected on map 0, wave 5. Not the same widget: the panel was replaced by a radial ring of actions and a stats tooltip, and the locked tier-4 branches read "Map 5".
+
+| <img src="docs/readme/before-tower.jpg" width="400" alt="Tower panel before: a text-heavy side panel"> | <img src="docs/readme/after-tower.jpg" width="400" alt="Tower ring after: radial actions around the selected tower and a stats tooltip"> |
+|---|---|
+
+**Victory, desktop.** A small modal became a full results screen. Both shots show 0 kills because the capture harness forces the win (the HUD still reads wave 5 of 10), which is also why the after reads 0:00.
+
+| <img src="docs/readme/before-results.jpg" width="400" alt="Victory before: a small modal"> | <img src="docs/readme/after-results.jpg" width="400" alt="Victory after: a full results screen"> |
+|---|---|
+
+**In game, map 9, desktop.** Wave 9 of 18 and 10 lives in both. Gold reads 300 before and 690 after because [PR #130](https://github.com/Kbtimko/tower-defense/pull/130) raised map 9's starting gold.
+
+| <img src="docs/readme/before-ingame-map9.jpg" width="400" alt="Map 9 at wave 9 before"> | <img src="docs/readme/after-ingame-map9.jpg" width="400" alt="Map 9 at wave 9 after"> |
+|---|---|
 
 ## Architecture
 
