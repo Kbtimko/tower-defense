@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseDebugParams, applyDebugBuild, defaultCaptureBuild } from './debugCapture.js';
+import { parseDebugParams, applyDebugBuild, defaultCaptureBuild, releaseBuild } from './debugCapture.js';
 import { MAPS } from '../data/maps.js';
 import { MAP_WAVES } from '../data/waves.js';
 import { TOWER_DEFS } from '../data/towers.js';
@@ -128,5 +128,34 @@ describe('defaultCaptureBuild', () => {
   it('drops entries when a map has fewer slots than tower types', () => {
     expect(defaultCaptureBuild(3).split(',')).toHaveLength(3);
     expect(defaultCaptureBuild(0)).toBe('');
+  });
+});
+
+describe('releaseBuild', () => {
+  const parseBuild = (n) => parse(`?debug=1&map=0&build=${releaseBuild(n)}`);
+
+  it('puts exactly one tower on every slot, with no parse errors, on every real map', () => {
+    for (const [i, map] of MAPS.entries()) {
+      const n = map.towerSlots.length;
+      const p = parse(`?debug=1&map=${i}&build=${releaseBuild(n)}`);
+      expect(p.errors).toEqual([]);
+      expect(p.build.map(b => b.slot).sort((a, b) => a - b)).toEqual([...Array(n).keys()]);
+    }
+  });
+
+  it('uses all six tower types once there are six slots or more', () => {
+    const p = parseBuild(MAPS[0].towerSlots.length);
+    expect(new Set(p.build.map(b => b.type))).toEqual(new Set(Object.keys(TOWER_DEFS)));
+  });
+
+  it('is mostly tier 3, with some tier 4 of both branches', () => {
+    const { build } = parseBuild(20);
+    expect(build.filter(b => b.tier === 3).length).toBeGreaterThan(build.length / 2);
+    expect(new Set(build.filter(b => b.tier === 4).map(b => b.branch))).toEqual(new Set(['A', 'B']));
+  });
+
+  it('is deterministic and empty for no slots', () => {
+    expect(releaseBuild(14)).toBe(releaseBuild(14));
+    expect(releaseBuild(0)).toBe('');
   });
 });

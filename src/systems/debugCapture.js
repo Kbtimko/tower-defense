@@ -105,3 +105,15 @@ export function defaultCaptureBuild(slotCount) {
     .map((entry, i) => entry.replace('@', `@${Math.floor((i * slotCount) / n)}`))
     .join(',');
 }
+
+// Release media: a tower on EVERY pad (an empty "+" pad reads as an unfinished level on a
+// storefront page). Types cycle in roster order; the tier cycle has a different period
+// (7 vs 6) so a type does not always land on the same tier. Mostly tier 3, some 4a/4b.
+const RELEASE_TIERS = ['3', '4a', '3', '3', '4b', '3', '3'];
+
+export function releaseBuild(slotCount) {
+  return Array.from({ length: slotCount }, (_, slot) => {
+    const type = CAPTURE_ROSTER[slot % CAPTURE_ROSTER.length].split('@')[0];
+    return `${type}@${slot}:${RELEASE_TIERS[slot % RELEASE_TIERS.length]}`;
+  }).join(',');
+}
