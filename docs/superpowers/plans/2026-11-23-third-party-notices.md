@@ -111,3 +111,49 @@
   Run `npx vitest run src/assets/licenseLedger.test.js` and expect it to PASS.
 - [ ] **Step 6:** Run `npm test` and `npm run build`, both exit 0.
 - [ ] **Step 7: Commit:** `git add scripts/vitePluginNotices.mjs vite.config.js scripts/package-itch.mjs src/systems/itchPackage.js src/systems/itchPackage.test.js docs/licenses.md && git commit -m "feat(licences): every build ships THIRD_PARTY_NOTICES.txt; package:itch requires it"`
+
+---
+
+### Task 3: Strip the GPL-3.0 rvfc-polyfill from our build, and credit klasse
+
+*Added 2026-11-23 after the final review. The user chose "Strip it from our build". Phaser 3.90's dist inlines `src/polyfills/requestVideoFrame.js`, which is copied from https://github.com/ThaUnknown/rvfc-polyfill and is GPL-3.0 on npm and GitHub. The game never uses Phaser video.*
+
+**Files:**
+- Create: `src/systems/stripVendored.js`, `src/systems/stripVendored.test.js`
+- Modify:
+  - `scripts/vitePluginNotices.mjs`: add a second plugin, or a `transform` hook in a new plugin exported alongside, and register it in `vite.config.js`;
+  - `src/data/release.js`: add `FORBIDDEN_BUNDLE_MARKERS`;
+  - `scripts/package-itch.mjs`;
+  - `src/data/vendoredNotices.js` and its test;
+  - `docs/licenses.md`.
+
+**Interfaces:**
+- Produces:
+  - `stripRvfcPolyfill(code) -> string`, pure, in `src/systems/stripVendored.js`. It finds the marker comment `//  From https://github.com/ThaUnknown/rvfc-polyfill`, which must appear **exactly once**, otherwise it throws `rvfc-polyfill marker found <n> times; Phaser changed — re-check the strip`. It removes the marker and the whole `if (…) { … }` statement that follows, finding the closing brace by brace matching. Everything else is left byte-identical, so the webpack module wrapper stays and `__webpack_require__` of that module still works, now with an empty body.
+  - A Vite plugin with `name: 'strip-gpl-polyfill'`, `apply: 'build'` and `enforce: 'pre'`. Its `transform(code, id)` applies `stripRvfcPolyfill` only when `id` (minus any `?query`) ends with `node_modules/phaser/dist/phaser.esm.js` or `node_modules/phaser/dist/phaser.js`.
+  - `FORBIDDEN_BUNDLE_MARKERS = ['_rvfcpolyfillmap', 'ThaUnknown/rvfc-polyfill']` in `src/data/release.js`.
+  - A klasse entry in `VENDORED_NOTICES`:
+    - name `klasse (adapted in Phaser's Class.js)`;
+    - version `1.0.9`;
+    - license `BSD-2-Clause`;
+    - the standard BSD-2-Clause text with the copyright line `Copyright (c) Matt DesLauriers`.
+
+    Upstream (github.com/mattdesl/klasse) states only "BSD-2-Clause" in its README and has no LICENSE file. The author comes from its npm `package.json`. Record that sourcing in `docs/licenses.md`.
+
+- [ ] **Step 1: Write the failing tests** (`stripVendored.test.js`). Use a fixture string shaped like the real dist: a webpack module wrapper `/***/ 63595:\n/***/ (() => {\n\n//  From https://github.com/ThaUnknown/rvfc-polyfill\n\nif (a && b)\n{\n    X.prototype._rvfcpolyfillmap = {}\n    X.prototype.f = function () { if (y) { z() } }\n}\n\n/***/ }),\n` with unrelated code before and after. Assert:
+  - the output contains neither `_rvfcpolyfillmap` nor `ThaUnknown`;
+  - the text before the marker and from `/***/ }),` onward is unchanged;
+  - nested braces inside the block don't end the match early;
+  - zero markers throws;
+  - two markers throw.
+
+  Also extend the vendored-notices test so klasse is present with `BSD-2-Clause` and `Matt DesLauriers`.
+- [ ] **Step 2:** Run the focused tests. Expected: FAIL.
+- [ ] **Step 3:** Implement. In `package-itch.mjs`, after the notices check, read every `.js` file under `release/itch/assets/`. If any `FORBIDDEN_BUNDLE_MARKERS` entry occurs, print it and exit 1.
+- [ ] **Step 4:** Run the focused tests. Expected: PASS. Mutation check: replace brace matching with "the first `}` after the `if`", and confirm the nested-brace test FAILS. Restore.
+- [ ] **Step 5: Live proof:**
+  - `npx vite build --outDir <scratch> --emptyOutDir` and `grep -c _rvfcpolyfillmap <scratch>/assets/*.js` gives 0. Do the same for `--mode capture`.
+  - With the strip plugin temporarily unregistered, `npm run package:itch -- --no-verify` exits 1 naming `_rvfcpolyfillmap`. Restore.
+  - `npm run package:itch` at load < 6 exits 0, verified on desktop and iphone, so the game still boots and plays with the polyfill gone.
+- [ ] **Step 6:** In `docs/licenses.md`, mark the rvfc-polyfill item resolved. Say what was done (stripped at build time by `strip-gpl-polyfill`, guarded by `package:itch`), why it is safe (the game never uses Phaser video, and current browsers implement `requestVideoFrameCallback` natively), and that a Phaser upgrade fails the build until the strip is re-checked. Mark the klasse item resolved by the notice.
+- [ ] **Step 7:** Run `npm test` and `npm run build`, both exit 0. Commit in small Conventional Commits with explicit paths.
