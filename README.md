@@ -11,9 +11,10 @@ tier 4 into one of two forms (12 tier-4 forms), 6 enemy types, 4 heroes and a st
 That is the whole pitch; the rest of this page is for engineers, and is mostly about how it
 was built.
 
-**Play:** <https://tower-defense-black.vercel.app>. That site deploys from `main`, which is
-the last release. The work described here lives on `visual/integration`, which was 535
-commits ahead of `main` on 2026-11-23, and it is not on the live site until it is merged.
+**Play:** <https://tower-defense-black.vercel.app>, which deploys from `main`. This page was
+written on 2026-11-23 on `visual/integration`, then 535 commits ahead of `main`, so on that
+date the live site did not yet have the newest work below: hi-DPI rendering, the
+performance pass, itch.io packaging and the licence notices.
 
 **Stack:** Phaser 3.90 (WebGL), plain ES-module JavaScript (no framework, no TypeScript),
 Vite 5, Vitest 2 with jsdom, and Playwright for the browser harness.
