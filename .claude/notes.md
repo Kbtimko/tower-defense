@@ -5,6 +5,29 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 
 ## Current Status (2026-11-23)
 
+**2026-11-23 (latest): roadmap 6.3, the portfolio README. PR into `visual/integration` (`docs/6.3-portfolio-readme`).**
+- **Root `README.md`:** an engineering case study for engineers only, with no game pitch, and Claude Code's role front and centre (user decisions 2026-11-23). Written in the user's first person. Sections in order:
+  1. a summary with the hero image, the live link and its branch caveat, and an at-a-glance table;
+  2. how it was built: who did what, the pipeline, the `[auto]` rule, the worked example 6.2;
+  3. what the process caught: six verified incidents, each linked to its commits or PRs;
+  4. before/after;
+  5. architecture;
+  6. testing and verification;
+  7. the art pipeline;
+  8. running it.
+- **Gallery:** `docs/readme/` holds 7 before/after pairs (2026-10-21 baseline vs reshot on `visual/integration` 4d6c9ee) plus a full-board hero from `release:media`, 1.8 MB total. `docs/readme/PAIRS.md` records the source of each image.
+- **Every number** came from a facts sheet with the command that produced it. The sheet was an SDD workspace file and is not committed; the README states "as of 2026-11-23".
+- **Authorship:** Claude Code from day one (user, 2026-11-23). The co-author trailer starts on 2026-05-10 and is on every commit after 2026-06-24.
+- **Link guard:** `src/assets/readmeLinks.test.js` fails if any relative link or image in the README is missing or wrongly cased.
+- **Main has no README yet.** GitHub's front page shows `main`, so the README appears there only after `visual/integration` → `main` (the user's call).
+- Verified:
+  - 4235 tests in 262 files, exit 0;
+  - every link target is tracked in git;
+  - reviews: per task, an Opus final review "with fixes", then a fix wave and a re-review;
+  - the GitHub render was checked on the pushed branch.
+
+## Earlier Status (2026-11-23, #81)
+
 **2026-11-23 (latest): backlog #81, third-party notices, plus the GPL polyfill strip. PR into `visual/integration` (`release/81-third-party-notices`).**
 - **Every Vite build ships `THIRD_PARTY_NOTICES.txt`** at the root. That covers Vercel, `package:itch`, capture and perf builds.
   - The `third-party-notices` plugin (`scripts/vitePluginNotices.mjs`) lists every npm package in the bundle, plus their `dependencies` transitively, because Phaser's dist inlines eventemitter3. It adds the full licence text of each.
@@ -355,6 +378,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
+- **2026-11-23:** #142 (#81) merged. Roadmap 6.3 README PR open into `visual/integration` (`docs/6.3-portfolio-readme`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
 - **2026-11-23:** #141 (6.2) merged. Backlog #81 (notices + GPL strip) PR open into `visual/integration` (`release/81-third-party-notices`). Next: roadmap 6.3 portfolio README.
 - **2026-11-23:** Roadmap 6.2 PR open into `visual/integration` (`release/6.2-build-package`). #140 (6.1) merged. Next in Phase 6: 6.3 portfolio README.
 - **2026-11-22:** #138 and #139 merged. Roadmap 6.1 PR open into `visual/integration` (`perf/6.1-performance-pass`). Next in Phase 6: 6.2 build & package.
