@@ -95,6 +95,15 @@ describe('VENDORED_NOTICES', () => {
     expect(simplify.text).toContain('SUCH DAMAGE.');
   });
 
+  it('has a klasse BSD-2-Clause entry crediting Matt DesLauriers', () => {
+    const klasse = VENDORED_NOTICES.find((n) => n.name === "klasse (adapted in Phaser's Class.js)");
+    expect(klasse).toBeDefined();
+    expect(klasse.version).toBe('1.0.9');
+    expect(klasse.license).toBe('BSD-2-Clause');
+    expect(klasse.text).toContain('Copyright (c) Matt DesLauriers');
+    expect(klasse.text).toContain('Redistributions in binary form must reproduce the above copyright notice');
+  });
+
   it('leaves a null version only on the Vite entry, because the plugin fills every null with its version', () => {
     const nulls = VENDORED_NOTICES.filter((n) => n.version === null).map((n) => n.name);
     expect(nulls).toEqual(['Vite modulepreload polyfill']);

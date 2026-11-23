@@ -1,5 +1,5 @@
 // Licence texts for code we ship but that no package.json enumerates: Earcut,
-// Matter.js and Simplify.js are copied into Phaser's source, and the Vite modulepreload polyfill is inlined
+// Matter.js, Simplify.js and klasse are copied into Phaser's source, and the Vite modulepreload polyfill is inlined
 // by the build. The Vite version is filled in by the notices plugin at build
 // time, so it is null here.
 
@@ -86,6 +86,32 @@ HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABI
 TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.`;
 
+// The klasse repository states "BSD-2-Clause" in its README and has no LICENSE
+// file; the author is taken from its npm package.json. This is the standard
+// BSD-2-Clause text with that copyright line.
+const KLASSE_BSD2 = `Copyright (c) Matt DesLauriers
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are
+permitted provided that the following conditions are met:
+
+   1. Redistributions of source code must retain the above copyright notice, this list of
+      conditions and the following disclaimer.
+
+   2. Redistributions in binary form must reproduce the above copyright notice, this list
+      of conditions and the following disclaimer in the documentation and/or other materials
+      provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR
+TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.`;
+
 export const VENDORED_NOTICES = [
   {
     name: 'Earcut (vendored in Phaser)',
@@ -111,5 +137,11 @@ export const VENDORED_NOTICES = [
     version: 'as vendored in Phaser 3.90.0',
     license: 'BSD-2-Clause',
     text: SIMPLIFY_BSD2,
+  },
+  {
+    name: "klasse (adapted in Phaser's Class.js)",
+    version: '1.0.9',
+    license: 'BSD-2-Clause',
+    text: KLASSE_BSD2,
   },
 ];
