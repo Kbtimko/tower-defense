@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stripRvfcPolyfill } from './stripVendored.js';
+import { stripRvfcPolyfill, findForbiddenMarkers } from './stripVendored.js';
 
 const BEFORE = 'var a = 1;\n\n/***/ 63595:\n/***/ (() => {\n\n';
 const BLOCK = `//  From https://github.com/ThaUnknown/rvfc-polyfill
@@ -38,5 +38,23 @@ describe('stripRvfcPolyfill', () => {
 
   it('throws when the marker appears twice', () => {
     expect(() => stripRvfcPolyfill(fixture + fixture)).toThrow('rvfc-polyfill marker found 2 times; Phaser changed');
+  });
+});
+
+describe('findForbiddenMarkers', () => {
+  const markers = ['_rvfcpolyfillmap', 'ThaUnknown/rvfc-polyfill'];
+  it('reports each file and marker that matches', () => {
+    const files = [
+      { fileName: 'assets/a.js', code: 'x._rvfcpolyfillmap = {}' },
+      { fileName: 'assets/b.js', code: 'clean' },
+      { fileName: 'assets/c.js', code: '// ThaUnknown/rvfc-polyfill' },
+    ];
+    expect(findForbiddenMarkers(files, markers)).toEqual([
+      { fileName: 'assets/a.js', marker: '_rvfcpolyfillmap' },
+      { fileName: 'assets/c.js', marker: 'ThaUnknown/rvfc-polyfill' },
+    ]);
+  });
+  it('returns nothing for clean files', () => {
+    expect(findForbiddenMarkers([{ fileName: 'a.js', code: 'ok' }], markers)).toEqual([]);
   });
 });

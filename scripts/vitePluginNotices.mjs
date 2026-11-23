@@ -8,8 +8,9 @@ import { version as viteVersion } from 'vite';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { packageDirOf, formatNotices, collectPackages } from '../src/systems/thirdPartyNotices.js';
-import { stripRvfcPolyfill } from '../src/systems/stripVendored.js';
+import { stripRvfcPolyfill, findForbiddenMarkers } from '../src/systems/stripVendored.js';
 import { VENDORED_NOTICES } from '../src/data/vendoredNotices.js';
+import { FORBIDDEN_BUNDLE_MARKERS } from '../src/data/release.js';
 
 const LICENCE_FILE = /^(licen[cs]e|copying)(\..*)?$/i;
 
@@ -78,6 +79,17 @@ export function stripGplPolyfill() {
       // around the real file, not its source; only the bare id carries the code.
       if (id.includes('?') || !PHASER_DIST.test(id)) return null;
       return { code: stripRvfcPolyfill(code), map: null };
+    },
+    // The path match above can silently stop matching; this fails every build
+    // that would still ship the polyfill, whatever the cause.
+    generateBundle(_, bundle) {
+      const files = [];
+      for (const [key, o] of Object.entries(bundle)) {
+        if (o.type === 'chunk') files.push({ fileName: o.fileName, code: o.code });
+        else if (key.endsWith('.js')) files.push({ fileName: o.fileName, code: String(o.source) });
+      }
+      const [hit] = findForbiddenMarkers(files, FORBIDDEN_BUNDLE_MARKERS);
+      if (hit) throw new Error(`strip-gpl-polyfill: ${hit.marker} found in ${hit.fileName}`);
     },
   };
 }

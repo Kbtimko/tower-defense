@@ -23,3 +23,13 @@ export function stripRvfcPolyfill(code) {
   if (open < 0 || end < 0) throw new Error('rvfc-polyfill block has no balanced closing brace; Phaser changed — re-check the strip');
   return code.slice(0, start) + code.slice(end);
 }
+
+// Output-side guard, independent of how the strip found its target: lists every
+// file that still contains one of the markers.
+export function findForbiddenMarkers(files, markers) {
+  const hits = [];
+  for (const { fileName, code } of files) {
+    for (const marker of markers) if (code.includes(marker)) hits.push({ fileName, marker });
+  }
+  return hits;
+}
