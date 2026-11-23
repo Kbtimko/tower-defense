@@ -130,6 +130,8 @@ function encodeClip({ webm, offsetS }) {
 async function main() {
   requireTool('ffmpeg');
   const device = DEVICES[RELEASE_MEDIA.device];
+  // A failed run must not leave a mixed set of old and new images.
+  rmSync(OUT_DIR, { recursive: true, force: true });
   mkdirSync(OUT_DIR, { recursive: true });
   await build({ mode: 'capture', logLevel: 'warn', build: { outDir: DIST_DIR, emptyOutDir: true } });
   const server = await preview({ logLevel: 'warn', build: { outDir: DIST_DIR }, preview: { port: PORT, strictPort: true } });
