@@ -40,7 +40,7 @@ export function startStaticServer({ root, mountPath = '/', port = 0 }) {
       const pathname = req.url.split('?')[0].split('#')[0];
       if (pathname !== mount && !pathname.startsWith(mount + '/')) return send(res, 404);
       const rest = pathname.slice(mount.length);
-            let segments = rest.split('/').filter((s, i, a) => !(s === '' && (i === 0 || i === a.length - 1)));
+      let segments = rest.split('/').filter((s, i, a) => !(s === '' && (i === 0 || i === a.length - 1)));
       segments = segments.map(decodeURIComponent);
       // A segment that is empty, relative, or smuggles a separator could leave root.
       if (segments.some(s => s === '' || s === '.' || s === '..' || /[/\\\0]/.test(s))) return send(res, 404);
