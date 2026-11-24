@@ -3,7 +3,25 @@
 ## Goal
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
-## Current Status (2026-11-23)
+## Current Status (2026-11-24)
+
+**2026-11-24 (latest): `visual/integration` reached `main`, the itch zip was built from `main`, and backlog #86 (release tooling tidy-ups) has a PR open into `visual/integration` (`chore/86-release-tooling`).**
+- **#144 merged: `visual/integration` → `main`** (merge commit 975ce5c). Production now serves the visual overhaul.
+  - `main` had five hotfixes (#103, #110, #114, #121, #135), all of them already forward-ported, so the merge commit c0c361f keeps the integration side and its tree is byte-identical to `visual/integration` aea7d9e.
+  - Dropped from main's side: `GameScene.barracksTier4.test.js` and `GameScene.leak.test.js`, which target the pre-3.3 tower panel; integration covers them in `GameScene.radial.test.js` and `GameScene.hitStop.test.js`. Also dropped: a verbatim duplicate of the SaveManager cross-instance block.
+- **Itch zip from `main`:** `release/last-light-0.1.0-975ce5c.zip` (322 entries, 15 of them folder entries, 32.5 MB). It was verified on desktop (17/17) and iphone (18/18), includes `THIRD_PARTY_NOTICES.txt`, and contains no GPL marker. The zip and the release media (made 2026-11-23, still current) are in the gitignored worktree `.claude/worktrees/release-zip/release/`.
+- **#86, seven fixes, each with a test written first and a mutation check:**
+  - `zip -D`, so there are no folder entries (this branch's zip: 307 entries, 0 folders);
+  - `package-itch --devices` without a value (or `''`) exits 1;
+  - `capture.mjs --serve` and `--base-path` reject a flag given as the value;
+  - the `shootBestFrame` deadline message reports the latest sim time;
+  - `recordClip` always closes its context. `release-media.mjs` now runs `main()` only as the entry point, so `recordClip` can be imported for tests;
+  - `findAbsoluteUrls` catches uppercase and unquoted `src`/`href`;
+  - a failed `zip` deletes its partial zip.
+- **The Opus final review caught a Critical the per-task review missed:** `let info` was declared in `shoot()` instead of `recordClip()`, so every successful clip threw a ReferenceError. The suite only tested the timeout path. It is fixed, with a success-path test that fails on the old code.
+- Verified: 4249 tests in 265 files, exit 0. `npm run release:media` ran end to end with exit 0, clip included. `npm run package:itch` passed desktop 17/17 and iphone 18/18. `--devices` and `--serve` with no value each exit 1 with "needs a value".
+
+## Earlier Status (2026-11-23, 6.3)
 
 **2026-11-23 (latest): roadmap 6.3, the portfolio README. PR into `visual/integration` (`docs/6.3-portfolio-readme`).**
 - **Root `README.md`:** an engineering case study for engineers only, with no game pitch, and Claude Code's role front and centre (user decisions 2026-11-23). Written in the user's first person. Sections in order:
@@ -378,6 +396,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
+- **2026-11-24:** #143 (6.3) and #144 (`visual/integration` → `main`) merged; the itch zip was built from `main` (975ce5c). The backlog #86 PR is open into `visual/integration` (`chore/86-release-tooling`). Next: 6.4 publish (G5, the user's gate). Before it: the #82 trademark check. Upload the zip from `main` now, or rebuild after #86 reaches `main` for a zip without folder entries.
 - **2026-11-23:** #142 (#81) merged. Roadmap 6.3 README PR open into `visual/integration` (`docs/6.3-portfolio-readme`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
 - **2026-11-23:** #141 (6.2) merged. Backlog #81 (notices + GPL strip) PR open into `visual/integration` (`release/81-third-party-notices`). Next: roadmap 6.3 portfolio README.
 - **2026-11-23:** Roadmap 6.2 PR open into `visual/integration` (`release/6.2-build-package`). #140 (6.1) merged. Next in Phase 6: 6.3 portfolio README.
@@ -655,14 +674,8 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 83. `[auto]` **Speaker portraits at 512 via img2img** _(raised 2026-11-21 by 4.5, deferred by the user)_. The 256 px portraits upsample in the ~240 CSS px dialog frame on 2x screens. Re-prompting did not reproduce them (see art-bible §7 Consistency). Instead upscale each shipped 256 to 1024, img2img at low strength (about 0.3), downscale to 512 and require the sameness diff (mean < 4 per channel against the shipped 256) before shipping. The manifest change is saved as `/private/tmp/claude-501/portraits-512-manifest.patch` (scratch; re-derive if gone: `assetManifest.js` portrait `expected` 256 -> 512 plus its test).
 84. `[review]` **Roster-wide enemy sizes vs art-bible Appendix A** _(raised 2026-11-21 by 4.3)_. 4.3 held each refreshed enemy at its old footprint instead of applying the Appendix A targets, because resizing 3 of 6 enemies would break the size hierarchy. Decide whether to move all six (skitter, drone, phantom, brute, colossus, titan) to Appendix A in one pass, and check the titan reads bigger than the colossus. The user should eyeball the titan at scale 0.99 vs 1.08 (longest side 104 vs 113) during that pass.
 85. `[auto]` **Perf gate: a heavier scenario and tidier reporting** _(raised 2026-11-22 by 6.1)_. The gate samples 12 s after a 3 s warm-up of each map's last wave, which peaks at 3-17 enemies (map 9: 3), so it under-tests crowded late waves; consider `autosend=1` or a longer window. Also: `report.json` should flag a dirty tree, and a build/launch error before the run loop should still write a report. Each `rebake()` adds one entry to Phaser's `Graphics.TargetCamera.renderList`, which is never cleared (tiny; check on a long session).
-86. `[auto]` **Release tooling tidy-ups** _(raised 2026-11-23 by 6.2)_:
-  - the zip carries directory entries (no `zip -D`);
-  - `package-itch.mjs --devices` with no value falls back silently;
-  - `capture.mjs --serve --flow` would read `--flow` as the directory;
-  - a media deadline message reports the best frame's simMs rather than the latest;
-  - the clip's deadline throw skips `context.close()`;
-  - `findAbsoluteUrls` misses unquoted or uppercase `src=`.
-  - the `zip failed` branch exits without deleting a possibly partial zip. This is unlikely, because Info-ZIP writes to a temporary file and renames it only on success.
+86. `[auto]` ~~**Release tooling tidy-ups**~~ **DONE 2026-11-24.** The PR into `visual/integration` (`chore/86-release-tooling`) fixes all seven. Parked minors: an error from `context.close()` in `recordClip`'s finally can mask the real error; the test fakes count `Date.now` calls and detect `boardRect` by the string `'matchMedia'`.
+87. `[review]` **`no-undef` lint over `scripts/`** _(raised 2026-11-24 by #86's final review)_. A variable declared in one function and assigned in another (#86's `recordClip` ReferenceError) passed per-task review and the whole suite. A lint would catch that class of bug for free. This needs a new dev dependency (ESLint), so it's the user's call.
 
 ## Completed
 <!-- Tags below are retrospective/illustrative — runner skips done items regardless. -->
