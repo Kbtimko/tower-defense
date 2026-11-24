@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { buildIdentity, checkItchLimits, findAbsoluteUrls, missingNotices, zipName } from './itchPackage.js';
+import { describe, it, expect, vi } from 'vitest';
+import path from 'node:path';
+import { buildIdentity, checkItchLimits, findAbsoluteUrls, missingNotices, parsePackageArgs, zipArgs, zipBundle, zipName } from './itchPackage.js';
 
 const ok = [{ path: 'index.html', bytes: 2_000 }, { path: 'assets/index-abc.js', bytes: 1_500_000 }];
 it('a small build with index.html at the root passes', () => expect(checkItchLimits(ok)).toEqual([]));
@@ -68,5 +69,62 @@ describe('missingNotices', () => {
   it('matches a name that is a prefix of a longer header (Earcut, Vite)', () => {
     const v = header('Earcut (vendored in Phaser) 2.2.4 (ISC)');
     expect(missingNotices(v, ['Earcut', 'Vite'])).toEqual(['Vite']);
+  });
+});
+
+describe('zipArgs', () => {
+  it('omits directory entries (-D) and zips the folder contents from inside it', () => {
+    const a = zipArgs('z.zip');
+    expect(a).toContain('-D');
+    expect(a.slice(-2)).toEqual([path.join('..', 'z.zip'), '.']);
+  });
+});
+
+describe('parsePackageArgs', () => {
+  it('defaults to verifying on desktop and iphone', () => {
+    expect(parsePackageArgs([])).toEqual({ verify: true, devices: 'desktop,iphone' });
+  });
+  it('reads --no-verify and --devices', () => {
+    expect(parsePackageArgs(['--no-verify', '--devices', 'iphone'])).toEqual({ verify: false, devices: 'iphone' });
+  });
+  it('throws when --devices has no value rather than silently defaulting', () => {
+    expect(() => parsePackageArgs(['--devices'])).toThrow(/--devices needs a value/);
+    expect(() => parsePackageArgs(['--devices', '--no-verify'])).toThrow(/--devices needs a value/);
+  });
+});
+
+describe('zipBundle', () => {
+  const run = result => {
+    const spawn = vi.fn(() => result);
+    const rm = vi.fn();
+    const ok = zipBundle({ spawn, rm, cwd: 'release/itch', name: 'z.zip', zipPath: 'release/z.zip' });
+    return { ok, spawn, rm };
+  };
+  it('removes the partial zip and returns false on a non-zero exit', () => {
+    const { ok, rm, spawn } = run({ status: 12 });
+    expect(ok).toBe(false);
+    expect(rm).toHaveBeenCalledTimes(1);
+    expect(rm).toHaveBeenCalledWith('release/z.zip', { force: true });
+    expect(spawn).toHaveBeenCalledWith('zip', zipArgs('z.zip'), { cwd: 'release/itch', stdio: 'inherit' });
+  });
+  it('removes the partial zip and returns false when zip cannot be spawned', () => {
+    const { ok, rm } = run({ status: null, error: new Error('ENOENT') });
+    expect(ok).toBe(false);
+    expect(rm).toHaveBeenCalledTimes(1);
+    expect(rm).toHaveBeenCalledWith('release/z.zip', { force: true });
+  });
+  it('leaves the zip alone and returns true on success', () => {
+    const { ok, rm } = run({ status: 0 });
+    expect(ok).toBe(true);
+    expect(rm).not.toHaveBeenCalled();
+  });
+});
+
+describe('findAbsoluteUrls attribute forms', () => {
+  it('matches uppercase, unquoted and spaced attributes', () => {
+    expect(findAbsoluteUrls('<IMG SRC="/a.png"><script src=/b.js></script><a HREF = \'/c\'>')).toEqual(['/a.png', '/b.js', '/c']);
+  });
+  it('still ignores protocol-relative, scheme and relative URLs in those forms', () => {
+    expect(findAbsoluteUrls('<IMG SRC="//cdn/x.png"><a HREF=https://x.io/><img src=./rel.png>')).toEqual([]);
   });
 });
