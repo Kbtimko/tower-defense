@@ -9,6 +9,7 @@
 // Exit 1 on a page error or a shot with fewer than minMiddleEnemies mid-road enemies; 2 if ffmpeg is missing.
 import { mkdirSync, writeFileSync, rmSync, statSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { build, preview } from 'vite';
 import { chromium } from 'playwright';
@@ -77,39 +78,46 @@ async function makeCover(shot) {
   return { file, region };
 }
 
-async function recordClip(browser, base, device) {
+export async function recordClip(browser, base, device) {
   const { clip, midBand, minMiddleEnemies } = RELEASE_MEDIA;
   rmSync(VIDEO_DIR, { recursive: true, force: true });
   const context = await browser.newContext({
     ...contextOptions(device),
     recordVideo: { dir: VIDEO_DIR, size: device.viewport },
   });
-  const page = await context.newPage();
-  // The recording starts when the page opens; offset is measured from here.
-  const t0 = Date.now();
-  const problems = watchProblems(page);
-  await page.goto(base + mediaUrl(clip.map));
-  await page.waitForFunction(() => window.__capture, null, { timeout: 30_000 });
-  const board = await boardRect(page);
-  // Trim from the first moment the road's middle holds a crowd (or clip.maxLeadSimMs if that
-  // comes first), so the clip shows towers engaging rather than the wave entering.
-  // Wall-clock bound, as in shootBestFrame: a stalled page must fail, not hang.
-  const deadline = Date.now() + clip.maxLeadSimMs * 8 + 30_000;
-  let startSimMs, peak = 0, crowded = false;
-  for (;;) {
-    if (Date.now() > deadline) throw new Error(`map ${clip.map} clip: no crowd and sim time never reached ${clip.maxLeadSimMs} ms (peak ${peak} mid-road)`);
-    const c = await page.evaluate(() => ({ crowd: window.__capture.crowd(), simMs: window.__capture.simMs }));
-    const count = middleBand(c.crowd, midBand, board).count;
-    peak = Math.max(peak, count);
-    crowded = count >= minMiddleEnemies;
-    if (crowded || c.simMs >= clip.maxLeadSimMs) { startSimMs = c.simMs; break; }
-    await page.waitForTimeout(50);
+  // Close on every path: a timeout here would otherwise leak the recording context.
+  // The video file only exists once the context has closed, so the result is read after the finally.
+  let info;
+  try {
+    const page = await context.newPage();
+    // The recording starts when the page opens; offset is measured from here.
+    const t0 = Date.now();
+    const problems = watchProblems(page);
+    await page.goto(base + mediaUrl(clip.map));
+    await page.waitForFunction(() => window.__capture, null, { timeout: 30_000 });
+    const board = await boardRect(page);
+    // Trim from the first moment the road's middle holds a crowd (or clip.maxLeadSimMs if that
+    // comes first), so the clip shows towers engaging rather than the wave entering.
+    // Wall-clock bound, as in shootBestFrame: a stalled page must fail, not hang.
+    const deadline = Date.now() + clip.maxLeadSimMs * 8 + 30_000;
+    let startSimMs, peak = 0, crowded = false;
+    for (;;) {
+      if (Date.now() > deadline) throw new Error(`map ${clip.map} clip: no crowd and sim time never reached ${clip.maxLeadSimMs} ms (peak ${peak} mid-road)`);
+      const c = await page.evaluate(() => ({ crowd: window.__capture.crowd(), simMs: window.__capture.simMs }));
+      const count = middleBand(c.crowd, midBand, board).count;
+      peak = Math.max(peak, count);
+      crowded = count >= minMiddleEnemies;
+      if (crowded || c.simMs >= clip.maxLeadSimMs) { startSimMs = c.simMs; break; }
+      await page.waitForTimeout(50);
+    }
+    const offsetS = (Date.now() - t0) / 1000;
+    await page.waitForTimeout(clip.seconds * 1000);
+    info = { offsetS, startSimMs, crowded, peak, problems };
+  } finally {
+    await context.close();
   }
-  const offsetS = (Date.now() - t0) / 1000;
-  await page.waitForTimeout(clip.seconds * 1000);
-  await context.close();
   const webm = readdirSync(VIDEO_DIR).find(f => f.endsWith('.webm'));
-  return { webm: join(VIDEO_DIR, webm), offsetS, startSimMs, crowded, peak, problems };
+  return { webm: join(VIDEO_DIR, webm), ...info };
 }
 
 function encodeClip({ webm, offsetS }) {
@@ -174,4 +182,7 @@ async function main() {
   if (problems.length || thin.length || clipThin.length) process.exitCode = 1;
 }
 
-main().catch(err => { console.error(err); process.exit(1); });
+// Only when run directly: the clip test imports recordClip and must not trigger a build.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch(err => { console.error(err); process.exit(1); });
+}

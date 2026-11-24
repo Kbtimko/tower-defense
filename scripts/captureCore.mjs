@@ -89,10 +89,11 @@ export async function shootBestFrame(page, { fromSimMs, toSimMs, file, midBand, 
   const board = await boardRect(page);
   // Wall-clock bound: a level that ends or a stalled page must fail loudly, not hang.
   const deadline = Date.now() + toSimMs * 8 + 30_000;
-  let best = -1, bestTotal = -1, simMs = 0, centroid = null, total = 0;
+  let best = -1, bestTotal = -1, simMs = 0, centroid = null, total = 0, lastSimMs = 0;
   for (;;) {
-    if (Date.now() > deadline) throw new Error(`${label}: sim time never reached ${toSimMs} ms (stopped at ${simMs} ms of best frame)`);
+    if (Date.now() > deadline) throw new Error(`${label}: sim time never reached ${toSimMs} ms (stopped at ${lastSimMs} ms)`);
     const c = await page.evaluate(() => ({ crowd: window.__capture.crowd(), simMs: window.__capture.simMs }));
+    lastSimMs = c.simMs;
     const mid = middleBand(c.crowd, midBand, board);
     if (mid.count > best || (mid.count === best && c.crowd.length > bestTotal)) {
       best = mid.count; bestTotal = c.crowd.length; simMs = c.simMs; centroid = mid.centroid; total = c.crowd.length;

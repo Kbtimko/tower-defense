@@ -2,7 +2,7 @@
 // against itch's limits, zip it deterministically, then play-test the unpacked
 // zip from a nested folder (the way itch serves it).
 //   --no-verify        skip the device flow
-//   --devices <list>   flow devices (default desktop,iphone)
+//   --devices <list>   flow devices (value required; default desktop,iphone)
 
 import { build } from 'vite';
 import { spawnSync } from 'node:child_process';
@@ -11,7 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VENDORED_NOTICES } from '../src/data/vendoredNotices.js';
 import { FORBIDDEN_BUNDLE_MARKERS, ITCH_LIMITS, JUNK_FILES } from '../src/data/release.js';
-import { buildIdentity, checkItchLimits, findAbsoluteUrls, missingNotices, zipName } from '../src/systems/itchPackage.js';
+import { buildIdentity, checkItchLimits, findAbsoluteUrls, missingNotices, parsePackageArgs, zipBundle, zipName } from '../src/systems/itchPackage.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 process.chdir(ROOT);
@@ -27,10 +27,13 @@ function findOnPath(name) {
   return null;
 }
 
-const args = process.argv.slice(2);
-const verify = !args.includes('--no-verify');
-const di = args.indexOf('--devices');
-const devices = di >= 0 && args[di + 1] ? args[di + 1] : 'desktop,iphone';
+let verify, devices;
+try {
+  ({ verify, devices } = parsePackageArgs(process.argv.slice(2)));
+} catch (e) {
+  console.error(e.message);
+  process.exit(1);
+}
 
 for (const tool of ['zip', 'unzip']) {
   if (!findOnPath(tool)) {
@@ -115,8 +118,10 @@ const version = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
 const name = zipName({ version, sha, dirty, unverified: !verify });
 const zipPath = path.join('release', name);
 const failVerify = msg => { fs.rmSync(zipPath, { force: true }); console.error(msg); process.exit(1); };
-const z = spawnSync('zip', ['-r', '-X', '-q', path.join('..', name), '.'], { cwd: OUT, stdio: 'inherit' });
-if (z.status !== 0) { console.error('zip failed'); process.exit(1); }
+if (!zipBundle({ spawn: spawnSync, rm: fs.rmSync, cwd: OUT, name, zipPath })) {
+  console.error('zip failed; partial zip removed');
+  process.exit(1);
+}
 
 if (verify) {
   fs.rmSync('release/verify', { recursive: true, force: true });

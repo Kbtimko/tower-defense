@@ -1,6 +1,8 @@
-// Pure packaging helpers for the itch.io zip. No Node APIs: the caller
-// supplies the file list, so these stay unit-testable under jsdom.
+// Pure packaging helpers for the itch.io zip. The caller supplies the file
+// list and the spawn/rm functions, so these stay unit-testable under jsdom.
+// (node:path is only for building the zip argument, never for touching disk.)
 
+import path from 'node:path';
 import { ITCH_LIMITS } from '../data/release.js';
 
 export function checkItchLimits(files, limits = ITCH_LIMITS) {
@@ -38,13 +40,16 @@ export function checkItchLimits(files, limits = ITCH_LIMITS) {
 
 // Root-absolute URLs only: "/x" in src/href attributes and url(...) in CSS.
 // Protocol-relative (//), scheme URLs and relative paths are not matched.
-const ATTR_ABS = /(?<![\w-])(?:src|href)=["'](\/(?!\/)[^"']*)["']/g;
+// HTML attribute names are case-insensitive and values may be unquoted, so a
+// narrower scan would let a root-absolute URL through to a page that breaks
+// under itch's nested path.
+const ATTR_ABS = /(?<![\w-])(?:src|href)\s*=\s*(?:"(\/(?!\/)[^"]*)"|'(\/(?!\/)[^']*)'|(\/(?!\/)[^\s>"']*))/gi;
 const CSS_ABS = /url\(\s*["']?(\/(?!\/)[^"')\s]*)["']?\s*\)/g;
 
 export function findAbsoluteUrls(text) {
   const found = [];
   for (const re of [ATTR_ABS, CSS_ABS]) {
-    for (const m of text.matchAll(re)) found.push(m[1]);
+    for (const m of text.matchAll(re)) found.push(m[1] ?? m[2] ?? m[3]);
   }
   return found;
 }
@@ -77,4 +82,36 @@ export function missingNotices(noticesText, required) {
     if (lines[i - 1] === '====' && lines[i + 1] === '====') headers.push(lines[i]);
   }
   return required.filter(name => !headers.some(h => h.startsWith(`${name} `)));
+}
+
+// -D drops directory entries: itch tolerates them, but they are noise entries that
+// carry timestamps. -X keeps the zip free of timestamps/uids so the same build zips
+// the same way.
+export function zipArgs(name) {
+  return ['-r', '-X', '-D', '-q', path.join('..', name), '.'];
+}
+
+// A typo like `--devices` with no value must fail before a multi-minute build,
+// not quietly fall back to the default device list.
+export function parsePackageArgs(argv) {
+  const verify = !argv.includes('--no-verify');
+  let devices = 'desktop,iphone';
+  const di = argv.indexOf('--devices');
+  if (di >= 0) {
+    const v = argv[di + 1];
+    if (!v || v.startsWith('--')) throw new Error('--devices needs a value');
+    devices = v;
+  }
+  return { verify, devices };
+}
+
+// A failed zip can leave a truncated file in release/, which the user uploads
+// by hand; remove it so the folder never holds a broken archive.
+export function zipBundle({ spawn, rm, cwd, name, zipPath }) {
+  const z = spawn('zip', zipArgs(name), { cwd, stdio: 'inherit' });
+  if (z.error || z.status !== 0) {
+    rm(zipPath, { force: true });
+    return false;
+  }
+  return true;
 }

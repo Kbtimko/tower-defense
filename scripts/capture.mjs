@@ -194,7 +194,8 @@ function parseArgs(argv) {
     else if (a === '--flow')     opts.flow = true;
     else if (a === '--serve' || a === '--base-path') {
       const v = next();
-      if (!v) throw new Error(`${a} needs a value`);
+      // A following flag is not a value: `--serve --no-build` must not take "--no-build" as the directory.
+      if (!v || v.startsWith('--')) throw new Error(`${a} needs a value`);
       opts[a === '--serve' ? 'serve' : 'basePath'] = v;
     }
     else if (a === '--video') {
