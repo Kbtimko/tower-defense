@@ -51,8 +51,6 @@ function mediaUrl(mapId) {
 
 async function shoot(browser, base, mapId, device) {
   const context = await browser.newContext(contextOptions(device));
-  // The video file only exists once the context has closed, so the result is read after the finally.
-  let info;
   try {
     const page = await context.newPage();
     const problems = watchProblems(page);
@@ -88,6 +86,8 @@ export async function recordClip(browser, base, device) {
     recordVideo: { dir: VIDEO_DIR, size: device.viewport },
   });
   // Close on every path: a timeout here would otherwise leak the recording context.
+  // The video file only exists once the context has closed, so the result is read after the finally.
+  let info;
   try {
     const page = await context.newPage();
     // The recording starts when the page opens; offset is measured from here.

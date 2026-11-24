@@ -90,6 +90,7 @@ describe('parsePackageArgs', () => {
   it('throws when --devices has no value rather than silently defaulting', () => {
     expect(() => parsePackageArgs(['--devices'])).toThrow(/--devices needs a value/);
     expect(() => parsePackageArgs(['--devices', '--no-verify'])).toThrow(/--devices needs a value/);
+    expect(() => parsePackageArgs(['--devices', ''])).toThrow(/--devices needs a value/);
   });
 });
 

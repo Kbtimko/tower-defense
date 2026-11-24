@@ -84,8 +84,9 @@ export function missingNotices(noticesText, required) {
   return required.filter(name => !headers.some(h => h.startsWith(`${name} `)));
 }
 
-// -D drops directory entries: itch's zip validation rejects them. -X keeps the
-// zip free of timestamps/uids so the same build zips the same way.
+// -D drops directory entries: itch tolerates them, but they are noise entries that
+// carry timestamps. -X keeps the zip free of timestamps/uids so the same build zips
+// the same way.
 export function zipArgs(name) {
   return ['-r', '-X', '-D', '-q', path.join('..', name), '.'];
 }
@@ -98,7 +99,7 @@ export function parsePackageArgs(argv) {
   const di = argv.indexOf('--devices');
   if (di >= 0) {
     const v = argv[di + 1];
-    if (v === undefined || v.startsWith('--')) throw new Error('--devices needs a value');
+    if (!v || v.startsWith('--')) throw new Error('--devices needs a value');
     devices = v;
   }
   return { verify, devices };
