@@ -25,10 +25,6 @@ export class WaveManager {
     return this.currentWave >= this.waves.length;
   }
 
-  get isEarlyEligible() {
-    return this.active && this._spawnQ.length === 0;
-  }
-
   startWave() {
     if (this.done) return;
     if (this.active && this._spawnQ.length > 0) return; // still spawning — reject

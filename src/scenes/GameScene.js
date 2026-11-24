@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
-import { TOWER_DEFS } from '../data/towers.js';
+import { TOWER_DEFS, PROJECTILE_HIT_RADIUS, TOWER_SLOW_DURATION, sellRefund } from '../data/towers.js';
 import { MAPS } from '../data/maps.js';
 import { MAP_WAVES } from '../data/waves.js';
 import { PathManager } from '../systems/PathManager.js';
 import { facingDirX } from '../systems/facing.js';
+import { unitDepth } from '../systems/grounding.js';
 import { WaveManager } from '../systems/WaveManager.js';
 import { EconomyManager } from '../systems/EconomyManager.js';
 import { TowerPlacementManager } from '../systems/TowerPlacementManager.js';
@@ -11,48 +12,213 @@ import { Tower } from '../entities/Tower.js';
 import { Barracks } from '../entities/Barracks.js';
 import { Enemy } from '../entities/Enemy.js';
 import { Projectile } from '../entities/Projectile.js';
+import { ProjectilePool } from '../systems/ProjectilePool.js';
 import { Hero } from '../entities/Hero.js';
 import { SaveManager } from '../systems/SaveManager.js';
 import { UpgradeManager, startingGold } from '../systems/UpgradeManager.js';
 import { StoryManager }    from '../systems/StoryManager.js';
 import { StoryDialogOverlay } from '../ui/StoryDialogOverlay.js';
 import { DamageNumberOverlay } from '../systems/DamageNumberOverlay.js';
+import { CoinFx } from '../systems/CoinFx.js';
 import { ShakeController }    from '../systems/ShakeController.js';
 import { ParticleSpawner }    from '../systems/ParticleSpawner.js';
+import { SOLDIER_MUZZLE, HIT_STOP, CHAIN_BOLT } from '../data/fx.js';
+import { shotTargets, resolveHit, clusterPoints, isBossType } from '../systems/towerShot.js';
+import { BUILD_POP, UPGRADE_POP, SELL_FX, SELECTION_RING, PAD_GLOW, RETICLE } from '../data/juice.js';
+import { deathClass, isHeavyHit, canHitStop } from '../systems/hitFx.js';
 import { applyFireRateMod, clearFireRateMod } from '../systems/fireRateMods.js';
-import { gameToPageCss } from '../systems/viewport.js';
+import { placeLeftOf, placeBeside } from '../systems/viewport.js';
+import { attachHint } from '../ui/HintPeek.js';
+import { HINTS } from '../data/hints.js';
+import { WORLD_WIDTH, WORLD_HEIGHT, RAIL_WIDTH } from '../data/layout.js';
+import { applyWorldCamera } from '../systems/worldCamera.js';
+import { getRenderScale } from '../systems/renderScale.js';
+import { createStaticBake } from '../systems/staticLayerBake.js';
+import { addText } from '../ui/hiDpiText.js';
+import {
+  PANEL_EDGE_MARGIN, TAP_TOWER_RADIUS, TAP_SLOT_RADIUS, TAP_PATH_RADIUS, REPOSITION_SNAP_RADIUS, PEEK_GAP_PX,
+} from '../data/input.js';
+import { pulseClass } from '../ui/pulse.js';
+import { railAnchorRect, mapRectPage } from '../ui/hudLayer.js';
+import { WaveBanner } from '../ui/WaveBanner.js';
+import { bossWarning, padGlowAlpha } from '../systems/juiceMath.js';
+import { PAD_BEACON } from '../data/ambient.js';
+import { FONTS } from '../data/theme.js';
+import { beaconAlpha, beaconLevel } from '../systems/padBeacon.js';
 import { STORY_PANELS, briefKey, victorySequenceId, STORY_SEQUENCES } from '../data/story.js';
-import { starsDisplay }    from '../utils/display.js';
 import { soldierSource, heroAbilitySource } from '../data/sourceBuilders.js';
 import { ENEMY_MELEE_DAMAGE, findBlockingSoldier, heroBlocksEnemy } from '../systems/soldierCombat.js';
 import { AreaEffectsManager } from '../systems/AreaEffectsManager.js';
-import { describeMatchups, TIER4_OVERRIDES } from '../data/weaknessMatrix.js';
-import { describeTowerArmour, armourRowLabel } from '../systems/armourLegibility.js';
+import { describeMatchups } from '../data/weaknessMatrix.js';
+import { appendArmourRows } from '../ui/armourRows.js';
 import { shortEnemyName } from '../systems/entityDescriptors.js';
 import { InspectController } from './InspectController.js';
+import { InputController } from './InputController.js';
+import { resolveTap, hasMode } from '../systems/tapResolve.js';
 import { SentryTurret } from '../entities/SentryTurret.js';
 import { renderPath } from '../systems/PathRenderer.js';
+import { bakeRoad, evictOtherRoads } from '../systems/RoadRenderer.js';
+import { PathEndpoints } from '../systems/PathEndpoints.js';
+import { ROAD_DEPTH, ROAD_STYLES, roadRendererFor } from '../data/roads.js';
 import { renderPlatforms } from '../systems/PlatformRenderer.js';
 import { AmbientBackgroundLayer } from '../systems/AmbientBackgroundLayer.js';
 import { computeBlockerPlacements } from '../systems/BlockerPlacement.js';
 import { BLOCKER_TYPES } from '../data/blockerTypes.js';
 import { previewRange } from '../systems/rangePreview.js';
+import { applyDebugBuild } from '../systems/debugCapture.js';
+import { gradeMatrix } from '../systems/mapGrade.js';
+import {
+  VIGNETTE_RADIUS, VIGNETTE_DEPTH, VIGNETTE_MARGIN, VIGNETTE_TEXTURE_SCALE,
+} from '../data/gradeSettings.js';
+import { fillVignette, vignetteTextureKey } from '../systems/vignette.js';
 import { SFX_KEYS } from '../systems/AudioManager.js';
 import { towerFireSfxKey } from '../systems/sfxKeys.js';
 import { WavePreviewPopover } from '../ui/WavePreviewPopover.js';
+import { attachLongPress } from '../ui/longPress.js';
+import { PEEK_LINGER_MS } from '../data/input.js';
+import { RadialMenu, RADIAL_HUB } from '../ui/RadialMenu.js';
+import { buildItems, ringItems, ringHub, unlockMapNumber, previewRadius } from '../systems/radialItems.js';
+import { describeBranchPreview, describeUpgradeDelta } from '../systems/towerDetail.js';
 import { summarizeWave }      from '../systems/wavePreview.js';
 import { CodexOverlay }       from '../ui/CodexOverlay.js';
+import { shouldAutoPause }    from '../systems/shellLifecycle.js';
+import { PHONE_PORTRAIT_QUERY } from '../data/mobile.js';
 import { buildCatalog, progressFromSave } from '../systems/codexCatalog.js';
+import { starsFor }           from '../systems/starRating.js';
+import { livesLostFor }       from '../systems/runRecord.js';
+import { resultsModel }       from '../systems/resultsModel.js';
+import { exitPayload }        from '../systems/missionExit.js';
+import { ResultsScreen }      from '../ui/ResultsScreen.js';
+import { WaveCountdown, countdownMsFor, shouldStartCountdown } from '../systems/waveCountdown.js';
+import { waveButtonView }     from '../systems/waveButtonView.js';
+import { WAVE_COUNTDOWN }     from '../data/waveCountdown.js';
+import { RALLY_FLAG }         from '../data/soldiers.js';
+import { resolveRallyTarget } from '../systems/rallyTarget.js';
+import { isMarching, routeDots, stepFlagFade } from '../systems/soldierMarch.js';
+import { pointAtProgress }    from '../systems/pathGeometry.js';
+import { hexToInt }           from '../ui/theme.js';
+import { TIER_RING, towerAccent } from '../data/tierLooks.js';
+import { ringBreath, ellipseDashes } from '../systems/tierLookMath.js';
+import { tierVariant } from '../systems/spriteKeys.js';
 
 const PROJ_COLORS        = { archer: 0xcd853f, mage: 0xdd00ff, cannon: 0x888888, ice: 0x00eeff };
 const WAVE_CLEAR_BONUS   = 38;
+// Radial range preview: the same gold / invalid red as the armed-build ring.
+const PREVIEW_OK         = 0xffd700;
+const PREVIEW_BAD        = 0x884444;
+const BUILD_HUB          = 'Build';
+const RALLY_OK           = hexToInt(RALLY_FLAG.ok);
+const RALLY_BAD          = hexToInt(RALLY_FLAG.bad);
+const RALLY_HALO         = hexToInt(RALLY_FLAG.halo);
+
+// The rally pennant: pole top, tip, and down the pole.
+function pennantCorners(x, top) {
+  const { w, h } = RALLY_FLAG.pennant;
+  return [{ x, y: top }, { x: x + w, y: top + h / 2 }, { x, y: top + h }];
+}
+
+// Push every edge of a triangle `d` px outward. Scaling about the incentre by
+// (r + d) / r moves each edge's tangent line from r to r + d, so the outline is
+// even all round; nudging the corners by d would leave the sharp tip bare.
+function growTriangle([A, B, C], d) {
+  const a = Math.hypot(B.x - C.x, B.y - C.y);
+  const b = Math.hypot(A.x - C.x, A.y - C.y);
+  const c = Math.hypot(A.x - B.x, A.y - B.y);
+  const per = a + b + c;
+  const ix = (a * A.x + b * B.x + c * C.x) / per;
+  const iy = (a * A.y + b * B.y + c * C.y) / per;
+  const r = Math.abs((B.x - A.x) * (C.y - A.y) - (C.x - A.x) * (B.y - A.y)) / per;
+  const k = (r + d) / r;
+  return [A, B, C].map(p => ({ x: ix + (p.x - ix) * k, y: iy + (p.y - iy) * k }));
+}
+
+// Every pool reduced to one line, so the audit can force the longest caption.
+function onlyLine(line) {
+  const tiers = { 1: [line], 2: [line], 3: [line] };
+  return { victory: tiers, final: tiers, defeat: [line] };
+}
+
+// Scripted state for scripts/capture.mjs. Module-level, not a method, so the
+// production build drops it along with its only (dead) call site.
+// window.__capture.simMs lets the harness wait in game time, which stays
+// meaningful when a slow headless browser drops frames.
+function applyDebugCapture(scene) {
+  const { build, wave, errors } = scene._debug;
+  const placed = applyDebugBuild(build, {
+    economy: scene.economy,
+    placementManager: scene.placementManager,
+    scene,
+    onPlaced: (tower) => {
+      if (tower.type !== 'barracks') return;
+      tower.soldierPathProgress = scene.pathMgr.getNearestPathProgress(tower.x, tower.y);
+      tower.spawnSoldiers(scene, scene.pathMgr.getPathPoints());
+    },
+  });
+  scene._repaintStaticLayers();
+  scene._updateHUD();
+  // Captures must not depend on whether a wave sent itself: OFF unless ?autosend=1.
+  scene._autoSendOverride = scene._debug.autoSend === true;
+  if (wave) {
+    scene.waveMgr.currentWave = wave - 1;
+    scene._skipStoryBefore(wave);
+    scene._startWave();
+  }
+  if (errors.length) console.warn('[capture] ignored:', errors.join('; '));
+  window.__capture = {
+    simMs: 0, enemies: 0, errors,
+    // Lets the harness assert the backing store (canvas = world * k).
+    renderScale: getRenderScale(),
+    // Game-time ms left on the countdown (null when none runs): unlike simMs it
+    // stops during hit-stop, so auto-send waits key on it.
+    countdownMs: null,
+    // Live enemies in world coords with their share of the road walked (0..1), so the
+    // release-media script can pick the busiest mid-road frame.
+    crowd: () => scene.enemies.filter(e => !e.dead)
+      .map(e => ({ x: e.x, y: e.y, progress: scene.pathMgr.getNearestPathProgress(e.x, e.y) })),
+    // Game-space positions, so the harness can click a tower to open its ring.
+    towers: placed.map(t => ({ type: t.type, x: t.x, y: t.y })),
+    // Jumps straight to a results screen without playing a level out; overrides
+    // force the worst-case chips and line for the layout audit.
+    end: (result, overrides = {}) => {
+      const { lives, kills, goldEarned, timeMs, line } = overrides;
+      if (lives !== undefined) scene.economy.lives = lives;
+      if (kills !== undefined) scene.kills = kills;
+      if (goldEarned !== undefined) scene.economy.earned = goldEarned;
+      if (timeMs !== undefined) scene._runMs = timeMs;
+      scene._resultLines = line === undefined ? undefined : onlyLine(line);
+      return result === 'victory' ? scene._onVictory() : scene._onDefeat();
+    },
+  };
+}
+
+// One pose feeds both the T4 ring stroke and __capture.looks, so a capture
+// reports exactly what is on screen. Keyed on the tier variant, as the sprite
+// and expectedTowerLook are, so all three agree on an odd branch. Null below T4.
+function tierRingPose(t, fxTime, reducedMotion) {
+  const v = tierVariant(t.level, t.branch);
+  if (v === 't4a') return { ring: 'solid', ...ringBreath(fxTime, TIER_RING, reducedMotion) };
+  if (v === 't4b') return { ring: 'dashed', phase: reducedMotion ? 0 : fxTime / TIER_RING.spin.periodS };
+  return null;
+}
 
 export default class GameScene extends Phaser.Scene {
-  constructor() { super('GameScene'); }
+  constructor() {
+    super('GameScene');
+    // Bound once (same JS instance serves every level) so add/removeEventListener
+    // see one reference and listeners cannot stack across level entries.
+    this._onShellChange = this._onShellChange.bind(this);
+  }
 
   init(data) {
     this.mapId  = data?.mapId  ?? 0;
     this.heroId = data?.heroId ?? 'rael';
+    // Only BootScene's capture-hook branch passes this; normal entry clears it.
+    this._debug = (import.meta.env.DEV || import.meta.env.MODE === 'capture') ? (data?.debug ?? null) : null;
+    // Only RETRY carries it: a retry chain must hand the world map the stars the
+    // player walked in with, not the ones an earlier run of the chain saved.
+    this._carriedEntryStars = Number.isInteger(data?.entryStars) ? data.entryStars : null;
+    // Capture-hook override only; undefined keeps resultsModel's default lines.
+    this._resultLines = undefined;
   }
 
   create() {
@@ -67,12 +233,13 @@ export default class GameScene extends Phaser.Scene {
 
     this.damageNumbers    = new DamageNumberOverlay(this);
     this.shakeCtl         = new ShakeController(this);
+    this._coinFx          = new CoinFx(this);
+    this._waveBanner      = new WaveBanner();
     this.particleSpawner  = new ParticleSpawner(this);
     this._enemiesOnPath   = 0;
     this._bossMusicTriggered = false;
 
     const map = MAPS[this.mapId];
-    const { width, height } = this.scale;
 
     // Systems
     this.saveMgr     = new SaveManager();
@@ -81,16 +248,35 @@ export default class GameScene extends Phaser.Scene {
     this.killGoldMult = mods.killGoldMult;
     this.rewardMult = map.rewardMult ?? 1;
     this._towerRangeMult = mods.towerRangeMult ?? 1;
+    // Mirrors placeTower's charge so the build radial shows the real price.
+    this._towerCostMult  = mods.towerCostMult ?? 1;
 
-    this.pathMgr  = new PathManager(map.waypoints, map.towerSlots, width, height);
+    this.pathMgr  = new PathManager(map.waypoints, map.towerSlots, WORLD_WIDTH, WORLD_HEIGHT);
+    // Garrison included: lives lost are measured from what this run started with.
+    this._startLives = map.startLives + mods.startLivesBonus;
+    this._entryStars = this._carriedEntryStars ?? this.saveMgr.getStars(this.mapId);
+    this._runMs      = 0;
+    this._newBest    = null;
     this.economy  = new EconomyManager(
       startingGold(map.startGold, mods.startGoldPct),
-      map.startLives + mods.startLivesBonus,
+      this._startLives,
       this.events,
     );
     this.waveMgr  = new WaveManager(MAP_WAVES[this.mapId] ?? MAP_WAVES[0], this.events);
+    this._countdown = new WaveCountdown();
+    // null = follow the Settings toggle; a debug level pins it (applyDebugCapture).
+    this._autoSendOverride = null;
+    // null forces the first render to rewrite every ring class/attr/style: the
+    // shutdown clone of #wave-btn carries the last level's.
+    this._waveBtnCache = null;
     this.storyMgr = new StoryManager(STORY_PANELS);
-    this._storyDialog = new StoryDialogOverlay();
+    // Wave keys whose banner has been shown; auto-send can start wave N+1 before
+    // N clears, so "current wave's panel" alone would drop N's.
+    this._storyShown = new Set();
+    this._storyDialog = new StoryDialogOverlay({ motion: () => this.game.registry.get('ambientMotion') !== false });
+    this._results = new ResultsScreen({ motion: () => this.game.registry.get('ambientMotion') !== false });
+    // A level never opens under a stale screen.
+    this._results.close();
     this.placementManager = new TowerPlacementManager(
       this.pathMgr.buildZones,
       this.economy,
@@ -114,6 +300,7 @@ export default class GameScene extends Phaser.Scene {
       mods,
     );
     this.aimMode                  = false;
+    this._fxTime                  = 0; // seconds; drives pad glow / ring pulse / reticle spin
     this._heroOverchargeWasActive = false;
     this._heroCooldownAccum       = 0;
 
@@ -122,14 +309,16 @@ export default class GameScene extends Phaser.Scene {
     this._sentries   = [];
     this._areaEffects = new AreaEffectsManager(this);
     this.projectiles = [];
+    this._projectilePool = new ProjectilePool(opts => new Projectile(this, opts));
     this.particles   = [];
+    this.bolts       = [];
     this.kills       = 0;
     this.speed       = 1;
     this.over        = false;
     this.won         = false;
     this.selectedType   = null;
-    this.selectedTower  = null;
-    this._openTowerId   = null;
+    this.selectedTower  = null;   // the tower whose ring is open
+    this._buildSlot     = null;   // the pad the build radial is open on
 
     // Latest pointer world position, used to draw the build-time range ring.
     this._buildCursorX  = 0;
@@ -138,55 +327,70 @@ export default class GameScene extends Phaser.Scene {
     // Reposition mode state
     this.repositionMode        = false;
     this.repositioningBarracks = null;
+    // Rally mode state (the barracks whose squad the next road tap sends)
+    this.rallyMode             = false;
+    this.rallyBarracks         = null;
 
-    // Solid-color fallback (visible if the bitmap PNG isn't present)
+    // The map renders between the HUD rails; scroll stays 0, so world coords are
+    // unchanged and only the viewport moves. The background colour (solid
+    // fallback if the bitmap PNG isn't present) fills that viewport only.
+    applyWorldCamera(this.cameras.main, { x: RAIL_WIDTH, y: 0, width: WORLD_WIDTH, height: WORLD_HEIGHT }, getRenderScale());
     this.cameras.main.setBackgroundColor(map.background);
 
     // Bitmap backdrop (depth 0) — Phaser logs 404 if PNG missing; game still runs.
     const bgKey = `bg_map_${map.id}`;
-    if (this.textures.exists(bgKey)) {
-      this.add.image(width / 2, height / 2, bgKey)
-        .setDisplaySize(width, height)
-        .setDepth(0);
-    }
+    const backdrop = this.textures.exists(bgKey)
+      ? this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, bgKey).setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT).setDepth(0)
+      : null;
+    this._applyGrade(map, backdrop);
 
-    // Static layers (depth 10) — blockers → platforms → path. Painted once.
-    this._staticLayers = this.add.graphics().setDepth(10);
+    // Static layers (depth 10) — blockers → platforms → path. Painted once, into
+    // an off-display-list surface that is baked to a texture (see staticLayerBake).
+    this._staticBake = createStaticBake(this, { width: WORLD_WIDTH, height: WORLD_HEIGHT, resolution: getRenderScale(), depth: 10 });
+    this._staticLayers = this._staticBake.surface;
     this._renderStaticLayers(map);
 
-    // Ambient motion layer (depth 5) — between the bitmap and the static
-    // layers, so it reads as deep environment and never overlaps gameplay.
+    // Ambient motion: far layer depth 5 under the road; near layer depth 8.5
+    // above it, faint — both below pads/units so gameplay stays readable.
     this._ambient = map.ambientFx ? new AmbientBackgroundLayer(this, map.ambientFx) : null;
 
     // Per-frame graphics (depth 30) — cleared + redrawn every frame; sits on
     // top of the static layer so hover indicators stay visible.
     this.gfx = this.add.graphics().setDepth(30);
+    // Radial range preview, just above gfx. Redrawn on change rather than
+    // per frame, so it still updates while the scene is paused.
+    this._previewGfx = this.add.graphics().setDepth(31);
 
-    // Static IN/OUT text labels
-    const p = this.pathMgr.path;
-    this.add.text(p[0].x, p[0].y, 'IN',  { fontSize: '10px', color: '#fff', fontFamily: 'Georgia', fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
-    this.add.text(p[p.length-1].x, p[p.length-1].y, 'OUT', { fontSize: '10px', color: '#fff', fontFamily: 'Georgia', fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
+    // Idle pad glow lives under the unit band: on gfx it would tint towers and
+    // units standing on or near a pad.
+    this._padGlow = this.add.graphics().setDepth(PAD_GLOW.depth);
+    // T4 rings sit on the ground between pad glow and the rally route. Inside a
+    // Y-sorted tower container they would paint over a unit standing behind it.
+    this._tierRingGfx = this.add.graphics().setDepth(TIER_RING.depth);
+    // Rally visuals sit above the pads and below the unit band, so soldiers walk
+    // over their own route. The overlay (range ring + ghost) is created second so
+    // it draws over a route at the same depth.
+    this._rallyRouteGfx   = this.add.graphics().setDepth(RALLY_FLAG.depth);
+    this._rallyOverlayGfx = this.add.graphics().setDepth(RALLY_FLAG.depth);
+
+    this._setupRoad(map);
 
     this.inspector = new InspectController(this);
-    this.input.on('pointermove', (p) => {
-      this._buildCursorX = p.worldX;
-      this._buildCursorY = p.worldY;
-      this.inspector.onPointerMove(p.worldX, p.worldY);
-    });
-
-    // Phaser input
-    this.input.on('pointerdown', this._onPointerDown, this);
+    // Taps resolve on release through _onTap; long-press peeks (touch).
+    this._inputCtl = new InputController(this);
 
     // Scene events from systems. Wired as a pair with _unwireSceneEvents so
     // registration and removal cannot drift apart — see the comment there.
     this._wireSceneEvents();
 
     this._userPaused = false;
+    // Start at the cooldown so the first heavy hit of a level can stop.
+    this._hitStopTimer = 0;
+    this._sinceHitStop = HIT_STOP.cooldown;
 
     // Show DOM UI
-    document.getElementById('hud').style.display        = 'flex';
-    document.getElementById('bottom-bar').style.display = 'flex';
-    document.getElementById('game-msg').style.display   = 'none';
+    document.getElementById('hud-layer').style.display = 'block';
+    document.getElementById('game-msg').style.display  = 'none';
     // Clear .disabled left over from a previous game-over (shutdown clones the
     // node but cloneNode preserves classes — without this, a second play in
     // the same tab opens with Exit + Pause permanently dead).
@@ -195,6 +399,8 @@ export default class GameScene extends Phaser.Scene {
 
     // Wire DOM buttons (use once-registered named functions; shutdown() cleans up via clone)
     this._bindDOMEvents();
+    this._createRadial();
+    this._syncCancelButton();
     this._wavePreview = new WavePreviewPopover();
     this._updateHUD();
     this._updateWaveButton();
@@ -214,35 +420,86 @@ export default class GameScene extends Phaser.Scene {
     // Wire ability dispatch
     this.game.events.on('ui:ability', this._onAbility, this);
     this.game.events.on('ui:pause-toggle', this._onPauseToggle, this);
+    this.game.events.on('ui:cancel', this._onUiCancel, this);
 
     // Pre-battle briefing (once per map). Combat hasn't started; the wave button waits.
     const briefId = briefKey(map.storyKey);
-    if (STORY_SEQUENCES[briefId] && !this.saveMgr.hasSeenBeat(briefId)) {
+    if (!this._debug && STORY_SEQUENCES[briefId] && !this.saveMgr.hasSeenBeat(briefId)) {
       this._storyDialog.play(briefId, () => this.saveMgr.markBeatSeen(briefId));
     }
 
-    if (import.meta.env.DEV) window.__game = this;
+    if (import.meta.env.DEV || import.meta.env.MODE === 'capture') window.__game = this;
+    if ((import.meta.env.DEV || import.meta.env.MODE === 'capture') && this._debug) applyDebugCapture(this);
+  }
+
+  // Per-map mood (roadmap 1.4). The colour grade goes on the backdrop only, so
+  // units keep their normalized art; the vignette covers the whole world. preFX
+  // is null under Canvas, which is the guard against a toggle forcing it on there.
+  _applyGrade(map, backdrop) {
+    this._vignette = null;
+    if (!this.game.registry.get('mapGrade') || !map.grade || !backdrop?.preFX) return;
+    backdrop.preFX.addColorMatrix().set(gradeMatrix(map.grade));
+    if (map.grade.vignette > 0) this._addVignette(map.grade.vignette);
+  }
+
+  // A camera postFX vignette would span the rails too, skewing its falloff, so
+  // the same shader maths is baked in map UV into a texture over the world.
+  // Textures survive shutdown, so a replay reuses the bake.
+  _addVignette(strength) {
+    const color = this.game.config.backgroundColor.color;
+    const key = vignetteTextureKey(VIGNETTE_RADIUS, strength, color);
+    const fullW = WORLD_WIDTH + 2 * VIGNETTE_MARGIN;
+    const fullH = WORLD_HEIGHT + 2 * VIGNETTE_MARGIN;
+    if (!this.textures.exists(key)) {
+      const w = Math.round(fullW * VIGNETTE_TEXTURE_SCALE);
+      const h = Math.round(fullH * VIGNETTE_TEXTURE_SCALE);
+      const tex = this.textures.createCanvas(key, w, h);
+      const ctx = tex.getContext();
+      const img = ctx.createImageData(w, h);
+      fillVignette(img.data, w, h, {
+        radius: VIGNETTE_RADIUS, strength, color,
+        u0: -VIGNETTE_MARGIN / WORLD_WIDTH, u1: 1 + VIGNETTE_MARGIN / WORLD_WIDTH,
+        v0: -VIGNETTE_MARGIN / WORLD_HEIGHT, v1: 1 + VIGNETTE_MARGIN / WORLD_HEIGHT,
+      });
+      ctx.putImageData(img, 0, 0);
+      tex.refresh();
+    }
+    this._vignette = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, key)
+      .setDisplaySize(fullW, fullH).setDepth(VIGNETTE_DEPTH);
   }
 
   _bindDOMEvents() {
     // GameScene owns every .tower-btn listener: its shutdown clones these
     // nodes, so a listener bound by a longer-lived scene would not survive
     // into the next level.
+    this._longPressDetachers = [];
     document.querySelectorAll('.tower-btn').forEach(btn => {
       btn.addEventListener('click', () => this._selectTowerType(btn.dataset.type, btn));
-      btn.addEventListener('mouseenter', () => this._showTowerTooltip(btn));
-      btn.addEventListener('mouseleave', () => {
-        document.getElementById('tower-tooltip').style.display = 'none';
+      // Hover is a mouse affordance. Touch synthesises mouseenter on every tap,
+      // which flashed the tooltip over the tap that arms a build; touch peeks
+      // via long-press instead.
+      // A radial peek's pending linger would otherwise hide this tooltip.
+      btn.addEventListener('pointerenter', (e) => {
+        if (e.pointerType !== 'mouse') return;
+        this._clearTooltipLinger();
+        this._showTowerTooltip(btn);
       });
+      btn.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') this._hideTowerTooltip(); });
+      this._longPressDetachers.push(attachLongPress(btn, {
+        onLongPress: () => { this._clearTooltipLinger(); this._showTowerTooltip(btn); },
+        onEnd: () => {
+          this._clearTooltipLinger();
+          this._tooltipLinger = setTimeout(() => this._hideTowerTooltip(), PEEK_LINGER_MS);
+        },
+      }));
     });
     document.getElementById('wave-btn').addEventListener('click',          () => this._startWave());
     document.getElementById('speed-btn').addEventListener('click',         () => this._toggleSpeed());
     // Shutdown's clone keeps the old label, but this.speed resets each level.
     this._renderSpeedButton();
-    document.getElementById('panel-upgrade-btn').addEventListener('click', () => this._upgradeSelectedTower());
-    document.getElementById('panel-sell-btn').addEventListener('click',    () => this._sellSelectedTower());
-    document.getElementById('panel-reposition-btn').addEventListener('click', () => this._startReposition());
-    document.getElementById('msg-btn').addEventListener('click', () => this.scene.start('MapSelectScene'));
+    // The scene instance is reused across levels, so the double-click guard resets per create.
+    this._leftToMap = false;
+    document.getElementById('msg-btn').addEventListener('click', () => this._returnToMap());
     document.getElementById('exit-btn').addEventListener('click', () => this._showConfirmExit());
     document.getElementById('msg-cancel-btn').addEventListener('click', () => {
       document.getElementById('game-msg').style.display = 'none';
@@ -250,10 +507,65 @@ export default class GameScene extends Phaser.Scene {
     });
     document.getElementById('pause-btn').addEventListener('click', () => this._onPauseToggle());
     document.getElementById('open-codex')?.addEventListener('click', () => this._openCodex());
+    this._hintDetachers = [
+      attachHint(document.getElementById('pause-btn'), () => HINTS.pause),
+      attachHint(document.getElementById('open-codex'), () => HINTS.codex),
+    ];
+    this._bindCancelButton();
+    this._wireShellListeners();
+  }
+
+  // Phaser's own pauseOnBlur halts the loop while hidden but RESUMES it on return,
+  // dropping the player back mid-wave. Setting _userPaused keeps the PAUSED overlay
+  // up until they choose to resume. Removed in shutdown().
+  _wireShellListeners() {
+    document.addEventListener('visibilitychange', this._onShellChange);
+    this._portraitMql = window.matchMedia?.(PHONE_PORTRAIT_QUERY);
+    this._portraitMql?.addEventListener?.('change', this._onShellChange);
+    // A level entered in portrait pauses immediately. Run the initial check once the
+    // scene is RUNNING ('create' fires right after) so the pause acts on a live scene;
+    // `once` is consumed on fire so it cannot stack across level entries.
+    this.events.once('create', this._onShellChange);
+  }
+
+  _onShellChange() {
+    const pause = shouldAutoPause({
+      hidden: document.hidden,
+      phonePortrait: !!this._portraitMql?.matches,
+      inLevel: true,
+      userPaused: this._userPaused,
+      over: this.over || this.won,
+    });
+    if (pause) this._onPauseToggle();
+  }
+
+  // Tells the world map what happened so it can animate a first-clear win.
+  _returnToMap(opts = {}) {
+    if (this._leftToMap) return;
+    this._leftToMap = true;
+    const from = exitPayload({
+      mapId: this.mapId,
+      result: this.won ? 'victory' : this.over ? 'defeat' : 'abandon',
+      entryStars: this._entryStars,
+      savedStars: this.saveMgr.getStars(this.mapId),
+      runStars: this._runStars,
+      next: !!opts.next,
+    });
+    this.scene.start('MapSelectScene', { from });
+  }
+
+  // restart() emits the same shutdown as leaving to the map, so every listener
+  // is unwired once. debug is deliberately not carried: a retry is a normal run.
+  _retry() {
+    if (this._leftToMap) return;
+    this._leftToMap = true;
+    this.scene.restart({ mapId: this.mapId, heroId: this.heroId, entryStars: this._entryStars });
   }
 
   _showConfirmExit() {
     if (this.over || this.won) return;
+    // The paused scene drops canvas taps, but the DOM radial would stay live under the dialog.
+    this._closeRadial();
     this.scene.pause();
     document.getElementById('msg-title').textContent        = 'Abandon level?';
     document.getElementById('msg-body').textContent         = 'Progress on this level will be lost.';
@@ -268,7 +580,9 @@ export default class GameScene extends Phaser.Scene {
     const btn     = document.getElementById('pause-btn');
     const overlay = document.getElementById('paused-overlay');
     if (this._userPaused) {
-      this.scene.pause();
+      // Codex / exit-confirm may already have paused the scene; Phaser warns on a
+      // second pause, which the capture harness counts as a problem.
+      if (!this.scene.isPaused()) this.scene.pause();
       overlay.classList.add('shown');
       btn.textContent = '▶ Resume';
       btn.classList.add('paused');
@@ -323,6 +637,8 @@ export default class GameScene extends Phaser.Scene {
     this.events.on('economy:update', this._updateHUD,      this);
     this.events.on('game:defeat',    this._onDefeat,       this);
     this.events.on('hero:level-up',  this._onHeroLevelUp,  this);
+    this.events.on('damage-dealt',   this._onDamageDealt,  this);
+    this.events.on('wave:start',     this._onWaveStart,    this);
   }
 
   _unwireSceneEvents() {
@@ -330,6 +646,43 @@ export default class GameScene extends Phaser.Scene {
     this.events.off('economy:update', this._updateHUD,      this);
     this.events.off('game:defeat',    this._onDefeat,       this);
     this.events.off('hero:level-up',  this._onHeroLevelUp,  this);
+    this.events.off('damage-dealt',   this._onDamageDealt,  this);
+    this.events.off('wave:start',     this._onWaveStart,    this);
+  }
+
+  _onWaveStart({ waveNum }) {
+    this._waveBanner?.show({
+      waveNum,
+      waveCount: this.waveMgr.waves.length,
+      bossType: bossWarning(this.waveMgr.waves[waveNum - 1]),
+    });
+  }
+
+  // Hit-stop: a few tens of ms where the whole simulation freezes so a big hit
+  // lands with weight. Rate-limited, and never while paused/over/reduced-motion.
+  _tryHitStop() {
+    if (this.over || this.won) return;
+    const reducedMotion = this.game.registry.get('ambientMotion') === false;
+    if (!canHitStop(this._sinceHitStop, this._userPaused, reducedMotion)) return;
+    this._hitStopTimer = HIT_STOP.duration;
+    this._sinceHitStop = 0;
+    // Clock-driven timers (hero buff reverts, delayed death steps) must freeze
+    // with the rest of the simulation or they drift against it.
+    this.time.paused = true;
+  }
+
+  // Every exit path (stop elapsed, game over, shutdown) goes through here so
+  // the scene Clock is never left paused.
+  _endHitStop() {
+    this._hitStopTimer = 0;
+    if (this.time) this.time.paused = false;
+  }
+
+  // `target.def` guards against payloads without an enemy target; every enemy
+  // damage source (towers, hero, soldiers, statuses) emits via Enemy.takeDamage.
+  _onDamageDealt({ target, amount }) {
+    if (!target?.def) return;
+    if (isHeavyHit(amount, target.maxHp, target.dead, target.def.type)) this._tryHitStop();
   }
 
   // Relay hero scene events to the game bus for UIScene.
@@ -338,47 +691,120 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown() {
+    // Leaving mid-aim/build would strand the crosshair cursor and ability
+    // outline: hero:aim-cancel only fires through _cancelMode.
+    this._onUiCancel();
+    document.removeEventListener('visibilitychange', this._onShellChange);
+    this._portraitMql?.removeEventListener?.('change', this._onShellChange);
+    this._portraitMql = null;
     this._unwireSceneEvents();
+    this._endHitStop();
     this._wavePreview?.destroy();
     this._wavePreview = null;
     this._codexOverlay?.close();
     this._codexOverlay = null;
     this._storyDialog?.close();
+    this._results?.close();
+    this._inputCtl?.destroy();
+    this._inputCtl = null;
     this.inspector?.destroy();
-    if (import.meta.env.DEV) window.__game = null;
+    // Removes every listener the radial added and restores its markup; the
+    // _onUiCancel above has already closed it.
+    this.radial?.destroy();
+    this.radial = null;
+    this._previewGfx?.destroy();
+    this._previewGfx = null;
+    this._clearTooltipLinger();
+    // Cancelling the linger above would otherwise strand a peeked tooltip open.
+    this._hideTowerTooltip();
+    this._longPressDetachers?.forEach(detach => detach());
+    this._longPressDetachers = [];
+    // Before the clone below replaces the anchors, so detach hides a shown hint.
+    this._hintDetachers?.forEach(detach => detach());
+    this._hintDetachers = [];
+    if (import.meta.env.DEV || import.meta.env.MODE === 'capture') window.__game = null;
     this.game.events.off('ui:ability', this._onAbility, this);
     this.game.events.off('ui:pause-toggle', this._onPauseToggle, this);
+    this.game.events.off('ui:cancel', this._onUiCancel, this);
     // Remove all DOM listeners without tracking refs: clone replaces the node
-    ['wave-btn','speed-btn','pause-btn','panel-upgrade-btn','panel-sell-btn','msg-btn','msg-cancel-btn','exit-btn','panel-reposition-btn','story-dismiss','open-codex'].forEach(id => {
+    ['wave-btn','speed-btn','pause-btn','msg-btn','msg-cancel-btn','exit-btn','story-dismiss','open-codex','cancel-btn'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.replaceWith(el.cloneNode(true));
     });
+    // The clone keeps [hidden] as it was; a mode left armed at exit would
+    // otherwise greet the next level with a stale Cancel.
+    const cancelBtn = document.getElementById('cancel-btn');
+    if (cancelBtn) cancelBtn.hidden = true;
     document.querySelectorAll('.tower-btn').forEach(btn => btn.replaceWith(btn.cloneNode(true)));
-    document.getElementById('hud').style.display          = 'none';
-    document.getElementById('bottom-bar').style.display   = 'none';
-    document.getElementById('tower-panel').style.display  = 'none';
+    document.getElementById('hud-layer').style.display    = 'none';
     document.getElementById('game-msg').style.display     = 'none';
     document.getElementById('paused-overlay').classList.remove('shown');
     const am = this.game.registry.get('audio');
     if (am) am.stopMusic(500);
     if (this.damageNumbers) this.damageNumbers.destroy();
+    this._coinFx?.destroy();
+    this._coinFx = null;
+    this._padGlow?.destroy();
+    this._padGlow = null;
+    this._tierRingGfx?.destroy();
+    this._tierRingGfx = null;
+    this._rallyRouteGfx?.destroy();
+    this._rallyRouteGfx = null;
+    this._rallyOverlayGfx?.destroy();
+    this._rallyOverlayGfx = null;
+    this._waveBanner = null;
     if (this.shakeCtl)      this.shakeCtl.destroy();
     for (const s of this._sentries) s.destroy();
     this._sentries = [];
     if (this._areaEffects) this._areaEffects.destroyAll();
-    this._staticLayers?.destroy();
+    this._projectilePool?.destroyAll();
+    this._projectilePool = null;
+    this.particleSpawner?.destroy();
+    this._staticBake?.destroy();
+    this._staticBake = null;
     this._staticLayers = null;
     this._ambient?.destroy();
     this._ambient = null;
+    this._teardownRoad();
   }
 
   // ─── Update loop ───────────────────────────────────────────────────────────
 
   update(time, delta) {
-    if (this.over || this.won) return;
+    // Before the game-over return so a capture of a lost level still finishes.
+    if ((import.meta.env.DEV || import.meta.env.MODE === 'capture') && this._debug) {
+      window.__capture.simMs += delta * this.speed;
+      window.__capture.enemies = this.enemies.filter(e => !e.dead).length;
+      window.__capture.countdownMs = this._countdown.running ? this._countdown.remainingMs : null;
+      window.__capture.rally = this.placementManager.getTowers().filter(t => t.type === 'barracks').map(b => ({
+        target:   b.soldierPathProgress,
+        marching: b.soldiers.some(s => isMarching(s, b.soldierPathProgress)),
+        soldiers: b.soldiers.map(s => ({ progress: s.pathProgress, dead: s.dead })),
+      }));
+      window.__capture.looks = this._lookCapture();
+    }
+    // Real delta and ahead of every early return: coins already in flight should
+    // land (and the HUD pulse fire) through hit-stop and game over, not freeze.
+    this._coinFx?.update(delta / 1000);
+    if (this.over || this.won) {
+      if (this._hitStopTimer > 0) this._endHitStop();
+      return;
+    }
+    // Real delta, not speed-scaled: the freeze is a feel effect, not game time.
+    if (this._hitStopTimer > 0) {
+      this._hitStopTimer -= delta / 1000;
+      if (this._hitStopTimer <= 0) this._endHitStop();
+      return;
+    }
+    this._sinceHitStop += delta / 1000;
+    this._fxTime += delta / 1000;
     const dt    = (delta / 1000) * this.speed;
     const dtMs  = delta * this.speed;
+    // currentWave turns 1 at Send Wave 1, so the clock starts there.
+    if (this.waveMgr.currentWave > 0) this._runMs += dtMs;
     this._ambient?.update(dtMs);
+    // Real dt (not speed-scaled): portal/beacon pulsing is decoration, not game time.
+    this._endpoints?.update(delta / 1000);
 
     this.waveMgr.update(dtMs);
     this._updateEnemies(dt);
@@ -390,30 +816,52 @@ export default class GameScene extends Phaser.Scene {
     this._areaEffects.update(dt, this.enemies);
     this._updateParticles(dt);
     this._checkWaveComplete();
+    // A rally barracks that left the board (E36) ends the mode now, not on the next tap.
+    if (this.rallyMode && !this.placementManager.getTowers().includes(this.rallyBarracks)) this._cancelMode();
+    // After the clear check, so a clear bonus lands first and a banner it shows
+    // holds the countdown before a zero this frame can send.
+    this._updateCountdown(dtMs);
     this.inspector?.refresh();
 
     this.gfx.clear();
     this._drawPath();
     this._drawZones();
+    this._drawSelectionRing();
+    this._drawReticle();
     this._drawParticles();
+    this._drawRallyOverlay();
+    this._drawRallyRoutes(dtMs);
+    this._updateTowerLooks();
+    this._drawTierRings();
   }
 
   // ─── Wave ──────────────────────────────────────────────────────────────────
 
-  _startWave() {
-    if (this.waveMgr.isEarlyEligible) {
-      const bonus = this._computeEarlyBonus();
+  // Same path for a press and an auto-send. The spawning guard is what stops a
+  // click landing just after an auto-send from sending a second wave.
+  _startWave({ auto = false } = {}) {
+    const wm = this.waveMgr;
+    if (wm.done || (wm.active && wm.hasQueuedEnemies)) return;
+    const cd = this._countdown;
+    if (!auto) {
+      const bonus = this._countdownBonus();
       if (bonus > 0) {
         this.economy.earn(bonus);
         this._toast(`+${bonus}g`);
       }
-    } else if (this.waveMgr.active) {
-      return;
     }
+    // Held means the banner is up; its text is about the wave that just cleared,
+    // and left up it would hold the next countdown too (spec S1).
+    if (cd.held) {
+      cd.resume();
+      this.storyMgr.hideBanner();
+    }
+    cd.cancel();
 
     const am = this.game.registry.get('audio');
     if (am) am.playSfx('wave-start');
     this.waveMgr.startWave();
+    this._updateHUD();
     this._wavePreview?.hide();
     this._updateWaveButton();
   }
@@ -437,6 +885,34 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  // Frame order: start (no tick that frame), else tick; auto-send; render.
+  _updateCountdown(dtMs) {
+    const cd = this._countdown;
+    const wm = this.waveMgr;
+    if (shouldStartCountdown({
+      spawnsDone: !wm.hasQueuedEnemies, done: wm.done, currentWave: wm.currentWave, startedFor: cd.startedFor,
+    })) {
+      // A banner the clear check showed this same frame has already asked to hold.
+      const held = cd.held;
+      cd.start(countdownMsFor(MAPS[this.mapId]), wm.currentWave);
+      if (held) cd.hold();
+    } else {
+      cd.tick(dtMs);
+    }
+    // A leak earlier this frame can end the game; update does not re-check.
+    if (cd.shouldAutoSend(this._autoSendOn()) && !this.over && !this.won) this._startWave({ auto: true });
+    this._renderWaveButton();
+  }
+
+  // Read live so a Settings change applies on the next frame (E9).
+  _autoSendOn() {
+    return this._autoSendOverride ?? (this.game.registry.get('autoSend') !== false);
+  }
+
+  _countdownBonus() {
+    return this._countdown.bonus({ goldPerSecond: WAVE_COUNTDOWN.goldPerSecond, rewardMult: this.rewardMult });
+  }
+
   _checkWaveComplete() {
     if (!this.waveMgr.active) return;
     if (this.waveMgr.hasQueuedEnemies || this.enemies.length > 0) return;
@@ -446,13 +922,32 @@ export default class GameScene extends Phaser.Scene {
       this._onVictory();
     } else {
       const map   = MAPS[this.mapId];
-      const panel = this.storyMgr.getPanelForWave(map.storyKey, this.waveMgr.currentWave);
-      if (panel) {
-        this.storyMgr.showBanner(panel, () => this._updateWaveButton());
+      const due = this.storyMgr.getDuePanels(map.storyKey, this.waveMgr.currentWave, this._storyShown);
+      if (due.length) {
+        this._countdown.hold();
+        this._showDueBanners(due);
       } else {
         this._updateWaveButton();
       }
     }
+  }
+
+  // Oldest first, each dismiss revealing the next. A send mid-sequence hides the
+  // banner without calling the dismiss, so the unshown rest stays due for the next clear.
+  _showDueBanners(due, i = 0) {
+    const { wave, panel } = due[i];
+    this._storyShown.add(wave);
+    this.storyMgr.showBanner(panel, () => {
+      if (i + 1 < due.length) return this._showDueBanners(due, i + 1);
+      this._countdown.resume();
+      this._updateWaveButton();
+    });
+  }
+
+  // Debug captures jump to a wave; earlier beats were never played.
+  _skipStoryBefore(wave) {
+    this.storyMgr.getDuePanels(MAPS[this.mapId].storyKey, wave - 1, new Set())
+      .forEach(d => this._storyShown.add(d.wave));
   }
 
   // ─── Enemies ───────────────────────────────────────────────────────────────
@@ -474,6 +969,11 @@ export default class GameScene extends Phaser.Scene {
           this._dealDamage(enemy, blocker.damage, false, { source: soldierSource(blocker) });
           blocker.attackTimer = 1 / blocker.attackRate;
           blocker._sprite?.setState('attack');
+          // At the drawn soldier: the formation offset moves the picture off the road point.
+          if (this.particleSpawner) {
+            const at = blocker.drawnPosition();
+            this.particleSpawner.spawnMuzzleFlash(at.x, at.y, SOLDIER_MUZZLE);
+          }
         }
         if (enemy.dead) continue;
         continue;
@@ -510,13 +1010,16 @@ export default class GameScene extends Phaser.Scene {
       // leftward delta and would mirror the sprite mid-stride (see facing.js).
       enemy._sprite?.setFacing(facingDirX(path[aheadIdx].x - enemy.x));
       // A tower-killed corpse finishing the path the same frame is a kill, not a
-      // leak: it costs no life (the simulator sweeps its dead before moving, so
-      // it never charged one either).
+      // leak: it keeps its death FX and costs no life (the simulator sweeps its
+      // dead before moving, so it never charged one either).
       if (!enemy.dead && enemy.waypointIndex >= path.length - 1) {
+        // Death FX must not play for an enemy that reached the base.
+        enemy.leaked = true;
         enemy.dead = true;
         const am = this.game.registry.get('audio');
         if (am) am.playSfx('life-lost');
         this.economy.loseLife();
+        this._pulseLifeLost();
       }
     }
     const dying = this.enemies.filter(e => e.dead);
@@ -529,11 +1032,25 @@ export default class GameScene extends Phaser.Scene {
         const am = this.game.registry.get('audio');
         if (am) am.setCombatActive(false);
       }
-      this._updateWaveButton();
     }
   }
 
+  // DOM-only feedback: the HUD sits outside the canvas, so the lives counter and
+  // the game frame are pulsed through CSS rather than a Phaser tween.
+  _pulseLifeLost() {
+    const lives = document.getElementById('stat-lives');
+    pulseClass(lives?.parentElement, 'life-lost-pulse');
+    pulseClass(document.getElementById('game'), 'life-lost-frame');
+  }
+
   _fadeOutDeadEnemy(enemy) {
+    if (!enemy.leaked) {
+      const type = enemy.def.type;
+      this.particleSpawner.spawnDeath(deathClass(type), enemy.x, enemy.y, enemy.def.color);
+      // Backstop: damage-dealt already covers kills; this is cooldown-gated, so a
+      // kill that slipped past it still stops the frame at most once per cooldown.
+      if (isHeavyHit(0, enemy.maxHp, true, type)) this._tryHitStop();
+    }
     // Death art, when present, replaces the fade entirely: the entity has to
     // survive until animationcomplete or the one-shot never finishes.
     if (enemy.hasDeathAnimation?.()) {
@@ -549,8 +1066,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _destroyDeadProjectile(p) {
-    if (p.destroyTrail) p.destroyTrail();
-    p.destroy();
+    this._projectilePool.release(p);
   }
 
   _checkSoldierBlock(enemy) {
@@ -562,10 +1078,13 @@ export default class GameScene extends Phaser.Scene {
     return null;
   }
 
+  // After _updateEnemies: a march halts on this frame's enemy positions, and the
+  // block that follows lands on the next frame's _updateEnemies.
   _updateSoldiers(dt) {
+    const reducedMotion = this.game.registry.get('ambientMotion') === false;
     for (const tower of this.placementManager.getTowers()) {
       if (tower.type !== 'barracks') continue;
-      for (const soldier of tower.soldiers) soldier.update(dt);
+      for (const soldier of tower.soldiers) soldier.update(dt, this.enemies, { reducedMotion });
     }
   }
 
@@ -574,7 +1093,9 @@ export default class GameScene extends Phaser.Scene {
     this.hero.update(dt, this.enemies);
     for (const e of aliveBeforeHero) {
       if (e.dead) {
-        this.economy.earn(this._killReward(e.reward));
+        const reward = this._killReward(e.reward);
+        this.economy.earn(reward);
+        this._coinFx?.spawn(e.x, e.y, reward);
         this.kills++;
         this._updateHUD();
       }
@@ -612,9 +1133,12 @@ export default class GameScene extends Phaser.Scene {
       if (this.hero.dead) return;
       if (this.hero._timers[slot] > 0) return;
       if (this.hero.level < this.hero.def.stats.abilityUnlockLevels[slot]) return;
+      this._leaveBarracksModes();
+      this._closeRadial();
       this.aimMode  = true;
       this._aimSlot = slot;
       this.game.events.emit('hero:aim-mode');
+      this._syncCancelButton();
       return;
     }
 
@@ -658,6 +1182,7 @@ export default class GameScene extends Phaser.Scene {
     this._aimSlot = null;
     this.aimMode  = false;
     this.game.events.emit('hero:aim-cancel');
+    this._syncCancelButton();
     if (!result) return;
     this._applyAbilityResult(slot, result);
   }
@@ -847,28 +1372,37 @@ export default class GameScene extends Phaser.Scene {
 
   _updateTowers(dt) {
     for (const tower of this.placementManager.getTowers()) {
+      tower.updatePop(dt);
       if (!tower.fireRate) continue;
       tower.cooldown = Math.max(0, tower.cooldown - dt);
       if (tower.cooldown > 0) continue;
       let best = null, bestProg = -1;
+      const inRange = [];
       for (const enemy of this.enemies) {
-        if (Math.hypot(enemy.x - tower.x, enemy.y - tower.y) <= tower.range
-            && enemy.waypointIndex > bestProg) {
-          best = enemy; bestProg = enemy.waypointIndex;
+        if (Math.hypot(enemy.x - tower.x, enemy.y - tower.y) <= tower.range) {
+          inRange.push(enemy);
+          if (enemy.waypointIndex > bestProg) { best = enemy; bestProg = enemy.waypointIndex; }
         }
       }
       if (best) {
         const am = this.game.registry.get('audio');
         if (am) am.playSfx(towerFireSfxKey(tower.type, tower.branch, SFX_KEYS));
-        if (this.particleSpawner) this.particleSpawner.spawnMuzzleFlash(tower.x, tower.y, tower.type);
-        this.projectiles.push(new Projectile(this, {
-          x: tower.x, y: tower.y, target: best,
-          damage: tower.damage, splashRadius: tower.splashRadius,
-          pierce: tower.pierce, slowFactor: tower.slow,
-          color: PROJ_COLORS[tower.type] ?? 0xffffff,
-          towerType: tower.type,
-          tier: tower.level, branch: tower.branch,
-        }));
+        // Shots leave the drawn art, which a tier scale lifts off the pad (S6).
+        const m = tower.muzzlePoint();
+        if (this.particleSpawner) this.particleSpawner.spawnMuzzleFlash(m.x, m.y, tower.type, tower.level, tower.branch);
+        for (const target of shotTargets(tower.shots ?? 1, best, inRange)) {
+          this.projectiles.push(this._projectilePool.acquire({
+            x: m.x, y: m.y, target,
+            damage: tower.damage, splashRadius: tower.splashRadius,
+            pierce: tower.pierce, slowFactor: tower.slow,
+            color: PROJ_COLORS[tower.type] ?? 0xffffff,
+            towerType: tower.type,
+            tier: tower.level, branch: tower.branch,
+            chain: tower.chain, cluster: tower.cluster,
+            slowedMult: tower.slowedMult, bossStun: tower.bossStun,
+            slowDuration: TOWER_SLOW_DURATION,
+          }));
+        }
         tower.cooldown = 1 / tower.fireRate;
         // No deadzone, unlike the enemy path (systems/facing.js): a tower's
         // target jumps between discrete enemies rather than tracking a dense
@@ -889,13 +1423,15 @@ export default class GameScene extends Phaser.Scene {
       }
       const dx = proj.targetX - proj.x, dy = proj.targetY - proj.y;
       const dist = Math.hypot(dx, dy);
-      if (dist < 10) {
+      if (dist < PROJECTILE_HIT_RADIUS) {
         this._onProjectileHit(proj);
         proj.dead = true;
       } else {
         const step = Math.min(proj.speed * dt, dist);
         proj.x += (dx / dist) * step;
         proj.y += (dy / dist) * step;
+        proj.updateVisual();
+        this.particleSpawner?.emitTrail(proj, dt);
       }
     }
     for (const p of this.projectiles) {
@@ -906,24 +1442,42 @@ export default class GameScene extends Phaser.Scene {
 
   _onProjectileHit(proj) {
     const source = { kind: 'tower', type: proj.towerType, tier: proj.tier, branch: proj.branch };
-    if (proj.splashRadius > 0) {
-      for (const enemy of this.enemies) {
-        if (Math.hypot(enemy.x - proj.targetX, enemy.y - proj.targetY) <= proj.splashRadius) {
-          this._dealDamage(enemy, proj.damage, proj.pierce, { source, isAoe: true });
-        }
+    this.particleSpawner?.spawnImpact(proj.fx.impact, proj.targetX, proj.targetY);
+    const targetWasHit = !!(proj.target && !proj.target.dead);
+    const records = resolveHit(proj, this.enemies, {
+      isSlowed: e => e.statusEffects.slow.active,
+      isBoss: e => isBossType(e.def.type),
+    });
+    for (const rec of records) {
+      // An earlier record in this same hit (a cluster bomblet) may have killed it.
+      if (rec.enemy.dead) continue;
+      this._dealDamage(rec.enemy, rec.amount, proj.pierce, { source, isAoe: rec.isAoe, hitMult: rec.hitMult });
+      // Status only lands on a survivor; a corpse has nothing to slow or stun.
+      if (!rec.enemy.dead) {
+        if (rec.slow) rec.enemy.applyStatus({ type: 'slow', ...rec.slow });
+        if (rec.stun) rec.enemy.applyStatus({ type: 'stun', ...rec.stun });
       }
-      this._addParticle(proj.targetX, proj.targetY, 0xff8800, 14);
-    } else if (proj.target && !proj.target.dead) {
-      this._dealDamage(proj.target, proj.damage, proj.pierce, { source });
-      if (proj.slowFactor > 0) proj.target.applyStatus({ type: 'slow', duration: 2, factor: proj.slowFactor });
-      this._addParticle(proj.targetX, proj.targetY, proj.color, 7);
+      if (rec.chainFrom) {
+        this.bolts.push({
+          x1: rec.chainFrom.x, y1: rec.chainFrom.y, x2: rec.enemy.x, y2: rec.enemy.y,
+          color: PROJ_COLORS[proj.towerType] ?? 0xffffff,
+          life: CHAIN_BOLT.duration, maxLife: CHAIN_BOLT.duration,
+        });
+      }
     }
+    if (proj.cluster) {
+      for (const pt of clusterPoints(proj)) this.particleSpawner?.spawnImpact(proj.fx.impact, pt.x, pt.y);
+    }
+    if (proj.splashRadius > 0) this._addParticle(proj.targetX, proj.targetY, 0xff8800, 14);
+    else if (targetWasHit) this._addParticle(proj.targetX, proj.targetY, proj.color, 7);
   }
 
   _dealDamage(enemy, damage, pierce, opts = {}) {
     enemy.takeDamage(damage, { pierce, ...opts });
     if (enemy.dead) {
-      this.economy.earn(this._killReward(enemy.reward));
+      const reward = this._killReward(enemy.reward);
+      this.economy.earn(reward);
+      this._coinFx?.spawn(enemy.x, enemy.y, reward);
       this.kills++;
       this._updateHUD();
       // Central flash
@@ -952,349 +1506,468 @@ export default class GameScene extends Phaser.Scene {
       p.life -= dt; p.radius += dt * 28; p.alpha = Math.max(0, p.life / p.maxLife);
     }
     this.particles = this.particles.filter(p => p.life > 0);
+    for (const b of this.bolts) b.life -= dt;
+    this.bolts = this.bolts.filter(b => b.life > 0);
   }
 
   // ─── Input ─────────────────────────────────────────────────────────────────
 
-  _onPointerDown(pointer) {
-    const mx = pointer.x, my = pointer.y;
+  // Canvas tap entry point: InputController calls this on release. The order
+  // (aim -> reposition -> radial -> tower -> inspect -> build -> pad -> hero)
+  // lives in resolveTap.
+  _onTap(mx, my) {
+    const hits = this._tapHits(mx, my);
+    this._runTapAction(resolveTap(this._modeState(), hits), mx, my, hits);
+    this._syncCancelButton();
+  }
 
-    // 1. Aim mode takes priority
-    if (this.aimMode) {
-      this._triggerAimAbility(mx, my);
-      return;
+  _modeState() {
+    return {
+      aimSlot:       this.aimMode ? this._aimSlot : null,
+      repositioning: !!(this.repositionMode && this.repositioningBarracks),
+      rallying:      !!(this.rallyMode && this.rallyBarracks),
+      selectedType:  this.selectedType,
+      heroDead:      !!this.hero?.dead,
+      radial:        this.radial?.isOpen ? { kind: this.radial.kind, target: this.radial.target } : null,
+    };
+  }
+
+  // Today's radii: tower 22px, build slot 22px, path 40px. inspectableAt does
+  // not pin, so asking it costs nothing when an earlier step wins.
+  _tapHits(mx, my) {
+    return {
+      tower:       this.placementManager.getTowers().find(t => Math.hypot(t.x - mx, t.y - my) < TAP_TOWER_RADIUS) ?? null,
+      slot:        this.placementManager.getNearestSlot(mx, my, TAP_SLOT_RADIUS, true),
+      onPath:      this.pathMgr.isOnPath(mx, my, TAP_PATH_RADIUS),
+      inspectable: this.inspector?.inspectableAt(mx, my) ?? null,
+    };
+  }
+
+  _runTapAction(action, mx, my, hits) {
+    if (action.closeRadial) this._closeRadial();
+    if (action.clearBuild) {
+      this.selectedType = null;
+      this._deselectButtons();
     }
-
-    // 2. Barracks reposition mode
-    if (this.repositionMode && this.repositioningBarracks) {
-      const barracks = this.repositioningBarracks;
-      // Use getNearestSlot (added in Task 11) with requireFree=true and a
-      // 60px reposition snap range (looser than the 22px placement radius
-      // because the player is dragging, not single-clicking a target).
-      const slot = this.placementManager.getNearestSlot(mx, my, 60, true);
-      if (!slot) {
-        // No valid target — cancel reposition silently
-        this.repositionMode = false;
-        this.repositioningBarracks = null;
-        return;
-      }
-      // Free the old slot, occupy the new one, move barracks.
-      const zones = this.placementManager.getZones();
-      zones[barracks.zoneIndex].occupied = false;
-      zones[slot.slotIndex].occupied = true;
-      barracks.zoneIndex = slot.slotIndex;
-      barracks.setPosition(slot.x, slot.y);
-      this._repaintStaticLayers();
-      this.repositionMode = false;
-      this.repositioningBarracks = null;
-      return;
-    }
-
-    // 3. Tower click
-    for (const tower of this.placementManager.getTowers()) {
-      if (Math.hypot(tower.x - mx, tower.y - my) < 22) {
-        this.selectedType = null;
-        this._deselectButtons();
-        const panelCss = gameToPageCss(this.scale, mx, my);
-        const gRect = document.getElementById('game').getBoundingClientRect();
-        this._openTowerPanel(tower, panelCss.x - gRect.left, panelCss.y - gRect.top);
-        return;
-      }
-    }
-    // No tower hit — dismiss any open panel before continuing
-    this._closeTowerPanel();
-
-    // 4. Inspect click (enemy or hero)
-    if (this.inspector?.tryClickInspect(mx, my)) return;
-
-    // 5. Tower placement — snap to the nearest free slot within disc radius
-    if (this.selectedType) {
-      const slot = this.placementManager.getNearestSlot(mx, my, 22, true);
-      if (!slot) {
+    switch (action.type) {
+      case 'fireAim':     this._triggerAimAbility(mx, my); break;
+      case 'reposition':  this._repositionTo(mx, my); break;
+      case 'rally':       this._rallyTo(mx, my); break;
+      case 'openRing':    this._openRing(action.tower); break;
+      case 'openBuild':   this._openBuild(action.slot); break;
+      // tryClickInspect agrees with inspectableAt (same hit test), so a pin
+      // decision is always consumed — a same-target tap dismisses, as today.
+      case 'pin':         this.inspector.tryClickInspect(mx, my); break;
+      case 'place':       this._placeAt(hits.slot, this.selectedType); break;
+      case 'cancelBuild':
         // Nothing to build on here. Cancel the armed selection instead of
         // swallowing the click: leaving it armed made every subsequent click a
-        // silent no-op too, because this branch returns before the hero-move
-        // case below. A player who clicked a tower button to see what it did
-        // could then never move the hero again, with nothing on screen saying
-        // why.
+        // silent no-op too, because the build step wins before the hero move.
+        // A player who clicked a tower button to see what it did could then
+        // never move the hero again, with nothing on screen saying why.
         this.selectedType = null;
         this._deselectButtons();
         this._toast('No build slot there — build cancelled');
-        return;
-      }
-      const tower = this.placementManager.placeTower(slot.slotIndex, this.selectedType, this);
-      if (!tower) { this._toast('Not enough gold!'); return; }
-      this._repaintStaticLayers();
-      if (this.selectedType === 'barracks') {
-        tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(slot.x, slot.y);
-        tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
-      }
-      return;
-    }
-
-    // 6. Move hero (path-constrained)
-    if (!this.hero.dead) {
-      if (this.pathMgr.isOnPath(mx, my, 40)) {
-        const progress = this.pathMgr.getNearestPathProgress(mx, my);
-        this.hero.moveToProgress(progress);
-      } else {
-        this._toast('Hero can only move along the path');
-      }
+        break;
+      case 'moveHero':    this.hero.moveToProgress(this.pathMgr.getNearestPathProgress(mx, my)); break;
+      case 'offPath':     this._toast('Hero can only move along the path'); break;
+      // 'none': a dead hero, or a tap that only closed the radial.
     }
   }
 
-  _selectTowerType(type, btn) {
-    if (this.selectedType === type) { this.selectedType = null; this._deselectButtons(); return; }
-    this.selectedType = type;
-    this.selectedTower = null;
-    this._closeTowerPanel();
+  _repositionTo(mx, my) {
+    const barracks = this.repositioningBarracks;
+    // requireFree=true with a 60px reposition snap range (looser than the 22px
+    // placement radius because the player is dragging, not single-clicking).
+    const slot = this.placementManager.getNearestSlot(mx, my, REPOSITION_SNAP_RADIUS, true);
+    this.repositionMode = false;
+    this.repositioningBarracks = null;
+    // No valid target — cancel reposition silently.
+    if (!slot) return;
+    // Free the old slot, occupy the new one, move barracks.
+    const zones = this.placementManager.getZones();
+    zones[barracks.zoneIndex].occupied = false;
+    zones[slot.slotIndex].occupied = true;
+    barracks.zoneIndex = slot.slotIndex;
+    barracks.setPosition(slot.x, slot.y);
+    // Depth is y-sorted but Tower only derives it at construction; without this a moved
+    // barracks keeps its old pad's layer.
+    barracks.setDepth(unitDepth(slot.y));
+    // The squad walks to the new pad's road point rather than staying behind.
+    barracks.setRallyPoint(this.pathMgr.getNearestPathProgress(slot.x, slot.y), this.enemies);
+    this._repaintStaticLayers();
+    this._drawTierRings();
+  }
+
+  // A miss toasts and stays in the mode (C2); the barracks itself, Cancel or
+  // Escape exits. Only a valid road point inside the range plants the flag.
+  _rallyTo(mx, my) {
+    const barracks = this.rallyBarracks;
+    if (!this.placementManager.getTowers().includes(barracks)) { this._cancelMode(); return; }
+    if (Math.hypot(barracks.x - mx, barracks.y - my) < TAP_TOWER_RADIUS) { this._cancelMode(); return; }
+    const t = this._rallyTarget(mx, my);
+    if (!t.onRoad) { this._toast('Rally on the road'); return; }
+    if (!t.inRange) { this._toast('Too far — rally inside the ring'); return; }
+    barracks.setRallyPoint(t.progress, this.enemies);
+    this._cancelMode();
+  }
+
+  _rallyTarget(x, y) {
+    const b = this.rallyBarracks;
+    return resolveRallyTarget({
+      x, y, pathMgr: this.pathMgr, centre: { x: b.x, y: b.y }, range: b.range, tapRadius: TAP_PATH_RADIUS,
+    });
+  }
+
+  _placeAt(slot, type) {
+    const tower = this.placementManager.placeTower(slot.slotIndex, type, this);
+    if (!tower) { this._toast('Not enough gold!'); return; }
+    this._playTowerPop(tower, BUILD_POP);
+    this._repaintStaticLayers();
+    if (type === 'barracks') {
+      tower.soldierPathProgress = this.pathMgr.getNearestPathProgress(slot.x, slot.y);
+      tower.spawnSoldiers(this, this.pathMgr.getPathPoints());
+    }
+    this._drawTierRings();
+  }
+
+  // ─── Modes (build / aim / reposition) ──────────────────────────────────────
+
+  _cancelMode() {
+    const wasAiming = this.aimMode;
+    this.selectedType = null;
     this._deselectButtons();
-    btn.classList.add('selected');
+    this.aimMode  = false;
+    this._aimSlot = null;
+    if (wasAiming) this.game.events.emit('hero:aim-cancel');
+    this.repositionMode = false;
+    this.repositioningBarracks = null;
+    this.rallyMode = false;
+    this.rallyBarracks = null;
+    // Redrawn here, not only in update(), so a cancel while paused clears it.
+    this._drawRallyOverlay();
+    this._closeRadial();
+    this._syncCancelButton();
+  }
+
+  // Newest intent wins (ruling 16): arming a tower or an aim drops a pending
+  // rally or Move, or the next tap would still go to it and the build would be
+  // silently ignored. Callers sync Cancel afterwards.
+  _leaveBarracksModes() {
+    this.repositionMode = false;
+    this.repositioningBarracks = null;
+    if (!this.rallyMode) return;
+    this.rallyMode = false;
+    this.rallyBarracks = null;
+    this._drawRallyOverlay();
+  }
+
+  // Escape arrives here for every press; with no mode it must not swallow it,
+  // so the inspector and overlays keep their own Escape handling.
+  _onUiCancel() {
+    if (hasMode(this._modeState())) this._cancelMode();
+  }
+
+  _bindCancelButton() {
+    document.getElementById('cancel-btn').addEventListener('click', () => this._cancelMode());
+  }
+
+  // Unit tests drive mode changes against partial DOMs, hence the null guard.
+  // Hidden once the level has ended: a mode left armed is moot on the result screen.
+  _syncCancelButton() {
+    const btn = document.getElementById('cancel-btn');
+    if (!btn) return;
+    btn.hidden = !(hasMode(this._modeState()) && !this.over && !this.won);
+  }
+
+  _selectTowerType(type, btn) {
+    this._leaveBarracksModes();
+    if (this.selectedType === type) {
+      this.selectedType = null;
+      this._deselectButtons();
+    } else {
+      this._closeRadial();
+      this.selectedType = type;
+      this._deselectButtons();
+      btn.classList.add('selected');
+    }
+    this._syncCancelButton();
+  }
+
+  _hideTowerTooltip() {
+    const tt = document.getElementById('tower-tooltip');
+    if (tt) tt.style.display = 'none';
+  }
+
+  _clearTooltipLinger() {
+    clearTimeout(this._tooltipLinger);
+    this._tooltipLinger = null;
   }
 
   _showTowerTooltip(btn) {
     const type = btn.dataset.type;
     const def  = TOWER_DEFS[type];
     if (!def) return;
-    const m = describeMatchups({ kind: 'tower', type, tier: 1, branch: null });
-    const renderEnemyNames = (types) => types.map(shortEnemyName).join(', ');
-    const tt = document.getElementById('tower-tooltip');
-    tt.replaceChildren();
-    const header = document.createElement('strong');
-    header.textContent = `${def.icon} ${def.name} — ${def.cost}g`;
-    tt.appendChild(header);
-    if (m.effective.length) {
-      const line = document.createElement('span');
-      line.className = 'tt-line-good';
-      line.textContent = `Effective vs: ${renderEnemyNames(m.effective)}`;
-      tt.appendChild(line);
-    }
-    if (m.weak.length) {
-      const line = document.createElement('span');
-      line.className = 'tt-line-bad';
-      line.textContent = `Weak vs: ${renderEnemyNames(m.weak)}`;
-      tt.appendChild(line);
-    }
-    const rect = btn.getBoundingClientRect();
-    tt.style.left = `${rect.left}px`;
-    tt.style.top  = `${rect.top - tt.offsetHeight - 6}px`;
+    const tt = this._fillTowerTooltip(type, this._towerCost(type));
+    // Shown before measuring: display:none has no size. The tower buttons sit
+    // in the right HUD rail, so the tooltip opens to their left, over the map.
     tt.style.display = 'block';
-    // After display:block, offsetHeight is now real; reposition once.
-    requestAnimationFrame(() => {
-      tt.style.top = `${rect.top - tt.offsetHeight - 6}px`;
+    const { left, top } = placeLeftOf({
+      anchor: railAnchorRect(btn),
+      size: { width: tt.offsetWidth, height: tt.offsetHeight },
+      area: { width: window.innerWidth, height: window.innerHeight },
+      gap: PEEK_GAP_PX,
+      margin: PANEL_EDGE_MARGIN,
     });
+    tt.style.left = `${left}px`;
+    tt.style.top  = `${top}px`;
   }
 
   _deselectButtons() {
     document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('selected'));
   }
 
-  // ─── Tower panel ───────────────────────────────────────────────────────────
+  // Name/cost/effective/weak for a tower type, shared by the rail button
+  // tooltip and the build radial's item peek. `cost` is what the caller
+  // charges, so the radial can show the meta-discounted price.
+  _fillTowerTooltip(type, cost) {
+    const def = TOWER_DEFS[type];
+    const m = describeMatchups({ kind: 'tower', type, tier: 1, branch: null });
+    const renderEnemyNames = (types) => types.map(shortEnemyName).join(', ');
+    const tt = document.getElementById('tower-tooltip');
+    tt.replaceChildren();
+    this._tooltipHeader(tt, `${def.icon} ${def.name} — ${cost}g`);
+    if (m.effective.length) this._tooltipLine(tt, `Effective vs: ${renderEnemyNames(m.effective)}`, 'tt-line-good');
+    if (m.weak.length)      this._tooltipLine(tt, `Weak vs: ${renderEnemyNames(m.weak)}`, 'tt-line-bad');
+    return tt;
+  }
 
-  _openTowerPanel(tower, mx, my) {
-    this._openTowerId = tower.id ?? null;
+  _tooltipHeader(tt, text) {
+    const header = document.createElement('strong');
+    header.textContent = text;
+    tt.appendChild(header);
+  }
+
+  _tooltipLine(tt, text, className = 'tt-line') {
+    const line = document.createElement('span');
+    line.className = className;
+    line.textContent = text;
+    tt.appendChild(line);
+    return line;
+  }
+
+  // ─── Radial menus ──────────────────────────────────────────────────────────
+
+  // The presenter listens on static #radial markup that outlives the scene;
+  // destroy() in shutdown removes every listener, so a replay wires one copy.
+  _createRadial() {
+    this.radial = new RadialMenu(document, {
+      onActivate: (item) => this._onRadialActivate(item),
+      onPreview:  (item) => this._onRadialPreview(item),
+      onPeek:     (item, rect) => this._onRadialPeek(item, rect),
+    });
+  }
+
+  _openBuild(slot) {
+    if (this.over || this.won) return;
+    this._closeRadial();
+    this._buildSlot = slot;
+    this.radial.open({
+      kind: 'build', anchor: { x: slot.x, y: slot.y }, items: this._buildItems(), hub: this._hubLines(), target: slot,
+    });
+    this._syncCancelButton();
+  }
+
+  _openRing(tower) {
+    if (this.over || this.won) return;
+    this._closeRadial();
     this.selectedTower = tower;
-    const def = TOWER_DEFS[tower.type];
-    const map = MAPS[this.mapId];
-
-    const branchLabel = tower.branch ? ` · ${def['tier4' + tower.branch]?.label ?? ''}` : '';
-    document.getElementById('panel-name').textContent = def.icon + ' ' + def.name + branchLabel;
-    document.getElementById('panel-lvl').textContent  = 'Level: ' + tower.level + '/4';
-
-    if (tower.type === 'barracks') {
-      document.getElementById('panel-std-stats').style.display      = 'none';
-      document.getElementById('panel-barracks-stats').style.display = 'block';
-      const ss = tower.soldierStats;
-      document.getElementById('panel-soldier-count').textContent   = 'Soldiers: '  + ss.count;
-      document.getElementById('panel-soldier-hp').textContent      = 'HP: '        + ss.hp        + ' each';
-      document.getElementById('panel-soldier-dmg').textContent     = 'DMG: '       + ss.damage    + ' each';
-      document.getElementById('panel-soldier-respawn').textContent = 'Respawn: '   + ss.respawnDuration + 's';
-      document.getElementById('panel-soldier-blocks').textContent  = 'Blocks: '    + (ss.canBlockFlyers ? 'Ground + Air' : 'Ground');
-    } else {
-      document.getElementById('panel-std-stats').style.display      = 'block';
-      document.getElementById('panel-barracks-stats').style.display = 'none';
-      document.getElementById('panel-dmg').textContent = 'Damage: '    + tower.damage;
-      document.getElementById('panel-rng').textContent = 'Range: '     + tower.range;
-      document.getElementById('panel-spd').textContent = 'Fire rate: ' + (tower.fireRate * 100).toFixed(0) + '%';
-    }
-
-    // Phase 9b: Matchup line — uses safe DOM construction (no innerHTML)
-    const matchupsEl = document.getElementById('panel-matchups');
-    matchupsEl.replaceChildren();
-    const m = describeMatchups({ kind: 'tower', type: tower.type, tier: tower.level, branch: tower.branch });
-    const renderEnemyNames = (types) =>
-      types.map(shortEnemyName).join(', ');
-    if (m.effective.length) {
-      const line = document.createElement('span');
-      line.className = 'mu-good';
-      line.textContent = `Effective vs: ${renderEnemyNames(m.effective)}`;
-      matchupsEl.appendChild(line);
-    }
-    if (m.weak.length) {
-      const line = document.createElement('span');
-      line.className = 'mu-bad';
-      line.textContent = `Weak vs: ${renderEnemyNames(m.weak)}`;
-      matchupsEl.appendChild(line);
-    }
-
-    this._renderArmourLine(tower);
-
-    const upgradeBtn = document.getElementById('panel-upgrade-btn');
-    const picker     = document.getElementById('panel-branch-picker');
-    picker.style.display = 'none';
-    picker.replaceChildren();
-    upgradeBtn.style.display = '';
-
-    if (tower.level === 3 && !tower.branch) {
-      upgradeBtn.style.display = 'none';
-      picker.style.display     = 'block';
-      this._renderBranchPicker(picker, def, map);
-    } else {
-      this._setUpgradeButton(upgradeBtn, tower, def, map);
-    }
-
-    document.getElementById('panel-reposition-btn').style.display =
-      tower.type === 'barracks' ? 'block' : 'none';
-
-    document.getElementById('panel-sell-btn').textContent =
-      '💰 Sell (' + Math.floor(tower.totalCost * 0.6) + 'g)';
-
-    const gameRect = document.getElementById('game').getBoundingClientRect();
-    const panel    = document.getElementById('tower-panel');
-    panel.style.left    = Math.min(mx + 10, gameRect.width  - 180) + 'px';
-    panel.style.top     = Math.min(my - 10, gameRect.height - 220) + 'px';
-    panel.style.display = 'block';
-
-    this.selectedType = null;
-    document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('selected'));
+    tower.showRange();
+    this.radial.open({
+      kind: 'tower', anchor: { x: tower.x, y: tower.y }, items: this._ringItems(tower), hub: this._hubLines(), target: tower,
+    });
+    this._syncCancelButton();
   }
 
-  // Flat armour is subtracted before any multiplier, so a tower at or below an
-  // enemy's armour lands exactly 1 a shot. The Effective/Weak line above cannot
-  // say this — it reads only the multiplicative weakness matrix, which is why an
-  // Ice tower shows no warning at all against a brute it can barely scratch.
-  _renderArmourLine(tower) {
-    const el = document.getElementById('panel-armour');
-    el.replaceChildren();
-
-    // A barracks deals no damage itself; its soldiers are its damage.
-    const damage = tower.type === 'barracks'
-      ? (tower.soldierStats?.damage ?? 0)
-      : tower.damage;
-    const rows = describeTowerArmour({ damage, pierce: Boolean(tower.pierce) });
-
-    if (!rows.length) { el.style.display = 'none'; return; }
-    el.style.display = '';
-
-    const head = document.createElement('span');
-    head.className = 'ar-head';
-    head.textContent = tower.type === 'barracks'
-      ? '🛡 Armour absorbs (soldiers): '
-      : '🛡 Armour absorbs: ';
-
-    appendArmourRows(head, rows);
-    el.appendChild(head);
-  }
-
-  _closeTowerPanel() {
-    document.getElementById('tower-panel').style.display         = 'none';
-    document.getElementById('panel-branch-picker').style.display = 'none';
-    document.getElementById('panel-branch-picker').replaceChildren();
-    document.getElementById('panel-upgrade-btn').style.display   = '';
-    document.getElementById('panel-std-stats').style.display     = 'block';
-    document.getElementById('panel-barracks-stats').style.display = 'none';
-    document.getElementById('panel-reposition-btn').style.display = 'none';
+  _closeRadial() {
+    if (!this.radial?.isOpen) return;
+    this.selectedTower?.hideRange();
     this.selectedTower = null;
+    // Cleared before close(): its preview-clear callback must not re-render a build hub.
+    this._buildSlot = null;
+    this.radial.close();
+    // close() reports the peek ended, which would start a linger; a closed
+    // radial leaves nothing floating.
+    this._clearTooltipLinger();
+    this._hideTowerTooltip();
+    this._peekConfirming = false;
+    this.inspector?.hidePeek();
+    this._previewGfx?.clear();
+    this._syncCancelButton();
   }
 
-  _setUpgradeButton(btn, tower, def, map) {
-    const nextLevel = tower.level + 1;
-    if (tower.level >= 4) {
-      btn.disabled    = true;
-      btn.textContent = 'MAX LEVEL';
-      btn.className   = 'upgrade-btn maxed';
-    } else if (nextLevel > map.maxTierAllowed) {
-      const unlockMap = nextLevel <= 3 ? 3 : 5;
-      btn.disabled    = true;
-      btn.textContent = '🔒 Unlocked on Map ' + unlockMap;
-      btn.className   = 'upgrade-btn maxed';
-    } else {
-      btn.disabled    = false;
-      const tierDef   = def['tier' + nextLevel];
-      btn.textContent = 'Upgrade 💰' + tierDef.cost + ': ' + tierDef.label;
-      btn.className   = 'upgrade-btn';
+  // What placeTower charges (its meta discount included), so the rail, the pad
+  // highlight and the build radial never disagree about a price.
+  _towerCost(type) {
+    return Math.round(TOWER_DEFS[type].cost * (this._towerCostMult ?? 1));
+  }
+
+  _buildItems() {
+    return buildItems({ towerDefs: TOWER_DEFS, gold: this.economy.gold, costMult: this._towerCostMult });
+  }
+
+  _ringItems(tower) {
+    return ringItems({ tower, towerDefs: TOWER_DEFS, map: MAPS[this.mapId], maps: MAPS, gold: this.economy.gold });
+  }
+
+  // Runs on every economy:update (via _updateHUD) and after an upgrade, so
+  // item states track gold live and a bought tier re-renders in place.
+  _refreshRadial() {
+    if (!this.radial?.isOpen) return;
+    if (this.radial.kind === 'build') {
+      this.radial.refresh(this._buildItems(), this._hubLines());
+      return;
+    }
+    const tower = this.selectedTower;
+    if (!this.placementManager.getTowers().includes(tower)) { this._closeRadial(); return; }
+    this.radial.refresh(this._ringItems(tower), this._hubLines());
+  }
+
+  // The hub never carries item text: at 11 CSS px a name does not fit it on a
+  // phone, so names, deltas and the confirm prompt live in the item peek.
+  _hubLines() {
+    return this._buildSlot ? [BUILD_HUB] : ringHub(this.selectedTower, TOWER_DEFS);
+  }
+
+  _onRadialActivate(item) {
+    if (item.id === RADIAL_HUB) { this._closeRadial(); return; }
+    // RadialMenu reports not-ready items too: they must never buy, only say why.
+    if (item.state !== 'ready') { this._explainUnready(item); return; }
+    if (item.towerType) { this._buildFromRadial(item.towerType); return; }
+    switch (item.id) {
+      case 'upgrade':    this._upgradeSelectedTower(); break;
+      case 'branchA':
+      case 'branchB':    this._upgradeSelectedTower(item.branch); break;
+      case 'sell':       this._sellSelectedTower(); break;
+      case 'reposition': this._startReposition(); break;
+      case 'rally':      this._startRally(); break;
     }
   }
 
-  _renderBranchPicker(container, def, map) {
-    const towerType = Object.keys(TOWER_DEFS).find(k => TOWER_DEFS[k] === def);
-    const tierLocked = map.maxTierAllowed < 4;
+  _explainUnready(item) {
+    if (item.state === 'disabled') this._toast('Not enough gold!');
+    else if (item.state === 'locked') this._toast(`🔒 Unlocked on Map ${unlockMapNumber(item.tier, MAPS)}`);
+  }
 
-    const header = document.createElement('div');
-    header.className   = 'branch-header';
-    header.textContent = '⚡ Choose Tier 4 Path';
-    container.appendChild(header);
+  _buildFromRadial(type) {
+    const slot = this._buildSlot;
+    this._closeRadial();
+    this._placeAt(slot, type);
+  }
 
-    const cards = document.createElement('div');
-    cards.className = 'branch-cards';
-
-    for (const [branch, tierDef] of [['A', def.tier4A], ['B', def.tier4B]]) {
-      const card = document.createElement('div');
-      card.className = tierLocked ? 'branch-card locked' : 'branch-card';
-
-      const label = document.createElement('div');
-      label.className   = 'branch-label';
-      label.textContent = tierDef.label;
-
-      const effect = document.createElement('div');
-      effect.className   = 'branch-effect';
-      effect.textContent = tierDef.passiveEffect;
-
-      card.append(label, effect);
-
-      const headline = headlineOverride(towerType, branch);
-      if (headline) {
-        const matchup = document.createElement('div');
-        matchup.className = 'branch-matchup';
-        matchup.textContent = `⚡ ${headline.value}× vs ${headline.name}`;
-        card.appendChild(matchup);
-      }
-
-      // The branch pick is the one purchase the armour floor should change:
-      // Permafrost and Shatter look alike on the matchup line above, yet one
-      // loses most of each shot to colossus and titan armour.
-      // Mirror Tower.upgrade: the branch lands its table damage scaled by the
-      // tower's meta-upgrade multiplier, and a branch-set pierce wins.
-      const damageMult = this.selectedTower?._damageMult ?? 1;
-      const damage = Math.round((tierDef.damage ?? 0) * damageMult);
-      const pierce = tierDef.pierce ?? def.pierce;
-      const armourRows = describeTowerArmour({ damage, pierce: Boolean(pierce) });
-      if (armourRows.length) {
-        const armour = document.createElement('div');
-        armour.className = 'branch-armour';
-        armour.textContent = '🛡 ';
-        appendArmourRows(armour, armourRows);
-        card.appendChild(armour);
-      }
-
-      const cost = document.createElement('div');
-      cost.className   = 'branch-cost';
-      cost.textContent = tierDef.cost + 'g';
-
-      const btn = document.createElement('button');
-      btn.className   = 'upgrade-btn branch-choose-btn';
-      btn.textContent = 'Choose';
-      if (tierLocked) {
-        btn.disabled = true;
-        btn.title    = 'Unlocked on Map 5';
-      }
-      btn.addEventListener('click', () =>
-        this._upgradeSelectedTower(branch));
-
-      card.append(cost, btn);
-      cards.appendChild(card);
+  // Redrawn on change, not in update(), so it still updates while paused.
+  _onRadialPreview(item) {
+    const g = this._previewGfx;
+    g?.clear();
+    const at = this._buildSlot ?? this.selectedTower;
+    if (!item || !g || !at) return;
+    const radius = this._buildSlot
+      ? previewRange(item.range, this._towerRangeMult)
+      : previewRadius(item, { rangeMult: at._rangeMult, currentRange: at.range });
+    if (radius == null) return;
+    const ok = item.state === 'ready';
+    g.lineStyle(2, ok ? PREVIEW_OK : PREVIEW_BAD, 0.5);
+    g.strokeCircle(at.x, at.y, radius);
+    if (ok) {
+      g.fillStyle(PREVIEW_OK, 0.07);
+      g.fillCircle(at.x, at.y, radius);
     }
-    container.appendChild(cards);
+  }
+
+  // `item` null means the peek gesture ended; linger as the rail peeks do.
+  _onRadialPeek(item, rect) {
+    this._clearTooltipLinger();
+    if (!item) {
+      // A lapsed or spent confirm must not keep saying "Tap again".
+      if (this._peekConfirming) {
+        this._peekConfirming = false;
+        this._hideTowerTooltip();
+        return;
+      }
+      this._tooltipLinger = setTimeout(() => {
+        this._hideTowerTooltip();
+        this.inspector?.hidePeek();
+      }, PEEK_LINGER_MS);
+      return;
+    }
+    this._peekConfirming = false;
+    if (item.id === RADIAL_HUB) {
+      // Hidden either way: an item peek must not outlive the move to the hub.
+      this._hideTowerTooltip();
+      // A build radial's hub has no tower to describe.
+      if (this.selectedTower) this.inspector?.peekTower(this.selectedTower, rect);
+      return;
+    }
+    // A ring item with no ring tower is a stale event from a closed radial.
+    if (!item.towerType && !this.selectedTower) return;
+    this.inspector?.hidePeek();
+    const tt = item.towerType ? this._fillTowerTooltip(item.towerType, item.cost) : this._fillRingPeek(item);
+    // The touch two-tap confirm prompt: the hub is too small for it on a phone.
+    this._peekConfirming = this.radial?.armedId === item.id;
+    if (this._peekConfirming) tt.prepend(this._tooltipLine(tt, 'Tap again to confirm', 'tt-line-confirm'));
+    // Shown before measuring: display:none has no size.
+    tt.style.display = 'block';
+    const { left, top } = placeBeside(
+      rect,
+      { width: tt.offsetWidth, height: tt.offsetHeight },
+      mapRectPage(document),
+      PEEK_GAP_PX,
+      PANEL_EDGE_MARGIN,
+    );
+    tt.style.left = `${left}px`;
+    tt.style.top  = `${top}px`;
+  }
+
+  _fillRingPeek(item) {
+    const tower = this.selectedTower;
+    const def = TOWER_DEFS[tower.type];
+    const tt = document.getElementById('tower-tooltip');
+    tt.replaceChildren();
+    switch (item.id) {
+      case 'upgrade':
+        if (item.state === 'maxed') { this._tooltipHeader(tt, `${def.name}: maximum level`); break; }
+        this._tooltipHeader(tt, `⬆ ${item.name} — ${item.cost}g`);
+        this._tooltipLine(tt, describeUpgradeDelta(tower, item.tier));
+        if (item.state === 'locked') this._tooltipLine(tt, `🔒 Unlocked on Map ${unlockMapNumber(item.tier, MAPS)}`, 'tt-line-bad');
+        break;
+      case 'branchA':
+      case 'branchB': {
+        const p = describeBranchPreview({
+          towerType: tower.type, branch: item.branch, damageMult: tower._damageMult ?? 1, locked: item.state === 'locked',
+        });
+        this._tooltipHeader(tt, `${p.label} — ${item.cost}g`);
+        this._tooltipLine(tt, p.effect);
+        this._tooltipLine(tt, describeUpgradeDelta(tower, 4, item.branch));
+        if (p.matchup) this._tooltipLine(tt, p.matchup, 'tt-line-good');
+        // The branch pick is the purchase the armour floor changes most.
+        if (p.armourRows.length) appendArmourRows(this._tooltipLine(tt, '🛡 ', 'tt-line-armour'), p.armourRows);
+        if (p.lockText) this._tooltipLine(tt, p.lockText, 'tt-line-bad');
+        break;
+      }
+      case 'sell':
+        this._tooltipHeader(tt, `Sell ${def.name}`);
+        this._tooltipLine(tt, `Refund ${sellRefund(tower.totalCost)}g`);
+        break;
+      case 'reposition':
+        this._tooltipHeader(tt, 'Move');
+        this._tooltipLine(tt, 'Then tap a free pad to move this barracks there.');
+        break;
+      case 'rally':
+        this._tooltipHeader(tt, 'Rally');
+        this._tooltipLine(tt, 'Then tap the road inside the ring to send the squad there.');
+        break;
+    }
+    return tt;
   }
 
   _upgradeSelectedTower(branch = null) {
@@ -1310,26 +1983,69 @@ export default class GameScene extends Phaser.Scene {
     if (tower.type === 'barracks') {
       tower._rebuildSoldiers(this, this.pathMgr.getPathPoints());
     }
-    const panel = document.getElementById('tower-panel');
-    this._openTowerPanel(tower, parseInt(panel.style.left), parseInt(panel.style.top));
+    this._playTowerPop(tower, UPGRADE_POP);
+    this._refreshRadial();
+    this._drawTierRings();
+    // update() is stopped under the user pause and new embers start hidden, so
+    // pose them now (E24). The frozen _fxTime leaves the other towers as they were.
+    this._updateTowerLooks();
+  }
+
+  // `pop` is BUILD_POP/UPGRADE_POP: the ring burst always plays, the scale pop
+  // is skipped under reduced motion.
+  _playTowerPop(tower, pop) {
+    this.particleSpawner?.spawnImpact(pop.burstEffect, tower.x, tower.y);
+    if (this.game.registry.get('ambientMotion') === false) return;
+    tower.startPop(pop);
+  }
+
+  _playSellFx(x, y, refund) {
+    this.particleSpawner?.spawnImpact(SELL_FX.burstEffect, x, y);
+    this.particleSpawner?.spawnImpact(SELL_FX.smokeEffect, x, y);
+    this._coinFx?.spawn(x, y, refund);
   }
 
   _sellSelectedTower() {
-    if (!this.selectedTower) return;
-    this.placementManager.sellTower(this.selectedTower);
+    const tower = this.selectedTower;
+    if (!tower) return;
+    // Closed first so the ring hides the range while the tower still exists.
+    this._closeRadial();
+    // Read the position first: sellTower destroys the tower. The tower is still
+    // removed this frame; only the effects play on after it.
+    const { x, y } = tower;
+    const refund = this.placementManager.sellTower(tower);
+    this._playSellFx(x, y, refund);
     this._repaintStaticLayers();
-    this.selectedTower = null;
-    this._closeTowerPanel();
+    this._drawTierRings();
   }
 
   _startReposition() {
-    if (!this.selectedTower || this.selectedTower.type !== 'barracks') return;
     const barracks = this.selectedTower;
-    document.getElementById('tower-panel').style.display = 'none';
+    if (barracks?.type !== 'barracks') return;
+    this._closeRadial();
     this.repositionMode = true;
     this.repositioningBarracks = barracks;
+    this._syncCancelButton();
     this._redrawZones();
-    this._toast('Click on the path within Barracks range to reposition soldiers');
+    // _repositionTo snaps the tap to the nearest free pad and moves the barracks there.
+    this._toast('Tap a free pad to move the barracks there');
+  }
+
+  _startRally() {
+    const barracks = this.selectedTower;
+    if (barracks?.type !== 'barracks') return;
+    this._closeRadial();
+    this.rallyMode = true;
+    this.rallyBarracks = barracks;
+    // S1: the ghost opens on the squad's current rally point; the next in-map
+    // pointer event moves the cursor and the ghost follows it from there.
+    const here = pointAtProgress(this.pathMgr.getPathPoints(), barracks.soldierPathProgress);
+    this._buildCursorX = here.x;
+    this._buildCursorY = here.y;
+    this._syncCancelButton();
+    // Drawn now as well as per frame: under a user pause update() does not run (S5).
+    this._drawRallyOverlay();
+    this._toast('Tap the road inside the ring to rally the squad');
   }
 
   _toggleSpeed() {
@@ -1351,40 +2067,70 @@ export default class GameScene extends Phaser.Scene {
     // Runs on every economy:update, so the dimming tracks gold as it moves.
     const gold = this.economy.gold;
     document.querySelectorAll('.tower-btn').forEach(btn => {
-      const cost = TOWER_DEFS[btn.dataset.type]?.cost ?? Infinity;
+      const cost = TOWER_DEFS[btn.dataset.type] ? this._towerCost(btn.dataset.type) : Infinity;
       btn.style.opacity = gold >= cost ? '1' : '0.4';
     });
+    this._refreshRadial();
   }
 
+  // State changes only: the preview rebuild is DOM-heavy, so the per-frame
+  // countdown path calls _renderWaveButton alone.
   _updateWaveButton() {
-    this._updateWaveButtonText();
+    this._renderWaveButton();
     this._refreshWavePreview();
   }
 
-  _updateWaveButtonText() {
+  // Runs every frame, so it writes only what changed since the last render.
+  // The cache starts empty, which makes the first render set or clear every
+  // field — including the ring residue the shutdown clone carries over.
+  _renderWaveButton() {
     const btn = document.getElementById('wave-btn');
     if (!btn) return;
-    if (this.waveMgr.done) {
-      btn.disabled = true; btn.textContent = 'All Waves Done';
-      return;
+    const wm = this.waveMgr;
+    const { label, disabled, ring } = waveButtonView({
+      done: wm.done,
+      spawning: wm.active && wm.hasQueuedEnemies,
+      currentWave: wm.currentWave,
+      countdown: this._countdown,
+      bonus: this._countdownBonus(),
+      warnMs: WAVE_COUNTDOWN.warnSec * 1000,
+    });
+    const q = WAVE_COUNTDOWN.ringQuantum;
+    const next = {
+      label, disabled,
+      ring: !!ring,
+      warn: !!ring?.warn,
+      secs: ring ? ring.secs : null,
+      cd: ring ? Math.round(ring.frac / q) : null,
+    };
+    const prev = this._waveBtnCache ?? {};
+    // Text is rewritten on a ring toggle too: fitLabels observes text, not
+    // class, and the ring changes the room the label has.
+    if (next.label !== prev.label || next.ring !== prev.ring) {
+      btn.textContent = label;
+      btn.disabled = disabled;
     }
-    if (this.waveMgr.active && this.waveMgr.isEarlyEligible) {
-      const bonus = this._computeEarlyBonus();
-      btn.disabled = false;
-      btn.textContent = bonus > 0
-        ? `▶ Send Wave ${this.waveMgr.currentWave + 1} (+${bonus}g)`
-        : `▶ Send Wave ${this.waveMgr.currentWave + 1}`;
-      return;
+    if (next.ring !== prev.ring) btn.classList.toggle('cd-on', next.ring);
+    if (next.warn !== prev.warn) {
+      btn.classList.toggle('cd-warn', next.warn);
+      if (!next.warn) btn.classList.remove('cd-tick');
     }
-    if (this.waveMgr.active) {
-      btn.disabled = true; btn.textContent = `Wave ${this.waveMgr.currentWave} in progress...`;
-      return;
+    if (next.secs !== prev.secs) {
+      if (next.secs === null) btn.removeAttribute('data-secs');
+      else btn.dataset.secs = String(next.secs);
+      if (next.warn && prev.secs != null && this.game.registry.get('ambientMotion') !== false) {
+        pulseClass(btn, 'cd-tick');
+      }
     }
-    btn.disabled = false; btn.textContent = `▶ Send Wave ${this.waveMgr.currentWave + 1}`;
+    if (next.cd !== prev.cd) {
+      if (next.cd === null) btn.style.removeProperty('--cd');
+      else btn.style.setProperty('--cd', (next.cd * q).toFixed(3));
+    }
+    this._waveBtnCache = next;
   }
 
   // The popover always describes the wave the button would send, so the two
-  // never disagree — including during an early-send window, where the button
+  // never disagree — including during a countdown, where the button
   // reads "Send Wave N+1". waveMgr.currentWave is the 0-based index of the
   // next wave to spawn (spawnWave reads it, then increments).
   _refreshWavePreview() {
@@ -1397,48 +2143,38 @@ export default class GameScene extends Phaser.Scene {
     return Math.round(reward * this.killGoldMult * this.rewardMult);
   }
 
-  _computeEarlyBonus() {
-    let sum = 0;
-    for (const e of this.enemies) {
-      if (e.dead) continue;
-      sum += (e.def && typeof e.def.reward === 'number') ? e.def.reward : 0;
-    }
-    return Math.floor(0.5 * sum * this.rewardMult);
-  }
-
   // ─── Game end ──────────────────────────────────────────────────────────────
 
   _onVictory() {
-    if (this.won) return;
+    // A leak that ends the game earlier in the same frame wins the tie: the base fell.
+    if (this.won || this.over) return;
     const am = this.game.registry.get('audio');
     if (am) am.playSfx('victory');
     this.won = true;
+    this._closeRadial();
+    // Before the epilogue: an armed aim/build mode must not survive under the story dialog.
+    this._onUiCancel();
+    this._syncCancelButton();
     this._commitStats(true);
     const map   = MAPS[this.mapId];
-    const pct   = this.economy.lives / map.startLives;
-    const stars = pct >= 0.8 ? 3 : pct >= 0.5 ? 2 : 1;
+    const stars = starsFor(this.economy.lives, map.startLives);
+    this._runStars = stars;
     this.saveMgr.setStars(this.mapId, stars);
+    // Written before the epilogue, like the stars, so closing the tab mid-dialog keeps it.
+    this._newBest = this.saveMgr.recordRun(this.mapId, {
+      livesLost: livesLostFor(this._startLives, this.economy.lives),
+      timeMs: this._runMs,
+    }).newBest;
     const isFinal = this.mapId === MAPS.length - 1;
     const seqId   = victorySequenceId(map.storyKey, isFinal);
     if (STORY_SEQUENCES[seqId] && !this.saveMgr.hasSeenBeat(seqId)) {
       this._storyDialog.play(seqId, () => {
         this.saveMgr.markBeatSeen(seqId);
-        this._showVictoryOverlay(stars);
+        this._showResults('victory');
       });
     } else {
-      this._showVictoryOverlay(stars);
+      this._showResults('victory');
     }
-  }
-
-  _showVictoryOverlay(stars) {
-    document.getElementById('msg-title').textContent = '🏆 Victory!';
-    document.getElementById('msg-body').textContent  =
-      starsDisplay(stars) + ' — ' + this.kills + ' kills';
-    document.getElementById('msg-btn').textContent          = '↩ Map Select';
-    document.getElementById('msg-cancel-btn').style.display = 'none';
-    document.getElementById('exit-btn').classList.add('disabled');
-    document.getElementById('pause-btn').classList.add('disabled');
-    document.getElementById('game-msg').style.display = 'block';
   }
 
   _onDefeat() {
@@ -1446,14 +2182,42 @@ export default class GameScene extends Phaser.Scene {
     const am = this.game.registry.get('audio');
     if (am) am.playSfx('defeat');
     this.over = true;
+    this._closeRadial();
+    this._onUiCancel();
+    this._syncCancelButton();
     this._commitStats(false);
-    document.getElementById('msg-title').textContent = '💀 Defeat';
-    document.getElementById('msg-body').textContent  = `The line did not hold. Wave ${this.waveMgr.currentWave}.`;
-    document.getElementById('msg-btn').textContent          = '↩ Map Select';
-    document.getElementById('msg-cancel-btn').style.display = 'none';
+    this._showResults('defeat');
+  }
+
+  _showResults(result) {
     document.getElementById('exit-btn').classList.add('disabled');
     document.getElementById('pause-btn').classList.add('disabled');
-    document.getElementById('game-msg').style.display = 'block';
+    // Nothing from the level may float over or under the results (Claude's call 25).
+    this._hideTowerTooltip();
+    this.inspector?.dismiss();
+    this.inspector?.hidePeek();
+    this._wavePreview?.hide();
+    const win = result === 'victory';
+    const model = resultsModel({
+      result,
+      mapId: this.mapId,
+      lives: this.economy.lives,
+      startLives: this._startLives,
+      stars: win ? this._runStars : 0,
+      kills: this.kills,
+      goldEarned: this.economy.earned,
+      timeMs: this._runMs,
+      wave: this.waveMgr.currentWave,
+      waveCount: this.waveMgr.waves.length,
+      newBest: win ? this._newBest : null,
+    }, { lines: this._resultLines });
+    this._results.open(model, (id) => this._onResultsAction(id));
+  }
+
+  _onResultsAction(id) {
+    if (id === 'next') this._returnToMap({ next: true });
+    else if (id === 'map') this._returnToMap();
+    else if (id === 'retry') this._retry();
   }
 
   _commitStats(isVictory) {
@@ -1469,7 +2233,8 @@ export default class GameScene extends Phaser.Scene {
 
   _toast(msg) {
     const el = document.createElement('div');
-    el.style.cssText = 'position:absolute;top:16px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:#f39c12;padding:6px 16px;border-radius:6px;font-size:13px;z-index:30;pointer-events:none;';
+    // .game-toast positions over the map (CSS --map-* vars), not the rails.
+    el.className = 'game-toast';
     el.textContent = msg;
     document.getElementById('game').appendChild(el);
     setTimeout(() => el.remove(), 1500);
@@ -1498,18 +2263,54 @@ export default class GameScene extends Phaser.Scene {
     // Explicit per-map blockers at fixed normalized positions — pinch-point
     // mounds that channel the single path on open terrain. Same vocab as the
     // auto-placements, but hand-authored coords ({ type, x, y, scale? }).
-    const { width, height } = this.scale;
     for (const b of map.blockers ?? []) {
       const type = BLOCKER_TYPES[b.type];
       if (!type) continue;
-      type.draw(g, b.x * width, b.y * height, b.scale ?? 1, type.defaultTint(map.id));
+      type.draw(g, b.x * WORLD_WIDTH, b.y * WORLD_HEIGHT, b.scale ?? 1, type.defaultTint(map.id));
     }
 
     // Platforms
     renderPlatforms(g, this.pathMgr.buildZones, map.id);
 
     // Path on top so it sits above platforms/blockers per spec §4.
-    renderPath(g, this.pathMgr.waypoints, map.pathRenderStyle);
+    // The procedural road is a baked texture at ROAD_DEPTH, not part of this layer.
+    if (roadRendererFor(map) === 'legacy') renderPath(g, this.pathMgr.waypoints, map.pathRenderStyle);
+
+    // Redrawing the surface does nothing visible until it is baked into the texture.
+    this._staticBake?.rebake();
+  }
+
+  // Procedural maps get a baked road image + animated endpoints; legacy maps keep
+  // the static IN/OUT labels. The texture is keyed per map and survives shutdown,
+  // so a replay reuses it (bakeRoad short-circuits) instead of repainting.
+  _setupRoad(map) {
+    const p = this.pathMgr.path;
+    if (roadRendererFor(map) === 'legacy') {
+      addText(this, p[0].x, p[0].y, 'IN',  { fontSize: '10px', color: '#fff', fontFamily: FONTS.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
+      addText(this, p[p.length-1].x, p[p.length-1].y, 'OUT', { fontSize: '10px', color: '#fff', fontFamily: FONTS.body, fontStyle: 'bold' }).setOrigin(0.5).setDepth(1);
+      return;
+    }
+    // The key carries k: bakeRoad reuses an existing key, so a k=1 texture must
+    // never be served at k=2.
+    const k = getRenderScale();
+    const roadKey = `road_map_${map.id}@${k}`;
+    // Only the current map's road is ever drawn; replays still reuse it.
+    evictOtherRoads(this.textures, roadKey);
+    const key = bakeRoad(this, {
+      key: roadKey, resolution: k, waypoints: this.pathMgr.waypoints,
+      styleKey: map.pathRenderStyle, seed: map.blockerSeed, width: WORLD_WIDTH, height: WORLD_HEIGHT,
+    });
+    this._roadImage = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, key).setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT).setDepth(ROAD_DEPTH);
+    this._endpoints = new PathEndpoints(this, {
+      start: p[0], end: p[p.length - 1], family: ROAD_STYLES[map.pathRenderStyle].family,
+    });
+  }
+
+  _teardownRoad() {
+    this._endpoints?.destroy();
+    this._endpoints = null;
+    this._roadImage?.destroy();
+    this._roadImage = null;
   }
 
   // The pads are baked into the one-shot static layer, so an occupancy change
@@ -1521,17 +2322,23 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _drawPath() {
-    // Path itself is now drawn by PathRenderer in _renderStaticLayers.
-    // This method only draws the per-frame IN/OUT colored dots (under the
-    // static text labels) on top of the static layer.
+    // The path itself is drawn in _renderStaticLayers. Only legacy-road maps get the
+    // per-frame IN/OUT dots; procedural maps have a portal/beacon (depth 9) that these
+    // depth-30 dots would bury.
+    if (this._endpoints) return;
     const p = this.pathMgr.path;
     this.gfx.fillStyle(0x27ae60, 1); this.gfx.fillCircle(p[0].x, p[0].y, 13);
     this.gfx.fillStyle(0xc0392b, 1); this.gfx.fillCircle(p[p.length-1].x, p[p.length-1].y, 13);
   }
 
   _drawZones() {
-    const canAfford = this.selectedType && this.economy.gold >= (TOWER_DEFS[this.selectedType]?.cost ?? Infinity);
-    for (const zone of this.placementManager.getZones()) {
+    const canAfford = this.selectedType && this.economy.gold >= this._towerCost(this.selectedType);
+    const zones = this.placementManager.getZones();
+    const glow = this._padGlow;
+    glow.clear();
+    const reducedMotion = this.game.registry.get('ambientMotion') === false;
+    for (let slot = 0; slot < zones.length; slot++) {
+      const zone = zones[slot];
       if (zone.occupied) continue;
       const color = this.selectedType ? (canAfford ? 0xffd700 : 0x884444) : 0x444444;
       const alpha = this.selectedType ? 1 : 0.3;
@@ -1539,6 +2346,24 @@ export default class GameScene extends Phaser.Scene {
       this.gfx.strokeCircle(zone.cx, zone.cy, zone.radius);
       if (this.selectedType && canAfford) {
         this.gfx.fillStyle(0xffd700, 0.07); this.gfx.fillCircle(zone.cx, zone.cy, zone.radius);
+      }
+      if (!this.selectedType) {
+        // Idle glow invites building; static when ambient motion is off.
+        const a = reducedMotion
+          ? PAD_GLOW.staticAlpha
+          : padGlowAlpha(this._fxTime, slot * PAD_GLOW.slotPhase, PAD_GLOW);
+        glow.fillStyle(PAD_GLOW.color, a);
+        glow.fillCircle(zone.cx, zone.cy, zone.radius);
+        // Beacon: halo, dark socket, lit core. Steady (no blink) under reduced motion.
+        const bx = zone.cx + PAD_BEACON.offset.x;
+        const by = zone.cy + PAD_BEACON.offset.y;
+        const { halo, outline } = PAD_BEACON;
+        glow.fillStyle(PAD_BEACON.color, reducedMotion ? halo.staticAlpha : halo.alpha * beaconLevel(this._fxTime, slot, PAD_BEACON));
+        glow.fillCircle(bx, by, halo.radius);
+        glow.fillStyle(outline.color, 1);
+        glow.fillCircle(bx, by, PAD_BEACON.radius + outline.width);
+        glow.fillStyle(PAD_BEACON.color, reducedMotion ? PAD_BEACON.staticAlpha : beaconAlpha(this._fxTime, slot, PAD_BEACON));
+        glow.fillCircle(bx, by, PAD_BEACON.radius);
       }
     }
 
@@ -1579,11 +2404,175 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  _drawSelectionRing() {
+    // The ring stays on the pad or tower even when a clamped radial slides off it.
+    const t = this.selectedTower ?? this._buildSlot;
+    if (!t) return;
+    const pulse = this.game.registry.get('ambientMotion') === false
+      ? 1
+      : 0.5 + 0.5 * Math.sin(this._fxTime * SELECTION_RING.pulse * Math.PI * 2);
+    const lo = SELECTION_RING.alpha[0];
+    const hi = SELECTION_RING.alpha[1];
+    this.gfx.lineStyle(SELECTION_RING.width, SELECTION_RING.color, lo + (hi - lo) * pulse);
+    this.gfx.strokeCircle(t.x, t.y, SELECTION_RING.radius);
+  }
+
+  _drawReticle() {
+    if (!this.aimMode) return;
+    const x = this._buildCursorX;
+    const y = this._buildCursorY;
+    const r = this.hero.def.abilities[this._aimSlot]?.radius ?? RETICLE.radius;
+    const spin = this.game.registry.get('ambientMotion') === false ? 0 : this._fxTime * RETICLE.spin;
+    this.gfx.lineStyle(RETICLE.lineWidth, RETICLE.color, 1);
+    this.gfx.strokeCircle(x, y, r);
+    for (let i = 0; i < RETICLE.ticks; i++) {
+      const ang = spin + (i * Math.PI * 2) / RETICLE.ticks;
+      const c = Math.cos(ang), s = Math.sin(ang);
+      const r0 = r + RETICLE.tickInner, r1 = r0 + RETICLE.tickLength;
+      this.gfx.lineBetween(x + c * r0, y + s * r0, x + c * r1, y + s * r1);
+    }
+  }
+
   _drawParticles() {
     for (const p of this.particles) {
       this.gfx.lineStyle(2, p.color, p.alpha);
       this.gfx.strokeCircle(p.x, p.y, p.radius);
     }
+    for (const b of this.bolts) {
+      this.gfx.lineStyle(2, b.color, b.life / b.maxLife);
+      this.gfx.lineBetween(b.x1, b.y1, b.x2, b.y2);
+    }
+  }
+
+  // Range ring plus a ghost flag at the snapped road point: OK colour when valid,
+  // bad when out of range, and un-snapped at the cursor when off the road (S2).
+  // The ring turns bad too when the ghost is on the road but past it, so the
+  // ring itself says what is wrong (ruling 15).
+  _drawRallyOverlay() {
+    const g = this._rallyOverlayGfx;
+    if (!g) return;
+    g.clear();
+    const b = this.rallyBarracks;
+    if (!this.rallyMode || !b) return;
+    const x = this._buildCursorX;
+    const y = this._buildCursorY;
+    const t = this._rallyTarget(x, y);
+    g.lineStyle(RALLY_FLAG.lineWidth + 2 * RALLY_FLAG.haloPx, RALLY_HALO, RALLY_FLAG.ghostAlpha);
+    g.strokeCircle(b.x, b.y, b.range);
+    g.lineStyle(RALLY_FLAG.lineWidth, t.onRoad && !t.inRange ? RALLY_BAD : RALLY_OK, RALLY_FLAG.ghostAlpha);
+    g.strokeCircle(b.x, b.y, b.range);
+    this._drawFlag(g, t.onRoad ? t.point : { x, y }, t.valid ? RALLY_OK : RALLY_BAD, RALLY_FLAG.ghostAlpha);
+  }
+
+  // Derived from barracks state every frame (S10), so a sold barracks leaves
+  // nothing behind. The fade runs on the speed-scaled frame time, not _runMs,
+  // which stands still until wave 1 is sent.
+  _drawRallyRoutes(dtMs) {
+    const g = this._rallyRouteGfx;
+    if (!g) return;
+    g.clear();
+    const path = this.pathMgr.getPathPoints();
+    const reducedMotion = this.game.registry.get('ambientMotion') === false;
+    for (const b of this.placementManager.getTowers()) {
+      const flag = b.rallyFlag;
+      if (b.type !== 'barracks' || !flag) continue;
+      const target = b.soldierPathProgress;
+      const at = pointAtProgress(path, target);
+      const walkers = b.soldiers.filter(s => isMarching(s, target));
+      // S11: "arrived" is every live soldier at the flag.
+      const next = stepFlagFade(flag, { arrived: walkers.length === 0, dtMs, fadeMs: RALLY_FLAG.fadeMs, reducedMotion });
+      b.rallyFlag = next;
+      if (!next) continue;
+      if (walkers.length > 0) {
+        // From the soldier farthest from the flag, so the route shows the whole remaining walk.
+        const from = walkers.reduce((p, s) => (Math.abs(s.pathProgress - target) > Math.abs(p - target) ? s.pathProgress : p), target);
+        const route = routeDots(path, from, target, RALLY_FLAG.routeDotSpacingPx);
+        // Every halo before any colour, so no outline covers a neighbouring mark.
+        g.fillStyle(RALLY_HALO, RALLY_FLAG.ghostAlpha);
+        for (const d of route) g.fillCircle(d.x, d.y, RALLY_FLAG.routeDotRadius + RALLY_FLAG.haloPx);
+        this._drawFlagHalo(g, at, 1);
+        g.fillStyle(RALLY_OK, RALLY_FLAG.ghostAlpha);
+        for (const d of route) g.fillCircle(d.x, d.y, RALLY_FLAG.routeDotRadius);
+        this._drawFlagMarks(g, at, RALLY_OK, 1);
+      } else {
+        this._drawFlag(g, at, RALLY_OK, next.fadeLeftMs / RALLY_FLAG.fadeMs);
+      }
+    }
+  }
+
+  // A pole standing on the road point with a pennant at its top, on its halo.
+  _drawFlag(g, pt, colour, alpha) {
+    this._drawFlagHalo(g, pt, alpha);
+    this._drawFlagMarks(g, pt, colour, alpha);
+  }
+
+  // The dark outline under a flag: haloPx clear of the pole and pennant all round.
+  _drawFlagHalo(g, { x, y }, alpha) {
+    const d = RALLY_FLAG.haloPx;
+    const top = y - RALLY_FLAG.poleHeight;
+    g.lineStyle(RALLY_FLAG.lineWidth + 2 * d, RALLY_HALO, alpha);
+    g.lineBetween(x, y + d, x, top - d);
+    const [a, b, c] = growTriangle(pennantCorners(x, top), d);
+    g.fillStyle(RALLY_HALO, alpha);
+    g.fillTriangle(a.x, a.y, b.x, b.y, c.x, c.y);
+  }
+
+  _drawFlagMarks(g, { x, y }, colour, alpha) {
+    const top = y - RALLY_FLAG.poleHeight;
+    const [a, b, c] = pennantCorners(x, top);
+    g.lineStyle(RALLY_FLAG.lineWidth, colour, alpha);
+    g.lineBetween(x, y, x, top);
+    g.fillStyle(colour, alpha);
+    g.fillTriangle(a.x, a.y, b.x, b.y, c.x, c.y);
+  }
+
+  // ─── Tier looks (#49) ──────────────────────────────────────────────────────
+
+  // Outside _updateTowers' fireRate loop so the barracks animates too (E26).
+  _updateTowerLooks() {
+    const reducedMotion = this.game.registry.get('ambientMotion') === false;
+    for (const t of this.placementManager.getTowers()) t.updateLook(this._fxTime, reducedMotion);
+  }
+
+  // Also called from the board-change handlers: update() stops under a user
+  // pause but the scene still renders, so a paused upgrade or sale shows at once.
+  _drawTierRings() {
+    const g = this._tierRingGfx;
+    g.clear();
+    const reducedMotion = this.game.registry.get('ambientMotion') === false;
+    const { rx, ry, spin } = TIER_RING;
+    for (const t of this.placementManager.getTowers()) {
+      const pose = tierRingPose(t, this._fxTime, reducedMotion);
+      if (!pose) continue;
+      // On the foot, not the pad centre: the same point the pips measure from (R6).
+      const cx = t.x, cy = t.y + t.footY();
+      if (pose.ring === 'solid') {
+        g.lineStyle(TIER_RING.lineWidth, towerAccent(t.type), pose.alpha);
+        g.strokeEllipse(cx, cy, 2 * rx * pose.k, 2 * ry * pose.k);
+        continue;
+      }
+      g.lineStyle(TIER_RING.lineWidth, towerAccent(t.type), TIER_RING.alpha);
+      const dashes = ellipseDashes({ cx, cy, rx, ry, dashes: spin.dashes, duty: spin.duty, phase: pose.phase });
+      for (const points of dashes) g.strokePoints(points, false);
+    }
+  }
+
+  // ringPhase is whichever value the ring animates (breath k for A, lap phase
+  // for B), so a reduced-motion frame repeats it exactly (R19).
+  _lookCapture() {
+    const reducedMotion = this.game.registry.get('ambientMotion') === false;
+    const towers = this.placementManager.getTowers();
+    return {
+      towers: towers.map(t => {
+        const pose = tierRingPose(t, this._fxTime, reducedMotion);
+        const ringPhase = pose ? (pose.ring === 'solid' ? pose.k : pose.phase) : null;
+        return { ...t.lookSnapshot(), ring: pose?.ring ?? null, ringPhase };
+      }),
+      soldiers: towers.filter(t => t.type === 'barracks').flatMap(b => b.soldiers.map(s => {
+        const l = s.lookSnapshot();
+        return { ...l, keyExists: l.key != null && this.textures.exists(l.key) };
+      })),
+    };
   }
 
   _redrawZones() {
@@ -1591,25 +2580,3 @@ export default class GameScene extends Phaser.Scene {
   }
 }
 
-function appendArmourRows(parent, rows) {
-  rows.forEach((row, i) => {
-    const span = document.createElement('span');
-    span.className = row.band === 'floored' ? 'ar-floor' : 'ar-heavy';
-    span.textContent = armourRowLabel(row);
-    parent.appendChild(span);
-    if (i < rows.length - 1) parent.appendChild(document.createTextNode(' · '));
-  });
-}
-
-function headlineOverride(towerType, branch) {
-  const cells = TIER4_OVERRIDES[towerType]?.[branch];
-  if (!cells || Object.keys(cells).length === 0) return null;
-  let bestEnemy = null;
-  let bestVal = -Infinity;
-  for (const enemy of Object.keys(cells).sort()) { // alphabetical tiebreak
-    const v = cells[enemy];
-    if (v > bestVal) { bestVal = v; bestEnemy = enemy; }
-  }
-  const niceName = shortEnemyName(bestEnemy);
-  return { enemy: bestEnemy, value: bestVal, name: niceName };
-}

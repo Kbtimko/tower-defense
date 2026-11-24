@@ -17,7 +17,7 @@ describe('resolvePortrait', () => {
   });
 
   it('uses the first character of the name, uppercased', () => {
-    const r = resolvePortrait({ name: 'the Vorn', color: 1, portraitKey: 'x' }, new Set());
+    const r = resolvePortrait({ name: 'the Veth', color: 1, portraitKey: 'x' }, new Set());
     expect(r.initial).toBe('T');
   });
 
@@ -45,15 +45,15 @@ describe('registerPortraits', () => {
 
   it('registers only the keys given — unregistered speakers still fall back', () => {
     registerPortraits(['portrait-command']);
-    const vorn = { name: 'The Vorn', color: 0x9b4dff, portraitKey: 'portrait-vorn' };
-    expect(resolvePortrait(vorn).kind).toBe('fallback');
+    const veth = { name: 'The Veth', color: 0x9b4dff, portraitKey: 'portrait-veth' };
+    expect(resolvePortrait(veth).kind).toBe('fallback');
   });
 
   it('replaces prior keys rather than accumulating (BootScene may re-run)', () => {
     registerPortraits(['portrait-command']);
-    registerPortraits(['portrait-vorn']);
+    registerPortraits(['portrait-veth']);
     expect(REGISTERED_PORTRAITS.has('portrait-command')).toBe(false);
-    expect(REGISTERED_PORTRAITS.has('portrait-vorn')).toBe(true);
+    expect(REGISTERED_PORTRAITS.has('portrait-veth')).toBe(true);
   });
 
   it('an empty list clears everything back to fallback', () => {

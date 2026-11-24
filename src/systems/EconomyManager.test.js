@@ -49,4 +49,26 @@ describe('EconomyManager', () => {
     for (let i = 0; i < 25; i++) mgr.loseLife();
     expect(emitter.emit).toHaveBeenCalledWith('game:defeat');
   });
+
+  describe('earned counter', () => {
+    it('earn counts toward earned', () => {
+      mgr.earn(50);
+      expect(mgr.earned).toBe(50);
+    });
+    it('start gold is not counted', () => {
+      expect(mgr.earned).toBe(0);
+    });
+    it('spend leaves earned alone', () => {
+      mgr.earn(50);
+      mgr.spend(30);
+      expect(mgr.earned).toBe(50);
+    });
+    it('refund adds gold and emits but does not count', () => {
+      emitter.emit.mockClear();
+      mgr.refund(30);
+      expect(mgr.gold).toBe(230);
+      expect(emitter.emit).toHaveBeenCalledWith('economy:update', { gold: 230, lives: 25 });
+      expect(mgr.earned).toBe(0);
+    });
+  });
 });

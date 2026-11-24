@@ -32,7 +32,7 @@ const makeCtx = (overrides = {}) => ({
     placeTower: vi.fn(),
     getZones: () => [],
   },
-  inspector: { tryClickInspect: () => false },
+  inspector: { inspectableAt: () => null, tryClickInspect: () => false },
   hero: { dead: false, moveToProgress: vi.fn() },
   pathMgr: {
     isOnPath: () => true,
@@ -40,17 +40,23 @@ const makeCtx = (overrides = {}) => ({
     getPathPoints: () => [],
   },
   _repaintStaticLayers: vi.fn(),
-  _closeTowerPanel: vi.fn(),
-  _openTowerPanel: vi.fn(),
+  _playTowerPop: vi.fn(),
+  _drawTierRings: vi.fn(),
+  _closeRadial: vi.fn(),
+  _openRing: vi.fn(),
   _deselectButtons: vi.fn(),
   _toast: vi.fn(),
   ...overrides,
 });
 
+// The canvas tap entry point (InputController calls it on release). The ctx
+// inherits the real prototype so the tap pipeline's own helpers run.
+const tap = (ctx) => GameScene.prototype._onTap.call(Object.setPrototypeOf(ctx, GameScene.prototype), 400, 300);
+
 describe('armed tower must not silently freeze the hero', () => {
   it('does not leave the tower armed after a click that hits no slot', () => {
     const ctx = makeCtx();
-    GameScene.prototype._onPointerDown.call(ctx, { x: 400, y: 300 });
+    tap(ctx);
     // Regression: selectedType stayed 'archer', so every later click was also
     // swallowed by tower placement and the hero could never be moved again.
     expect(ctx.selectedType).toBeNull();
@@ -58,7 +64,7 @@ describe('armed tower must not silently freeze the hero', () => {
 
   it('tells the player why nothing was built', () => {
     const ctx = makeCtx();
-    GameScene.prototype._onPointerDown.call(ctx, { x: 400, y: 300 });
+    tap(ctx);
     expect(ctx._toast).toHaveBeenCalled();
   });
 
@@ -72,14 +78,14 @@ describe('armed tower must not silently freeze the hero', () => {
         getZones: () => [],
       },
     });
-    GameScene.prototype._onPointerDown.call(ctx, { x: 400, y: 300 });
+    tap(ctx);
     expect(ctx.placementManager.placeTower).toHaveBeenCalled();
     expect(ctx.hero.moveToProgress).not.toHaveBeenCalled();
   });
 
   it('moves the hero on a path click when nothing is armed', () => {
     const ctx = makeCtx({ selectedType: null });
-    GameScene.prototype._onPointerDown.call(ctx, { x: 400, y: 300 });
+    tap(ctx);
     expect(ctx.hero.moveToProgress).toHaveBeenCalledWith(0.5);
   });
 });

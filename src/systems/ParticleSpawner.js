@@ -1,48 +1,114 @@
 import Phaser from 'phaser';
+import { TRAIL_FX, MUZZLE_FX, IMPACT_FX, STATUS_FX, STATUS_EMIT_FX, DEATH_FX } from '../data/fx.js';
+import { projectileFx } from './fxResolve.js';
+import { scaleBurst } from './graphicsQuality.js';
 
-export const MUZZLE_TINTS = {
-  default:  0xffffff,
-  archer:   0xffffff,
-  cannon:   0xffdd66,
-  mage:     0x66ccff,
-  ice:      0xaaddff,
-  sniper:   0xffffff,
-  barracks: 0xffffff,
-};
+// Just above projectiles (depth 16) so effects read over the shot.
+const FX_DEPTH = 17;
 
-const TRAIL_CONFIG = {
-  default: { lifespan: 250, scale: { start: 0.4, end: 0 }, alpha: { start: 1,   end: 0 }, frequency: 16, tint: 0xffffff },
-  rocket:  { lifespan: 250, scale: { start: 0.6, end: 0 }, alpha: { start: 0.8, end: 0 }, frequency: 24, tint: 0xaaaaaa },
-  laser:   { lifespan: 250, scale: { start: 0.5, end: 0 }, alpha: { start: 1,   end: 0 }, frequency: 12, tint: 0x66ccff },
-};
+// Data fields line up with ParticleEmitter config keys; emitting:false keeps
+// the shared emitter idle until explode / emitParticleAt drives it.
+function emitterConfig(def) {
+  const { tint, lifespan, quantity, speed, scale, alpha, blendMode, gravityY } = def;
+  const config = { tint, lifespan, quantity, speed, scale, alpha, blendMode, emitting: false };
+  if (gravityY !== undefined) config.gravityY = gravityY;
+  return config;
+}
+
+// Neutral-white effects tinted per spawn with the dying enemy's colour. Safe on
+// a shared emitter: Phaser reads the tint when each particle is emitted
+// (Particle.fire -> EmitterOp.staticValueEmit) and never rewrites it after,
+// so live particles from an earlier death keep their own colour.
+// Never list an effect a projectile impact also uses (e.g. burst): the shared
+// emitter would recolour the tower's impact.
+export const TINT_AT_SPAWN = new Set(['pop', 'deathBurst']);
 
 export class ParticleSpawner {
   constructor(scene) {
     this._scene = scene;
+    // One emitter per effect for the scene's lifetime (no per-shot allocation).
+    this._emitters = new Map();
   }
 
-  spawnMuzzleFlash(x, y, towerType) {
-    const tint = MUZZLE_TINTS[towerType] ?? MUZZLE_TINTS.default;
-    const config = {
-      tint,
-      lifespan: 80,
-      speed: { min: 40, max: 80 },
-      scale: { start: 0.6, end: 0 },
-      quantity: 3,
-      angle: { min: 0, max: 360 },
-      blendMode: 'ADD',
-    };
-    const emitter = this._scene.add.particles(x, y, 'spark', config);
-    if (emitter.explode) emitter.explode(3, x, y);
-    this._scene.time.delayedCall(150, () => emitter.destroy && emitter.destroy());
+  // Read at each burst so the Graphics select takes effect mid-level.
+  _n(count) {
+    return scaleBurst(count, this._scene.registry?.get('particleScale') ?? 1);
+  }
+
+  _emitter(cacheKey, def) {
+    let emitter = this._emitters.get(cacheKey);
+    if (!emitter) {
+      emitter = this._scene.add.particles(0, 0, def.texture, emitterConfig(def));
+      emitter.setDepth(FX_DEPTH);
+      this._emitters.set(cacheKey, emitter);
+    }
     return emitter;
   }
 
-  spawnProjectileTrail(projectile, towerType) {
-    const config = TRAIL_CONFIG[towerType] ?? TRAIL_CONFIG.default;
-    const emitter = this._scene.add.particles(projectile.x, projectile.y, 'spark', config);
-    if (emitter.startFollow) emitter.startFollow(projectile);
-    return emitter;
+  // `towerType` may also be a MUZZLE_FX key directly (soldiers have no tower def).
+  spawnMuzzleFlash(x, y, towerType, tier = 1, branch = null) {
+    const key = MUZZLE_FX[towerType] ? towerType : projectileFx(towerType, tier, branch).muzzle;
+    const def = MUZZLE_FX[key];
+    this._emitter(`muzzle:${key}`, def).explode(this._n(def.quantity), x, y);
+  }
+
+  spawnImpact(impactKey, x, y) {
+    const fx = IMPACT_FX[impactKey];
+    if (!fx) return;
+    const layers = Array.isArray(fx) ? fx : [fx];
+    layers.forEach((def, i) => {
+      this._emitter(`impact:${impactKey}:${i}`, def).explode(this._n(def.quantity), x, y);
+    });
+  }
+
+  // Plays the class's DEATH_FX steps. Delayed steps (the boss sequence) use
+  // one delayedCall each, which is a per-death cost, not a per-frame one.
+  spawnDeath(cls, x, y, color) {
+    const steps = DEATH_FX[cls];
+    if (!steps) return;
+    for (const { effect, delay } of steps) {
+      if (delay > 0) this._scene.time.delayedCall(delay, () => this._playDeathStep(effect, x, y, color));
+      else this._playDeathStep(effect, x, y, color);
+    }
+  }
+
+  _playDeathStep(effect, x, y, color) {
+    if (TINT_AT_SPAWN.has(effect)) this._emitter(`impact:${effect}:0`, IMPACT_FX[effect]).setParticleTint(color);
+    this.spawnImpact(effect, x, y);
+  }
+
+  // Emits at the drawn position (ground y plus the art's arc lift) so smoke
+  // follows a lobbed shell rather than its shadow.
+  emitTrail(projectile, dt) {
+    const key = projectile.fx.trail;
+    const def = TRAIL_FX[key];
+    if (!def || !def.rate) return;
+    projectile._trailAcc += def.rate * dt;
+    const n = Math.floor(projectile._trailAcc);
+    if (n < 1) return;
+    projectile._trailAcc -= n;
+    this._emitter(`trail:${key}`, def)
+      .emitParticleAt(projectile.x, projectile.drawnY, this._n(n));
+  }
+
+  // Continuous status particles (burn embers) at the enemy; `enemy._statusAcc`
+  // carries the fractional particle so the rate holds across frame sizes.
+  emitStatus(kind, enemy, dt) {
+    const def = STATUS_EMIT_FX[kind];
+    const rate = STATUS_FX[kind]?.emberRate;
+    if (!def || !rate) return;
+    enemy._statusAcc += rate * dt;
+    const n = Math.floor(enemy._statusAcc);
+    if (n < 1) return;
+    enemy._statusAcc -= n;
+    // Spread across the art so embers read on wide sprites, not just the centre.
+    const dx = (Math.random() * 2 - 1) * enemy._artHalfWidth * (def.spread ?? 0);
+    this._emitter(`status:${kind}`, def).emitParticleAt(enemy.x + dx, enemy.y, this._n(n));
+  }
+
+  destroy() {
+    for (const emitter of this._emitters.values()) emitter.destroy();
+    this._emitters.clear();
   }
 
   spawnHeroAbilityVFX(ability, x, y, radius) {
@@ -52,7 +118,7 @@ export class ParticleSpawner {
         scale: { start: 1.0, end: 0 }, quantity: 30, blendMode: 'ADD',
         angle: { min: 0, max: 360 },
       });
-      if (e.explode) e.explode(30, x, y);
+      if (e.explode) e.explode(this._n(30), x, y);
       this._scene.time.delayedCall(500, () => e.destroy && e.destroy());
       this.spawnAirstrikeRing(x, y);
       return e;
@@ -63,7 +129,7 @@ export class ParticleSpawner {
         scale: { start: 0.5, end: 0 }, quantity: 20, blendMode: 'ADD',
         angle: { min: 0, max: 360 },
       });
-      if (e.explode) e.explode(20, x, y);
+      if (e.explode) e.explode(this._n(20), x, y);
       this._scene.time.delayedCall(700, () => e.destroy && e.destroy());
       this.spawnEMPRing(x, y, radius);
       return e;

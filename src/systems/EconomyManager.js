@@ -3,6 +3,8 @@ export class EconomyManager {
     this.gold = startGold;
     this.lives = startLives;
     this._emitter = eventEmitter;
+    // Income only (not start gold, refunds or spends): the results screen's GOLD chip.
+    this.earned = 0;
   }
 
   spend(amount) {
@@ -13,6 +15,13 @@ export class EconomyManager {
   }
 
   earn(amount) {
+    this.earned += amount;
+    this.gold += amount;
+    this._emitter.emit('economy:update', { gold: this.gold, lives: this.lives });
+  }
+
+  // Sell refunds return spent gold; counting them as income would inflate GOLD.
+  refund(amount) {
     this.gold += amount;
     this._emitter.emit('economy:update', { gold: this.gold, lives: this.lives });
   }

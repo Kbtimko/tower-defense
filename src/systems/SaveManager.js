@@ -1,12 +1,14 @@
 import { HEROES } from '../data/heroes.js';
+import { sanitizeRecord, mergeRecord } from './runRecord.js';
+import { migrateGraphicsSetting } from './graphicsQuality.js';
 
 const STORAGE_KEY = 'lastlight_save';
 const LEGACY_KEY  = 'lastlight_progress';
 const MAP_COUNT   = 10;
-const VERSION     = 4;
+const VERSION     = 5;
 
 function defaultSettings() {
-  return { masterVol: 0.8, sfxVol: 1.0, musicVol: 0.6, muted: false, ambientMotion: null };
+  return { masterVol: 0.8, sfxVol: 1.0, musicVol: 0.6, muted: false, ambientMotion: null, graphics: 'auto', autoSend: true };
 }
 
 function freshEnvelope() {
@@ -18,6 +20,7 @@ function freshEnvelope() {
     settings:       defaultSettings(),
     selectedHeroId: 'rael',
     seenStoryBeats: {},
+    records:        new Array(MAP_COUNT).fill(null),
   };
 }
 
@@ -45,6 +48,14 @@ function migrateV3toV4(env) {
   };
 }
 
+function migrateV4toV5(env) {
+  return {
+    ...env,
+    version: 5,
+    records: new Array(MAP_COUNT).fill(null),
+  };
+}
+
 export class SaveManager {
   constructor() {
     this._data = this._load();
@@ -57,16 +68,19 @@ export class SaveManager {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && Array.isArray(parsed.maps) && parsed.maps.length === MAP_COUNT
-            && (parsed.version === 1 || parsed.version === 2 || parsed.version === 3 || parsed.version === 4)) {
+            && (parsed.version === 1 || parsed.version === 2 || parsed.version === 3 || parsed.version === 4 || parsed.version === 5)) {
           let normalized = this._normalize(parsed);
           if (parsed.version === 1) {
-            normalized = migrateV3toV4(migrateV2toV3({ ...normalized, version: 2 }));
+            normalized = migrateV4toV5(migrateV3toV4(migrateV2toV3({ ...normalized, version: 2 })));
             localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
           } else if (parsed.version === 2) {
-            normalized = migrateV3toV4(migrateV2toV3(normalized));
+            normalized = migrateV4toV5(migrateV3toV4(migrateV2toV3(normalized)));
             localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
           } else if (parsed.version === 3) {
-            normalized = migrateV3toV4(normalized);
+            normalized = migrateV4toV5(migrateV3toV4(normalized));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+          } else if (parsed.version === 4) {
+            normalized = migrateV4toV5(normalized);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
           }
           return normalized;
@@ -112,16 +126,24 @@ export class SaveManager {
     if (parsed.settings && typeof parsed.settings === 'object' && !Array.isArray(parsed.settings)) {
       env.settings = { ...env.settings, ...parsed.settings };
     }
+    // The old mapGrade boolean folds into `graphics`; the version stays 5 because
+    // load already merges settings over the defaults.
+    env.settings.graphics = migrateGraphicsSetting(parsed.settings);
+    delete env.settings.mapGrade;
     if (typeof parsed.selectedHeroId === 'string') env.selectedHeroId = parsed.selectedHeroId;
     if (parsed.seenStoryBeats && typeof parsed.seenStoryBeats === 'object'
         && !Array.isArray(parsed.seenStoryBeats)) {
       env.seenStoryBeats = { ...parsed.seenStoryBeats };
     }
+    if (Array.isArray(parsed.records) && parsed.records.length === MAP_COUNT) {
+      env.records = parsed.records.map(sanitizeRecord);
+    }
     return env;
   }
 
   // Several instances share one storage key (boot registry, GameScene, MapSelectScene);
-  // re-read before patching so a stale snapshot never overwrites another instance's save.
+  // re-read before patching so a stale snapshot never overwrites another instance's save,
+  // and before reading: the boot registry instance outlives every level, so its snapshot goes stale.
   _refresh() {
     this._data = this._load();
   }
@@ -132,6 +154,7 @@ export class SaveManager {
 
   // ─── Map stars ───
   getStars(mapId) {
+    this._refresh();
     return this._data.maps[mapId] ?? 0;
   }
 
@@ -144,16 +167,42 @@ export class SaveManager {
   }
 
   isUnlocked(mapId) {
+    this._refresh();
     if (mapId === 0) return true;
     return this._data.maps[mapId - 1] > 0;
   }
 
   getTotalStars() {
+    this._refresh();
     return this._data.maps.reduce((sum, s) => sum + s, 0);
+  }
+
+  // ─── Best records ───
+  getRecord(mapId) {
+    this._refresh();
+    const r = this._data.records[mapId];
+    return r ? { ...r } : null;
+  }
+
+  recordRun(mapId, run) {
+    // An id outside the table would grow `records`, and the next load's length check nulls them all.
+    if (!Number.isInteger(mapId) || mapId < 0 || mapId >= MAP_COUNT) {
+      return { newBest: { livesLost: false, time: false } };
+    }
+    this._refresh();
+    const { record, newBest } = mergeRecord(this._data.records[mapId], run);
+    // Skip the write when nothing improved: first-ever values set a record without a NEW BEST flag.
+    const prev = this._data.records[mapId];
+    if (JSON.stringify(record) !== JSON.stringify(prev)) {
+      this._data.records[mapId] = record;
+      this._save();
+    }
+    return { newBest };
   }
 
   // ─── Upgrades ───
   getPurchasedUpgrades() {
+    this._refresh();
     return this._data.upgrades.slice();
   }
 
@@ -165,6 +214,7 @@ export class SaveManager {
 
   // ─── Stats ───
   getStats() {
+    this._refresh();
     return { ...this._data.stats };
   }
 
@@ -176,6 +226,7 @@ export class SaveManager {
 
   // ─── Settings ───
   getSettings() {
+    this._refresh();
     return { ...this._data.settings };
   }
 
@@ -187,6 +238,7 @@ export class SaveManager {
 
   // ─── Hero selection ───
   getSelectedHero() {
+    this._refresh();
     const id = this._data.selectedHeroId;
     return (id && HEROES[id]) ? id : 'rael';
   }
@@ -207,6 +259,7 @@ export class SaveManager {
 
   // ─── Story beats ───
   hasSeenBeat(id) {
+    this._refresh();
     return !!this._data.seenStoryBeats[id];
   }
 
@@ -218,6 +271,7 @@ export class SaveManager {
   }
 
   getSeenBeats() {
+    this._refresh();
     return { ...this._data.seenStoryBeats };
   }
 }

@@ -1,3 +1,6 @@
+import { FONTS } from '../data/theme.js';
+import { addText, hiDpiStyle } from '../ui/hiDpiText.js';
+
 const POOL_SIZE = 24;
 const THRESHOLD = 30;
 // A floored tower fires continuously; without a per-enemy gate the screen
@@ -5,11 +8,11 @@ const THRESHOLD = 30;
 const ABSORBED_COOLDOWN_MS = 700;
 
 const STYLES = {
-  big:  { fontSize: '16px', color: '#ffffff', stroke: '#000000', strokeThickness: 2 },
-  aoe:  { fontSize: '16px', color: '#ff9966', stroke: '#000000', strokeThickness: 2 },
+  big:  { fontFamily: FONTS.body, fontSize: '16px', color: '#ffffff', stroke: '#000000', strokeThickness: 2 },
+  aoe:  { fontFamily: FONTS.body, fontSize: '16px', color: '#ff9966', stroke: '#000000', strokeThickness: 2 },
   // Muted and small on purpose: this marks a hit that barely landed, and must
   // not read as a good one.
-  absorbed: { fontSize: '13px', color: '#9aa4b0', stroke: '#000000', strokeThickness: 2 },
+  absorbed: { fontFamily: FONTS.body, fontSize: '13px', color: '#9aa4b0', stroke: '#000000', strokeThickness: 2 },
 };
 
 export class DamageNumberOverlay {
@@ -48,7 +51,7 @@ export class DamageNumberOverlay {
     if (this._pool.length) {
       txt = this._pool.pop();
     } else if (this._inUse.size < POOL_SIZE) {
-      txt = this._scene.add.text(0, 0, '', STYLES.big);
+      txt = addText(this._scene, 0, 0, '', STYLES.big);
       txt.setOrigin(0.5, 0.5);
       txt.setDepth(100);
     } else {
@@ -65,7 +68,7 @@ export class DamageNumberOverlay {
     const label = absorbed ? `🛡${amount}`
                 : (abilityLabel ? `${abilityLabel} ${amount}` : String(amount));
     txt.setText(label);
-    txt.setStyle(style);
+    txt.setStyle(hiDpiStyle(style));
     txt.setStroke(style.stroke, style.strokeThickness);
     txt.setShadow(0, 0, '#000000', 4, false, true);
     const jitterX = (Math.random() - 0.5) * 16;

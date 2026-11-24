@@ -1,0 +1,292 @@
+import { describe, it, expect } from 'vitest';
+import { layoutProblems, railProblems, minTouchFor, targetSizeProblems, overlayProblems, railGeometryProblems, radialProblems } from './layoutAudit.js';
+
+const rect = (left, top, right, bottom) => ({ left, top, right, bottom, width: right - left, height: bottom - top });
+
+function healthy(overrides = {}) {
+  return {
+    device: { width: 750, height: 340 },
+    innerWidth: 750, innerHeight: 340, scale: 1, scrollWidth: 750,
+    targets: [{ name: '#play', rect: rect(10, 10, 110, 50), visibleRect: rect(10, 10, 110, 50), visible: true }],
+    ...overrides,
+  };
+}
+const withTarget = t => healthy({ targets: [{ name: '#play', rect: rect(10, 10, 110, 50), visibleRect: rect(10, 10, 110, 50), visible: true, ...t }] });
+
+describe('layoutProblems', () => {
+  it('is empty for a healthy layout', () => {
+    expect(layoutProblems(healthy())).toEqual([]);
+  });
+
+  it('reports page zoom', () => {
+    expect(layoutProblems(healthy({ scale: 1.92 }))).toEqual(['zoomed: visualViewport.scale=1.92']);
+  });
+
+  it('tolerates scale within 0.01 of 1', () => {
+    expect(layoutProblems(healthy({ scale: 1.005 }))).toEqual([]);
+  });
+
+  it('reports a layout viewport wider than the device', () => {
+    const out = layoutProblems(healthy({ innerWidth: 770, scrollWidth: 770 }));
+    expect(out).toEqual(['layout viewport 770x340 wider than device 750x340']);
+  });
+
+  it('reports page overflow', () => {
+    expect(layoutProblems(healthy({ scrollWidth: 800 }))).toEqual(['page overflows: scrollWidth 800 > innerWidth 750']);
+  });
+
+  it('reports a missing target', () => {
+    expect(layoutProblems(withTarget({ rect: null, visibleRect: null }))).toEqual(['#play missing']);
+  });
+
+  it('reports a hidden target', () => {
+    expect(layoutProblems(withTarget({ visible: false }))).toEqual(['#play hidden']);
+  });
+
+  it('reports a target below the viewport', () => {
+    const r = rect(10, 320, 110, 363);
+    const out = layoutProblems(withTarget({ rect: r, visibleRect: r }));
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatch(/^#play off-screen /);
+  });
+
+  it('treats an edge exactly at innerWidth as healthy and +2px as off-screen', () => {
+    const edge = rect(650, 10, 750, 50);
+    expect(layoutProblems(withTarget({ rect: edge, visibleRect: edge }))).toEqual([]);
+    const over = rect(652, 10, 752, 50);
+    expect(layoutProblems(withTarget({ rect: over, visibleRect: over }))[0]).toMatch(/^#play off-screen /);
+  });
+
+  it('allows 1px of tolerance on an edge', () => {
+    const r = rect(-1, 10, 99, 50);
+    expect(layoutProblems(withTarget({ rect: r, visibleRect: r }))).toEqual([]);
+  });
+
+  it('reports a zero-size target as off-screen', () => {
+    const r = rect(10, 10, 10, 50);
+    expect(layoutProblems(withTarget({ rect: r, visibleRect: r }))[0]).toMatch(/^#play off-screen /);
+  });
+
+  it('reports a target clipped by an overflow ancestor below 90% visible', () => {
+    // 100x40 box, only the top 20px survives its ancestor's overflow:hidden.
+    const out = layoutProblems(withTarget({ visibleRect: rect(10, 10, 110, 30) }));
+    expect(out).toEqual(['#play clipped']);
+  });
+
+  it('reports a fully clipped target (null visibleRect)', () => {
+    expect(layoutProblems(withTarget({ visibleRect: null }))).toEqual(['#play clipped']);
+  });
+
+  it('does not report clipping at 90% visible or more', () => {
+    expect(layoutProblems(withTarget({ visibleRect: rect(10, 10, 110, 46) }))).toEqual([]);
+  });
+});
+
+describe('minTouchFor', () => {
+  it.each([
+    [750, 340, 40],   // iphone: scale 0.46 -> 40.4 css px per cell, cannot reach 44
+    [863, 360, 44],   // pixel: height-bound scale 0.5 -> exactly 44
+    [844, 390, 44],
+    [932, 430, 44],
+    [815, 390, 40],   // width-bound: 815/1632*88 = 43.94, just under
+    [816, 390, 44],   // exactly 44.0
+  ])('%ix%i -> %i', (vw, vh, expected) => {
+    expect(minTouchFor({ vw, vh })).toBe(expected);
+  });
+});
+
+describe('railProblems', () => {
+  const rails = { left: rect(0, 0, 80, 360), right: rect(560, 0, 640, 360) };
+  const touch = { hasTouch: true };
+  const run = (t, extra = {}) => railProblems({ device: touch, rails, minTouchPx: 44, targets: [{ name: '#b', visible: true, rect: rect(10, 10, 60, 60), ...t }], ...extra });
+
+  it('is empty when a target is inside a rail and big enough', () => {
+    expect(run({})).toEqual([]);
+  });
+  it('accepts a target in the right rail', () => {
+    expect(run({ rect: rect(570, 10, 620, 60) })).toEqual([]);
+  });
+  it('reports "rails missing" when either rail is absent', () => {
+    expect(run({}, { rails: { left: null, right: rails.right } })).toEqual(['rails missing']);
+    expect(run({}, { rails: { left: rails.left, right: null } })).toEqual(['rails missing']);
+  });
+  it('reports a target outside both rails', () => {
+    expect(run({ rect: rect(200, 10, 250, 60) })).toEqual(['#b outside rails']);
+  });
+  it('reports a target straddling a rail edge', () => {
+    expect(run({ rect: rect(40, 10, 90, 60) })).toEqual(['#b outside rails']);
+  });
+  it('tolerates 1px overhang but not 2px', () => {
+    expect(run({ rect: rect(-1, 0, 49, 50) })).toEqual([]);
+    expect(run({ rect: rect(-2, 0, 48, 50) })).toEqual(['#b outside rails']);
+  });
+  it('reports a touch target too small, in either dimension', () => {
+    expect(run({ rect: rect(10, 10, 53, 60) })).toEqual(['#b too small 43x50']);
+    expect(run({ rect: rect(10, 10, 60, 53) })).toEqual(['#b too small 50x43']);
+  });
+  it('accepts exactly minTouchPx and honours a lower floor', () => {
+    expect(run({ rect: rect(10, 10, 54, 54) })).toEqual([]);
+    expect(run({ rect: rect(10, 10, 50, 50) }, { minTouchPx: 40 })).toEqual([]);
+  });
+  it('allows 0.5px of sub-pixel slack under the floor', () => {
+    expect(run({ rect: rect(10, 10, 53.6, 60) })).toEqual([]);
+    expect(run({ rect: rect(10, 10, 53.4, 60) })).toEqual(['#b too small 43x50']);
+    expect(run({ rect: rect(10, 10, 60, 53.4) })).toEqual(['#b too small 50x43']);
+  });
+  it('applies no size rule without touch', () => {
+    expect(run({ rect: rect(10, 10, 20, 20) }, { device: { hasTouch: false } })).toEqual([]);
+  });
+  it('skips absent or hidden targets (layoutProblems reports those)', () => {
+    expect(run({ rect: null, visible: false })).toEqual([]);
+    expect(run({ visible: false, rect: rect(200, 10, 250, 60) })).toEqual([]);
+  });
+});
+
+describe('targetSizeProblems', () => {
+  const t = (name, r, extra = {}) => ({ name, visible: true, rect: r, ...extra });
+  it('reports each undersized target, in either dimension, with its size', () => {
+    expect(targetSizeProblems([t('#a', rect(0, 0, 43, 50)), t('#b', rect(0, 0, 50, 43)), t('#c', rect(0, 0, 50, 50))], 44))
+      .toEqual(['#a too small 43x50', '#b too small 50x43']);
+  });
+  it('accepts exactly the floor and 0.5px of slack, rejects more', () => {
+    expect(targetSizeProblems([t('#a', rect(0, 0, 44, 44)), t('#b', rect(0, 0, 43.6, 44))], 44)).toEqual([]);
+    expect(targetSizeProblems([t('#a', rect(0, 0, 43.4, 44))], 44)).toEqual(['#a too small 43x44']);
+  });
+  it('skips absent and hidden targets', () => {
+    expect(targetSizeProblems([t('#a', null), t('#b', rect(0, 0, 5, 5), { visible: false })], 44)).toEqual([]);
+  });
+});
+
+describe('overlayProblems', () => {
+  const small = [{ name: '#codex-close', visible: true, rect: rect(0, 0, 60, 28) }];
+  it('holds overlay controls to 44px on touch devices', () => {
+    expect(overlayProblems({ device: { hasTouch: true }, targets: small })).toEqual(['#codex-close too small 60x28']);
+  });
+  it('never relaxes the floor to the small-phone 40', () => {
+    const t40 = [{ name: '#x', visible: true, rect: rect(0, 0, 40, 40) }];
+    expect(overlayProblems({ device: { hasTouch: true }, targets: t40 })).toEqual(['#x too small 40x40']);
+  });
+  it('applies no size rule without touch', () => {
+    expect(overlayProblems({ device: { hasTouch: false }, targets: small })).toEqual([]);
+  });
+});
+
+describe('railGeometryProblems', () => {
+  const phone = { name: 'pixel', hasTouch: true };
+  const desktop = { name: 'desktop', hasTouch: false };
+  const fineCanvas = { width: 1440, height: 1440 * 720 / 1488 };
+  const fineRails = w => [{ id: 'left', width: w }, { id: 'right', width: w }];
+
+  it('flags a touch device that reports pointer: fine', () => {
+    const out = railGeometryProblems({ device: phone, pointerFine: true, canvasRect: fineCanvas, rails: fineRails(104 * 1440 / 1488) });
+    expect(out.some(p => p.includes('touch device reports pointer: fine') && p.startsWith('pixel'))).toBe(true);
+  });
+  it('accepts fine geometry', () => {
+    expect(railGeometryProblems({ device: desktop, pointerFine: true, canvasRect: fineCanvas, rails: fineRails(104 * 1440 / 1488) })).toEqual([]);
+  });
+  it('accepts coarse geometry', () => {
+    const canvasRect = { width: 844, height: 844 * 720 / 1632 };
+    expect(railGeometryProblems({ device: phone, pointerFine: false, canvasRect, rails: fineRails(176 * 844 / 1632) })).toEqual([]);
+  });
+  it('flags a rail 3px too wide, naming it', () => {
+    const rails = [{ id: 'left', width: 104 * 1440 / 1488 }, { id: 'right', width: 104 * 1440 / 1488 + 3 }];
+    const out = railGeometryProblems({ device: desktop, pointerFine: true, canvasRect: fineCanvas, rails });
+    expect(out).toHaveLength(1);
+    expect(out[0]).toContain('right');
+    expect(out[0].startsWith('desktop')).toBe(true);
+  });
+  it('flags a canvas with the wrong aspect', () => {
+    const canvasRect = { width: 1440, height: 1440 * 720 / 1632 };
+    const out = railGeometryProblems({ device: desktop, pointerFine: true, canvasRect, rails: fineRails(104 * 1440 / 1488) });
+    expect(out).toHaveLength(1);
+    expect(out[0]).toContain('aspect');
+  });
+});
+
+describe('radialProblems', () => {
+  // A 1000x400 page: 100-px rails either side of an 800x400 map.
+  const rails = { left: rect(0, 0, 100, 400), right: rect(900, 0, 1000, 400) };
+  const mapRect = rect(100, 0, 900, 400);
+  const face = (name, cx, cy, d) => ({ name, rect: rect(cx - d / 2, cy - d / 2, cx + d / 2, cy + d / 2), visible: true });
+  // Hub 60 at (500,200), items 50 on a radius-70 ring: round faces clear by 15 px,
+  // though the hub's bounding square overlaps the diagonal items' squares.
+  const ring = () => [-90, -30, 30, 90, 150, 210].map((a, i) => {
+    const t = (a * Math.PI) / 180;
+    return face(`item[${i}]`, 500 + 70 * Math.cos(t), 200 + 70 * Math.sin(t), 50);
+  });
+  const healthyRadial = (o = {}) => ({ items: ring(), hub: face('#radial-hub', 500, 200, 60), mapRect, rails, minTouchPx: 44, ...o });
+
+  it('is empty for a ring centred on the map', () => {
+    expect(radialProblems(healthyRadial())).toEqual([]);
+  });
+
+  it('reports an item outside the map rect', () => {
+    const items = ring();
+    items[0] = face('item[0]', 500, 10, 50);
+    expect(radialProblems(healthyRadial({ items }))).toEqual(['item[0] outside map [475,-15,525,35]']);
+  });
+
+  it('reports the hub outside the map rect', () => {
+    const out = radialProblems(healthyRadial({ hub: face('#radial-hub', 500, 390, 60) }));
+    expect(out).toContain('#radial-hub outside map [470,360,530,420]');
+  });
+
+  it('reports an item intersecting a rail', () => {
+    const items = ring();
+    items[4] = face('item[4]', 110, 200, 50);
+    expect(radialProblems(healthyRadial({ items }))).toEqual(expect.arrayContaining(['item[4] intersects rail-left']));
+  });
+
+  it('reports an item intersecting the right rail', () => {
+    const items = ring();
+    items[1] = face('item[1]', 890, 200, 50);
+    expect(radialProblems(healthyRadial({ items }))).toEqual(expect.arrayContaining(['item[1] intersects rail-right']));
+  });
+
+  it('allows an item that only touches a rail edge', () => {
+    const items = ring();
+    items[4] = face('item[4]', 125, 200, 50);
+    expect(radialProblems(healthyRadial({ items }))).toEqual([]);
+  });
+
+  it('reports an item below the touch floor', () => {
+    const items = ring();
+    items[2] = face('item[2]', 560, 235, 40);
+    expect(radialProblems(healthyRadial({ items }))).toEqual(['item[2] too small 40x40']);
+  });
+
+  it('holds the hub to the touch floor too', () => {
+    expect(radialProblems(healthyRadial({ hub: face('#radial-hub', 500, 200, 30) }))).toEqual(['#radial-hub too small 30x30']);
+  });
+
+  it('skips the size rule when minTouchPx is 0 (fine pointer)', () => {
+    const items = ring().map((f) => face(f.name, (f.rect.left + f.rect.right) / 2, (f.rect.top + f.rect.bottom) / 2, 30));
+    expect(radialProblems(healthyRadial({ items, minTouchPx: 0 }))).toEqual([]);
+  });
+
+  it('reports two overlapping faces', () => {
+    const items = ring();
+    items[1] = face('item[1]', 520, 140, 50);
+    expect(radialProblems(healthyRadial({ items }))).toEqual(['item[0] overlaps item[1]']);
+  });
+
+  it('reports an item overlapping the hub', () => {
+    const items = ring();
+    items[3] = face('item[3]', 500, 245, 50);
+    expect(radialProblems(healthyRadial({ items }))).toEqual(['item[3] overlaps #radial-hub']);
+  });
+
+  it('ignores hidden items (unused ring slots)', () => {
+    const items = ring();
+    items[5] = { ...face('item[5]', 0, 0, 50), visible: false };
+    expect(radialProblems(healthyRadial({ items }))).toEqual([]);
+  });
+
+  it('reports a missing or hidden hub', () => {
+    expect(radialProblems(healthyRadial({ hub: { name: '#radial-hub', rect: null, visible: false } }))).toEqual(['#radial-hub hidden']);
+  });
+
+  it('reports a radial with no visible items', () => {
+    expect(radialProblems(healthyRadial({ items: [] }))).toEqual(['radial has no visible items']);
+  });
+});

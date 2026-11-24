@@ -7,7 +7,6 @@ export const MAPS = [
     waypoints: [[0,.403],[.05,.42],[.075,.37],[.095,.412],[.181,.42],[.166,.378],[.196,.328],[.246,.319],[.286,.387],[.286,.437],[.342,.471],[.372,.445],[.452,.513],[.462,.63],[.533,.605],[.558,.546],[.588,.563],[.598,.496],[.653,.487],[.704,.756],[.764,.79],[.854,.782],[.92,.613],[1,.63]],
     startGold: 130,
     startLives: 25,
-    overworldPos: [0.092, 0.85],
     overworldArt: 'overworld_0_outpost_sigma.png',
     // 0.35, matching Lunar Gate, is not about the gold -- the trimmed wave
     // table clears this map at 0.30 too. It is about where the calibration
@@ -16,12 +15,16 @@ export const MAPS = [
     // uniform 64-76% and survives small future changes to rewards or the
     // wave-clear bonus.
     rewardMult: 0.35,
+    // waveCountdownSec = calibrated so auto-send overlap leaves sim difficulty no harder than send-on-clear (#51).
+    waveCountdownSec: 35,
     unlockCost: 0,
     waveCount: 10,
     maxTierAllowed: 2,
     storyKey: 'outpost_sigma',
     blurb: "Earth's last forward base. Hold the line or lose everything.",
     backgroundImage: 'map_0_outpost_sigma.png',
+    // Colour grade + vignette (roadmap 1.4; art bible §2 biome moods): warm, soft, clean — the tutorial should feel safe.
+    grade: { tint: [1.04, 1.00, 0.94], contrast: 0.95, saturation: 0.95, brightness: 1.0, vignette: 0.25 },
     // Path renders as the road (terrain-only backdrop pilot) — see specs 2026-06-12-terrain-only-backdrops-road-path.
     pathRenderStyle: 'planet-road',
     // No auto-placed blockers — the painted backdrop already has craters/rock mounds.
@@ -44,15 +47,18 @@ export const MAPS = [
     waypoints: [[0,.396],[.065,.36],[.106,.252],[.186,.324],[.231,.441],[.302,.514],[.382,.351],[.437,.315],[.487,.36],[.618,.333],[.618,.396],[.643,.441],[.759,.468],[.804,.685],[.965,.73],[1,.667]],
     startGold: 130,
     startLives: 20,
-    overworldPos: [0.233, 0.717],
     overworldArt: 'overworld_1_lunar_gate.png',
     rewardMult: 0.35,
+    // waveCountdownSec = calibrated so auto-send overlap leaves sim difficulty no harder than send-on-clear (#51).
+    waveCountdownSec: 41,
     unlockCost: 0,
     waveCount: 10,
     maxTierAllowed: 2,
     storyKey: 'lunar_gate',
     blurb: 'The gateway to the moon is under siege. Defend the transit hub.',
     backgroundImage: 'map_1_lunar_gate.png',
+    // Colour grade + vignette (roadmap 1.4; art bible §2 biome moods): cool grey, high-key.
+    grade: { tint: [0.95, 1.00, 1.08], contrast: 1.00, saturation: 0.75, brightness: 1.07, vignette: 0.20 },
     pathRenderStyle: 'lunar-road',
     blockerVocab: [],
     blockerSeed: 4291,
@@ -69,24 +75,26 @@ export const MAPS = [
     background: 0x1e1e1e,
     pathColor: 0x808080,
     waypoints: [[0,.387],[.025,.432],[.045,.378],[.121,.459],[.176,.468],[.176,.541],[.251,.64],[.261,.595],[.296,.595],[.367,.505],[.472,.532],[.523,.64],[.578,.658],[.593,.748],[.643,.802],[.804,.649],[.794,.613],[.814,.595],[.894,.631],[.955,.595],[.975,.631],[1,.613]],
-    // PROVISIONAL -- playtest-tunable, not derived. The balance simulator
-    // cannot resolve this map: sweeping startGold in 5g steps gives five
-    // monotonicity inversions in eleven (more gold, worse outcome), because
-    // greedyBuildPlan's towerValue ignores armour and the weakness matrix and
-    // this map's 11 slots and tier-3 cap compound that mis-ranking. 170/0.40
-    // is the most stable cell found (a three-wide plateau at 165/170/175g).
-    // Expect to retune after a human plays it.
+    // Hand-picked, not derived -- and KEPT as an on-ramp decision (#36, G4,
+    // 2026-11-19). The best-of-5 sim keeps 90% of lives here, exactly the TOO
+    // EASY line, but the on-ramp is meant to be generous and #18 pinned it. The
+    // sim cannot fine-tune it anyway: reward 0.36 drops it to 15% and start 150
+    // to 40%, so any retune waits on a human playtest (#30). 170/0.40 is the
+    // most stable cell the original sweep found (a plateau at 165/170/175g).
     startGold: 170,
     startLives: 20,
-    overworldPos: [0.383, 0.85],
     overworldArt: 'overworld_2_the_crater.png',
     rewardMult: 0.40,
+    // waveCountdownSec = calibrated so auto-send overlap leaves sim difficulty no harder than send-on-clear (#51).
+    waveCountdownSec: 33,
     unlockCost: 0,
     waveCount: 12,
     maxTierAllowed: 3,
     storyKey: 'the_crater',
     blurb: 'A lunar crater makes a natural fortress — or a killing field.',
     backgroundImage: 'map_2_the_crater.png',
+    // Colour grade + vignette (roadmap 1.4; art bible §2 biome moods): cool grey, deeper shadows.
+    grade: { tint: [0.95, 0.98, 1.05], contrast: 1.12, saturation: 0.85, brightness: 0.96, vignette: 0.35 },
     pathRenderStyle: 'lunar-road',
     blockerVocab: [],
     blockerSeed: 5582,
@@ -111,15 +119,18 @@ export const MAPS = [
     // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
     startGold: 180,
     startLives: 18,
-    overworldPos: [0.533, 0.70],
     overworldArt: 'overworld_3_orbital_station.png',
     rewardMult: 0.40,
+    // waveCountdownSec = calibrated so auto-send overlap leaves sim difficulty no harder than send-on-clear (#51).
+    waveCountdownSec: 29,
     unlockCost: 0,
     waveCount: 12,
     maxTierAllowed: 3,
     storyKey: 'orbital_station',
     blurb: 'Enemy forces have boarded our orbital station. Repel them before they reach the core.',
     backgroundImage: 'map_3_orbital_station.png',
+    // Colour grade + vignette (roadmap 1.4; art bible §2 biome moods): teal steel, crisp.
+    grade: { tint: [0.90, 1.03, 1.08], contrast: 1.10, saturation: 1.00, brightness: 1.00, vignette: 0.30 },
     pathRenderStyle: 'station-road',
     blockerVocab: [],
     blockerSeed: 9182,
@@ -144,15 +155,18 @@ export const MAPS = [
     // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
     startGold: 200,
     startLives: 18,
-    overworldPos: [0.683, 0.783],
     overworldArt: 'overworld_4_asteroid_belt.png',
     rewardMult: 0.47,
+    // waveCountdownSec = calibrated so auto-send overlap leaves sim difficulty no harder than send-on-clear (#51).
+    waveCountdownSec: 34,
     unlockCost: 0,
     waveCount: 14,
     maxTierAllowed: 4,
     storyKey: 'asteroid_belt',
     blurb: 'Mining platforms in the asteroid belt are now frontline battlefields.',
     backgroundImage: 'map_4_asteroid_belt.png',
+    // Colour grade + vignette (roadmap 1.4; art bible §2 biome moods): neutral, dark edges.
+    grade: { tint: [1.00, 1.00, 1.02], contrast: 1.05, saturation: 0.90, brightness: 0.97, vignette: 0.45 },
     pathRenderStyle: 'space-lane',
     blockerVocab: [],
     blockerSeed: 6453,
@@ -184,15 +198,18 @@ export const MAPS = [
     //              decline monotonic.
     startGold: 210,
     startLives: 15,
-    overworldPos: [0.85, 0.567],
     overworldArt: 'overworld_5_titans_reach.png',
     rewardMult: 0.51,
+    // waveCountdownSec = calibrated so auto-send overlap leaves sim difficulty no harder than send-on-clear (#51).
+    waveCountdownSec: 27,
     unlockCost: 0,
     waveCount: 14,
     maxTierAllowed: 4,
     storyKey: 'titans_reach',
     blurb: "Titan's surface is hostile. So are its new inhabitants — the Titans have arrived.",
     backgroundImage: 'map_5_titans_reach.png',
+    // Colour grade + vignette (roadmap 1.4; art bible §2 biome moods): amber haze.
+    grade: { tint: [1.09, 1.00, 0.85], contrast: 0.92, saturation: 1.05, brightness: 1.02, vignette: 0.30 },
     pathRenderStyle: 'planet-road',
     blockerVocab: [],
     blockerSeed: 1709,
@@ -219,15 +236,18 @@ export const MAPS = [
     // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
     startGold: 230,
     startLives: 15,
-    overworldPos: [0.675, 0.40],
     overworldArt: 'overworld_6_deep_space_corridor.png',
     rewardMult: 0.49,
+    // waveCountdownSec = calibrated so auto-send overlap leaves sim difficulty no harder than send-on-clear (#51).
+    waveCountdownSec: 49,
     unlockCost: 0,
     waveCount: 15,
     maxTierAllowed: 4,
     storyKey: 'deep_space_corridor',
     blurb: 'The corridor leads deep into alien-controlled space. No rescue is coming.',
     backgroundImage: 'map_6_deep_space_corridor.png',
+    // Colour grade + vignette (roadmap 1.4; art bible §2 biome moods): blue-violet, cold.
+    grade: { tint: [0.94, 0.95, 1.10], contrast: 1.08, saturation: 0.9, brightness: 0.97, vignette: 0.4 },
     pathRenderStyle: 'station-road',
     blockerVocab: [],
     blockerSeed: 8924,
@@ -253,15 +273,18 @@ export const MAPS = [
     // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
     startGold: 240,
     startLives: 12,
-    overworldPos: [0.50, 0.467],
     overworldArt: 'overworld_7_the_void_frontier.png',
     rewardMult: 0.44,
+    // waveCountdownSec = calibrated so auto-send overlap leaves sim difficulty no harder than send-on-clear (#51).
+    waveCountdownSec: 46,
     unlockCost: 0,
     waveCount: 15,
     maxTierAllowed: 4,
     storyKey: 'the_void_frontier',
     blurb: 'Beyond the frontier, all navigation beacons are dark. We are alone out here.',
     backgroundImage: 'map_7_the_void_frontier.png',
+    // Colour grade + vignette (roadmap 1.4; art bible §2 biome moods): near-black, cold — 0.6 vignette crushed the nebula and dimmed edge pads.
+    grade: { tint: [0.95, 0.97, 1.04], contrast: 1.08, saturation: 0.95, brightness: 0.97, vignette: 0.45 },
     pathRenderStyle: 'space-lane',
     blockerVocab: [],
     blockerSeed: 3217,
@@ -282,20 +305,31 @@ export const MAPS = [
     // Economy derived, not hand-picked -- see
     // docs/superpowers/specs/2026-09-22-campaign-economy-ramp-design.md
     // 18 slots: cheap board 1080, fully-upgraded board 5580 (tier-4 cap).
-    // startGold  = 25% of the cheap board, so the opening hand scales with the
-    //              board instead of shrinking.
-    // rewardMult = solves gold ceiling = 55% of the fully-upgraded board.
-    startGold: 270,
+    // startGold  = OVERRIDDEN from the derived 270 (backlog #37). At 270 the
+    //              map needed 1.08x to hold; 405 wins keeping 33% of lives
+    //              (67% with the logistics perk). Neighbouring values are
+    //              noisy -- 420 loses at 1.03x -- so 405 is a measured point,
+    //              not a trend to extrapolate.
+    // rewardMult = stays as derived. It was solved at the DERIVED start (270),
+    //              where gold ceiling = 55% of the fully-upgraded board, and is
+    //              deliberately NOT re-solved for the override: the ramp rule
+    //              takes startGold as an input, so re-solving would claw the
+    //              added gold back out of kill income. With 405 the ceiling is
+    //              now about 58% of the upgraded board.
+    startGold: 405,
     startLives: 12,
-    overworldPos: [0.333, 0.317],
     overworldArt: 'overworld_8_enemy_homeworld.png',
     rewardMult: 0.39,
+    // waveCountdownSec = calibrated so auto-send overlap leaves sim difficulty no harder than send-on-clear (#51).
+    waveCountdownSec: 62,
     unlockCost: 0,
     waveCount: 16,
     maxTierAllowed: 4,
     storyKey: 'enemy_homeworld',
     blurb: 'We have breached the enemy homeworld. There is no going back.',
     backgroundImage: 'map_8_enemy_homeworld.png',
+    // Colour grade + vignette (roadmap 1.4; art bible §2 biome moods): magenta-green, sickly.
+    grade: { tint: [1.05, 0.97, 1.07], contrast: 1.05, saturation: 1.20, brightness: 0.98, vignette: 0.40 },
     pathRenderStyle: 'organic-road',
     blockerVocab: [],
     blockerSeed: 4827,
@@ -317,23 +351,34 @@ export const MAPS = [
     // Economy derived, not hand-picked -- see
     // docs/superpowers/specs/2026-09-22-campaign-economy-ramp-design.md
     // 20 slots: cheap board 1200, fully-upgraded board 6200 (tier-4 cap).
-    // startGold  = 25% of the cheap board, so the opening hand scales with the
-    //              board instead of shrinking (this map used to open with ONE
-    //              tower on twenty slots).
-    // rewardMult = solves gold ceiling = 55% of the fully-upgraded board. Lower
-    //              than the mid maps because this one carries far more raw kill
-    //              income; the declining multiplier was never the defect.
-    startGold: 300,
+    // startGold  = OVERRIDDEN from the derived 300 (backlog #37). At 300 the
+    //              map died on wave 1 with 3 of 20 towers under every barracks
+    //              strategy (needed 1.36x). Fewer enemies or a higher
+    //              rewardMult did not help -- fewer kills means less gold --
+    //              but earlier gold did: 690 wins keeping 60% of lives, with
+    //              or without the +40% logistics perk.
+    // rewardMult = stays as derived. It was solved at the DERIVED start (300),
+    //              where gold ceiling = 55% of the fully-upgraded board, and is
+    //              deliberately NOT re-solved for the override: re-solving
+    //              would claw the added gold back (about 0.27, roughly -390
+    //              gold of kill income). With 690 the ceiling is now about 62%
+    //              of the upgraded board. Lower than the mid maps because this
+    //              one carries far more raw kill income; the declining
+    //              multiplier was never the defect.
+    startGold: 690,
     startLives: 10,
-    overworldPos: [0.50, 0.15],
     overworldArt: 'overworld_9_last_light.png',
     rewardMult: 0.31,
+    // waveCountdownSec = calibrated so auto-send overlap leaves sim difficulty no harder than send-on-clear (#51).
+    waveCountdownSec: 30,
     unlockCost: 0,
     waveCount: 18,
     maxTierAllowed: 4,
     storyKey: 'last_light',
     blurb: 'This is the last light of humanity. Win, or there is nothing left.',
     backgroundImage: 'map_9_last_light.png',
+    // Colour grade + vignette (roadmap 1.4; art bible §2 biome moods): red-black, hot highlights.
+    grade: { tint: [1.08, 0.96, 0.90], contrast: 1.15, saturation: 1.10, brightness: 0.96, vignette: 0.45 },
     pathRenderStyle: 'scorched-road',
     blockerVocab: [],
     blockerSeed: 6391,

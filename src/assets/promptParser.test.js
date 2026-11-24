@@ -4,6 +4,7 @@ import {
   parseStyleAnchor, parseOverworldPrompts, parsePortraitPrompts, buildPrompt,
   parseFencedSection, parseSpritePrompts,
 } from './promptParser.js';
+import { VARIANT_KEYS } from './artJob.js';
 import { MAPS } from '../data/maps.js';
 import { STORY_SPEAKERS } from '../data/story.js';
 import { HEROES } from '../data/heroes.js';
@@ -169,6 +170,26 @@ describe('buildPrompt', () => {
   it('does not double up punctuation or whitespace', () => {
     expect(buildPrompt('Style.  ', '  subject.')).toBe('Style. subject.');
   });
+
+  it('substitutes the subject into a {subject} slot', () => {
+    expect(buildPrompt('sprite of {subject}, flat background', 'a cannon'))
+      .toBe('sprite of a cannon, flat background');
+  });
+
+  it('trims the subject before substituting', () => {
+    expect(buildPrompt('sprite of {subject}, flat background', '  a cannon. '))
+      .toBe('sprite of a cannon, flat background');
+  });
+
+  it('replaces only the first slot and never re-scans the subject', () => {
+    expect(buildPrompt('{subject} and {subject}', 'x {subject}'))
+      .toBe('x {subject} and {subject}');
+  });
+
+  it('treats $ patterns in the subject literally', () => {
+    expect(buildPrompt('sprite of {subject}.', "a $& and $' cannon"))
+      .toBe("sprite of a $& and $' cannon.");
+  });
 });
 
 
@@ -288,7 +309,8 @@ describe('parseSpritePrompts entity-id agreement', () => {
 
   it('covers every hero, tower and enemy exactly once', () => {
     const md = readFileSync('public/assets/sprites/PROMPTS.md', 'utf8');
-    const got = parseSpritePrompts(md).map(p => `${p.category}/${p.type}`);
+    // Variant bullets (archer.t4a) share their base's type, so only base bullets count here.
+    const got = parseSpritePrompts(md).filter(p => !p.variant).map(p => `${p.category}/${p.type}`);
     expect(new Set(got).size).toBe(got.length);            // no duplicates
     for (const t of Object.keys(TOWER_DEFS)) expect(got).toContain(`tower/${t}`);
     for (const h of Object.keys(HEROES))     expect(got).toContain(`hero/${h}`);
@@ -344,6 +366,58 @@ describe('the real PROMPTS.md yields a usable subject for every entity', () => {
     for (const p of parseSpritePrompts(md)) {
       expect(p.subject, `${p.category}/${p.type}`).not.toMatch(/assets\/sprites/);
       expect(p.subject.length, `${p.category}/${p.type}`).toBeGreaterThan(30);
+    }
+  });
+});
+
+describe('parseSpritePrompts variants', () => {
+  it('parses a variant bullet with the runtime type and the variant key', () => {
+    const md = [
+      '### (c) Towers',
+      '',
+      '- **archer.t4a** — `#8B4513` brown: `tall dark-iron crossbow emplacement with glowing runes`',
+    ].join('\n');
+    expect(parseSpritePrompts(md)).toEqual([
+      { category: 'tower', type: 'archer', variant: 't4a', subject: 'tall dark-iron crossbow emplacement with glowing runes' },
+    ]);
+  });
+
+  it('lets a fenced variant prompt beat an inline span', () => {
+    const md = [
+      '### (c) Towers',
+      '',
+      '- **archer.t4b** — output `assets/sprites/towers/`',
+      '  ```',
+      '  rapid repeating crossbow turret',
+      '  ```',
+    ].join('\n');
+    const [got] = parseSpritePrompts(md);
+    expect(got.variant).toBe('t4b');
+    expect(got.subject).toBe('rapid repeating crossbow turret');
+  });
+
+  it('maps a soldier variant to category soldier, type default', () => {
+    const md = [
+      '### (d) Heroes / Soldiers / Sentries',
+      '',
+      '- **soldier.t4a** — `armoured rifle soldier in gold plate`',
+    ].join('\n');
+    expect(parseSpritePrompts(md)).toEqual([
+      { category: 'soldier', type: 'default', variant: 't4a', subject: 'armoured rifle soldier in gold plate' },
+    ]);
+  });
+
+  it('leaves base bullets without a variant field', () => {
+    // The real file now carries archer.t4a; check the base bullets by dropping variants first.
+    const bases = parseSpritePrompts(spriteMd.replace(/^- \*\*\w+\.t\d\w*\*\*.*$/gm, ''));
+    expect(bases.length).toBeGreaterThan(0);
+    for (const p of bases) expect(p.variant, `${p.category}/${p.type}`).toBeUndefined();
+    // Every variant is a tier look of a tower that also has a base bullet.
+    const variants = parseSpritePrompts(spriteMd).filter(p => p.variant);
+    expect(variants.length).toBeGreaterThan(0);
+    for (const v of variants) {
+      expect(VARIANT_KEYS).toContain(v.variant);
+      expect(bases.some(b => b.category === v.category && b.type === v.type), v.type).toBe(true);
     }
   });
 });

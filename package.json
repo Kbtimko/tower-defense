@@ -9,14 +9,27 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "balance": "node scripts/balance.mjs",
+    "calibrate:autosend": "node scripts/calibrateAutoSend.mjs",
     "assets": "node scripts/assets.mjs",
-    "art": "node scripts/generate-art.mjs"
+    "art": "node scripts/generate-art.mjs",
+    "art:review": "node scripts/art/review.mjs",
+    "art:apply": "node scripts/art/apply.mjs",
+    "capture": "node scripts/capture.mjs",
+    "perf": "node scripts/perf.mjs",
+    "package:itch": "node scripts/package-itch.mjs",
+    "release:media": "node scripts/release-media.mjs",
+    "matrix": "node scripts/capture.mjs --flow",
+    "optimize-assets": "node scripts/optimize-assets.mjs"
   },
   "dependencies": {
+    "@fontsource/orbitron": "^5.3.0",
+    "@fontsource/rajdhani": "^5.3.0",
     "phaser": "^3.88.0"
   },
   "devDependencies": {
     "jsdom": "^25.0.0",
+    "playwright": "^1.64.1",
+    "sharp": "^0.35.5",
     "vite": "^5.4.0",
     "vitest": "^2.1.0"
   }

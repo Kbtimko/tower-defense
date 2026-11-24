@@ -2,121 +2,386 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Last Light</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #1a1a2e; font-family: 'Georgia', serif; color: #e8e0d0;
-           overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
-    #hud { display: none; align-items: center; gap: 14px; padding: 7px 14px;
-           background: #0f0f1e; border-bottom: 2px solid #8b6914; flex-shrink: 0; }
-    .hud-stat { display: flex; align-items: center; gap: 5px; font-size: 13px; }
-    .hud-val { font-weight: bold; color: #ffd700; font-size: 15px; }
-    .hud-lbl { color: #aaa; font-size: 11px; }
-    /* Speed and Pause used to carry byte-identical styling and sat flush against
-       the stat cluster, so the control you reach for in a hurry looked exactly
-       like the one beside it. They are now separated from the stats (margin-left
-       on the first of them) and from each other: speed stays a quiet green
-       toggle, pause takes the HUD's gold accent and a larger hit area, because
-       it is the one button a player needs to find without looking for it. */
-    #speed-btn { background: #1a2a1a; border: 1px solid #4a6a4a; color: #aaddaa;
-                 padding: 4px 9px; border-radius: 4px; cursor: pointer; font-size: 12px;
-                 margin-left: auto; transition: background 0.12s, border-color 0.12s; }
-    #speed-btn:hover { background: #243824; border-color: #6a8a6a; }
+    html, body { height: 100%; }
+    /* Coarse pointers only: on desktop this would disable trackpad swipe-back. */
+    @media (pointer: coarse) { html, body { overscroll-behavior: none; } }
+    /* The fallback covers the pre-JS paint (rotate prompt) before applyTheme runs. */
+    body { background: #1a1a2e; font-family: var(--ui-font-body, sans-serif); color: #e8e0d0;
+           overflow: hidden; height: 100vh; height: 100dvh;
+           touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+           padding: env(safe-area-inset-top) env(safe-area-inset-right)
+                    env(safe-area-inset-bottom) env(safe-area-inset-left); }
+    /* Form controls don't inherit font-family from the UA sheet. Family only: the
+       `font` shorthand would also reset the UA control font-size. */
+    button, input, select, textarea { font-family: inherit; }
+    /* ?fps=1 readout (roadmap 6.1): over the map's top-left, never intercepts input. */
+    #fps-meter { position: fixed; top: 4px; left: 4px; z-index: 50; padding: 2px 6px;
+                 font-family: var(--ui-font-body, sans-serif); font-size: 12px;
+                 color: var(--ui-text, #e8e0d0); background: rgba(0,0,0,0.55);
+                 pointer-events: none; }
 
-    #pause-btn { background: #3a2c08; border: 1px solid #8b6914; color: #ffd700;
-                 padding: 6px 16px; border-radius: 4px; cursor: pointer;
-                 font-size: 13px; font-weight: bold; letter-spacing: 0.3px;
-                 transition: background 0.12s, border-color 0.12s, color 0.12s; }
-    #pause-btn:hover { background: #4d3a0b; border-color: #c39a1d; }
-    #pause-btn:focus-visible { outline: 2px solid #ffd700; outline-offset: 2px; }
+    /* Titles >= 16 px take the display face; smaller names stay Rajdhani 700. */
+    #game-msg h2, #codex-overlay-title, #settings-overlay-title,
+    #story-log-inner h3, #upgrade-overlay-title, #hero-mgmt-overlay-title,
+    #paused-overlay, #wave-banner, #wave-banner-boss, .wp-title { font-family: var(--ui-font-heading); }
+
+    /* ── UI kit (roadmap 3.1) ────────────────────────────────────────────────
+       Procedural panel/button surfaces: gradients plus stacked inset shadows
+       stretch like a 9-slice with fixed-size edges. The kit PAINTS ONLY; each
+       surface keeps its own size, padding, radius and font-size, and customises
+       the look by setting --btn-* / --panel-* rather than repainting.
+       - Never `background` shorthand: it resets background-clip, and the rail
+         buttons' transparent border is their touch gutter.
+       - The ring is a box-shadow, never a border. The first-listed shadow paints
+         frontmost, so the bevels are offset 2u: the 1u ring covers the outer
+         band and a 1u bevel shows just inside it.
+       - Every length is calc(N * var(--ui-u)): 1px at :root, 2px*k on the rails,
+         2px in the wave preview. Lengths built on --ui-u live in these rules,
+         never in a :root custom property, which would freeze the 1px unit.
+       Existing state classes are aliases so no JS has to rename anything.
+       src/ui/themeCss.test.js enforces all of the above. */
+    .ui-panel {
+      --panel-face: var(--ui-panel);
+      --panel-edge: var(--ui-panel-edge);
+      --panel-glow: var(--ui-glow-neutral);
+      --panel-glow-a: var(--ui-glow-rest);
+      /* The only layer painted outside the box; flush or parked surfaces set
+         it to `0 0 0 transparent` (a valid no-op inside the shadow list). */
+      --panel-drop: 0 calc(3 * var(--ui-u)) calc(14 * var(--ui-u)) rgba(0,0,0,0.5);
+      background-color: var(--panel-face);
+      background-image:
+        linear-gradient(to bottom, rgba(255,255,255,var(--ui-sheen-alpha)), transparent),
+        repeating-linear-gradient(to bottom, transparent 0, rgba(255,255,255,var(--ui-scanline-alpha)) calc(1.5 * var(--ui-u)), transparent calc(3 * var(--ui-u)));
+      box-shadow:
+        inset 0 0 0 calc(1 * var(--ui-u)) var(--panel-edge),
+        inset calc(2 * var(--ui-u)) calc(2 * var(--ui-u)) 0 var(--ui-bevel-hi),
+        inset calc(-2 * var(--ui-u)) calc(-2 * var(--ui-u)) 0 var(--ui-bevel-lo),
+        inset 0 0 calc(6 * var(--ui-u)) color-mix(in srgb, var(--panel-glow) var(--panel-glow-a), transparent),
+        var(--panel-drop);
+      color: var(--ui-text);
+    }
+    .ui-panel--primary { --panel-edge: var(--ui-edge-primary); --panel-glow: var(--ui-glow-primary); }
+
+    /* Zero specificity: drops the UA button border without beating the rail's
+       transparent gutter border (or any surface's own border). */
+    :where(.ui-btn) { border: none; }
+    .ui-btn {
+      --btn-face: var(--ui-face-neutral);
+      --btn-face-hover: var(--ui-face-hover-neutral);
+      --btn-face-pressed: var(--ui-face-pressed-neutral);
+      --btn-edge: var(--ui-edge-neutral);
+      --btn-edge-hover: var(--ui-edge-hover-neutral);
+      --btn-glow: var(--ui-glow-neutral);
+      --btn-ink: var(--ui-ink-neutral);
+      --btn-glow-a: var(--ui-glow-rest);
+      --btn-bevel-hi: var(--ui-bevel-hi);
+      --btn-bevel-lo: var(--ui-bevel-lo);
+      background-color: var(--btn-face);
+      background-image:
+        linear-gradient(to bottom, rgba(255,255,255,var(--ui-sheen-alpha)), transparent),
+        repeating-linear-gradient(to bottom, transparent 0, rgba(255,255,255,var(--ui-scanline-alpha)) calc(1.5 * var(--ui-u)), transparent calc(3 * var(--ui-u)));
+      box-shadow:
+        inset 0 0 0 calc(1 * var(--ui-u)) var(--btn-edge),
+        inset calc(2 * var(--ui-u)) calc(2 * var(--ui-u)) 0 var(--btn-bevel-hi),
+        inset calc(-2 * var(--ui-u)) calc(-2 * var(--ui-u)) 0 var(--btn-bevel-lo),
+        inset 0 0 calc(6 * var(--ui-u)) color-mix(in srgb, var(--btn-glow) var(--btn-glow-a), transparent);
+      color: var(--btn-ink);
+      cursor: pointer;
+      transition: background-color 0.12s, box-shadow 0.12s, color 0.12s;
+    }
+    .ui-btn--primary {
+      --btn-face: var(--ui-face-primary); --btn-face-hover: var(--ui-face-hover-primary);
+      --btn-face-pressed: var(--ui-face-pressed-primary); --btn-edge: var(--ui-edge-primary);
+      --btn-edge-hover: var(--ui-edge-hover-primary);
+      --btn-glow: var(--ui-glow-primary); --btn-ink: var(--ui-ink-primary); }
+    .ui-btn--danger {
+      --btn-face: var(--ui-face-danger); --btn-face-hover: var(--ui-face-hover-danger);
+      --btn-face-pressed: var(--ui-face-pressed-danger); --btn-edge: var(--ui-edge-danger);
+      --btn-edge-hover: var(--ui-edge-hover-danger);
+      --btn-glow: var(--ui-glow-danger); --btn-ink: var(--ui-ink-danger); }
+    .ui-btn--currency {
+      --btn-face: var(--ui-face-currency); --btn-face-hover: var(--ui-face-hover-currency);
+      --btn-face-pressed: var(--ui-face-pressed-currency); --btn-edge: var(--ui-edge-currency);
+      --btn-edge-hover: var(--ui-edge-hover-currency);
+      --btn-glow: var(--ui-glow-currency); --btn-ink: var(--ui-ink-currency); }
+    /* State rules follow in cascade order: on equal specificity the later one
+       wins, so disabled beats armed beats selected beats pressed beats hover. Hover is fine
+       pointers only, or a tap would leave it stuck on. */
+    @media (hover: hover) {
+      /* The ring carries hover: neutral's face step alone is 1/255. */
+      .ui-btn:hover { background-color: var(--btn-face-hover); --btn-edge: var(--btn-edge-hover); --btn-glow-a: var(--ui-glow-hover); }
+    }
+    .ui-btn:active, .ui-btn.is-pressed {
+      background-color: var(--btn-face-pressed);
+      --btn-bevel-hi: var(--ui-bevel-lo); --btn-bevel-lo: var(--ui-bevel-hi); --btn-glow-a: 0%; }
+    /* Selected is a resting state the player has to find among identical
+       neighbours (armed tower, active tab), so it keeps the sunk bevel but
+       lights an accent ring and glow: accent is the bible's selection hue. */
+    .ui-btn.selected, .ui-btn.active {
+      background-color: var(--btn-face-pressed);
+      --btn-bevel-hi: var(--ui-bevel-lo); --btn-bevel-lo: var(--ui-bevel-hi);
+      --btn-edge: var(--ui-accent); --btn-glow: var(--ui-accent); --btn-glow-a: var(--ui-glow-hover); }
+    .ui-btn.is-armed, .ui-btn.confirming {
+      --btn-edge: var(--ui-edge-currency); --btn-glow: var(--ui-edge-currency); --btn-glow-a: var(--ui-glow-armed); }
+    .ui-btn:disabled, .ui-btn.is-disabled, .ui-btn.disabled, .ui-btn.locked, .ui-btn.maxed {
+      background-color: var(--ui-face-disabled); color: var(--ui-text-dim);
+      --btn-edge: var(--ui-edge-neutral); --btn-glow-a: 0%; cursor: not-allowed; }
+    .ui-btn:focus-visible { outline: calc(1 * var(--ui-u)) solid var(--ui-accent); outline-offset: calc(-2 * var(--ui-u)); }
+    /* ── Side-rail HUD (roadmap 2.2) ─────────────────────────────────────────
+       #hud-layer is laid out in GAME px (the canvas is CANVAS_WIDTH x WORLD_HEIGHT,
+       sizes from src/data/layout.js via custom properties) and src/ui/hudLayer.js
+       scales it over the canvas with one transform, so every px below shrinks
+       with the FIT factor exactly like the map. Each rail is a 2-column grid of
+       full HUD_CELL squares: a cell is the touch target (88 game px = 44 CSS px
+       on a 360-px-tall phone; 52 game px on a mouse, where rails are narrower),
+       so the visual gap between buttons is a transparent border INSIDE each
+       button, never a grid gap that would shrink the target. Every rail length
+       below is calc(Npx * var(--hud-k)): k is 1 on touch and 52/88 on a mouse,
+       so content shrinks with its cell (src/ui/railCss.test.js enforces it).
+       Text is >= 24 game px on touch (11 CSS px at the 0.46 iPhone scale). */
+    /* The theme body stack (FONTS.body: Rajdhani, then condensed system faces)
+       so 24-px labels fit an 82-px button face; one source, so the rails can't
+       drift from the theme. Anything wider is shrunk by src/ui/fitLabels.js. */
+    #hud-layer { --hud-label-inset: calc(4px * var(--hud-k)); /* label clearance from the button ring; fitLabels reads the real padding */
+                 --hud-label-font: var(--ui-font-body);
+                 display: none; position: absolute; left: 0; top: 0; z-index: 6;
+                 width: var(--canvas-w); height: var(--world-h);
+                 transform-origin: 0 0; pointer-events: none; }
+    .hud-rail { position: absolute; top: 0; width: var(--rail-w); height: 100%;
+                pointer-events: auto;
+                /* The kit's 1u ring equals the 2px rail ring at both k values. */
+                --ui-u: calc(2px * var(--hud-k));
+                /* Flush with the map: a drop shadow would darken its outer columns. */
+                --panel-drop: 0 0 0 transparent;
+                display: flex; flex-direction: column; align-items: center; }
+    #rail-left { left: 0; justify-content: space-evenly; }
+    #rail-right { right: 0; justify-content: center; gap: calc(28px * var(--hud-k)); }
+    .rail-grid { display: grid; grid-template-columns: repeat(2, var(--hud-cell));
+                 grid-auto-rows: var(--hud-cell); }
+    /* Geometry only: every rail button is a .ui-btn and the kit paints it.
+       :where() keeps this at zero specificity so every control's own rule wins.
+       The transparent border is the touch gutter; background-clip keeps the
+       kit's face inside it. */
+    :where(.hud-rail) button { width: 100%; height: 100%; margin: 0; padding: 0 var(--hud-label-inset);
+      border: calc(3px * var(--hud-k)) solid transparent; background-clip: padding-box; border-radius: calc(12px * var(--hud-k));
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(2px * var(--hud-k));
+      /* Must stay after the global `button { font-family: inherit }` rule: both are (0,0,1), so order decides. */
+      font-family: var(--hud-label-font); font-stretch: condensed;
+      font-size: calc(24px * var(--hud-k)); line-height: 1.05; text-align: center; }
+    .hud-stat { display: flex; flex-direction: column; align-items: center; justify-content: center;
+                gap: calc(1px * var(--hud-k)); line-height: 1.05; font-size: calc(24px * var(--hud-k)); }
+    .hud-val { font-weight: bold; color: var(--ui-ink-currency); font-size: calc(28px * var(--hud-k)); }
+    .hud-lbl { color: var(--ui-text-muted); font-size: calc(24px * var(--hud-k)); }
+    /* Variants live in the markup: speed is neutral (the UI palette has no
+       green); pause is currency, because it is the one button a player needs
+       to find without looking for it. */
+    /* Exit for build/aim/reposition modes (a finger has no Escape key). It lives
+       in the rail, not over the field, so it can never sit on a pad or the path.
+       GameScene toggles [hidden]; its cell stays reserved so nothing moves. */
+    #cancel-btn { font-weight: bold; }
+    #cancel-btn[hidden] { display: none; }
+
+    #pause-btn { font-weight: bold; }
     /* Paused is a state you can get stuck in, so the way back out is the
-       brightest thing in the bar rather than the same pill with new text. */
-    #pause-btn.paused { background: #ffd700; border-color: #ffd700; color: #241a00; }
-    #pause-btn.paused:hover { background: #ffe34d; border-color: #ffe34d; }
+       brightest thing in the rail rather than the same tile with new text.
+       Vars only: the kit's states still read them (pressed swaps the bevel). */
+    #pause-btn.paused { --btn-face: var(--ui-currency); --btn-face-hover: var(--ui-currency);
+      --btn-face-pressed: var(--ui-currency); --btn-ink: var(--ui-panel); }
 
-    #pause-btn.disabled, #exit-btn.disabled {
-                 background: #2a2a2a; border-color: #444; color: #666;
-                 cursor: not-allowed; pointer-events: none; }
-    #game { flex: 1; position: relative; min-height: 0; overflow: hidden;
-            display: flex; align-items: center; justify-content: center; }
-    #game canvas { display: block; }
-    #bottom-bar { display: none; align-items: center; gap: 8px; padding: 8px 14px;
-                  background: #0f0f1e; border-top: 2px solid #8b6914; flex-shrink: 0; }
-    .tower-btn { background: #1a1a3a; border: 2px solid #444; border-radius: 6px;
-                 padding: 6px 10px; cursor: pointer; display: flex; flex-direction: column;
-                 align-items: center; gap: 2px; transition: all 0.15s; color: #e8e0d0; }
-    .tower-btn:hover { border-color: #ffd700; background: #252545; }
-    .tower-btn.selected { border-color: #ffd700; background: #2a2a1a; }
-    .tower-btn .t-icon { font-size: 20px; }
-    .tower-btn .t-cost { font-size: 11px; color: #ffd700; }
-    .tower-btn .t-name { font-size: 10px; color: #aaa; }
+    #pause-btn.disabled, #exit-btn.disabled { pointer-events: none; }
+    /* #game is the whole safe-area box: the canvas FITs inside it and the HUD
+       rails are part of the canvas footprint. Block, not flex-centred: Phaser's
+       CENTER_BOTH already centres the canvas with margins, and a flex centre on
+       top of those pushed it off-centre by half the letterbox. */
+    #game { position: relative; width: 100%; height: 100%; overflow: hidden; }
+    /* Canvas only: DOM overlays inside #game (story log, codex) must still scroll. */
+    #game canvas { display: block; touch-action: none; }
+    /* Danger red from the art bible. The frame glow is an overlay rather than an
+       inset box-shadow on #game, because the canvas would paint over a shadow on
+       the element's own background. */
+    /* z-index above #hud-layer so the frame still reads at the rails' outer edge. */
+    #game::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 7;
+                   opacity: 0; box-shadow: inset 0 0 36px 6px #f07a7a; }
+    #game.life-lost-frame::after { animation: life-lost-frame 450ms ease-out; }
+    /* Wave banner + boss warning: top-centre of the play area (below the HUD bar,
+       which sits outside #game). Never intercepts input. Animations end at opacity 0
+       so no JS timer hides them; durations arrive as custom properties from juice.js. */
+    /* Over the map, not #game: --map-* (CSS px, set by src/ui/hudLayer.js) skip
+       the rails and the letterbox; the fallbacks are the old #game anchoring. */
+    #wave-banner, #wave-banner-boss { position: absolute; z-index: 5;
+      left: calc(var(--map-left, 0px) + var(--map-width, 100%) / 2);
+      transform: translateX(-50%); opacity: 0; pointer-events: none; white-space: nowrap;
+      text-shadow: 0 2px 4px #000; }
+    #wave-banner { top: calc(var(--map-top, 0px) + 10px); font-size: 20px; font-weight: bold; color: #fff;
+      background: rgba(0,0,0,0.45); padding: 4px 16px; border-radius: 4px; }
+    #wave-banner-boss { top: calc(var(--map-top, 0px) + 48px); font-size: 15px; font-weight: bold; color: var(--boss-warning-color, #ff4d4d);
+      background: rgba(0,0,0,0.55); padding: 3px 12px; border-radius: 4px; }
+    #wave-banner.show { animation: wave-banner var(--wave-banner-ms, 1800ms) ease-out forwards; }
+    #wave-banner-boss.show { animation: wave-banner var(--boss-warning-ms, 2400ms) ease-out forwards; }
+    #boss-frame { position: absolute; inset: 0; z-index: 7; pointer-events: none; opacity: 0;
+      box-shadow: inset 0 0 48px 8px var(--boss-warning-color, #ff4d4d); }
+    #boss-frame.show { animation: boss-frame var(--boss-warning-ms, 2400ms) ease-in-out forwards; }
+    @keyframes wave-banner {
+      0%   { opacity: 0; transform: translateX(-50%) translateY(-12px); }
+      12%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+      80%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+      100% { opacity: 0; transform: translateX(-50%) translateY(0); }
+    }
+    @keyframes boss-frame {
+      0%, 40%, 80% { opacity: 0.85; }
+      20%, 60%, 100% { opacity: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #wave-banner.show, #wave-banner-boss.show { animation-name: wave-banner-fade; }
+      #boss-frame.show { animation-name: boss-frame-fade; }
+      @keyframes boss-frame-fade { 0% { opacity: 0.85; } 100% { opacity: 0; } }
+      @keyframes wave-banner-fade {
+        0%   { opacity: 0; transform: translateX(-50%); }
+        12%  { opacity: 1; transform: translateX(-50%); }
+        80%  { opacity: 1; transform: translateX(-50%); }
+        100% { opacity: 0; transform: translateX(-50%); }
+      }
+    }
+    .hud-stat.life-lost-pulse { animation: life-lost-pulse 450ms ease-out; }
+    @keyframes life-lost-frame { from { opacity: 0.9; } to { opacity: 0; } }
+    @keyframes life-lost-pulse {
+      0%   { transform: scale(1);    text-shadow: 0 0 0 transparent; }
+      35%  { transform: scale(1.18); text-shadow: 0 0 8px #f07a7a; }
+      100% { transform: scale(1);    text-shadow: 0 0 0 transparent; }
+    }
+    .hud-stat.gold-gain-pulse { animation: gold-gain-pulse 300ms ease-out; }
+    @keyframes gold-gain-pulse {
+      0%   { transform: scale(1);    text-shadow: 0 0 0 transparent; }
+      35%  { transform: scale(1.12); text-shadow: 0 0 8px #ffd700; }
+      100% { transform: scale(1);    text-shadow: 0 0 0 transparent; }
+    }
+    /* Reduced motion keeps the colour cue but drops the scale, so the lives
+       counter still reads as a hit without any movement. */
+    @media (prefers-reduced-motion: reduce) {
+      .hud-stat.life-lost-pulse { animation-name: life-lost-fade; }
+      .hud-stat.gold-gain-pulse { animation-name: gold-gain-fade; }
+      @keyframes gold-gain-fade {
+        0%   { text-shadow: 0 0 0 transparent; }
+        35%  { text-shadow: 0 0 8px #ffd700; }
+        100% { text-shadow: 0 0 0 transparent; }
+      }
+      @keyframes life-lost-fade {
+        0%   { text-shadow: 0 0 0 transparent; }
+        35%  { text-shadow: 0 0 8px #f07a7a; }
+        100% { text-shadow: 0 0 0 transparent; }
+      }
+    }
+    .tower-btn { gap: 0; }
+    /* The three lines' 1.05 line boxes already fill the 82-px face, and the
+       last line's glyphs overhang their box (Rajdhani's content area is ~1.25em;
+       the condensed fallbacks are taller still), so the button overflowed by
+       2-4 px. The emoji line gives that height back: its glyph ink is unchanged,
+       only the line box shrinks. 0.8 fits Rajdhani and the font-blocked stack. */
+    .tower-btn .t-icon { font-size: calc(30px * var(--hud-k)); line-height: 0.8; }
+    .tower-btn .t-cost { font-size: calc(24px * var(--hud-k)); color: #ffd700; }
+    .tower-btn .t-name { font-size: calc(24px * var(--hud-k)); color: #aaa; }
     #tower-tooltip { position: absolute; display: none; z-index: 50;
-                     background: #0f0f1e; border: 1px solid #8b6914; border-radius: 5px;
-                     padding: 6px 8px; font-size: 11px; color: #ddd;
-                     pointer-events: none; white-space: nowrap; max-width: 220px; }
+                     border-radius: 5px; padding: 6px 8px; font-size: 11px;
+                     pointer-events: none; max-width: 220px; }
     #tower-tooltip strong { display: block; margin-bottom: 3px; color: #ffd700; }
     #tower-tooltip .tt-line-good { display: block; color: #6f6; }
     #tower-tooltip .tt-line-bad  { display: block; color: #f88; }
-    #tower-panel .panel-matchups { font-size: 10px; margin: 4px 0; line-height: 1.4; }
-    #tower-panel .panel-matchups .mu-good { display: block; color: #6f6; }
-    #tower-panel .panel-matchups .mu-bad  { display: block; color: #f88; }
-    #tower-panel .panel-armour { font-size: 10px; margin: 4px 0; line-height: 1.4; }
-    #tower-panel .panel-armour .ar-head  { display: block; color: #aaa; }
-    #tower-panel .panel-armour .ar-heavy { color: #fc6; }
-    #tower-panel .panel-armour .ar-floor { color: #f66; font-weight: bold; }
-    .branch-card .branch-matchup { color: #ffcc66; font-size: 10px; margin-bottom: 3px; }
-    .branch-card .branch-armour { color: #aaa; font-size: 10px; margin-bottom: 3px; }
-    .branch-card .branch-armour .ar-heavy { color: #fc6; }
-    .branch-card .branch-armour .ar-floor { color: #f66; font-weight: bold; }
-    #wave-btn { background: #8b1a1a; border: 2px solid #cc3333;
-                color: #fff; padding: 8px 16px; border-radius: 6px; cursor: pointer;
-                font-size: 13px; font-weight: bold; }
-    #wave-btn:hover { background: #aa2222; }
-    #wave-btn:disabled { background: #333; border-color: #555; color: #666; cursor: not-allowed; }
-    #exit-btn { margin-left: auto; background: #2a1a1a; border: 1px solid #6a4a4a;
-                color: #ddaaaa; padding: 8px 14px; border-radius: 6px; cursor: pointer;
-                font-size: 13px; }
-    #exit-btn:hover { background: #3a2222; border-color: #8a5a5a; }
-    #tower-panel { position: absolute; background: #0f0f1e; border: 2px solid #8b6914;
-                   border-radius: 8px; padding: 11px; width: 170px; z-index: 10; display: none; }
-    #tower-panel .panel-name { font-size: 13px; font-weight: bold; color: #ffd700; margin-bottom: 5px; }
-    #tower-panel .panel-stat { font-size: 11px; color: #aaa; margin: 2px 0; }
-    #tower-panel .upgrade-btn { width: 100%; background: #1a3a1a; border: 1px solid #4a8a4a;
-                                 color: #7af07a; padding: 5px; border-radius: 4px;
-                                 cursor: pointer; font-size: 11px; margin-top: 4px; }
-    #tower-panel .upgrade-btn:hover { background: #2a4a2a; }
-    #tower-panel .upgrade-btn.maxed { background: #1a1a3a; border-color: #4a4aaa;
-                                       color: #7a7af0; cursor: default; }
-    #tower-panel .sell-btn { width: 100%; background: #3a1a1a; border: 1px solid #8a3a3a;
-                              color: #f07a7a; padding: 5px; border-radius: 4px;
-                              cursor: pointer; font-size: 11px; margin-top: 3px; }
-    .branch-header { font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
-                     color: #f0a500; margin-bottom: 7px; }
-    .branch-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 8px; }
-    .branch-card { border: 1px solid #555; border-radius: 5px; padding: 7px; font-size: 11px; }
-    .branch-card:not(.locked) { border-color: #f0a500; background: #1a1400; }
-    .branch-card.locked { opacity: 0.45; }
-    .branch-label { font-weight: bold; margin-bottom: 3px; }
-    .branch-effect { color: #888; margin-bottom: 4px; font-size: 10px; }
-    .branch-cost { color: #f0a500; font-weight: bold; margin-bottom: 5px; }
-    .reposition-btn { width: 100%; background: #1a2a3a; border: 1px solid #4fc3f7;
-                      color: #4fc3f7; padding: 5px; border-radius: 4px;
-                      cursor: pointer; font-size: 11px; margin-top: 3px; }
-    .reposition-btn:hover { background: #223344; }
+    /* Radial item peeks (upgrade deltas, branch armour) reuse the tooltip. */
+    #tower-tooltip .tt-line, #tower-tooltip .tt-line-armour { display: block; }
+    #tower-tooltip .tt-line-armour { color: #aaa; }
+    #tower-tooltip .tt-line-confirm { display: block; font-weight: bold; color: #ffd700; margin-bottom: 3px; }
+    #tower-tooltip .ar-heavy { color: #fc6; }
+    #tower-tooltip .ar-floor { color: #f66; font-weight: bold; }
+    #wave-btn { font-size: calc(26px * var(--hud-k)); font-weight: bold; }
+    /* Auto-send countdown ring (#51). Pseudo-elements, never a child: fitLabels
+       fits a childless button by its text range, and textContent stays the plain
+       label. ::before is the arc masked to a donut; the digit is ::after because
+       that mask would cut it out of the hole too. GameScene drives cd-on/cd-warn/
+       cd-tick, data-secs and --cd (1 -> 0). The hue rides a custom property so no
+       paint lands on the kit button. The digit keeps the label face: Orbitron is
+       16 px and up only, and the body face is narrow enough for any count. */
+    #wave-btn { position: relative; --wave-ring: var(--ui-currency); }
+    /* Beside the ring the label wraps to three lines ("▶ Send / Wave 18 / (+42g)");
+       at the rail's 1.05 they overflow the 82-px face onto the bevel (iPhone, #51). */
+    #wave-btn.cd-on { padding-left: calc(64px * var(--hud-k)); line-height: 0.9; }
+    #wave-btn.cd-warn { --wave-ring: var(--ui-danger); }
+    #wave-btn.cd-on::before, #wave-btn.cd-on::after {
+      position: absolute; left: calc(6px * var(--hud-k)); top: 50%;
+      width: calc(52px * var(--hud-k)); height: calc(52px * var(--hud-k));
+      margin-top: calc(-26px * var(--hud-k)); border-radius: 50%; pointer-events: none; }
+    #wave-btn.cd-on::before { content: '';
+      background: conic-gradient(var(--wave-ring) calc(var(--cd, 0) * 360deg), var(--ui-bevel-lo) 0);
+      -webkit-mask: radial-gradient(closest-side, transparent calc(100% - calc(6.5px * var(--hud-k))), black calc(100% - calc(6px * var(--hud-k))));
+      mask: radial-gradient(closest-side, transparent calc(100% - calc(6.5px * var(--hud-k))), black calc(100% - calc(6px * var(--hud-k)))); }
+    #wave-btn.cd-on::after { content: attr(data-secs);
+      display: flex; align-items: center; justify-content: center;
+      font-size: calc(24px * var(--hud-k)); font-weight: bold; line-height: 1; }
+    /* One small beat per whole second in the warn window; pulseClass restarts it. */
+    #wave-btn.cd-tick::before, #wave-btn.cd-tick::after { animation: wave-cd-tick 250ms ease-out; }
+    @keyframes wave-cd-tick { from { transform: scale(1.12); } to { transform: scale(1); } }
+    @media (prefers-reduced-motion: reduce) {
+      #wave-btn.cd-tick::before, #wave-btn.cd-tick::after { animation: none; }
+    }
+    /* Radial menu (roadmap 3.3): geometry only, the kit paints. It covers the
+       whole layer in game px; RadialMenu.js sets each button's centre as left/top,
+       so the translate puts the circle on that point. Sizes are published by
+       src/ui/hudLayer.js from radialMetrics(HUD_CELL), so they track the rails. */
+    #radial { position: absolute; inset: 0; pointer-events: none; z-index: 1;
+              --ui-u: calc(2px * var(--hud-k)); }
+    #radial-hub, .radial-item { position: absolute; pointer-events: auto; margin: 0;
+      transform: translate(-50%, -50%); border-radius: 50%;
+      padding: 0 calc(10px * var(--hud-k));
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: calc(2px * var(--hud-k)); line-height: 1.05; text-align: center; white-space: nowrap;
+      font-family: var(--hud-label-font); font-stretch: condensed; font-size: calc(22px * var(--hud-k)); }
+    /* 24 game px is the smallest caption that stays ~11 CSS px on a 340-px-tall
+       phone (FIT ~0.46); faces hold only a glyph + short caption, so it fits. */
+    .radial-item { width: var(--radial-item); height: var(--radial-item); font-size: calc(24px * var(--hud-k)); }
+    .radial-item[hidden] { display: none; }
+    /* The glyph matches the caption size: a taller glyph pushes the caption
+       (the widest line) toward the rim, where the circle is narrowest. */
+    .radial-item .radial-icon { font-size: calc(24px * var(--hud-k)); line-height: 0.9; }
+    #radial-hub { width: var(--radial-hub); height: var(--radial-hub); font-size: calc(24px * var(--hud-k)); }
+    #radial-hub .radial-hub-line:first-child { font-weight: bold; }
+    /* Long-press targets: stop the iOS callout and text selection that would
+       otherwise open over the peek card. */
+    .tower-btn, .ability-btn-wrap, #wave-btn, #radial-hub, .radial-item {
+      -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+    /* Chrome/Safari fire no pointer events on a disabled control, so a press on
+       one never reaches its hover/long-press wrapper. pointer-events:none lets
+       the press fall through to the wrapper; the not-allowed cursor moves there
+       because the button no longer receives hover. */
+    #wave-btn:disabled, .ability-btn:disabled { pointer-events: none; }
+    #wave-btn-wrap:has(> #wave-btn:disabled),
+    .ability-btn-wrap:has(> .ability-btn:disabled) { cursor: not-allowed; }
     #game-msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-                background: rgba(0,0,0,0.88); border: 3px solid #8b6914; border-radius: 12px;
+                border-radius: 12px;
                 padding: 28px 38px; text-align: center; display: none; z-index: 20; }
     #game-msg h2 { font-size: 26px; margin-bottom: 8px; }
     #game-msg p { color: #aaa; margin-bottom: 14px; font-size: 13px; }
-    #game-msg button { background: #8b6914; border: none; color: #fff; padding: 9px 22px;
-                       border-radius: 6px; cursor: pointer; font-size: 14px; }
-    #game-msg #msg-cancel-btn { background: #333; margin-left: 8px; }
-    .story-banner { position:absolute; top:-130px; left:5%; right:5%; background:linear-gradient(135deg,#0a1a2a,#0a2a1a);
-                    border:1px solid #2a5a3a; border-radius:8px; padding:12px 16px; z-index:25;
+    #game-msg button { padding: 9px 22px; border-radius: 6px; font-size: 14px; }
+    #game-msg #msg-cancel-btn { margin-left: 8px; }
+    /* Spans the middle 90% of the map; hidden, it sits wholly above #game
+       (overflow hidden) wherever the map's top edge is. */
+    .story-banner { position:absolute; top:calc(var(--map-top, 0px) + 15px);
+                    left:calc(var(--map-left, 0px) + var(--map-width, 100%) * 0.05);
+                    width:calc(var(--map-width, 100%) * 0.9);
+                    transform:translateY(calc(-100% - var(--map-top, 0px) - 20px));
+                    border-radius:8px; padding:12px 16px; z-index:25;
                     display:flex; align-items:flex-start; gap:12px;
-                    transition:transform 0.35s ease; pointer-events:none; }
-    .story-banner.visible { transform:translateY(145px); pointer-events:auto; }
+                    transition:transform 0.35s ease; pointer-events:none;
+                    /* Parked just above #game while hidden: a drop would leak below it. */
+                    --panel-drop: 0 0 0 transparent; }
+    .story-banner.visible { transform:none; pointer-events:auto; }
+    .game-toast { position: absolute; z-index: 30; pointer-events: none;
+                  top: calc(var(--map-top, 0px) + 16px);
+                  left: calc(var(--map-left, 0px) + var(--map-width, 100%) / 2);
+                  transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #f39c12;
+                  padding: 6px 16px; border-radius: 6px; font-size: 13px; white-space: nowrap; }
     #paused-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.55);
                       display: none; z-index: 30; pointer-events: none;
                       align-items: center; justify-content: center;
@@ -124,71 +389,446 @@
                       text-shadow: 0 2px 8px rgba(0,0,0,0.7); letter-spacing: 6px; }
     #paused-overlay.shown { display: flex; }
     .story-content { flex:1; }
-    #story-headline { font-size:10px; color:#5a9a6a; letter-spacing:1px; text-transform:uppercase; margin-bottom:5px; }
+    #story-headline { font-size:var(--ui-fs-xs); color:#5a9a6a; letter-spacing:1px; text-transform:uppercase; margin-bottom:5px; }
     #story-body { font-size:13px; color:#ddd; line-height:1.6; }
-    #story-dismiss { background:transparent; border:1px solid #3a6a4a; color:#7aba8a;
-                     padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px; flex-shrink:0; }
-    #story-dismiss:hover { background:#1a2a1a; }
+    #story-dismiss { padding:4px 10px; border-radius:4px; font-size:12px; flex-shrink:0; }
+    /* Story dialog: action-comic caption boxes (roadmap 3.5, spec §4). No card: a
+       stage over the dim holds a skewed portrait frame, a name tab and a caption,
+       then a fixed action row. Speaker colours arrive as --sd-frame/--sd-caption
+       (unset for an unknown speaker, so the token fallbacks paint it); "ink" is
+       --ui-bevel-lo. Timings are the --sd-*-ms vars StoryDialogOverlay publishes
+       from STORY_DIALOG. The whole overlay is one tap target, so it is a pointer
+       and never selects text. src/ui/storyDialogCss.test.js guards all of this. */
     .story-dialog-overlay { display:none; position:absolute; inset:0; z-index:18;
-      background:rgba(2,4,10,0.78); align-items:center; justify-content:center; }
-    .story-dialog-card { width:90%; max-width:680px; background:linear-gradient(135deg,#0a1426,#0a1a14);
-      border:1px solid #2a4a6a; border-radius:10px; padding:22px; display:flex; gap:18px; }
-    .story-dialog-portrait { width:96px; height:96px; flex:0 0 96px; border-radius:8px;
-      display:flex; align-items:center; justify-content:center; font-size:42px; font-weight:bold;
-      color:#0a0a0a; overflow:hidden; }
-    .story-dialog-portrait img { width:100%; height:100%; object-fit:cover; }
-    .story-dialog-body { flex:1; display:flex; flex-direction:column; }
-    .story-dialog-name { font-size:13px; letter-spacing:1px; text-transform:uppercase; margin-bottom:8px; font-weight:bold; }
-    .story-dialog-text { font-size:15px; color:#e6e6e6; line-height:1.6; flex:1; }
-    .story-dialog-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; }
-    .story-dialog-actions button { background:#16324a; border:1px solid #2a5a7a; color:#cfe;
-      padding:7px 16px; border-radius:6px; cursor:pointer; font-size:13px; }
-    .story-dialog-actions button:hover { background:#1d4360; }
-    #story-dialog-skip { background:transparent; border-color:#3a4a5a; color:#8aa; }
+      background:rgba(0,0,0,0.72); align-items:center; justify-content:center;
+      cursor:pointer; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; touch-action:manipulation; }
+    #story-dialog { --sd-skew: calc(-1 * var(--sd-skew-deg, 6deg)); --sd-slam-from: -14%; }
+    #story-dialog[data-side="right"] { --sd-skew: var(--sd-skew-deg, 6deg); --sd-slam-from: 14%; }
+    .sd-stage { --sd-portrait-h: min(calc(264 * var(--ui-u)), 42dvh);
+      --sd-frame-border: calc(6 * var(--ui-u)); --sd-frame-outline: calc(3 * var(--ui-u));
+      --sd-frame-drop: calc(12 * var(--ui-u)); --sd-box-border: calc(4 * var(--ui-u));
+      --sd-box-drop: calc(7 * var(--ui-u)); --sd-dot: calc(9 * var(--ui-u));
+      width:min(1100px, 92vw); display:flex; flex-direction:column; gap:calc(12 * var(--ui-u)); }
+    /* Fixed height (portrait + outline + drop), so a 1-line or 3-line caption never moves the action row. */
+    .sd-panel-row { display:flex; align-items:flex-start;
+      height:calc(var(--sd-portrait-h) + var(--sd-frame-outline) + var(--sd-frame-drop)); }
+    #story-dialog[data-side="right"] .sd-panel-row { flex-direction:row-reverse; }
+    /* The padding reserves the skew overhang (tan 6° x h/2) plus the outline and drop
+       on both sides, so a mirrored frame neither clips at the edge nor hits the caption.
+       Outer = slam, inner = glitch, frame = skew: each animates its own property. */
+    .sd-frame-outer { flex:none; padding:var(--sd-frame-outline) calc(32 * var(--ui-u)) 0; }
+    .sd-frame { position:relative; height:var(--sd-portrait-h); aspect-ratio:20 / 23; overflow:hidden;
+      transform:skewX(var(--sd-skew));
+      background-color:var(--ui-bevel-lo);
+      border:var(--sd-frame-border) solid var(--ui-bevel-lo);
+      outline:var(--sd-frame-outline) solid var(--sd-frame, var(--ui-panel-edge));
+      box-shadow:var(--sd-frame-drop) var(--sd-frame-drop) 0 var(--ui-bevel-lo); }
+    /* Counter-skewed and scaled 1.12 so the face fills the parallelogram with no wedges. */
+    .sd-frame img, .sd-initial { position:absolute; inset:0; width:100%; height:100%;
+      transform:skewX(calc(var(--sd-skew) * -1)) scale(1.12); }
+    .sd-frame img { object-fit:cover; }
+    .sd-initial { display:flex; align-items:center; justify-content:center;
+      background-color:var(--sd-frame, var(--ui-panel-edge)); color:var(--ui-bevel-lo);
+      font-family:var(--ui-font-heading); font-weight:700; font-size:clamp(var(--ui-fs-title), 9dvh, 96px); }
+    .sd-frame::after { content:''; position:absolute; inset:0; pointer-events:none;
+      background-image:radial-gradient(circle, rgba(0,0,0,0.85) 28%, transparent 30%);
+      background-size:var(--sd-dot) var(--sd-dot); mix-blend-mode:multiply; opacity:.5; }
+    .sd-column { flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-start;
+      gap:calc(12 * var(--ui-u)); padding-top:var(--sd-frame-outline); }
+    #story-dialog[data-side="right"] .sd-column { align-items:flex-end; }
+    .sd-tab { display:flex; max-width:100%; min-width:0; transform-origin:left center; }
+    #story-dialog[data-side="right"] .sd-tab { transform-origin:right center; }
+    .sd-name { min-width:0; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      font-family:var(--ui-font-heading); font-weight:700; font-size:clamp(16px, 1.25vw, var(--ui-fs-lg));
+      letter-spacing:.3em; text-transform:uppercase; line-height:1.2;
+      padding:calc(8 * var(--ui-u)) calc(18 * var(--ui-u));
+      color:var(--sd-frame, var(--ui-panel-edge)); background-color:var(--ui-bevel-lo);
+      border:var(--sd-box-border) solid var(--sd-frame, var(--ui-panel-edge));
+      box-shadow:var(--sd-box-drop) var(--sd-box-drop) 0 var(--ui-bevel-lo); }
+    /* Holds its line so an unnamed speaker's caption sits where every other one does. */
+    .sd-name:empty { visibility:hidden; }
+    /* Capped on tall screens to the mockup's caption measure (~58% of the stage), so a
+       mirrored caption still hugs its portrait; compact uses the whole column. */
+    .sd-caption-outer { width:min(100%, calc(700 * var(--ui-u))); transform-origin:left top; }
+    #story-dialog[data-side="right"] .sd-caption-outer { transform-origin:right top; }
+    /* Padding reserves the bottom-right corner for the ▸ mark, so it never shifts the text. */
+    .sd-caption { position:relative; isolation:isolate;
+      padding:calc(14 * var(--ui-u)) calc(40 * var(--ui-u)) calc(16 * var(--ui-u)) calc(22 * var(--ui-u));
+      background-color:var(--sd-caption, var(--ui-text));
+      border:var(--sd-box-border) solid var(--ui-bevel-lo);
+      box-shadow:var(--sd-box-drop) var(--sd-box-drop) 0 var(--ui-bevel-lo); }
+    /* clip-path would clip a border and a box-shadow, so the jagged caption is layered:
+       an ink polygon, the fill polygon inset by the border width, and the drop shadow as
+       a filter on the unclipped parent so it follows the edge. The transparent border
+       keeps the box model identical, so a Veth line wraps like any other. */
+    #story-dialog[data-shape="jagged"] .sd-caption-outer {
+      filter:drop-shadow(var(--sd-box-drop) var(--sd-box-drop) 0 var(--ui-bevel-lo)); }
+    #story-dialog[data-shape="jagged"] .sd-caption { background-color:transparent; border-color:transparent; box-shadow:none; }
+    #story-dialog[data-shape="jagged"] .sd-caption::before,
+    #story-dialog[data-shape="jagged"] .sd-caption::after { content:''; position:absolute; z-index:-1;
+      clip-path:polygon(0 8%, 3% 0, 97% 0, 100% 10%, 98% 92%, 100% 100%, 4% 100%, 0 88%, 2% 50%); }
+    #story-dialog[data-shape="jagged"] .sd-caption::before { inset:calc(-1 * var(--sd-box-border)); background-color:var(--ui-bevel-lo); }
+    #story-dialog[data-shape="jagged"] .sd-caption::after { inset:0; background-color:var(--sd-caption, var(--ui-text)); }
+    .sd-text { font-family:var(--ui-font-body); font-weight:700; font-size:clamp(var(--ui-fs-lg), 1.7vw, var(--ui-fs-xl));
+      line-height:1.3; color:var(--ui-bevel-lo); }
+    /* Hidden, not removed: the untyped rest keeps the line's wraps fixed while typing. */
+    .sd-rest { visibility:hidden; }
+    .sd-done-mark { visibility:hidden; position:absolute; right:calc(14 * var(--ui-u)); bottom:calc(8 * var(--ui-u));
+      font-size:var(--ui-fs-lg); line-height:1; color:var(--ui-bevel-lo); }
+    #story-dialog[data-phase="complete"] .sd-done-mark { visibility:visible;
+      animation:sd-blink var(--sd-continue-blink-ms) steps(2, jump-none) infinite; }
+    /* Right-aligned for every speaker and outside every animated subtree, so a tap
+       always lands where the button is drawn. */
+    .sd-actions { display:flex; gap:calc(10 * var(--ui-u)); justify-content:flex-end; min-height:40px; }
+    .sd-actions button { min-height:40px; padding:calc(8 * var(--ui-u)) calc(18 * var(--ui-u));
+      border-radius:calc(6 * var(--ui-u)); font-size:var(--ui-fs-md); }
+    /* Wide enough for "Continue ▸", so relabelling the last panel never shifts Skip. */
+    #story-dialog-next { min-width:calc(128 * var(--ui-u)); }
+    /* Motion beats (spec §3.4): individual translate/scale only, never transform,
+       which carries the skew. The overlay replays .sd-slam/.sd-swap per panel. */
+    #story-dialog.sd-slam .sd-frame-outer {
+      animation:sd-slam-in var(--sd-slam-ms) cubic-bezier(.2,.9,.3,1.2) both; }
+    #story-dialog.sd-slam .sd-tab, #story-dialog.sd-slam .sd-caption-outer {
+      animation:sd-pop-in var(--sd-caption-pop-ms) ease-out var(--sd-caption-delay-ms) both; }
+    #story-dialog.sd-swap .sd-caption-outer { animation:sd-punch var(--sd-swap-ms) ease-out both; }
+    /* The caption glitches a beat after the portrait, as in the approved mockup. */
+    #story-dialog[data-glitch="1"] .sd-frame-inner { animation:sd-glitch var(--sd-glitch-period-ms) steps(1) infinite; }
+    #story-dialog[data-glitch="1"] .sd-caption {
+      animation:sd-glitch var(--sd-glitch-period-ms) steps(1) var(--sd-glitch-caption-offset-ms) infinite; }
+    @keyframes sd-slam-in { from { translate:var(--sd-slam-from) 0; scale:1.08; opacity:0; } to { translate:0 0; scale:1; opacity:1; } }
+    @keyframes sd-pop-in { 0% { scale:.6; opacity:0; } 70% { scale:1.04; opacity:1; } 100% { scale:1; opacity:1; } }
+    @keyframes sd-punch { from { scale:.96; } to { scale:1; } }
+    /* Played with steps(1), so each offset holds until the next: the blip runs from 95%
+       to the end, the last glitchMs 120 of glitchPeriodMs 2400 (1 - 120/2400 = 95%).
+       Keyframe offsets can't read a var; storyDialogCss.test.js pins 95% to the data. */
+    @keyframes sd-glitch { 0%, 100% { translate:0 0; filter:none; }
+      95% { translate:-0.6% 0; filter:hue-rotate(40deg); } 97.5% { translate:0.5% 0; filter:hue-rotate(40deg); } }
+    @keyframes sd-blink { from { opacity:1; } to { opacity:0; } }
+    /* Reduced motion (spec §6) is the saved setting, so a class rather than a media query. */
+    #story-dialog.motion-off, #story-dialog.motion-off *,
+    #story-dialog.motion-off *::before, #story-dialog.motion-off *::after { animation:none !important; }
+    /* Compact (COMPACT_QUERY, landscape phones): smaller frame and kit lengths, and
+       the name drops to Rajdhani, the art bible's "Orbitron at 16 px and up only". */
+    @media (max-height: 500px) {
+      .sd-stage { --sd-portrait-h: min(48dvh, calc(160 * var(--ui-u)));
+        --sd-frame-border: calc(4 * var(--ui-u)); --sd-frame-outline: calc(2 * var(--ui-u));
+        --sd-frame-drop: calc(8 * var(--ui-u)); --sd-box-border: calc(3 * var(--ui-u));
+        --sd-box-drop: calc(5 * var(--ui-u)); --sd-dot: calc(6 * var(--ui-u));
+        width:100%; padding:0 var(--ui-sp-sm); gap:calc(8 * var(--ui-u)); }
+      .sd-frame-outer { padding:var(--sd-frame-outline) calc(20 * var(--ui-u)) 0; }
+      .sd-column { gap:calc(6 * var(--ui-u)); }
+      .sd-caption-outer { width:100%; }
+      .sd-name { font-family:var(--ui-font-body); font-size:var(--ui-fs-sm); letter-spacing:.2em;
+        padding:calc(4 * var(--ui-u)) calc(12 * var(--ui-u)); }
+      .sd-caption { padding:calc(8 * var(--ui-u)) calc(30 * var(--ui-u)) calc(10 * var(--ui-u)) calc(14 * var(--ui-u)); }
+      .sd-text { font-size:var(--ui-fs-md); }
+      .sd-done-mark { right:calc(10 * var(--ui-u)); bottom:calc(6 * var(--ui-u)); font-size:var(--ui-fs-md); }
+      /* Spec §7: >= 44x44 in compact for any pointer (a 200%-zoomed laptop is compact and fine). */
+      .sd-actions { min-height:44px; }
+      .sd-actions button { min-height:44px; min-width:44px; padding:calc(6 * var(--ui-u)) calc(14 * var(--ui-u)); }
+      #story-dialog-next { min-width:calc(110 * var(--ui-u)); }
+    }
+    /* Results screen: action-comic finale (roadmap 3.6, spec §6, §8). A skewed banner
+       slams in over a halftone wash, stars stamp, chips pop, then the speaker's line and
+       the button stack fade in. --rs-hue is currency on a win and danger on a loss; the
+       speaker arrives as --rs-frame/--rs-caption; "ink" is --ui-bevel-lo. Timings are the
+       --rs-*-ms vars ResultsScreen publishes from RESULTS, and each revealed element gets
+       its delay as an inline --rs-at. Resting styles are the END state: keyframes only
+       describe the from-side (fill both), so .rs-done skips straight to it. Only the
+       individual translate/scale/rotate/opacity properties animate, never transform,
+       which carries the banner skew. src/ui/resultsCss.test.js guards all of this. */
+    .rs-overlay { position:absolute; inset:0; z-index:26; background:rgba(0,0,0,0.66); outline:none;
+      cursor:pointer; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; touch-action:manipulation;
+      animation:rs-fade var(--rs-fade-ms) ease-out backwards; }
+    #results[hidden] { display:none; }
+    #results { --rs-hue: var(--ui-currency); --rs-skew: var(--rs-skew-deg, 5deg); --rs-tan: var(--rs-skew-tan, 0.0875);
+      --rs-tilt: var(--rs-chip-tilt-deg, 2deg); --rs-ink-drop: calc(10 * var(--ui-u)); }
+    #results[data-result="defeat"] { --rs-hue: var(--ui-danger); }
+    /* The map rect, so the results sit where the battlefield was and the rails stay framed. */
+    .rs-stage { position:absolute; left:var(--map-left, 0px); top:var(--map-top, 0px);
+      width:var(--map-width, 100%); height:var(--map-height, 100%); container-type:size; overflow:hidden;
+      display:grid; grid-template-columns:1fr auto; grid-template-rows:auto auto auto 1fr;
+      grid-template-areas:"banner banner" "stars stars" "chips chips" "caption actions";
+      padding-bottom:clamp(8px, 3vh, 40px); column-gap:clamp(12px, 2.5vw, 40px); row-gap:clamp(6px, 1.6vh, 20px);
+      box-sizing:border-box; }
+    /* cq units and container queries on the stage's own box would resolve against an
+       ancestor, so the side insets and every size tier live on its children, where 1cqw
+       is 1% of the stage. */
+    /* Positioned so DOM order stacks them above the absolutely placed wash. */
+    .rs-banner, .rs-stars, .rs-chips, .rs-caption, .rs-actions { position:relative; }
+    .rs-halftone { position:absolute; inset:0; pointer-events:none; opacity:.16; mix-blend-mode:screen;
+      background-image:radial-gradient(circle, var(--rs-hue) 22%, transparent 24%);
+      background-size:calc(18 * var(--ui-u)) calc(18 * var(--ui-u)); }
+    /* Full bleed at -4%/+4% past the stage, and tall enough that the skewed lower edge
+       (rising toward the right) still clears the level text's far end. The margins reserve the skew rise at the right
+       end (top) and its drop at the chips' left edge (bottom), plus the ink drop. */
+    .rs-banner { grid-area:banner; display:flex; align-items:center; justify-content:center;
+      margin:calc(var(--rs-tan) * 56cqw + 2cqh) -4cqw calc(var(--rs-tan) * 46cqw + var(--rs-ink-drop));
+      min-height:clamp(56px, 26cqh, 200px); background-color:var(--rs-hue);
+      transform:skewY(calc(-1 * var(--rs-skew)));
+      box-shadow:0 var(--rs-ink-drop) 0 var(--ui-bevel-lo);
+      animation:rs-slam var(--rs-banner-ms) cubic-bezier(.2,1.5,.4,1) var(--rs-at) both; }
+    .rs-banner-text { margin:0; transform:skewY(var(--rs-skew)); white-space:nowrap; line-height:1;
+      font-family:var(--ui-font-heading); font-weight:700; font-style:italic; letter-spacing:.04em;
+      font-size:clamp(24px, min(7cqw, 14cqh), 88px); color:var(--ui-bevel-lo);
+      -webkit-text-stroke:calc(1 * var(--ui-u)) var(--ui-bevel-lo); }
+    #results[data-result="defeat"] .rs-banner-text { animation:rs-shake var(--rs-shake-ms) ease var(--rs-at) both; }
+    .rs-kicker { position:absolute; left:10cqw; top:0; translate:0 calc(-100% - 4px);
+      transform:skewY(var(--rs-skew)); white-space:nowrap; line-height:1.1;
+      font-family:var(--ui-font-heading); font-weight:700; font-size:clamp(16px, 1.4cqw, var(--ui-fs-lg)); letter-spacing:.2em;
+      padding:calc(5 * var(--ui-u)) calc(14 * var(--ui-u)); color:var(--rs-hue); background-color:var(--ui-bevel-lo);
+      border:calc(3 * var(--ui-u)) solid var(--rs-hue); }
+    .rs-stars { grid-area:stars; display:flex; justify-content:center; gap:clamp(12px, 4cqh, 40px); }
+    #results[data-result="defeat"] .rs-stars { display:none; }
+    /* Layered: the shadow filter on the wrapper, the star clip-path on ::before, because a
+       clip-path on the shadowed element would clip the shadow off. */
+    .rs-star { position:relative; width:clamp(32px, 12cqh, 96px); aspect-ratio:1;
+      filter:drop-shadow(calc(4 * var(--ui-u)) calc(4 * var(--ui-u)) 0 var(--ui-bevel-lo));
+      animation:rs-stamp var(--rs-star-ms) cubic-bezier(.2,1.8,.4,1) var(--rs-at) both; }
+    .rs-star[data-earned="1"] { filter:drop-shadow(calc(4 * var(--ui-u)) calc(4 * var(--ui-u)) 0 var(--ui-bevel-lo))
+      drop-shadow(0 0 calc(6 * var(--ui-u)) var(--ui-currency)); }
+    .rs-star::before { content:''; position:absolute; inset:0; background-color:var(--ui-panel-edge);
+      clip-path:polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
+    .rs-star[data-earned="1"]::before { background-color:var(--ui-currency); }
+    .rs-chips { grid-area:chips; display:flex; justify-content:center; flex-wrap:nowrap; gap:clamp(8px, 2cqw, 28px);
+      list-style:none; margin:0; padding:0; }
+    .rs-chip { display:flex; flex-direction:column; align-items:center; min-width:clamp(80px, 11cqw, 150px);
+      padding:calc(8 * var(--ui-u)) calc(16 * var(--ui-u)); box-sizing:border-box; text-align:center;
+      background-color:var(--ui-panel); border:calc(4 * var(--ui-u)) solid var(--ui-bevel-lo);
+      outline:calc(1 * var(--ui-u)) solid var(--ui-panel-edge); rotate:calc(-1 * var(--rs-tilt));
+      animation:rs-chip var(--rs-chip-ms) cubic-bezier(.2,1.6,.4,1) var(--rs-at) both; }
+    .rs-chip:nth-child(even) { rotate:var(--rs-tilt); }
+    .rs-chip-val { font-family:var(--ui-font-heading); font-weight:700; font-size:clamp(16px, min(2.6cqw, 6cqh), 34px);
+      line-height:1.15; white-space:nowrap; color:var(--rs-hue); }
+    .rs-chip-lbl { font-family:var(--ui-font-body); font-weight:700; font-size:var(--ui-fs-sm); letter-spacing:.14em;
+      color:var(--ui-text-muted); }
+    /* Pinned to the chip's top-right corner; it overhangs the chip, not its neighbour. */
+    .rs-new-best { position:absolute; top:0; right:0; translate:25% -60%; rotate:-8deg; white-space:nowrap;
+      font-family:var(--ui-font-body); font-weight:700; font-size:var(--ui-fs-xs); letter-spacing:.1em; text-transform:uppercase;
+      line-height:1.2; padding:calc(2 * var(--ui-u)) calc(6 * var(--ui-u));
+      color:var(--ui-currency); background-color:var(--ui-bevel-lo); border:calc(2 * var(--ui-u)) solid var(--ui-currency);
+      animation:rs-tag var(--rs-new-best-ms) cubic-bezier(.2,1.8,.4,1) var(--rs-at) both; }
+    .rs-caption { grid-area:caption; align-self:end; justify-self:start; display:flex; align-items:flex-end;
+      gap:calc(14 * var(--ui-u)); max-width:62cqw; margin-left:5cqw;
+      animation:rs-fade var(--rs-caption-ms) ease var(--rs-at) both; }
+    .rs-portrait-outer { flex:none; }
+    .rs-portrait { position:relative; width:clamp(64px, 18cqh, 140px); aspect-ratio:1; overflow:hidden;
+      background-color:var(--ui-bevel-lo); border:calc(4 * var(--ui-u)) solid var(--ui-bevel-lo);
+      outline:calc(2 * var(--ui-u)) solid var(--rs-frame, var(--ui-panel-edge));
+      box-shadow:calc(6 * var(--ui-u)) calc(6 * var(--ui-u)) 0 var(--ui-bevel-lo); }
+    .rs-portrait img, .rs-initial { position:absolute; inset:0; width:100%; height:100%; }
+    .rs-portrait img { object-fit:cover; }
+    .rs-initial { display:flex; align-items:center; justify-content:center;
+      background-color:var(--rs-frame, var(--ui-panel-edge)); color:var(--ui-bevel-lo);
+      font-family:var(--ui-font-heading); font-weight:700; font-size:clamp(var(--ui-fs-xl), 10cqh, 72px); }
+    .rs-caption-col { min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:calc(8 * var(--ui-u)); }
+    .rs-caption-name { max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      font-family:var(--ui-font-heading); font-weight:700; font-size:16px; letter-spacing:.2em; text-transform:uppercase;
+      line-height:1.2; padding:calc(4 * var(--ui-u)) calc(12 * var(--ui-u));
+      color:var(--rs-frame, var(--ui-panel-edge)); background-color:var(--ui-bevel-lo); }
+    .rs-caption-box { position:relative; isolation:isolate; background-color:var(--rs-caption, var(--ui-text));
+      border:calc(4 * var(--ui-u)) solid var(--ui-bevel-lo);
+      box-shadow:calc(7 * var(--ui-u)) calc(7 * var(--ui-u)) 0 var(--ui-bevel-lo); }
+    .rs-caption-text { margin:0; padding:calc(10 * var(--ui-u)) calc(16 * var(--ui-u));
+      font-family:var(--ui-font-body); font-weight:700; font-size:clamp(var(--ui-fs-md), 2cqw, var(--ui-fs-lg));
+      line-height:1.25; color:var(--ui-bevel-lo); }
+    /* The Veth's jagged box (3.5's three-layer build): ink and fill polygons on the box's
+       pseudo-elements, the drop shadow as a filter on the unclipped column (the glitch
+       animates filter on the box, so the shadow can't live there). The transparent border
+       keeps the box model, so the line wraps as any other, and the text never overflows. */
+    #results[data-shape="jagged"] .rs-caption-col {
+      filter:drop-shadow(calc(7 * var(--ui-u)) calc(7 * var(--ui-u)) 0 var(--ui-bevel-lo)); }
+    #results[data-shape="jagged"] .rs-caption-box { background-color:transparent; border-color:transparent; box-shadow:none; }
+    #results[data-shape="jagged"] .rs-caption-box::before,
+    #results[data-shape="jagged"] .rs-caption-box::after { content:''; position:absolute; z-index:-1;
+      clip-path:polygon(0 8%, 3% 0, 97% 0, 100% 10%, 98% 92%, 100% 100%, 4% 100%, 0 88%, 2% 50%); }
+    #results[data-shape="jagged"] .rs-caption-box::before { inset:calc(-4 * var(--ui-u)); background-color:var(--ui-bevel-lo); }
+    #results[data-shape="jagged"] .rs-caption-box::after { inset:0; background-color:var(--rs-caption, var(--ui-text)); }
+    /* Inner elements loop (outer = fade, inner = glitch), so .rs-done never stops them;
+       motion-off does. They start with the caption beat via the inherited --rs-at. */
+    #results[data-glitch="1"] .rs-portrait,
+    #results[data-glitch="1"] .rs-caption-box { animation:sd-glitch var(--rs-glitch-period-ms) steps(1) var(--rs-at) infinite; }
+    /* Opacity only: the buttons never move, so a real tap lands where they are drawn. */
+    .rs-actions { grid-area:actions; align-self:end; display:flex; flex-direction:column; gap:calc(10 * var(--ui-u)); margin-right:5cqw;
+      animation:rs-fade var(--rs-actions-ms) ease var(--rs-at) both; }
+    .rs-btn { min-height:40px; min-width:40px; margin:0; padding:calc(10 * var(--ui-u)) calc(22 * var(--ui-u));
+      font-family:var(--ui-font-heading); font-weight:700; font-size:16px; letter-spacing:.08em; white-space:nowrap;
+      cursor:pointer; border-radius:0; color:var(--ui-text); background-color:var(--ui-panel);
+      border:calc(3 * var(--ui-u)) solid var(--ui-bevel-lo); outline:calc(1 * var(--ui-u)) solid var(--ui-panel-edge);
+      box-shadow:calc(4 * var(--ui-u)) calc(4 * var(--ui-u)) 0 var(--ui-bevel-lo); }
+    .rs-btn[hidden] { display:none; }
+    .rs-btn--primary { color:var(--ui-bevel-lo); background-color:var(--rs-hue); outline:none; }
+    .rs-btn:active { translate:calc(4 * var(--ui-u)) calc(4 * var(--ui-u)); box-shadow:none; }
+    #results .rs-btn:focus-visible { outline:calc(3 * var(--ui-u)) solid var(--ui-accent); outline-offset:calc(3 * var(--ui-u)); }
+    @keyframes rs-fade { from { opacity:0; } }
+    @keyframes rs-slam { from { translate:-110% 0; } }
+    @keyframes rs-shake { 25% { translate:-0.08em 0; } 75% { translate:0.08em 0; } }
+    @keyframes rs-stamp { from { scale:var(--rs-star-from-scale, 3); opacity:0; } }
+    @keyframes rs-chip { from { scale:.5; rotate:-8deg; opacity:0; } }
+    @keyframes rs-tag { from { scale:2; opacity:0; } }
+    /* Skip: every reveal jumps to its resting (end) state at once. */
+    #results.rs-done .rs-reveal { animation:none !important; }
+    /* Reduced motion (spec §10) is the saved setting, so a class. The root is left out on
+       purpose: its single rs-fade still plays, so the screen fades rather than pops. */
+    #results.motion-off *, #results.motion-off *::before, #results.motion-off *::after { animation:none !important; }
+    /* Size tiers key on the MAP RECT (.rs-stage), not the viewport, and a container query
+       measures the stage's CONTENT box (its padding-bottom excluded). Measured on the
+       capture build: desktop1440's 697-px map is a 670-px content box and holds the tall
+       stack (banner, centred stars and chips, then caption beside three stacked buttons);
+       1280x720 (597) and iPad landscape (502) can't. Short (<= 640): the actions take
+       their own column beside stars, chips and caption, and the banner drops to the
+       compact skew, so its bleed costs less height. Set on the banner, where the layout
+       audit reads --rs-skew. */
+    @container (max-height: 640px) {
+      .rs-banner { --rs-skew: var(--rs-compact-skew-deg, 3deg); --rs-tan: var(--rs-compact-skew-tan, 0.0524);
+        min-height:clamp(56px, 22cqh, 200px); }
+      .rs-stars { grid-column:1; grid-row:2; }
+      .rs-chips { grid-column:1; grid-row:3; }
+      .rs-caption { grid-column:1; grid-row:4; }
+      .rs-actions { grid-column:2; grid-row:2 / 5; }
+    }
+    /* Compact (a content box no taller than 500 px, whatever the viewport): the short
+       composition at phone sizes; text drops to Rajdhani (Orbitron only >= 16 px). */
+    @container (max-height: 500px) {
+      .rs-halftone { background-size:calc(12 * var(--ui-u)) calc(12 * var(--ui-u)); }
+      .rs-banner { --rs-ink-drop: calc(6 * var(--ui-u)); min-height:clamp(72px, 22cqh, 200px);
+        margin-top:calc(var(--rs-tan) * 56cqw + 8px); }
+      .rs-kicker { font-family:var(--ui-font-body); font-size:var(--ui-fs-sm); letter-spacing:.14em; text-transform:uppercase;
+        padding:calc(2 * var(--ui-u)) calc(10 * var(--ui-u)); }
+      .rs-star { width:40px; }
+      .rs-chips { gap:calc(6 * var(--ui-u)); margin-top:calc(14 * var(--ui-u)); }
+      .rs-new-best { translate:40% -100%; }
+      .rs-chip { min-width:0; padding:calc(5 * var(--ui-u)) calc(10 * var(--ui-u)); }
+      .rs-chip-val { font-size:16px; }
+      .rs-chip-lbl { font-size:var(--ui-fs-xs); }
+      .rs-caption { max-width:none; margin-left:3cqw; gap:calc(10 * var(--ui-u)); }
+      .rs-portrait { width:64px; }
+      .rs-caption-name { font-family:var(--ui-font-body); font-size:var(--ui-fs-sm); letter-spacing:.14em; }
+      .rs-caption-text { font-size:var(--ui-fs-md); padding:calc(6 * var(--ui-u)) calc(10 * var(--ui-u)); }
+      .rs-actions { margin-right:3cqw; gap:calc(6 * var(--ui-u)); }
+      /* Spec §7.5: >= 44x44 in compact for any pointer (a 200%-zoomed laptop is compact and fine). */
+      .rs-btn { min-height:44px; min-width:44px; font-family:var(--ui-font-body); font-size:var(--ui-fs-md);
+        text-transform:uppercase; padding:calc(6 * var(--ui-u)) calc(14 * var(--ui-u)); }
+    }
+    @media (pointer: coarse) {
+      .rs-btn { min-height:44px; min-width:44px; }
+    }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+      clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0; }
     #story-log-overlay { display:none; position:absolute; inset:0; z-index:17;
       background:rgba(2,4,10,0.85); align-items:center; justify-content:center; }
     #story-log-inner { width:90%; max-width:420px; max-height:70%; overflow:auto;
-      background:#0a1018; border:1px solid #2a4a6a; border-radius:10px; padding:18px; }
-    #story-log-inner h3 { color:#6bf; margin:0 0 12px; font-size:16px; }
-    .story-log-entry { display:block; width:100%; text-align:left; background:#12202e;
-      border:1px solid #24405a; color:#cde; padding:9px 12px; border-radius:6px; margin-bottom:7px; cursor:pointer; }
-    .story-log-entry:hover { background:#1a3145; }
+      border-radius:10px; padding:18px; }
+    #story-log-inner h3 { color:var(--ui-accent); margin:0 0 12px; font-size:16px; }
+    .story-log-entry { display:block; width:100%; text-align:left;
+      padding:9px 12px; border-radius:6px; margin-bottom:7px; }
     #story-log-empty { color:#789; font-size:13px; }
-    #story-log-close { margin-top:8px; background:transparent; border:1px solid #3a4a5a; color:#8aa;
-      padding:6px 14px; border-radius:6px; cursor:pointer; }
-    #map-select { display:none; position:absolute; inset:0; background:#08081e; z-index:5;
-                  padding:20px; flex-direction:column; font-family:'Georgia',serif; }
-    #map-select-title { font-size:34px; color:#ffd700; font-weight:bold; text-align:center;
-                        margin-bottom:18px; letter-spacing:4px; }
-    #map-select-layout { display:flex; gap:16px; flex:1; min-height:0; overflow:hidden; }
-    #map-overworld { flex:1.6; position:relative; min-height:0; border:1px solid #2a2a4a; border-radius:10px; overflow:hidden;
-      background:radial-gradient(ellipse at 30% 20%, #141436 0%, #08081e 60%, #050510 100%); }
-    #map-overworld .ow-connectors { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
-    #map-overworld .ow-path-dim { fill:none; stroke:#2f2f50; stroke-width:0.8; vector-effect:non-scaling-stroke; }
-    #map-overworld .ow-path-lit { stroke:#8b6914; stroke-width:1.2; vector-effect:non-scaling-stroke; }
-    .ow-node { position:absolute; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; gap:2px; }
+    #story-log-close { margin-top:8px; padding:6px 14px; border-radius:6px; }
+    /* ── World map (roadmap 3.4) ─────────────────────────────────────────────
+       Every region is absolute in the #map-select box, the same viewport
+       routeFrameFor measures. The --wm-* vars are LAYOUT (src/data/worldMap.js),
+       set by MapSelectScene per layout class; the fallbacks are the tall values
+       so the pre-JS paint is laid out too. Spec §5. */
+    #map-select { display:none; position:absolute; inset:0; z-index:5; overflow:hidden; background:#08081e; }
+    /* The story canvases are drawn by JS; this gradient is the pre-draw and
+       no-2D-context fallback (Sol blue -> navy -> Veth violet). */
+    #map-overworld { position:absolute; inset:0; overflow:hidden;
+      background:linear-gradient(110deg, #0b1d3a 0%, #0a0f24 50%, #1d0f33 100%); }
+    #map-overworld canvas { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+    /* Node layer: same box as the canvases, so route px are node px. */
+    #wm-nodes { position:absolute; inset:0; }
+    .wm-tag { position:absolute; transform:translate(-50%, 0); pointer-events:none; white-space:nowrap;
+              font-family:var(--ui-font-heading); font-size:var(--ui-fs-xs); letter-spacing:.3em;
+              text-transform:uppercase; color:var(--ui-accent); }
+    /* Above node 10 (MapSelectScene._placeTags anchors its bottom edge). */
+    #wm-hive-tag { color:var(--ui-text-muted); transform:translate(-50%, -100%); }
+    /* left/top is the route point; shifting up by half the node puts the node's
+       centre on it, and the label hangs below (nodeRects measures that box). */
+    .ow-node { position:absolute; transform:translate(-50%, calc(var(--wm-node, 56px) / -2)); display:flex; flex-direction:column; align-items:center;
+               gap:calc(2 * var(--ui-u)); padding:0; border:0; background-color:transparent; color:inherit; font:inherit; }
+    .ow-node.final { transform:translate(-50%, calc(var(--wm-node-final, 64px) / -2)); }
     .ow-node.unlocked, .ow-node.next, .ow-node.completed { cursor:pointer; }
-    .ow-node-art { width:46px; height:46px; border-radius:50%; object-fit:cover; border:2px solid #8b6914; background:#11112a; }
-    .ow-node.locked .ow-node-art { filter:grayscale(1) brightness(0.4); border:2px dashed #444; }
-    .ow-node.active .ow-node-art { border-color:#ffd700; box-shadow:0 0 10px #ffd700; }
-    .ow-node.next .ow-node-art { border-color:#7ab8ff; box-shadow:0 0 12px #7ab8ff; }
-    .ow-node.final .ow-node-art { width:54px; height:54px; border-color:#6a2a3a; }
-    /* numbered-circle fallback (when art img errors out) */
-    .ow-node.ow-node-fallback .ow-node-num { width:46px; height:46px; border-radius:50%; background:#1c2c4c;
-      display:flex; align-items:center; justify-content:center; border:2px solid #8b6914; }
-    .ow-node-num { font-size:13px; font-weight:bold; color:#ffd700; line-height:1; }
-    .ow-node.locked .ow-node-num { color:#666; }
-    .ow-node-stars { font-size:10px; color:#ffd700; min-height:12px; line-height:1; }
-    #map-featured { flex:1; border:2px solid #8b6914; border-radius:10px; background:#0f0f2e;
-                    padding:22px; display:flex; flex-direction:column; }
-    #featured-name { font-size:22px; color:#ffd700; font-weight:bold; margin-bottom:6px; }
-    #featured-stars { font-size:22px; color:#ffd700; margin-bottom:14px; }
-    #featured-blurb { color:#aaa; font-size:14px; line-height:1.6; flex:1; margin-bottom:14px; }
-    #featured-tier { color:#7ab8ff; font-size:13px; margin-bottom:18px; }
-    #featured-play { background:#8b1a1a; border:none; color:#fff; padding:12px 28px;
-                     border-radius:6px; cursor:pointer; font-size:16px; font-weight:bold;
-                     align-self:flex-start; }
-    #featured-play:hover { background:#aa2222; }
+    .ow-node:disabled { cursor:default; }
+    .ow-node-art, .ow-node.ow-node-fallback .ow-node-num { width:var(--wm-node, 56px); height:var(--wm-node, 56px);
+      border-radius:50%; border:calc(2 * var(--ui-u)) solid var(--ui-currency); background-color:var(--ui-panel); }
+    .ow-node-art { object-fit:cover; }
+    .ow-node.ow-node-fallback .ow-node-num { display:flex; align-items:center; justify-content:center; }
+    .ow-node.final .ow-node-art, .ow-node.final.ow-node-fallback .ow-node-num {
+      width:var(--wm-node-final, 64px); height:var(--wm-node-final, 64px); }
+    .ow-node.locked .ow-node-art { filter:grayscale(1) brightness(0.4); }
+    .ow-node.locked .ow-node-art, .ow-node.locked.ow-node-fallback .ow-node-num { border-style:dashed; border-color:var(--ui-panel-edge); }
+    .ow-node.next .ow-node-art, .ow-node.next.ow-node-fallback .ow-node-num { border-color:var(--ui-accent);
+      box-shadow:0 0 calc(12 * var(--ui-u)) var(--ui-accent); }
+    /* Not on the selected node: the keyframe would overwrite .active's gold glow. */
+    .ow-node.next:not(.active) .ow-node-art, .ow-node.next:not(.active).ow-node-fallback .ow-node-num {
+      animation:wm-pulse var(--wm-pulse, 1800ms) ease-in-out infinite; }
+    @keyframes wm-pulse { 50% { box-shadow:0 0 calc(4 * var(--ui-u)) var(--ui-accent); } }
+    #map-select.motion-off .ow-node.next .ow-node-art,
+    #map-select.motion-off .ow-node.next.ow-node-fallback .ow-node-num { animation:none; }
+    .ow-node.active .ow-node-art, .ow-node.active.ow-node-fallback .ow-node-num { border-color:var(--ui-currency);
+      box-shadow:0 0 calc(10 * var(--ui-u)) var(--ui-currency); }
+    /* The number shows inside the fallback circle (tall labels carry it otherwise). */
+    .ow-node-num { display:none; font-size:var(--ui-fs-sm); font-weight:bold; color:var(--ui-currency); line-height:1; }
+    .ow-node.locked .ow-node-num { color:var(--ui-text-dim); }
+    /* Fixed width (LAYOUT.labelW) so the fit rule's rect is the box that paints. */
+    .ow-node-label { max-width:var(--wm-label-w, 132px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+                     font-size:var(--ui-fs-xs); color:var(--ui-text); line-height:1.2; }
+    /* A translucent panel pill under the label and stars, so a route line drawn
+       through them on the canvas can't strike the text out. Horizontal padding
+       only: the pill stays inside LAYOUT.labelPx / labelW (border-box). */
+    .ow-node-label, .ow-node-stars { background-color:color-mix(in srgb, var(--ui-panel) 80%, transparent);
+                     padding:0 calc(4 * var(--ui-u)); border-radius:calc(4 * var(--ui-u)); }
+    .ow-node-stars:empty { background-color:transparent; }
+    .ow-node.locked .ow-node-label { color:var(--ui-text-dim); }
+    .ow-node-stars { font-size:var(--ui-fs-sm); color:var(--ui-currency); min-height:calc(13 * var(--ui-u)); line-height:1; }
+    /* Post-win arrival (spec 2.3): the won node scales up while focused, each earned
+       star stamps in, and changed banner lines cross-fade. Timings from ARRIVAL. */
+    .ow-node-art, .ow-node.ow-node-fallback .ow-node-num { transition:scale var(--wm-focus-ms, 300ms) ease-in-out; }
+    .ow-node.wm-focus .ow-node-art, .ow-node.wm-focus.ow-node-fallback .ow-node-num { scale:var(--wm-focus-scale, 1.12); }
+    .ow-node-stars.wm-stamp { animation:wm-stamp var(--wm-stamp-ms, 150ms) ease-out; }
+    @keyframes wm-stamp { from { scale:var(--wm-stamp-scale, 1.6); filter:brightness(2); } }
+    .wm-fade { animation:wm-fade var(--wm-light-ms, 300ms) ease-in-out; }
+    @keyframes wm-fade { from { opacity:0; } }
+    #map-select.motion-off .wm-stamp, #map-select.motion-off .wm-fade { animation:none; }
+    #map-select.motion-off .ow-node-art, #map-select.motion-off .ow-node.ow-node-fallback .ow-node-num { transition:none; }
+    /* Top band: act banner left, meta bar right; both shrink before they collide. */
+    #wm-topbar { position:absolute; left:0; right:0; top:0; height:var(--wm-top, 112px); display:flex;
+                 align-items:flex-start; justify-content:space-between; gap:var(--wm-gutter, 12px);
+                 padding:var(--wm-gutter, 12px) var(--wm-gutter, 12px) 0; pointer-events:none; }
+    #wm-topbar > * { pointer-events:auto; }
+    #wm-banner { min-width:0; flex:1 1 auto; }
+    #wm-banner > * { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .wm-act { font-family:var(--ui-font-heading); font-size:var(--ui-fs-sm); letter-spacing:.3em; color:var(--ui-accent); }
+    .wm-objective { font-family:var(--ui-font-heading); font-size:var(--ui-fs-xl); color:var(--ui-text); margin-top:calc(4 * var(--ui-u)); }
+    .wm-sectors { font-size:var(--ui-fs-md); color:var(--ui-text-muted); margin-top:calc(2 * var(--ui-u)); }
+    .wm-sectors strong { color:var(--ui-currency); }
+    /* Briefing card: right column from the top band to the bottom inset. LAUNCH
+       is pinned by margin-top:auto; the quote is the one region that shrinks and
+       scrolls, so a long briefing can never push LAUNCH out (the 2.3
+       #featured-blurb lesson). */
+    #map-featured { position:absolute; right:var(--wm-gutter, 12px); top:calc(var(--wm-top, 112px) + var(--wm-gutter, 12px));
+                    bottom:var(--wm-gutter, 12px); width:var(--wm-card-w, clamp(280px, 26vw, 360px));
+                    display:flex; flex-direction:column; gap:calc(10 * var(--ui-u)); min-height:0;
+                    padding:calc(20 * var(--ui-u)); border-radius:calc(10 * var(--ui-u)); }
+    #featured-mission { font-family:var(--ui-font-heading); font-size:var(--ui-fs-sm); letter-spacing:.3em; color:var(--ui-accent); }
+    #featured-name { font-family:var(--ui-font-heading); font-size:var(--ui-fs-xl); color:var(--ui-currency); font-weight:bold; line-height:1.2; }
+    #featured-quote { flex:0 1 auto; min-height:0; overflow-y:auto; padding-left:calc(12 * var(--ui-u));
+                      border-left:calc(3 * var(--ui-u)) solid var(--ui-accent); font-size:var(--ui-fs-lg);
+                      line-height:1.45; color:var(--ui-text); }
+    /* More quote below the fold: fade the bottom edge (MapSelectScene toggles
+       .fq-more while scrollHeight exceeds the visible box). */
+    #featured-quote.fq-more { -webkit-mask-image:linear-gradient(to bottom, var(--ui-panel) calc(100% - 1.6em), transparent);
+                              mask-image:linear-gradient(to bottom, var(--ui-panel) calc(100% - 1.6em), transparent); }
+    #featured-quote .fq-by { display:block; font-family:var(--ui-font-heading); font-size:var(--ui-fs-xs);
+                             letter-spacing:.3em; color:var(--ui-accent); margin-bottom:calc(4 * var(--ui-u)); }
+    #featured-threats, #featured-tier { font-size:var(--ui-fs-md); color:var(--ui-text-muted); }
+    #featured-threats strong { color:var(--ui-danger); }
+    #featured-stars { font-size:var(--ui-fs-lg); color:var(--ui-currency); }
+    /* The best run rides the stars line (no new row), quieter than the gold stars. */
+    #featured-stars .fs-best { font-size:var(--ui-fs-md); color:var(--ui-text-muted); }
+    #featured-play { margin-top:auto; flex:0 0 auto; width:100%; min-height:48px; padding:calc(10 * var(--ui-u));
+                     border-radius:calc(8 * var(--ui-u)); font-family:var(--ui-font-heading); font-size:var(--ui-fs-lg);
+                     font-weight:bold; letter-spacing:.2em; cursor:pointer; }
     .map-row { border-radius:5px; padding:8px 10px; }
     .map-row.unlocked { background:#1a2e1a; border:1px solid #4a6a4a; color:#ccc; cursor:pointer; }
     .map-row.unlocked:hover { border-color:#ffd700; background:#252515; }
@@ -196,50 +836,103 @@
     .map-row.locked { background:#111; border:1px dashed #333; color:#555; }
     .map-row-name { font-size:12px; font-weight:bold; }
     .map-row-stars { font-size:11px; color:#ffd700; min-height:16px; }
-    #hero-section { display:flex; align-items:center; gap:6px; }
-    #hero-portrait { width:30px; height:30px; border-radius:50%; background:#1a2a4a;
-                     border:2px solid #4fc3f7; display:flex; align-items:center;
-                     justify-content:center; font-size:13px; color:#4fc3f7; font-weight:bold; }
-    #hero-info { display:flex; flex-direction:column; gap:3px; }
-    #hero-level { font-size:10px; color:#4fc3f7; }
-    #hero-hp-bg { width:52px; height:5px; background:#333; border-radius:2px; overflow:hidden; }
-    #hero-hp-fill { height:100%; background:#4fc3f7; border-radius:2px; transition:width 0.15s; }
-    #hero-xp-bg { width:52px; height:4px; background:#332b12; border-radius:2px; overflow:hidden; }
-    #hero-xp-fill { height:100%; width:0%; background:#ffd700; border-radius:2px; transition:width 0.15s; }
+    /* Hero card: one full-width rail row. */
+    #hero-section { display:flex; align-items:center; gap:calc(10px * var(--hud-k)); padding:0 calc(10px * var(--hud-k));
+                    width:var(--rail-w); height:var(--hud-cell); }
+    #hero-portrait { width:calc(56px * var(--hud-k)); height:calc(56px * var(--hud-k)); flex:0 0 calc(56px * var(--hud-k)); border-radius:50%; background:#1a2a4a;
+                     border:calc(3px * var(--hud-k)) solid #4fc3f7; display:flex; align-items:center;
+                     justify-content:center; font-size:calc(28px * var(--hud-k)); color:#4fc3f7; font-weight:bold; }
+    #hero-info { display:flex; flex-direction:column; gap:calc(5px * var(--hud-k)); flex:1; min-width:0; }
+    #hero-level { font-size:calc(24px * var(--hud-k)); line-height:1.05; color:#4fc3f7; overflow-wrap:anywhere; }
+    #hero-hp-bg { width:100%; height:calc(10px * var(--hud-k)); background:#333; border-radius:calc(3px * var(--hud-k)); overflow:hidden; }
+    #hero-hp-fill { height:100%; background:#4fc3f7; border-radius:calc(3px * var(--hud-k)); transition:width 0.15s; }
+    #hero-xp-bg { width:100%; height:calc(8px * var(--hud-k)); background:#332b12; border-radius:calc(3px * var(--hud-k)); overflow:hidden; }
+    #hero-xp-fill { height:100%; width:0%; background:#ffd700; border-radius:calc(3px * var(--hud-k)); transition:width 0.15s; }
     /* Wraps each ability button so the hover card still works once the button
-       goes disabled (locked / on cooldown) — same reason as #wave-btn-wrap. */
-    .ability-btn-wrap { position: relative; display: inline-block; }
-    .ability-btn { background:#1a2a3a; border:2px solid #4fc3f7; border-radius:5px;
-                   padding:4px 7px; cursor:pointer; display:flex; flex-direction:column;
-                   align-items:center; gap:1px; color:#4fc3f7; font-family:'Georgia',serif; }
-    .ability-btn.locked { background:#111; border-color:#333; color:#444; cursor:default; }
-    .ability-btn:disabled { opacity:0.45; cursor:not-allowed; }
-    .ability-btn:not(:disabled):not(.locked):hover { background:#253a4a; }
-    .ability-key  { font-size:11px; font-weight:bold; letter-spacing:1px; }
-    .ability-name { font-size:12px; }
-    .ability-cd   { font-size:9px; color:#aaa; min-height:11px; }
-    .bar-divider  { width:1px; height:36px; background:#333; flex-shrink:0; }
-    #map-meta-bar { display:flex; align-items:center; justify-content:center; gap:18px;
-                    margin-bottom:14px; }
-    #total-stars { font-size:18px; color:#ffd700; font-weight:bold; letter-spacing:1px; }
-    #open-upgrades { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
-                     padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
-                     font-family:'Georgia',serif; }
-    #open-upgrades:hover { background:#223344; }
-    #open-heroes { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
-                   padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
-                   font-family:'Georgia',serif; }
-    #open-heroes:hover { background:#223344; }
-    #open-settings { background:#1a2a3a; border:2px solid #4fc3f7; color:#4fc3f7;
-                     padding:6px 16px; border-radius:6px; cursor:pointer; font-size:14px;
-                     font-family:'Georgia',serif; }
-    #open-settings:hover { background:#223344; }
-    #lifetime-stats { display:flex; justify-content:center; gap:10px; margin-top:14px;
-                      flex-wrap:wrap; }
+       goes disabled (locked / on cooldown) — same reason as #wave-btn-wrap. The
+       wrapper is the grid cell; the button fills it. */
+    .ability-btn-wrap { position: relative; display: block; width: 100%; height: 100%; }
+    /* Cooldown and locked are :disabled / .locked, which the kit paints; no
+       opacity here, or the countdown would fade below text-muted. */
+    .ability-btn { gap:0; }
+    /* --cd (1 -> 0) is set by UIScene; the dark wedge shrinks as the cooldown runs out. */
+    .ability-btn { position:relative; }
+    .ability-btn::after { content:''; position:absolute; inset:0; border-radius:calc(9px * var(--hud-k)); pointer-events:none;
+                          background:conic-gradient(rgba(0,0,0,0.6) calc(var(--cd, 0) * 360deg), transparent 0); }
+    /* Keep the key/name/countdown above the cooldown wedge. */
+    .ability-btn > span { position:relative; z-index:1; }
+    .ability-key  { font-size:calc(24px * var(--hud-k)); font-weight:bold; letter-spacing:calc(1px * var(--hud-k)); }
+    .ability-name { font-size:calc(28px * var(--hud-k)); }
+    .ability-cd   { font-size:calc(24px * var(--hud-k)); color:var(--ui-text-muted); min-height:calc(24px * var(--hud-k)); }
+    #map-meta-bar { display:flex; flex:0 1 auto; flex-wrap:wrap; align-items:center; justify-content:flex-end;
+                    gap:calc(8 * var(--ui-u)); min-width:0; }
+    #total-stars { font-size:var(--ui-fs-lg); color:var(--ui-currency); font-weight:bold; letter-spacing:calc(1 * var(--ui-u)); white-space:nowrap; }
+    #map-meta-bar button { display:inline-flex; align-items:center; justify-content:center; gap:calc(6 * var(--ui-u));
+                           min-height:36px; padding:calc(6 * var(--ui-u)) calc(12 * var(--ui-u));
+                           border-radius:calc(6 * var(--ui-u)); font-size:var(--ui-fs-sm); white-space:nowrap; cursor:pointer; }
+    /* ── Title screen (roadmap 3.4) ──────────────────────────────────────────
+       Fixed to the viewport, not inside the FIT-letterboxed #game, so the stars
+       reach every edge; under #rotate-prompt (1000), over everything else.
+       Timings are the --title-* vars TitleScreen sets from src/data/title.js. */
+    #title-screen { display:none; position:fixed; inset:0; z-index:60; overflow:hidden; cursor:pointer;
+                    background:radial-gradient(ellipse at 50% 60%, #101a33 0%, #05070f 70%); }
+    #title-screen:focus { outline:none; }
+    #title-screen:focus-visible { outline:calc(2 * var(--ui-u)) solid var(--ui-accent); outline-offset:calc(-4 * var(--ui-u)); }
+    #title-screen canvas { position:absolute; inset:0; width:100%; height:100%; }
+    /* Soft gold nebula behind the logo. */
+    #title-screen::before { content:''; position:absolute; left:15%; right:15%; top:18%; height:40%; pointer-events:none;
+                            background:radial-gradient(ellipse at center, color-mix(in srgb, var(--ui-currency) 9%, transparent) 0%, transparent 70%); }
+    /* The dim "in shadow" logo is also the font-wait state. The beam is a moving
+       gradient clipped to the glyphs; 300% wide so it starts and ends off the text.
+       7vw keeps "LAST LIGHT" near 60% of the width and on one line at 750 px. */
+    #title-screen .title-logo { position:absolute; left:0; right:0; top:38%; transform:translateY(-50%);
+                                text-align:center; white-space:nowrap; text-indent:.12em;
+                                font-family:var(--ui-font-heading); font-weight:700; letter-spacing:.12em;
+                                font-size:clamp(28px, 7vw, 160px);
+                                --title-shade:color-mix(in srgb, var(--ui-currency) 22%, var(--ui-panel));
+                                color:var(--title-shade);
+                                background-image:linear-gradient(100deg, var(--title-shade) 0%, var(--title-shade) 40%,
+                                  #fff7c2 50%, var(--title-shade) 60%, var(--title-shade) 100%);
+                                background-size:300% 100%; background-position:100% 0;
+                                -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+    #title-screen.title-sweep .title-logo {
+      animation:title-beam var(--title-sweep) ease-in-out var(--title-sweep-delay) forwards,
+                title-lit var(--title-settle) ease-out calc(var(--title-sweep-delay) + var(--title-sweep)) forwards; }
+    #title-screen[data-phase="lit"] .title-logo { -webkit-text-fill-color:var(--ui-currency);
+      text-shadow:0 0 18px color-mix(in srgb, var(--ui-currency) 55%, transparent),
+                  0 0 42px color-mix(in srgb, var(--ui-currency) 25%, transparent); }
+    @keyframes title-beam { from { background-position:100% 0; } to { background-position:0 0; } }
+    @keyframes title-lit { to { -webkit-text-fill-color:var(--ui-currency);
+      text-shadow:0 0 18px color-mix(in srgb, var(--ui-currency) 55%, transparent),
+                  0 0 42px color-mix(in srgb, var(--ui-currency) 25%, transparent); } }
+    /* Hidden until the sweep is under way, then pulses (no fill-mode: it stays at
+       opacity 0 through its delay rather than holding the first keyframe). */
+    #title-screen .title-prompt { position:absolute; left:0; right:0; bottom:16%; text-align:center;
+                                  font-family:var(--ui-font-heading); font-size:var(--ui-fs-md);
+                                  letter-spacing:.35em; text-indent:.35em; color:var(--ui-accent); opacity:0; }
+    #title-screen.title-sweep .title-prompt { animation:title-pulse var(--title-pulse) ease-in-out var(--title-prompt-delay) infinite; }
+    @keyframes title-pulse { 0%, 100% { opacity:.25; } 50% { opacity:1; } }
+    /* Reduced motion (registry ambientMotion, applied from JS): lit and static. */
+    #title-screen.motion-off .title-logo, #title-screen.motion-off .title-prompt { animation:none; }
+    #title-screen.motion-off .title-prompt { opacity:1; }
+    /* Above every overlay (highest in-page z-index is 50). No scene owns this. */
+    #rotate-prompt { display:none; }
+    @media (orientation: portrait) and (pointer: coarse) {
+      #rotate-prompt { position:fixed; inset:0; z-index:1000; display:flex; flex-direction:column;
+                       align-items:center; justify-content:center; gap:18px; background:#08081e;
+                       color:#e8e8ff; font-size:20px; text-align:center;
+                       padding:24px; }
+      #rotate-prompt-glyph { font-size:72px; color:#4fc3f7; }
+    }
+    /* Bottom strip under the route frame (LAYOUT.statsStrip), left of the card. */
+    /* One row, never wrapped: a wrapped chip would be clipped by the fixed strip. */
+    #lifetime-stats { position:absolute; left:var(--wm-gutter, 12px); bottom:0; height:var(--wm-stats, 64px);
+                      right:calc(var(--wm-card-w, clamp(280px, 26vw, 360px)) + 2 * var(--wm-gutter, 12px));
+                      display:flex; justify-content:center; align-items:center; gap:10px; overflow:hidden; }
     .stat-chip { background:#0f0f2e; border:1px solid #2a3442; border-radius:6px;
                  padding:5px 12px; text-align:center; min-width:64px; }
     .stat-chip-val { display:block; font-size:16px; color:#ffd700; font-weight:bold; }
-    .stat-chip-lbl { display:block; font-size:9px; color:#888; text-transform:uppercase;
+    .stat-chip-lbl { display:block; font-size:var(--ui-fs-xs); color:#888; text-transform:uppercase;
                      letter-spacing:.5px; }
     #hero-mgmt-overlay { display:none; position:absolute; inset:0; z-index:16;
                          background:rgba(5,10,16,0.85); align-items:center; justify-content:center; padding:24px; }
@@ -266,10 +959,10 @@
                          align-items:center; justify-content:center; font-weight:bold; font-size:13px; }
     .ho-card-meta { display:flex; flex-direction:column; gap:2px; }
     .ho-card-name { font-weight:bold; color:#cfd8e0; }
-    .ho-card-role { font-size:10px; color:#8a99aa; }
-    .ho-card-unlock { font-size:9px; color:#888; margin-top:2px; }
+    .ho-card-role { font-size:var(--ui-fs-xs); color:#8a99aa; }
+    .ho-card-unlock { font-size:var(--ui-fs-xs); color:#888; margin-top:2px; }
     .ho-card-badge { position:absolute; top:-6px; right:-6px; background:#4caf50; color:#0a121b;
-                     font-size:9px; font-weight:bold; padding:2px 6px; border-radius:10px; letter-spacing:0.5px; }
+                     font-size:var(--ui-fs-xs); font-weight:bold; padding:2px 6px; border-radius:10px; letter-spacing:0.5px; }
     #hero-tree { border:1px solid #233044; border-radius:6px; padding:14px; background:#0a121b; overflow-y:auto; }
     .ho-tree-head { display:flex; align-items:baseline; gap:10px; padding-bottom:10px;
                     border-bottom:1px solid #233044; margin-bottom:10px; }
@@ -292,8 +985,7 @@
     #upgrade-overlay-title { font-size:22px; color:#ffd700; font-weight:bold; flex:1; }
     #upgrade-available { font-size:15px; color:#ffd700; font-weight:bold; }
     #upgrade-close { background:#3a1a1a; border:1px solid #8a3a3a; color:#f07a7a;
-                     padding:6px 14px; border-radius:6px; cursor:pointer; font-size:13px;
-                     font-family:'Georgia',serif; }
+                     padding:6px 14px; border-radius:6px; cursor:pointer; font-size:13px; }
     #upgrade-tree { display:flex; gap:14px; overflow-y:auto; }
     .upgrade-branch { flex:1; background:#11161f; border:1px solid #2a3442;
                       border-radius:10px; padding:12px; }
@@ -305,12 +997,12 @@
     .upgrade-node-fx { font-size:11px; color:#aaa; }
     .upgrade-node-cost { position:absolute; top:8px; right:10px; font-size:12px;
                          font-weight:bold; color:#ffd700; }
-    .upgrade-node-gate { font-size:10px; font-weight:bold; color:#ffcf5c;
+    .upgrade-node-gate { font-size:var(--ui-fs-xs); font-weight:bold; color:#ffcf5c;
                          background:#3a2d12; border:1px solid #6b5520; border-radius:4px;
                          padding:1px 6px; display:inline-block; margin-top:4px; }
     .upgrade-node-refund { background:#3a1a1a; border:1px solid #8a3a3a; color:#f07a7a;
-                           font-size:10px; padding:2px 8px; border-radius:4px;
-                           cursor:pointer; margin-top:6px; font-family:'Georgia',serif; }
+                           font-size:var(--ui-fs-xs); padding:2px 8px; border-radius:4px;
+                           cursor:pointer; margin-top:6px; }
     .upgrade-node.purchased { border-color:#4a8a4a; background:#16261a; }
     .upgrade-node.affordable { border-color:#4fc3f7; cursor:pointer; }
     .upgrade-node.affordable:hover { background:#223344; }
@@ -321,60 +1013,61 @@
     .upgrade-branch-subtitle { font-size:11px; color:#8899aa; margin-bottom:8px; margin-top:-6px; }
     #settings-overlay { display:none; position:absolute; inset:0; z-index:16;
       background:rgba(0,0,0,0.7); align-items:center; justify-content:center; padding:24px; }
-    #settings-overlay-inner { width:100%; max-width:420px; background:#0a1018;
-      border:2px solid #4a8aff; border-radius:8px; padding:18px 22px; font-family:'Courier New',monospace; color:#cfd8e8; }
+    #settings-overlay-inner { width:100%; max-width:420px;
+      border-radius:8px; padding:18px 22px; }
     #settings-overlay-header { display:flex; align-items:center; gap:14px; margin-bottom:14px; }
     #settings-overlay-title { font-size:18px; color:#6bf; font-weight:bold; flex:1; }
-    #settings-close { background:#3a1a1a; border:1px solid #8a3a3a; color:#f07a7a;
-      padding:4px 10px; cursor:pointer; font-family:inherit; border-radius:4px; }
+    #settings-close { padding:4px 10px; font-family:inherit; border-radius:4px; }
     .settings-row { display:flex; align-items:center; gap:10px; margin:8px 0; font-size:12px; }
     .settings-row label { width:90px; color:#8ab; }
     .settings-row input[type=range] { flex:1; }
     .settings-row .settings-val { width:34px; text-align:right; color:#8ab; }
     .settings-mute { margin-top:12px; font-size:12px; color:#cfd8e8; }
+    /* Paint comes from the kit's .ui-btn; geometry here keeps it a 44 px touch target. */
+    #graphics-quality { min-height:44px; padding:0 10px; font:inherit; border-radius:4px; }
+    .settings-hint { margin-top:2px; font-size:11px; color:#8ab; }
 
-    /* Wave preview popover */
-    #wave-btn-wrap { position: relative; display: inline-block; }
-    .wave-preview { display: none; position: absolute; bottom: calc(100% + 10px); right: 0;
-      min-width: 240px; max-width: 320px; max-height: 50vh; overflow-y: auto;
-      background: #0a1018; border: 2px solid #4fc3f7; border-radius: 6px;
-      padding: 10px 12px; z-index: 19; text-align: left; box-shadow: 0 4px 18px rgba(0,0,0,0.6); }
+    /* Wave preview popover. Inside the HUD layer, so in game px: it opens LEFT
+       of Send Wave, over the map; WavePreviewPopover sets its top (centred on
+       the button, clamped into the layer by PANEL_EDGE_MARGIN = 6 each side,
+       hence the 12px in max-height). */
+    #wave-btn-wrap { position: relative; display: block;
+                     width: calc(2 * var(--hud-cell)); height: var(--hud-cell); }
+    .wave-preview { display: none; position: absolute; right: calc(100% + var(--peek-gap)); top: 0;
+      width: max-content; min-width: 440px; max-width: 600px;
+      max-height: calc(var(--world-h) - 12px); overflow-y: auto;
+      border-radius: 10px; padding: 16px 20px; z-index: 19; text-align: left;
+      /* Game px but unscaled (#43 R5), so its kit unit is a flat 2px. */
+      --ui-u: 2px; }
     .wave-preview.shown { display: block; }
-    .wp-title { color: #ffd700; font-size: 13px; font-weight: bold; margin-bottom: 8px; }
-    .wp-row { display: flex; gap: 8px; align-items: baseline; margin-bottom: 7px; }
-    .wp-icon { font-size: 17px; }
-    .wp-name { font-size: 12px; color: #dde; flex: 1; }
-    .wp-count { font-size: 13px; color: #ffd700; font-weight: bold; }
-    .wp-stats { font-size: 10px; color: #8aa; margin: 0 0 3px 25px; }
-    .wp-match { font-size: 10px; color: #7c9; margin: 0 0 3px 25px; }
+    .wp-title { color: #ffd700; font-size: 28px; font-weight: bold; margin-bottom: 12px; }
+    .wp-row { display: flex; gap: 12px; align-items: baseline; margin-bottom: 8px; }
+    .wp-icon { font-size: 30px; }
+    .wp-name { font-size: 26px; color: #dde; flex: 1; }
+    .wp-count { font-size: 28px; color: #ffd700; font-weight: bold; }
+    .wp-stats { font-size: 24px; color: #8aa; margin: 0 0 4px 42px; }
+    .wp-match { font-size: 24px; color: #7c9; margin: 0 0 4px 42px; }
     .wp-match.resist { color: #c87; }
-    .wp-empty { font-size: 11px; color: #789; }
+    .wp-empty { font-size: 24px; color: #789; }
 
     /* Codex overlay */
     #codex-overlay { display: none; position: absolute; inset: 0; z-index: 20;
       background: rgba(0,0,0,0.72); align-items: center; justify-content: center; padding: 20px; }
     #codex-overlay-inner { width: 100%; max-width: 900px; max-height: 100%; display: flex;
-      flex-direction: column; background: #0a1018; border: 2px solid #2a3a4a;
-      border-radius: 8px; padding: 16px; }
+      flex-direction: column; border-radius: 8px; padding: 16px; }
     #codex-overlay-header { display: flex; align-items: center; gap: 14px; padding-bottom: 10px;
       border-bottom: 1px solid #2a3a4a; }
     #codex-overlay-title { font-size: 18px; color: #ffd700; font-weight: bold; }
     #codex-tabs { display: flex; gap: 6px; flex: 1; }
-    .codex-tab { background: #12202e; border: 1px solid #2a3a4a; color: #8aa; border-radius: 4px;
-      padding: 5px 12px; font-size: 12px; cursor: pointer; }
-    .codex-tab.active { background: #1a3145; border-color: #4fc3f7; color: #cfe; }
-    #codex-close { background: transparent; border: 1px solid #3a4a5a; color: #8aa;
-      border-radius: 4px; padding: 5px 12px; cursor: pointer; }
+    .codex-tab { border-radius: 4px; padding: 5px 12px; font-size: 12px; }
+    #codex-close { border-radius: 4px; padding: 5px 12px; }
     #codex-body { display: flex; gap: 14px; flex: 1; min-height: 0; padding-top: 12px; }
     #codex-list { width: 210px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; }
     #codex-detail { flex: 1; overflow-y: auto; padding-left: 14px; border-left: 1px solid #2a3a4a; }
     .codex-entry { display: flex; gap: 8px; align-items: center; width: 100%; text-align: left;
-      background: #12202e; border: 1px solid #2a3a4a; border-radius: 4px; color: #cde;
-      padding: 7px 9px; font-size: 12px; cursor: pointer; }
-    .codex-entry:hover { background: #1a3145; }
-    .codex-entry.active { border-color: #ffd700; }
+      border-radius: 4px; padding: 7px 9px; font-size: 12px; }
     .codex-entry.codex-unseen { opacity: 0.55; }
-    .codex-unseen-tag { font-size: 9px; color: #789; margin-left: auto; }
+    .codex-unseen-tag { font-size: var(--ui-fs-xs); color: #789; margin-left: auto; }
     .codex-detail-title { font-size: 16px; color: #ffd700; font-weight: bold; margin-bottom: 2px; }
     .codex-detail-sub { font-size: 11px; color: #8aa; margin-bottom: 10px; }
     .codex-stat { font-size: 12px; color: #cde; margin-bottom: 3px; }
@@ -387,21 +1080,25 @@
 
     /* Shared ability hover card */
     .ability-card { display: none; position: absolute; z-index: 21; min-width: 210px;
-      max-width: 280px; background: #0a1018; border: 2px solid #4fc3f7; border-radius: 6px;
-      padding: 9px 11px; text-align: left; box-shadow: 0 4px 18px rgba(0,0,0,0.6);
+      max-width: 280px; border-radius: 6px; padding: 9px 11px; text-align: left;
       pointer-events: none; }
     .ability-card.shown { display: block; }
+    /* One-line hint for rail controls (replaces native title=). */
+    #hint-peek { display: none; position: absolute; z-index: 21; max-width: 260px;
+      border-radius: 6px; padding: 6px 10px; font-size: var(--ui-fs-xs); text-align: left;
+      pointer-events: none; }
+    #hint-peek.shown { display: block; }
     .ac-head { display: flex; gap: 7px; align-items: baseline; margin-bottom: 5px; }
     .ac-icon { font-size: 16px; }
     .ac-label { font-size: 13px; color: #ffd700; font-weight: bold; flex: 1; }
-    .ac-key { font-size: 10px; color: #8aa; border: 1px solid #3a4a5a; border-radius: 3px;
+    .ac-key { font-size: var(--ui-fs-xs); color: #8aa; border: 1px solid #3a4a5a; border-radius: 3px;
       padding: 1px 5px; }
     .ac-effect { font-size: 11px; color: #cde; margin-bottom: 5px; line-height: 1.4; }
-    .ac-meta { font-size: 10px; color: #8aa; }
-    .ac-lock { font-size: 10px; color: #c87; margin-top: 4px; }
+    .ac-meta { font-size: var(--ui-fs-xs); color: #8aa; }
+    .ac-lock { font-size: var(--ui-fs-xs); color: #c87; margin-top: 4px; }
 
-    .inspector-panel { position: absolute; background: #0f0f1e; border: 2px solid #8b6914;
-                       border-radius: 6px; padding: 8px 10px; font-size: 11px; color: #ddd;
+    .inspector-panel { position: absolute;
+                       border-radius: 6px; padding: 8px 10px; font-size: 11px;
                        min-width: 200px; max-width: 260px; z-index: 40; }
     .inspector-header { display: flex; justify-content: space-between; align-items: center;
                         margin-bottom: 6px; }
@@ -412,113 +1109,296 @@
     .inspector-hpbar { background: #222; height: 8px; border-radius: 2px; overflow: hidden;
                        margin-bottom: 2px; }
     .inspector-hpfill { background: #6f6; height: 100%; transition: width 0.1s linear; }
-    .inspector-hp-label { font-size: 10px; color: #888; margin-bottom: 5px; }
+    .inspector-hp-label { font-size: var(--ui-fs-xs); color: #888; margin-bottom: 5px; }
     /* Shares .inspector-hpbar's shell; gold matches the HUD's #hero-xp-fill so
        the two readouts of the same number look like the same thing. */
     .inspector-xpfill { background: #ffd700; height: 100%; transition: width 0.1s linear; }
     .inspector-stat { font-size: 11px; color: #aaa; margin: 2px 0; }
     .inspector-stat .ei-status-active { color: #6cf; }
-    .inspector-matchups { margin-top: 5px; font-size: 10px; line-height: 1.4; }
+    .inspector-matchups { margin-top: 5px; font-size: var(--ui-fs-xs); line-height: 1.4; }
     .inspector-matchups .mu-good { display: block; color: #6f6; }
     .inspector-matchups .mu-bad  { display: block; color: #f88; }
     .inspector-abilities .ab-line { display: flex; justify-content: space-between;
                                     margin: 1px 0; }
     .inspector-abilities .ab-line.locked { color: #555; }
+    /* A peek, never a target: it must not swallow the tap that would close it. */
+    #tower-inspector { pointer-events: none; }
+    .inspector-armour { margin-top: 5px; font-size: var(--ui-fs-xs); line-height: 1.4; }
+    .inspector-armour .ar-head  { display: block; color: #aaa; }
+    .inspector-armour .ar-heavy { color: #fc6; }
+    .inspector-armour .ar-floor { color: #f66; font-weight: bold; }
     #inspect-peek { position: absolute; display: none; z-index: 45; pointer-events: none;
-                    background: #0f0f1e; border: 1px solid #8b6914; border-radius: 4px;
-                    padding: 5px 7px; font-size: 10px; color: #ddd; white-space: nowrap;
+                    border-radius: 4px; padding: 5px 7px; font-size: var(--ui-fs-xs); white-space: nowrap;
                     max-width: 220px; }
     #inspect-peek strong { display: block; color: #ffd700; margin-bottom: 2px; }
+
+    /* Compact landscape (phones): shrinks map-select padding/fonts so PLAY fits a
+       ~340 px tall viewport. The in-level HUD needs nothing here: the rails scale
+       with the canvas. Desktop (>500 px tall) never matches. */
+    @media (max-height: 500px) {
+      /* World map: one top row (banner + icon-only meta bar), card below it. */
+      #wm-topbar { height: var(--wm-top, 52px); align-items: center; padding: 0 var(--wm-gutter, 12px); }
+      #wm-banner { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 0.5em; align-items: baseline; }
+      .wm-act { font-size: var(--ui-fs-xs); letter-spacing: .2em; }
+      .wm-sectors { grid-row: 1; grid-column: 2; margin-top: 0; font-size: var(--ui-fs-sm); }
+      .wm-sectors:not(:empty)::before { content: '· '; }
+      .wm-objective { grid-column: 1 / -1; margin-top: 0; font-size: var(--ui-fs-md); }
+      #map-meta-bar { flex-wrap: nowrap; gap: calc(4 * var(--ui-u)); }
+      #total-stars { font-size: var(--ui-fs-sm); }
+      #map-meta-bar button { width: 44px; height: 44px; min-height: 44px; padding: 0; overflow: hidden; }
+      #map-meta-bar .mb-label { display: none; }
+      #map-featured { top: calc(var(--wm-top, 52px) + var(--wm-gutter, 12px)); width: var(--wm-card-w, clamp(220px, 32vw, 300px));
+                      padding: calc(10 * var(--ui-u)); gap: calc(6 * var(--ui-u)); }
+      /* One line each, so LAUNCH can't be pushed past the card bottom at 750x340;
+         the quote is the only region that shrinks and scrolls. */
+      #featured-name, #featured-threats { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto; }
+      #featured-name { font-size: var(--ui-fs-lg); }
+      #featured-quote { font-size: var(--ui-fs-sm); line-height: 1.35; }
+      #featured-threats, #featured-tier { font-size: var(--ui-fs-sm); }
+      #featured-stars { font-size: var(--ui-fs-md); }
+      #featured-play { min-height: 44px; padding: calc(6 * var(--ui-u)); font-size: var(--ui-fs-md); }
+      .ow-node-art, .ow-node.ow-node-fallback .ow-node-num { width: var(--wm-node, 44px); height: var(--wm-node, 44px); }
+      .ow-node.final .ow-node-art, .ow-node.final.ow-node-fallback .ow-node-num {
+        width: var(--wm-node-final, 50px); height: var(--wm-node-final, 50px); }
+      /* Compact label is the stars line only; the name is on the card and the
+         number sits inside the node, over its art. */
+      .ow-node-label { display: none; }
+      .ow-node:not(.ow-node-fallback) .ow-node-num { display: flex; position: absolute; left: 50%; top: 0;
+        transform: translateX(-50%); width: var(--wm-node, 44px); height: var(--wm-node, 44px);
+        align-items: center; justify-content: center; text-shadow: 0 0 calc(4 * var(--ui-u)) var(--ui-panel); }
+      .ow-node.final:not(.ow-node-fallback) .ow-node-num { width: var(--wm-node-final, 50px); height: var(--wm-node-final, 50px); }
+      #lifetime-stats { display: none; }
+    }
+
+    /* Touch-sized DOM overlays (roadmap 2.2). Overlays are real CSS px, not part of the scaled
+       canvas, so every control gets the full 44 px. Kept LAST so it beats the compact block above
+       at equal specificity: on a phone coarse must win over the compact shrink. */
+    @media (pointer: coarse) {
+      .codex-tab, #codex-close, .codex-entry, #settings-close, .sd-actions button,
+      #story-dismiss, .story-log-entry, #story-log-close, #hero-mgmt-close, .ho-ability,
+      #upgrade-close, .upgrade-node-refund, #game-msg button, #map-meta-bar button { min-height: 44px; min-width: 44px; }
+      /* The glyph stays small; the button grows around it, bleeding into the header's
+         padding rather than stretching the panel. */
+      .inspector-close { min-width: 44px; min-height: 44px; margin: -8px -4px -8px 0; }
+      /* A native slider's hit box is its whole <input>; a fat thumb makes that visible. */
+      .settings-row input[type=range] { -webkit-appearance: none; appearance: none; height: 44px;
+        background: transparent; }
+      .settings-row input[type=range]::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: #2a3a4e; }
+      .settings-row input[type=range]::-moz-range-track { height: 8px; border-radius: 4px; background: #2a3a4e; }
+      .settings-row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px;
+        margin-top: -10px; border-radius: 50%; background: #4fc3f7; border: 2px solid #0a1018; }
+      .settings-row input[type=range]::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%;
+        background: #4fc3f7; border: 2px solid #0a1018; }
+      .settings-mute label { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+      .settings-mute input[type=checkbox] { width: 24px; height: 24px; flex: 0 0 24px; }
+      #settings-overlay-inner { max-height: 100%; overflow-y: auto; }
+    }
+    /* A landscape phone is too short for 44-px rows stacked in one column (the settings card
+       would pass 340 px): sliders left, toggles right. */
+    @media (pointer: coarse) and (max-height: 500px) {
+      #settings-overlay { padding: 8px; }
+      #settings-overlay-inner { max-width: 680px; padding: 10px 16px; display: grid;
+        grid-template-columns: 1fr 1fr; column-gap: 24px; grid-auto-flow: row dense; }
+      #settings-overlay-header { grid-column: 1 / -1; margin-bottom: 4px; }
+      .settings-row { grid-column: 1; margin: 2px 0; }
+      .settings-mute { grid-column: 2; margin-top: 0; }
+    }
   </style>
 </head>
 <body>
-  <div id="hud">
-    <div class="hud-stat"><span>❤️</span><span class="hud-val" id="stat-lives">20</span><span class="hud-lbl">Lives</span></div>
-    <div class="hud-stat"><span>💰</span><span class="hud-val" id="stat-gold">150</span><span class="hud-lbl">Gold</span></div>
-    <div class="hud-stat"><span>🌊</span><span class="hud-val" id="stat-wave">0/10</span><span class="hud-lbl">Wave</span></div>
-    <div class="hud-stat"><span>💀</span><span class="hud-val" id="stat-kills">0</span><span class="hud-lbl">Kills</span></div>
-    <button id="speed-btn">⏩ 2x</button>
-    <button id="pause-btn" title="Pause the level (Spacebar)">⏸ Pause</button>
-    <button id="open-codex" title="Codex (towers, heroes, enemies)">📚 Codex</button>
-  </div>
   <div id="game">
+    <!-- The HUD in game px (CANVAS_WIDTH x WORLD_HEIGHT), scaled over the canvas
+         by src/ui/hudLayer.js. Floating cards (#tower-tooltip, #ability-card,
+         inspectors) stay outside it: a transformed ancestor would re-base their
+         position:fixed/absolute and their rect units. -->
+    <div id="hud-layer">
+      <div id="rail-left" class="hud-rail ui-panel">
+        <div class="rail-grid" id="hud-stats">
+          <div class="hud-stat"><span class="hud-ico">❤️</span><span class="hud-val" id="stat-lives">20</span><span class="hud-lbl">Lives</span></div>
+          <div class="hud-stat"><span class="hud-ico">💰</span><span class="hud-val" id="stat-gold">150</span><span class="hud-lbl">Gold</span></div>
+          <div class="hud-stat"><span class="hud-ico">🌊</span><span class="hud-val" id="stat-wave">0/10</span><span class="hud-lbl">Wave</span></div>
+          <div class="hud-stat"><span class="hud-ico">💀</span><span class="hud-val" id="stat-kills">0</span><span class="hud-lbl">Kills</span></div>
+        </div>
+        <div id="hero-section" tabindex="0">
+          <div id="hero-portrait">R</div>
+          <div id="hero-info">
+            <div id="hero-level">Rael L1</div>
+            <div id="hero-hp-bg"><div id="hero-hp-fill"></div></div>
+            <div id="hero-xp-bg"><div id="hero-xp-fill"></div></div>
+          </div>
+        </div>
+        <div class="rail-grid">
+          <span class="ability-btn-wrap" id="ability-q-wrap" tabindex="0">
+            <button class="ui-btn ui-btn--primary ability-btn" id="ability-q" disabled>
+              <span class="ability-key">Q</span><span class="ability-name">⚡</span><span class="ability-cd"></span>
+            </button>
+          </span>
+          <span class="ability-btn-wrap" id="ability-w-wrap" tabindex="0">
+            <button class="ui-btn ui-btn--primary ability-btn locked" id="ability-w" disabled>
+              <span class="ability-key">W</span><span class="ability-name">🎯</span><span class="ability-cd"></span>
+            </button>
+          </span>
+          <span class="ability-btn-wrap" id="ability-e-wrap" tabindex="0">
+            <button class="ui-btn ui-btn--primary ability-btn locked" id="ability-e" disabled>
+              <span class="ability-key">E</span><span class="ability-name">💥</span><span class="ability-cd"></span>
+            </button>
+          </span>
+          <button id="cancel-btn" class="ui-btn ui-btn--danger" type="button" hidden>✕ Cancel</button>
+        </div>
+        <div class="rail-grid">
+          <button id="pause-btn" class="ui-btn ui-btn--currency">⏸ Pause</button>
+          <button id="speed-btn" class="ui-btn">⏩ 2x</button>
+          <button id="open-codex" class="ui-btn ui-btn--primary">📚 Codex</button>
+          <button id="exit-btn" class="ui-btn ui-btn--danger">⏻ Exit</button>
+        </div>
+      </div>
+      <div id="rail-right" class="hud-rail ui-panel">
+        <div class="rail-grid">
+          <button class="ui-btn tower-btn" data-type="archer">
+            <span class="t-icon">🏹</span><span class="t-cost">60g</span><span class="t-name">Archer</span>
+          </button>
+          <button class="ui-btn tower-btn" data-type="mage">
+            <span class="t-icon">🔮</span><span class="t-cost">90g</span><span class="t-name">Mage</span>
+          </button>
+          <button class="ui-btn tower-btn" data-type="cannon">
+            <span class="t-icon">💣</span><span class="t-cost">110g</span><span class="t-name">Cannon</span>
+          </button>
+          <button class="ui-btn tower-btn" data-type="ice">
+            <span class="t-icon">❄️</span><span class="t-cost">80g</span><span class="t-name">Ice</span>
+          </button>
+          <button class="ui-btn tower-btn" data-type="sniper">
+            <span class="t-icon">🎯</span><span class="t-cost">120g</span><span class="t-name">Sniper</span>
+          </button>
+          <button class="ui-btn tower-btn" data-type="barracks">
+            <span class="t-icon">⚔️</span><span class="t-cost">100g</span><span class="t-name">Barracks</span>
+          </button>
+        </div>
+        <span id="wave-btn-wrap" tabindex="0">
+          <button id="wave-btn" class="ui-btn ui-btn--danger">▶ Send Wave 1</button>
+          <div id="wave-preview" class="wave-preview ui-panel ui-panel--primary" role="tooltip" aria-hidden="true"></div>
+        </span>
+      </div>
+      <!-- Radial build/upgrade menu (roadmap 3.3), driven by src/ui/RadialMenu.js.
+           Items come before the hub: DOM order is slot order, so Tab matches the arrows. -->
+      <div id="radial" hidden>
+        <button class="ui-btn radial-item" type="button"></button>
+        <button class="ui-btn radial-item" type="button"></button>
+        <button class="ui-btn radial-item" type="button"></button>
+        <button class="ui-btn radial-item" type="button"></button>
+        <button class="ui-btn radial-item" type="button"></button>
+        <button class="ui-btn radial-item" type="button"></button>
+        <button id="radial-hub" class="ui-btn" type="button"></button>
+      </div>
+    </div>
     <div id="paused-overlay">PAUSED</div>
-    <div id="story-banner" class="story-banner">
+    <div id="wave-banner"></div>
+    <div id="wave-banner-boss"></div>
+    <div id="boss-frame"></div>
+    <div id="story-banner" class="story-banner ui-panel">
       <div class="story-content">
         <div id="story-headline"></div>
         <div id="story-body"></div>
       </div>
-      <button id="story-dismiss">&#10005;</button>
+      <button id="story-dismiss" class="ui-btn">&#10005;</button>
     </div>
-    <div id="story-dialog" class="story-dialog-overlay">
-      <div class="story-dialog-card">
-        <div id="story-dialog-portrait" class="story-dialog-portrait"></div>
-        <div class="story-dialog-body">
-          <div id="story-dialog-name" class="story-dialog-name"></div>
-          <div id="story-dialog-text" class="story-dialog-text"></div>
-          <div class="story-dialog-actions">
-            <button id="story-dialog-skip">Skip</button>
-            <button id="story-dialog-next">Next ▸</button>
+    <div id="story-dialog" class="story-dialog-overlay" role="dialog" aria-modal="true" aria-label="Story">
+      <div id="story-dialog-stage" class="sd-stage">
+        <div class="sd-panel-row">
+          <div class="sd-frame-outer">
+            <div class="sd-frame-inner">
+              <div id="story-dialog-portrait" class="sd-frame" aria-hidden="true"></div>
+            </div>
+          </div>
+          <div class="sd-column">
+            <div class="sd-tab"><div id="story-dialog-name" class="sd-name" aria-hidden="true"></div></div>
+            <div class="sd-caption-outer">
+              <div class="sd-caption">
+                <div id="story-dialog-text" class="sd-text" aria-hidden="true"><span class="sd-typed"></span><span class="sd-rest"></span></div>
+                <span class="sd-done-mark" aria-hidden="true">▸</span>
+              </div>
+            </div>
           </div>
         </div>
+        <div class="sd-actions">
+          <button id="story-dialog-skip" class="ui-btn" aria-label="Skip story">Skip</button>
+          <button id="story-dialog-next" class="ui-btn ui-btn--primary" aria-label="Next">Next ▸</button>
+        </div>
       </div>
+      <div id="story-dialog-live" class="sr-only" aria-live="polite" aria-atomic="true"></div>
     </div>
     <div id="story-log-overlay">
-      <div id="story-log-inner">
+      <div id="story-log-inner" class="ui-panel">
         <h3>Story Log</h3>
         <div id="story-log-list"></div>
-        <button id="story-log-close">Close</button>
+        <button id="story-log-close" class="ui-btn">Close</button>
       </div>
     </div>
-    <div id="map-select">
-      <div id="map-select-title">LAST LIGHT</div>
-      <div id="map-meta-bar">
-        <div id="total-stars">★ 0 / 30</div>
-        <button id="open-upgrades">⚙ Upgrades</button>
-        <button id="open-heroes" title="Hero command">🦸 Heroes</button>
-        <button id="open-settings" title="Audio settings">♪ Audio</button>
-        <button id="open-story-log" title="Story log">📖 Story</button>
-        <button id="open-codex-ms" title="Codex">📚 Codex</button>
-      </div>
-      <div id="map-select-layout">
-        <div id="map-overworld"></div>
-        <div id="map-featured">
-          <div id="featured-name"></div>
-          <div id="featured-stars"></div>
-          <div id="featured-blurb"></div>
-          <div id="featured-tier"></div>
-          <button id="featured-play">&#9654; PLAY</button>
+    <div id="results" class="rs-overlay" role="dialog" aria-modal="true" aria-labelledby="results-banner-text" tabindex="-1" hidden>
+      <div class="rs-stage">
+        <div class="rs-halftone" aria-hidden="true"></div>
+        <div class="rs-banner rs-reveal">
+          <div id="results-kicker" class="rs-kicker"></div>
+          <h2 id="results-banner-text" class="rs-banner-text rs-reveal"></h2>
         </div>
+        <div id="results-stars" class="rs-stars" role="img">
+          <span class="rs-star rs-reveal"></span><span class="rs-star rs-reveal"></span><span class="rs-star rs-reveal"></span>
+        </div>
+        <ul id="results-chips" class="rs-chips"></ul>
+        <div id="results-caption" class="rs-caption rs-reveal">
+          <div class="rs-portrait-outer"><div id="results-portrait" class="rs-portrait" aria-hidden="true"></div></div>
+          <div class="rs-caption-col">
+            <div id="results-speaker" class="rs-caption-name"></div>
+            <div class="rs-caption-box"><p id="results-line" class="rs-caption-text"></p></div>
+          </div>
+        </div>
+        <div id="results-actions" class="rs-actions rs-reveal">
+          <button id="results-next" class="rs-btn" type="button"></button>
+          <button id="results-retry" class="rs-btn" type="button"></button>
+          <button id="results-map" class="rs-btn" type="button"></button>
+        </div>
+      </div>
+      <div id="results-live" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+    </div>
+    <div id="map-select">
+      <div id="map-overworld">
+        <canvas id="wm-backdrop"></canvas>
+        <canvas id="wm-story"></canvas>
+        <div id="wm-earth-tag" class="wm-tag">EARTH</div>
+        <div id="wm-hive-tag" class="wm-tag">LAST LIGHT · HIVE CORE</div>
+        <div id="wm-nodes"></div>
+      </div>
+      <div id="wm-topbar">
+        <div id="wm-banner">
+          <div class="wm-act"></div>
+          <div class="wm-objective"></div>
+          <div class="wm-sectors"></div>
+        </div>
+        <div id="map-meta-bar">
+          <div id="total-stars">★ 0 / 30</div>
+          <button id="open-upgrades" class="ui-btn" aria-label="Upgrades"><span class="mb-ico" aria-hidden="true">⚙</span><span class="mb-label">Upgrades</span></button>
+          <button id="open-heroes" class="ui-btn" aria-label="Heroes"><span class="mb-ico" aria-hidden="true">🦸</span><span class="mb-label">Heroes</span></button>
+          <button id="open-settings" class="ui-btn" aria-label="Audio"><span class="mb-ico" aria-hidden="true">♪</span><span class="mb-label">Audio</span></button>
+          <button id="open-story-log" class="ui-btn" aria-label="Story"><span class="mb-ico" aria-hidden="true">📖</span><span class="mb-label">Story</span></button>
+          <button id="open-codex-ms" class="ui-btn" aria-label="Codex"><span class="mb-ico" aria-hidden="true">📚</span><span class="mb-label">Codex</span></button>
+          <button id="fullscreen-btn" class="ui-btn" aria-label="Fullscreen"><span class="mb-ico" aria-hidden="true">⛶</span><span class="mb-label">Fullscreen</span></button>
+        </div>
+      </div>
+      <div id="map-featured" class="ui-panel">
+        <div id="featured-mission"></div>
+        <div id="featured-name"></div>
+        <div id="featured-quote"></div>
+        <div id="featured-threats"></div>
+        <div id="featured-tier"></div>
+        <div id="featured-stars"></div>
+        <button id="featured-play" class="ui-btn ui-btn--currency">&#9654; LAUNCH</button>
       </div>
       <div id="lifetime-stats"></div>
     </div>
-    <div id="tower-panel">
-      <div class="panel-name" id="panel-name">Tower</div>
-      <div id="panel-std-stats">
-        <div class="panel-stat" id="panel-dmg">Damage: -</div>
-        <div class="panel-stat" id="panel-rng">Range: -</div>
-        <div class="panel-stat" id="panel-spd">Fire rate: -</div>
-      </div>
-      <div id="panel-barracks-stats" style="display:none">
-        <div class="panel-stat" id="panel-soldier-count">Soldiers: -</div>
-        <div class="panel-stat" id="panel-soldier-hp">HP: -</div>
-        <div class="panel-stat" id="panel-soldier-dmg">DMG: -</div>
-        <div class="panel-stat" id="panel-soldier-respawn">Respawn: -</div>
-        <div class="panel-stat" id="panel-soldier-blocks">Blocks: -</div>
-      </div>
-      <div class="panel-stat" id="panel-lvl">Level: -</div>
-      <div class="panel-matchups" id="panel-matchups"></div>
-      <div class="panel-armour" id="panel-armour"></div>
-      <div id="panel-branch-picker" style="display:none"></div>
-      <button class="upgrade-btn" id="panel-upgrade-btn">Upgrade</button>
-      <button class="reposition-btn" id="panel-reposition-btn" style="display:none">&#8635; Reposition Soldiers</button>
-      <button class="sell-btn" id="panel-sell-btn">&#128176; Sell</button>
-    </div>
-    <div id="game-msg">
+    <div id="game-msg" class="ui-panel">
       <h2 id="msg-title">Victory!</h2>
       <p id="msg-body">You defended humanity!</p>
-      <button id="msg-btn">&#8617; Map Select</button>
-      <button id="msg-cancel-btn" style="display:none">Cancel</button>
+      <button id="msg-btn" class="ui-btn ui-btn--primary">&#8617; World Map</button>
+      <button id="msg-cancel-btn" class="ui-btn" style="display:none">Cancel</button>
     </div>
     <div id="upgrade-overlay">
       <div id="upgrade-overlay-inner">
@@ -544,10 +1424,10 @@
       </div>
     </div>
     <div id="settings-overlay">
-      <div id="settings-overlay-inner">
+      <div id="settings-overlay-inner" class="ui-panel">
         <div id="settings-overlay-header">
           <span id="settings-overlay-title">Settings</span>
-          <button id="settings-close">CLOSE</button>
+          <button id="settings-close" class="ui-btn ui-btn--danger">CLOSE</button>
         </div>
         <div class="settings-row">
           <label for="vol-master">Master</label>
@@ -568,20 +1448,33 @@
           <label><input id="mute-all" type="checkbox" /> Mute all audio</label>
         </div>
         <div class="settings-mute">
-          <label><input id="ambient-motion" type="checkbox" /> Ambient motion</label>
+          <label><input id="reduce-motion" type="checkbox" /> Reduce motion</label>
+        </div>
+        <div class="settings-mute settings-graphics">
+          <label>Graphics
+            <select id="graphics-quality" class="ui-btn">
+              <option value="auto">Auto</option>
+              <option value="high">High</option>
+              <option value="low">Low</option>
+            </select>
+          </label>
+          <div class="settings-hint">colour grading applies from the next level</div>
+        </div>
+        <div class="settings-mute">
+          <label><input id="auto-send" type="checkbox" /> Auto-send waves</label>
         </div>
       </div>
     </div>
     <div id="codex-overlay">
-      <div id="codex-overlay-inner">
+      <div id="codex-overlay-inner" class="ui-panel">
         <div id="codex-overlay-header">
           <span id="codex-overlay-title">📚 Codex</span>
           <div id="codex-tabs">
-            <button class="codex-tab" data-tab="towers">Towers</button>
-            <button class="codex-tab" data-tab="heroes">Heroes</button>
-            <button class="codex-tab" data-tab="enemies">Enemies</button>
+            <button class="ui-btn codex-tab" data-tab="towers">Towers</button>
+            <button class="ui-btn codex-tab" data-tab="heroes">Heroes</button>
+            <button class="ui-btn codex-tab" data-tab="enemies">Enemies</button>
           </div>
-          <button id="codex-close">Close</button>
+          <button id="codex-close" class="ui-btn">Close</button>
         </div>
         <div id="codex-body">
           <div id="codex-list"></div>
@@ -590,57 +1483,8 @@
       </div>
     </div>
   </div>
-  <div id="bottom-bar">
-    <div id="hero-section">
-      <div id="hero-portrait">R</div>
-      <div id="hero-info">
-        <div id="hero-level">Rael L1</div>
-        <div id="hero-hp-bg"><div id="hero-hp-fill"></div></div>
-        <div id="hero-xp-bg"><div id="hero-xp-fill"></div></div>
-      </div>
-      <span class="ability-btn-wrap" id="ability-q-wrap" tabindex="0">
-        <button class="ability-btn" id="ability-q" disabled title="Overcharge — +50% tower fire rate 6s">
-          <span class="ability-key">Q</span><span class="ability-name">⚡</span><span class="ability-cd"></span>
-        </button>
-      </span>
-      <span class="ability-btn-wrap" id="ability-w-wrap" tabindex="0">
-        <button class="ability-btn locked" id="ability-w" disabled title="Airstrike — AoE damage on target area">
-          <span class="ability-key">W</span><span class="ability-name">🎯</span><span class="ability-cd"></span>
-        </button>
-      </span>
-      <span class="ability-btn-wrap" id="ability-e-wrap" tabindex="0">
-        <button class="ability-btn locked" id="ability-e" disabled title="EMP Pulse — stuns all aliens 3s">
-          <span class="ability-key">E</span><span class="ability-name">💥</span><span class="ability-cd"></span>
-        </button>
-      </span>
-    </div>
-    <div class="bar-divider"></div>
-    <button class="tower-btn" data-type="archer">
-      <span class="t-icon">🏹</span><span class="t-cost">60g</span><span class="t-name">Archer</span>
-    </button>
-    <button class="tower-btn" data-type="mage">
-      <span class="t-icon">🔮</span><span class="t-cost">90g</span><span class="t-name">Mage</span>
-    </button>
-    <button class="tower-btn" data-type="cannon">
-      <span class="t-icon">💣</span><span class="t-cost">110g</span><span class="t-name">Cannon</span>
-    </button>
-    <button class="tower-btn" data-type="ice">
-      <span class="t-icon">❄️</span><span class="t-cost">80g</span><span class="t-name">Ice</span>
-    </button>
-    <button class="tower-btn" data-type="sniper">
-      <span class="t-icon">🎯</span><span class="t-cost">120g</span><span class="t-name">Sniper</span>
-    </button>
-    <button class="tower-btn" data-type="barracks">
-      <span class="t-icon">⚔️</span><span class="t-cost">100g</span><span class="t-name">Barracks</span>
-    </button>
-    <button id="exit-btn">⏻ Exit</button>
-    <span id="wave-btn-wrap" tabindex="0">
-      <button id="wave-btn">▶ Send Wave 1</button>
-      <div id="wave-preview" class="wave-preview" role="tooltip" aria-hidden="true"></div>
-    </span>
-  </div>
-  <div id="tower-tooltip"></div>
-  <div id="enemy-inspector" class="inspector-panel" style="display:none">
+  <div id="tower-tooltip" class="ui-panel"></div>
+  <div id="enemy-inspector" class="inspector-panel ui-panel" style="display:none">
     <div class="inspector-header">
       <span class="inspector-name" id="ei-name">Enemy</span>
       <button class="inspector-close" id="ei-close">✕</button>
@@ -653,7 +1497,7 @@
     <div class="inspector-matchups" id="ei-matchups"></div>
   </div>
 
-  <div id="hero-inspector" class="inspector-panel" style="display:none">
+  <div id="hero-inspector" class="inspector-panel ui-panel" style="display:none">
     <div class="inspector-header">
       <span class="inspector-name">🛡️ Commander Rael</span>
       <button class="inspector-close" id="hi-close">✕</button>
@@ -668,8 +1512,25 @@
     <div class="inspector-matchups" id="hi-matchups"></div>
   </div>
 
-  <div id="inspect-peek" style="display:none"></div>
-  <div id="ability-card" class="ability-card" role="tooltip" aria-hidden="true"></div>
+  <!-- Peek-only (no close button): opened by a long-press on a tower or the ring hub. -->
+  <div id="tower-inspector" class="inspector-panel ui-panel" style="display:none" aria-hidden="true">
+    <div class="inspector-header"><span class="inspector-name" id="ti-name">Tower</span></div>
+    <div class="inspector-stat" id="ti-level">Level: -</div>
+    <div id="ti-stats"></div>
+    <div class="inspector-matchups" id="ti-matchups"></div>
+    <div class="inspector-armour" id="ti-armour"></div>
+  </div>
+
+  <div id="inspect-peek" class="ui-panel" style="display:none"></div>
+  <div id="ability-card" class="ability-card ui-panel ui-panel--primary" role="tooltip" aria-hidden="true"></div>
+  <div id="hint-peek" class="ui-panel" role="tooltip" aria-hidden="true"></div>
+  <!-- TitleScene's screen: one click, Enter or Space starts. -->
+  <div id="title-screen" role="button" tabindex="0" aria-label="Start game" data-phase="waiting">
+    <canvas aria-hidden="true"></canvas>
+    <div class="title-logo" aria-hidden="true">LAST LIGHT</div>
+    <div class="title-prompt" aria-hidden="true"></div>
+  </div>
   <script type="module" src="/src/main.js"></script>
+  <div id="rotate-prompt"><div id="rotate-prompt-glyph">&#10227;</div><div>Rotate your device to landscape</div></div>
 </body>
 </html>

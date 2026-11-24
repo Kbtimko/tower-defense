@@ -1,0 +1,162 @@
+# Last Light — Visual Overhaul & Release Roadmap
+
+**Created:** 2026-10-21 · **Owner:** Keith · **Executor:** Claude Code sessions (evenings), human gates marked below
+**Goal:** take the working-but-rough game to a polished, portfolio-grade release (web, desktop + phone), with a clean path to commercial later.
+**Budget:** ~$0. **Theme:** space (Veth hive vs. human outposts). **Art engine:** Draw Things (FLUX.1 [schnell] only) + code.
+
+> **Honest quality bar.** With FLUX-only generation, scripted animation and no artist, the realistic result is a *cohesive, polished indie look* — not Kingdom Rush parity. Cohesion (one palette, grounded shadows, baked road, real projectiles, themed UI, juice) does most of the work; per-asset artistry does the rest. Phases are ordered so each one visibly improves the game on its own.
+
+---
+
+## 1. Locked decisions (change only at a human gate)
+
+1. **Web release first** (itch.io + Vercel). Desktop and phone browsers from the same build. Store apps / Steam are a post-launch decision (Phase 6 gate).
+2. **Keep the existing 10 backgrounds.** Add depth with grading, props, a baked road and shadows rather than regenerating maps.
+3. **Fallback-first assets.** Every new art slot goes through the deferred-asset pattern (`spriteKeys.js`, `portraitFallback.js`, manifests) so a missing PNG never breaks the game.
+4. **UI is code-drawn** (procedural panels, bundled OFL fonts) so it scales on any screen and needs no art budget. Only icons are generated.
+5. **Animation = transforms + FX**, per `scripts/build-sprite-sheets.py` (no limb articulation; FLUX can't hold identity across frames). Quality comes from larger source cells, normalization, shadows, hit reactions and status FX.
+6. **Never push to `main`.** Every task is a branch + PR; Vercel preview URLs are the phone-testing path.
+
+## 2. How to run this autonomously
+
+### Task tags
+- **[AUTO]** Claude can do it unattended: branch → implement → test → verify → PR.
+- **[LOCAL]** Needs your Mac (Draw Things API server on, Python deps). Claude runs it from a local Claude Code session; you only keep the machine awake (`caffeinate -dimsu`).
+- **[GATE]** Needs a human decision/pick. Claude prepares everything, writes what it needs under **NEEDS HUMAN** in `.claude/notes.md`, and moves on to the next unblocked task.
+
+### Session prompt (paste at the start of any evening)
+```
+Read CLAUDE.md, .claude/notes.md and docs/superpowers/plans/2026-10-21-visual-overhaul-roadmap.md.
+Work the roadmap autonomously: take the first unchecked task whose dependencies are done and whose tag
+is AUTO (or LOCAL if Draw Things is running — check http://127.0.0.1:7860). For each task:
+1. branch visual/<task-id>-<slug> off the latest visual/integration branch (create it from main if missing)
+2. write a short spec/plan stub in docs/superpowers/ only when the task says so
+3. implement; keep tunables in src/data/; pure logic gets Vitest tests
+4. run `npm test` and `npm run build`; run the capture harness (task 0.1) and LOOK at the screenshots
+   against the task's acceptance criteria and docs/art-bible.md
+5. satisfy CLAUDE.md "Definition of Done" (edge cases enumerated, browser-verified, root cause named)
+6. commit, open a PR into visual/integration (never main), tick the box in the roadmap, add a dated line to .claude/notes.md
+Continue until 4 tasks are done, a GATE blocks everything left, or tests/build fail twice on the same
+issue (then stop and write the blocker in notes). Finish by summarising what is waiting for me.
+```
+
+### Branch/PR model
+`main` (prod) ← `visual/integration` (you merge when you're happy, after phone-testing the preview URL) ← one branch per task. Claude never merges into `main`.
+
+### Allowed new dependencies
+Dev: `playwright`, `sharp`. Runtime: `@fontsource/*` (OFL fonts). Python (local art only): `rembg[cli]`, `onnxruntime`, `pillow`, `numpy`, `scipy` (already used). Anything else → ask via NEEDS HUMAN.
+
+### Stop conditions
+Failing tests after two attempts at the same fix; any change that would alter balance numbers outside Phase 5; any request to touch `main`, secrets, or paid services.
+
+## 3. Human gates (total ≈ 4–6 hours over the whole project)
+
+| Gate | When | What you do | Time |
+|---|---|---|---|
+| G1 | after 0.2 | Approve `docs/art-bible.md` (palette, sizes, light) | 10 min |
+| G2 | after each art batch (4.2–4.7) | Open `.art-cache/review/index.html`, click favourites, download `picks.json` | 20–30 min × ~6 |
+| G3 | end of Phases 1, 2, 3 | Play the Vercel preview on your phone + desktop; list what feels wrong | 10–15 min × 3 |
+| G4 | before 5.4 | Decide map 9 funding / map 2 & 5 difficulty (backlog #35–37) | 10 min |
+| G5 | Phase 6 | Approve itch.io page copy, publish, decide on commercial path | 30 min |
+
+## 4. Tasks
+
+**MVP cut line (portfolio v1):** Phases 0–3, tasks 4.1–4.4, and Phase 6. Phase 5 and the remaining art ship as updates. Rough size: ~38 checklist items in total (about 25 in the MVP cut), roughly one evening each → ~8–10 weeks at 3 evenings/week for v1.
+
+### Phase 0 — Harness & art bible
+- [x] **0.1 [AUTO] Capture harness.** Playwright script `scripts/capture.mjs` boots `vite preview`, loads `?debug=1&map=N&wave=W&build=<scripted towers>`, waits N sim-seconds, saves a 1280×720 PNG (+ optional 10 s MP4/GIF) to `.art-cache/captures/`. Add the debug query hooks in `GameScene` (disabled in production builds). *Accept:* one command produces a screenshot of maps 0/3/5/9 mid-wave with towers and enemies visible; Claude can open them with Read. Also emulates iPhone/Pixel/iPad viewports with touch.
+- [ ] **0.2 [AUTO→G1] Art bible.** Write `docs/art-bible.md` from Appendix A (camera, light, palette, unit sizes, outline rule). *Accept:* G1 sign-off.
+- [x] **0.3 [AUTO] Baseline.** Capture baseline screenshots + write `docs/visual-baseline.md`: ranked list of what looks weakest per screen (title, map select, in-game, tower panel, results). Becomes the before/after record for the portfolio.
+
+### Phase 1 — Cohesion in code (no new art)  → G3 at the end
+- [x] **1.1 [AUTO] Asset diet.** `scripts/optimize-assets.mjs` (sharp): backgrounds PNG → WebP at 1× and 0.5× (pick by `devicePixelRatio`/canvas width); keep PNG originals in `assets-src/` (git-lfs-free, gitignored if >50 MB). *Accept:* total shipped background weight ≤ 6 MB (from ~34 MB); no visual diff beyond compression; load screen shows progress.
+- [x] **1.2 [AUTO] Grounding.** Soft ellipse contact-shadow in `EntitySprite` (data-driven size/offset per entity in `sprites.js`), y-sorted depth for towers/enemies/heroes/soldiers. Unit tests for the depth/shadow math. *Accept:* every unit visibly sits on the ground in captures; flyers have a detached, fainter shadow.
+- [x] **1.3 [AUTO] Sprite normalization.** `scripts/art/normalize.py`: unified dark outline (art-bible width), saturation/contrast match, top-left rim light, edge cleanup, applied to all existing sprite sheets/portraits. Idempotent, writes to `public/assets/sprites/` with originals kept in `.art-cache/originals/`. *Accept:* contact sheet of all 36 sheets reads as one family (washed-out cannon fixed).
+- [x] **1.4 [AUTO] Map grading & vignette.** Per-map `grade` in `src/data/maps.js` (tint, contrast, vignette, optional bloom); applied through Phaser camera postFX with a quality setting (auto-off on low-end/mobile or Canvas fallback). *Accept:* each of the 10 maps has a distinct mood; FPS impact < 10 % on desktop capture.
+- [x] **1.5 [AUTO] FX foundation.** Generate particle textures in code (soft glow, ring, spark, smoke puff, shard, ember) at boot; new `src/data/fx.js` declares per-tower/tier projectile shape, trail, muzzle flash and impact burst; `Projectile.js` + `ParticleSpawner.js` read it. Object-pool projectiles/particles. *Accept:* archer arrows, cannon arcing shells with shadow, mage bolts, ice shards, sniper tracer, soldier muzzle flashes all distinct; unit tests for the fx data contract.
+- [x] **1.6 [AUTO] Hit/death/status FX.** Hit squash + brief hit-stop on heavy hits, death effects by size class (small pop / large burst + debris / boss sequence), status overlays (slow = frost tint + crystals, burn, stun), life-loss pulse. *Accept:* each effect visible in a captured sequence; no new per-frame allocations (pooled).
+- [x] **1.7 [AUTO] Procedural road.** New `RoadRenderer` replacing the stroked-line styles: textured, edge-feathered road baked once into a RenderTexture per map from the existing path polyline, with junction/curve caps, a **spawn portal** and a **base beacon** (animated). Procedural texture per biome (noise + gradient) as the default; swaps to generated tiles in 4.5. Old `PathRenderer` stays behind a flag until all maps pass. *Accept:* road reads as part of the terrain on all 10 maps; pad/road overlap checks pass.
+- [x] **1.8 [AUTO] Economy & feedback juice.** Gold pop on kills with arcing coin to the HUD counter, build/upgrade/sell animations (scale-pop + ring burst), wave-incoming banner, boss warning, ability cooldown rings and target reticles, selection ring, pad idle glow. *Accept:* checklist in the PR with a capture per item.
+- [x] **1.9 [AUTO] Ambient life.** Extend `AmbientBackgroundLayer`/`ambientFxFamilies.js`: biome-specific drifting dust/embers/stars with 2-layer parallax; blinking beacons on pads. *Accept:* motion visible in a 10 s capture; negligible CPU.
+- [ ] **G3 gate** — phone + desktop playtest of the preview; findings go to `docs/visual-baseline.md`.
+
+### Phase 2 — Touch & responsive  → G3
+- [x] **2.1 [AUTO] Input model.** One pointer-first `InputController`: tap = select/place; long-press = inspect (replaces hover); two-step confirm for upgrade/sell; every keyboard shortcut gets an on-screen equivalent (pause, speed, send wave, abilities). Existing hover tooltips (`AbilityTooltip`, `WavePreviewPopover`, `InspectController`) get tap paths. Tests for the state machine. *Done 2026-10-22: plan `2026-10-22-input-model.md`; long-press is touch-only (mouse keeps hover); two-step confirm is touch/pen-only; Escape gains an on-screen ✕ Cancel; native `title=` tooltips deferred to 3.1 (backlog #42).*
+- [x] **2.2 [AUTO] HUD to canvas.** Move the HTML `#hud` into a canvas HUD (scales with FIT, ≥ 44 px targets after scaling to a 360 px-high phone viewport); keep DOM overlays (codex, settings, story) but restyle them with touch-sized CSS. *Accept:* HUD usable at 844×390 and 932×430 landscape captures. *Done 2026-10-22 as side rails with the HUD as DOM in game space (user decisions); plan `2026-10-22-hud-rails.md`; desktop map-size trade-off = backlog #43.*
+- [x] **2.3 [AUTO] Mobile shell.** Landscape prompt, fullscreen button, audio unlock on first tap, `touch-action: none`, disable pull-to-refresh/double-tap zoom, safe-area insets, visibilitychange auto-pause, resize handling. *Done 2026-10-22 (pulled ahead of G3): fixes the landscape PLAY bug; plan `2026-10-22-mobile-shell.md`; compact CSS is a stopgap for 2.2.*
+- [x] **2.4 [AUTO] Device matrix.** Playwright touch-emulation scripts: boot → select map → build → upgrade → send wave → pause, on iPhone 14, Pixel 7, iPad. Screenshots into the PR. *Real-device check is part of G3.* *Done 2026-10-22: `npm run matrix` (`scripts/capture.mjs --flow`), spec `2026-10-22-device-matrix-design.md`. Real input from a fresh first run, with state asserted every step (two-tap Upgrade on touch, map-area freeze on pause). Desktop plus the three touch devices pass; exits 1 on failure. Captures in `docs/captures/2.4-device-matrix/`.*
+
+### Phase 3 — UI kit & screens
+- [x] **3.1 [AUTO] Theme module.** `src/ui/theme.js`: palette, spacing, bundled OFL fonts (e.g. Orbitron for headings, Rajdhani/Exo 2 for body via `@fontsource`), procedural 9-slice panels and buttons (bevel, inner glow, scanline) with normal/pressed/disabled states; document in `docs/art-bible.md`. *Done 2026-10-23: spec `2026-10-23-theme-module-design.md`. Tokens are in `src/data/theme.js` and published as `--ui-*` by `src/ui/theme.js`. Fonts: Orbitron 700 + Rajdhani 500/700, latin subset (user pick); Georgia removed. Palette: strict art bible (user pick). The kit is CSS `.ui-panel`/`.ui-btn` with variants and states, adopted by the HUD and in-level overlays; map select and the hero/upgrade overlays got the font only (3.4). Native `title=` tooltips (#42a) were re-targeted to 3.3.*
+- [ ] **3.2 [LOCAL→G2] Icon set.** Generate icons (6 towers, 6 enemies, gold/lives/wave/speed/pause/abilities, 12 hero abilities) via the art pipeline (Section 5), cutout, 128 px. Emoji remain the fallback until the files exist.
+- [x] **3.3 [AUTO] Radial build/upgrade menus.** Replace the tower panel with a radial picker (cost, affordability, range preview) and an upgrade ring that previews the next tier and both branches. Touch-first. *Done 2026-10-23: spec `2026-10-23-radial-menus-design.md`.*
+  - *Build: tap a free pad for a 6-tower radial; rail arm-then-tap still works (user).*
+  - *Ring: glyph + cost faces; hub shows tier and stats; names and deltas in the item peek.*
+  - *Removed: `#tower-panel`. Detail moved to a long-press tower inspector (user).*
+  - *Removed: native `title=`, replaced by HintPeek (#42a).*
+  - *Test: `npm run matrix` drives the radial; `radialProblems` audit.*
+- [x] **3.4 [AUTO] Title & map select.** Animated starfield + parallax, typographic logo with glow (code, not generated — FLUX renders text badly), overworld nodes with state (locked/open/cleared + stars), polished transitions. *Done 2026-10-23: spec `2026-10-23-title-world-map-design.md`, plan `2026-10-23-title-world-map.md`. User picks: space title with a beam-sweep "LAST LIGHT" (option A), tap → world map; the world map tells the story of the war (deep-space vista with 7 code-drawn planets, route Earth → hive core, receding Veth front line, act banner, Command briefing card); after a first-clear win the ship flies to the next mission. Absorbed #41c, #41f, #50a. Matrix desktop 17/17, touch 18/18 (new `title` step). Captures `docs/captures/3.4-title-world-map/`.*
+- [x] **3.5 [AUTO] Story dialogs.** Portrait frames, typewriter text, skip/advance on tap. *Done 2026-10-24: spec `2026-10-23-story-dialogs-design.md`, plan `2026-10-24-story-dialogs.md`. User picks: action-comic "caption boxes" (option B) — skewed halftone portrait in an ink frame with the speaker's colour, name tab, solid caption box with hard shadow; Command left/gold, Rael right/mirrored/pale gold, Veth violet/jagged/glitch; Skip + Next kept; a backdrop tap advances. Portrait slams in, the line types out; tap finishes, next tap advances (250-ms guard); keys captured so the game never sees them; live region announces "Speaker: line". Captures `docs/captures/3.5-story-dialogs/`.*
+- [x] **3.6 [AUTO] Results screen + stars.** Victory/defeat screens with stats, 3-star rating (lives remaining thresholds in `src/data/`), `SaveManager` extended + tests. *Done 2026-10-26 (#116, merged 2026-10-27): spec `2026-10-25-results-screen-design.md`, plan `2026-10-26-results-screen.md`. User picks: action-comic finale (option B); star rule unchanged 80/50 %; NEXT MISSION flies via the world map and lands on the next briefing with LAUNCH focused; per-map bests kept per field (fewest lives lost, fastest time) with a NEW BEST stamp; Command reacts on a win, the Veth taunt on a loss. Save v5 `records`. Layout tiers are `@container` on the map rect (content box, short ≤ 640 px). Captures `docs/captures/3.6/`.*
+
+### Phase 4 — Art pass (Draw Things)  → G2 after each batch
+- [x] **4.0 [AUTO] Pipeline v2** (Section 5): job specs, N candidates per asset, auto-cutout, review page, `picks.json` apply step. Dry-run works without Draw Things. *Done 2026-11-16: spec `2026-11-16-art-pipeline-v2-design.md`, plan `2026-11-16-art-pipeline-v2.md`, usage `scripts/art/README.md`. User picks: tower tier variants in scope (`archer.t4a` PROMPTS bullets, img2img from the base, reuse the base's tone), review layout C (contact sheet + game-size strip on a map pad), built beside the legacy generator. Live smoke on real Draw Things: img2img supported; strength 0.45 is too timid for a distinct tier look (try 0.6–0.7 in 4.2); candidate #0 of an unchanged prompt reproduces today's art (backlog #70). The G1 FLUX anchor replacement was not in this spec — do it first in 4.2.*
+- [x] **4.1 [LOCAL] Re-bake at 2× cell size.** Re-run `build-sprite-sheets.py` from the 1024 px references (regenerate refs with stored seeds if `.art-cache/` is missing) into 128 px (colossus/titan 192/256) cells; update `sprites.js` scales so on-screen size is unchanged but crisp on retina/phones. *Accept:* sizes pass `npm run assets`; side-by-side capture sharper at 2× DPR. *Split 2026-11-21: the canvas itself rendered at a fixed 1488×720 and was CSS-stretched, so a re-bake alone could not show. 4.1a (canvas renders at screen resolution, k = 1 or 2) shipped first: spec `2026-11-21-hidpi-canvas-design.md`, plan `2026-11-21-hidpi-canvas.md`. 4.1b shipped 2026-11-21 as a second `@2x` sheet set loaded only at k = 2 (1x stays for k = 1; WebGL1 has no mipmaps for NPOT sheets): spec `2026-11-21-sprite-2x-rebake-design.md`, plan `2026-11-21-sprite-2x-rebake.md`.*
+- [x] **4.2 [LOCAL→G2] Towers.** 3 looks per tower (T1–T3 share a base, branch 4A, branch 4B) = 18 images × 8 candidates; code adds tier pips/glow/scale for T2/T3. Use `/sdapi/v1/img2img` from the approved T1 reference (strength ≈ 0.4–0.5) for branch variants **if your Draw Things build supports it**, else same-seed txt2img with a prompt delta. Update `sprites.js` with `tier`/`branch` selection in `spriteKeys.js` (+ tests). *Done 2026-11-18: spec `2026-11-16-tower-art-design.md`, plan `2026-11-16-tower-art.md`. User amended scope: T2 and T3 get their own art too, every tier reading stronger than the one below (30 looks: 6 bases + 24 tiers). img2img from the base needs strength 0.85–0.92 under FLUX schnell (0.6–0.75 returned near-copies); every variant holds the ~36px footprint via per-variant `scale`.*
+- [x] **4.3 [LOCAL→G2] Enemy refresh.** Only regenerate enemies that still look off after 1.3 (likely skitter/phantom); add a hurt-pose variant per enemy for hit reactions where it pays off. *Done 2026-11-21: spec `2026-11-21-enemy-refresh-design.md`, plan `2026-11-21-enemy-refresh.md`. User picks: regenerate drone, phantom and titan; skip hurt poses (the hit flash and damage numbers already sell a hit). Picks drone #7, phantom #1, titan #6 (flipped). The drone is now reproducible and has @2x art. Footprints are held: drone and phantom at their old scale, titan at scale 0.99 with its longest side at 104.*
+- [~] **4.4 [LOCAL→G2] Pads & set dressing.** *Superseded (user decision 2026-11-21): the terrain-only painted backdrops already carry the set dressing, and the procedural road plus ringed-emplacement pads replaced tiles and pad art.* 4 build-pad variants, 6 biome road tiles (feeds 1.7), ~25 prop cutouts per biome family (rocks, crystals, wrecks, antennae, ruins), placed by a seeded scatter (`src/systems/propScatter.js`, tested) that avoids road/pads/UI.
+- [x] **4.5 [LOCAL→G2] Spawn portal, base beacon, hero & soldier refresh, portraits.** Lower priority; do after the MVP cut if time is short. *Done 2026-11-21 (#138): soldiers 1.5x, new engineer art without the baked shadow. User skipped portal and beacon art (the code-animated rings from 1.7 read fine). Portraits at 512 were deferred: re-rendering gave different brushwork (backlog #83).*
+- [x] **4.6 [AUTO] Licence ledger.** `docs/licenses.md`: model (FLUX.1 [schnell], Apache-2.0 — confirm the exact weights Draw Things serves), rembg, fonts (OFL), existing `public/audio/ATTRIBUTIONS.md`. Needed before any commercial release. *Done 2026-11-21: docs/licenses.md + src/assets/licenseLedger.test.js.*
+
+### Phase 5 — Gameplay depth (measured with `npm run balance`)  *(post-v1 updates)*
+- [ ] **5.1 [AUTO] Map mechanics.** Spec first (brainstorm → spec → plan, per `CLAUDE.md`). Three data-driven mechanics: `altPaths` (forks with weighted spawn), `hazardZones` (telegraphed asteroid impacts, ion storm slows towers), `padRestrictions` (locked/special pads). Teach `src/sim/` the same rules so balance stays measurable. Give each of maps 3–9 one signature mechanic.
+- [ ] **5.2 [AUTO] Wave readability.** Flyer/boss warnings, richer wave preview, boss intro beat.
+- [ ] **5.3 [AUTO] Replay value.** Difficulty modes (Normal/Veteran), endless mode from the wave generator, per-map best score.
+- [x] **5.4 [GATE→AUTO] Balance debt.** Backlog #35–37 (maps 5, 2, 9) after your decision at G4. *Done 2026-11-19 (PR #130): map 9 starts with 690 gold and map 8 with 405. Map 2 and map 5 were kept as they are, by decision (G4).*.
+- [ ] **5.5 [AUTO] Onboarding.** Guided first-map hints (place, upgrade, ability, send-early), dismissible, stored in save data.
+
+### Phase 6 — Release
+- [x] **6.1 [AUTO] Performance pass.** Profile with Playwright traces; pool everything hot; confirm 60 fps desktop, ≥ 30 fps on a mid-range phone capture; quality toggle in settings (bloom/grade/particles). *Done 2026-11-22 (`perf/6.1-performance-pass`): the profile showed static Graphics re-triangulated every frame, so the static layer is baked once (Canvas2D at k); `npm run perf` gate (all 10 maps 60 fps desktop and 4x-phone); `?fps=1` counter in every build; Graphics Auto/High/Low replaces Map grade, Reduce motion replaces Ambient motion. No pooling (GC ~2% of frame) and no bloom (none exists).*
+- [x] **6.2 [AUTO] Build & package.** `vite build --base=./`, `scripts/package-itch.mjs` → zip; auto-generated screenshots + a 15 s gameplay clip from the capture harness. *Done 2026-11-23 (`release/6.2-build-package`): `npm run package:itch` checks itch's limits, zips, and plays the unpacked zip from a subfolder on desktop and iphone (this caught root-absolute portrait URLs, now fixed); `npm run release:media` makes 6 full-board shots, a 630×500 cover and a 15 s MP4/GIF clip.*
+- [x] **6.3 [AUTO] Portfolio README.** Before/after gallery, architecture (sim + balance tool + 1,500+ tests), pipeline write-up. *Done 2026-11-23 (`docs/6.3-portfolio-readme`): root `README.md`, an engineering case study for engineers with Claude Code's role front and centre (user decisions); 7 before/after pairs + hero in `docs/readme/`; every number measured; link guard test.*
+- [ ] **6.4 [GATE G5] Publish.** itch.io page + feedback link; decide after real plays whether to pursue Capacitor (mobile stores: Apple ~$99/yr, Google ~$25 once) or Steam (~$100/app) — verify current fees then.
+
+## 5. Draw Things art pipeline (FLUX.1 [schnell])
+
+The repo already drives Draw Things through `npm run art` (A1111-style `POST /sdapi/v1/txt2img`, auto port discovery, locked seed). Pipeline v2 keeps that and adds a review loop so you spend minutes, not hours, per batch.
+
+**Setup (once):** Draw Things → Advanced → enable the **API Server**; keep the FLUX.1 [schnell] model loaded; `pip3 install 'rembg[cli]' onnxruntime pillow numpy scipy`.
+
+**Settings:** 1024×1024, 4 steps, CFG 0, Euler a. FLUX ignores negative prompts at CFG 0 — put exclusions in the positive prompt ("no text, no ground shadow, plain flat background").
+
+**Flow per batch:**
+1. Job spec in `scripts/art/jobs/<batch>.json`: id, prompt (style anchor from the art bible + subject), seeds list, output size, cutout on/off, target manifest path.
+2. `npm run art -- --job <batch> --candidates 8` generates into `.art-cache/candidates/<id>/` (resumable, skips existing, rotating seeds so rerolls are on-style).
+3. Auto-cutout with `rembg` (`isnet-general-use` — it drops the generator's ground shadow), then `normalize.py`.
+4. Builds `.art-cache/review/index.html`: grid of candidates per asset on a dark/light toggle, click to pick, **Download picks.json**. *(G2: this is the only human step.)*
+5. `npm run art:apply -- picks.json` copies winners to `public/assets/...`, builds sheets, updates manifests, runs `npm run assets` and the tests.
+
+**Time:** 18 tower looks × 8 candidates ≈ 144 images — expect an hour or two of unattended generation on Apple silicon (depends on your Mac). Run it overnight with `caffeinate`.
+
+**Quality tips baked into the prompts:** one subject, centered, "high-angle top-down game sprite", flat background; check every frame for stray lettering (FLUX likes to write the title); reject anything with a baked ground shadow.
+
+## 6. Risks & fallbacks
+
+| Risk | Fallback |
+|---|---|
+| FLUX can't keep a tower consistent across tiers | Code-decorated tiers (pips/glow/scale) + two branch looks; no per-tier art |
+| Normalization makes sprites look flat | Per-entity opt-out in `normalize.py`; keep originals in `.art-cache/originals/` |
+| postFX tanks mobile FPS | Quality setting; default off on touch devices (1.4/6.1) |
+| HUD-to-canvas rewrite is bigger than expected (2.2) | Keep DOM HUD, scale with CSS `clamp()` and 44 px minimums; revisit post-v1 |
+| Tests coupled to the Graphics fallback | Update alongside each task; never delete coverage to go green |
+| Scope creep | Anything not on the MVP cut line waits for v1.1 |
+
+## Appendix A — Art bible seed values (adjust at G1)
+
+- **Camera/light:** high-angle top-down (~60° pitch); light from upper-left; shadows fall lower-right, soft ellipse at ~35 % black.
+- **Human palette:** cool steel + teal hulls, amber (#ffb000) accent lights.
+- **Veth palette:** dark chitin bases with the per-type emissive from `enemies.js` — drone `#33ff66`, skitter `#ff6600`, brute `#667766`, colossus `#880044`, phantom `#9b59b6`, titan `#e74c3c`.
+- **UI palette:** deep navy panels (#0f1424), cyan-teal accent, gold for currency (existing `#ffd700`).
+- **Outline:** 1.5 px dark navy (#0b1020) at 1×, 3 px at 2× source.
+- **On-screen footprint (1280×720 design px, source authored at 2×):** drone 44, skitter 38, brute 54, colossus 72, phantom 46, titan 104; towers ~80; heroes ~56; soldiers/sentries ~36.
+- **Touch:** minimum 44 px target after FIT scaling on a 390 px-high viewport.

@@ -4,6 +4,9 @@ import {
   briefKey, epilogueKey, victorySequenceId, storyLogEntries, STORY_LOG_LABELS,
 } from './story.js';
 import { MAPS } from './maps.js';
+import { ENEMY_DEFS } from './enemies.js';
+import { PALETTE, MIX } from './theme.js';
+import { contrastRatio, deriveShades } from '../ui/theme.js';
 
 describe('story content integrity', () => {
   it('every speaker has name, color, portraitKey', () => {
@@ -12,6 +15,33 @@ describe('story content integrity', () => {
       expect(typeof s.color).toBe('number');
       expect(typeof s.portraitKey).toBe('string');
     }
+  });
+
+  it('every speaker has a valid side and a numeric caption', () => {
+    for (const s of Object.values(STORY_SPEAKERS)) {
+      expect(['left', 'right']).toContain(s.side);
+      expect(typeof s.caption).toBe('number');
+    }
+  });
+
+  it('shape and glitch are absent or valid', () => {
+    for (const s of Object.values(STORY_SPEAKERS)) {
+      if ('shape' in s) expect(['box', 'jagged']).toContain(s.shape);
+      if ('glitch' in s) expect(typeof s.glitch).toBe('boolean');
+    }
+  });
+
+  it('caption and name colours clear 4.5:1 against the ink', () => {
+    const ink = deriveShades(PALETTE, MIX).bevelLo;
+    const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
+    for (const [id, s] of Object.entries(STORY_SPEAKERS)) {
+      expect(contrastRatio(hex(s.caption), ink), `${id} caption`).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(hex(s.color), ink), `${id} color`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('at least one speaker sits on the right', () => {
+    expect(Object.values(STORY_SPEAKERS).some((s) => s.side === 'right')).toBe(true);
   });
 
   it('campaign_intro and campaign_ending exist with panels', () => {
@@ -61,5 +91,25 @@ describe('story content integrity', () => {
     const entries = storyLogEntries(seen);
     expect(entries[0]).toEqual({ id: 'campaign_intro', label: STORY_LOG_LABELS.campaign_intro });
     expect(entries.map(e => e.id)).toEqual(['campaign_intro', 'brief_outpost_sigma', 'brief_lunar_gate']);
+  });
+});
+
+// The enemy faction had two names (story "Vorn", data/codex "Veth") until
+// 2026-10-21. The story now takes its name from enemies.js.
+describe('enemy faction name', () => {
+  const factions = new Set(Object.values(ENEMY_DEFS).map(d => d.name.split(' ')[0]));
+  const faction = [...factions][0];
+  const allText = JSON.stringify({ STORY_SPEAKERS, STORY_SEQUENCES, STORY_PANELS });
+
+  it('has one faction prefix across every enemy name', () => {
+    expect(factions.size).toBe(1);
+  });
+
+  it('names the alien speaker after that faction', () => {
+    expect(Object.values(STORY_SPEAKERS).some(sp => sp.name === `The ${faction}`)).toBe(true);
+  });
+
+  it('never uses the retired name', () => {
+    expect(allText).not.toMatch(/vorn/i);
   });
 });

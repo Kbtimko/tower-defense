@@ -41,22 +41,18 @@ function el(tag, attrs, parent) {
 // #codex-overlay block.
 function setupDOM() {
   document.body.textContent = '';
-  el('div', { id: 'hud', display: 'flex' });
+  el('div', { id: 'hud-layer', display: 'block' });
   el('button', { id: 'open-codex' });
-  el('div', { id: 'tower-panel', display: 'block' });
   const gameMsg = el('div', { id: 'game-msg', display: 'block' });
   el('button', { id: 'msg-btn' }, gameMsg);
   el('button', { id: 'msg-cancel-btn' }, gameMsg);
   el('div', { id: 'paused-overlay', className: 'shown' });
-  const bar = el('div', { id: 'bottom-bar', display: 'flex' });
+  const bar = el('div', { id: 'rail-right' });
   el('button', { className: 'tower-btn' }, bar);
   el('button', { id: 'exit-btn' }, bar);
   el('button', { id: 'wave-btn' }, bar);
   el('button', { id: 'speed-btn' });
   el('button', { id: 'pause-btn' });
-  el('button', { id: 'panel-upgrade-btn' });
-  el('button', { id: 'panel-sell-btn' });
-  el('button', { id: 'panel-reposition-btn' });
   el('button', { id: 'story-dismiss' });
 
   const codex  = el('div', { id: 'codex-overlay', display: 'none' });
@@ -78,7 +74,13 @@ function makeScene({ over = false, won = false, userPaused = false } = {}) {
   scene.over = over;
   scene.won  = won;
   scene._userPaused = userPaused;
-  scene.scene = { pause: vi.fn(), resume: vi.fn() };
+  // Stateful like Phaser, which warns when a PAUSED scene is paused again.
+  let paused = false;
+  scene.scene = {
+    pause: vi.fn(() => { paused = true; }),
+    resume: vi.fn(() => { paused = false; }),
+    isPaused: () => paused,
+  };
   // No 'save' registered — buildCatalog(progressFromSave(null)) must still
   // work, same tolerance already covered in codexCatalog's own tests.
   scene.game  = { registry: { get: () => null } };

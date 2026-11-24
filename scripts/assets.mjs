@@ -22,17 +22,34 @@ function pngSize(file) {
   return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
 }
 
+// WebP: RIFF container, then a VP8 (lossy), VP8L (lossless) or VP8X
+// (extended) chunk, each with its own size encoding.
+function webpSize(file) {
+  const buf = readFileSync(file);
+  if (buf.length < 30 || buf.toString('ascii', 0, 4) !== 'RIFF' || buf.toString('ascii', 8, 12) !== 'WEBP') return null;
+  const chunk = buf.toString('ascii', 12, 16);
+  if (chunk === 'VP8 ') return { width: buf.readUInt16LE(26) & 0x3fff, height: buf.readUInt16LE(28) & 0x3fff };
+  if (chunk === 'VP8L') {
+    const b = buf.readUInt32LE(21);
+    return { width: (b & 0x3fff) + 1, height: ((b >> 14) & 0x3fff) + 1 };
+  }
+  if (chunk === 'VP8X') return { width: buf.readUIntLE(24, 3) + 1, height: buf.readUIntLE(27, 3) + 1 };
+  return null;
+}
+
+const imageSize = file => (file.endsWith('.webp') ? webpSize(file) : pngSize(file));
+
 const assets = requiredAssets();
 const rows = [];
 
 for (const a of assets) {
   const row = { ...a, status: 'missing', detail: '' };
   if (existsSync(a.path)) {
-    const size = pngSize(a.path);
+    const size = imageSize(a.path);
     const bytes = statSync(a.path).size;
     if (!size) {
       row.status = 'BROKEN';
-      row.detail = 'not a valid PNG';
+      row.detail = `not a valid ${a.path.endsWith('.webp') ? 'WebP' : 'PNG'}`;
     } else if (a.expected && (size.width !== a.expected.width || size.height !== a.expected.height)) {
       row.status = 'size?';
       row.detail = `${size.width}x${size.height}, expected ${a.expected.width}x${a.expected.height}`;

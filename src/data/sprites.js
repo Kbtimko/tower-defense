@@ -1,3 +1,8 @@
+import { SPRITE_VARIANTS } from './spriteVariants.js';
+import { SPRITE_2X } from './sprite2x.js';
+import { resolveManifest } from '../systems/spriteResolution.js';
+import { getRenderScale } from '../systems/renderScale.js';
+
 // Declarative entity-art manifest. Tunables live here (no Phaser import).
 //
 // Each entry maps an entity category+type to per-state art. A state is either:
@@ -11,6 +16,14 @@
 // falls back to the entity's Graphics drawing. Adding art = drop the PNG under
 // assets/sprites/ + add one entry here (see assets/sprites/PROMPTS.md).
 //
+// `ground` is the art's measured silhouette for the contact shadow (1.2),
+// measured on the NORMALIZED sheets (outline included) — scripts/art/normalize.py
+// prints fresh values on every run:
+// footY = lowest opaque pixel (alpha > 32) below the anchor across the first
+// state's frames, width = median silhouette width, both x `scale` in display
+// px. Measured from the cell, not assumed from it — a 96px cell can hold a
+// 36px-wide tower. Re-measure whenever a sheet or its scale changes.
+//
 // Example entry shape (kept as a comment until real art lands):
 //   {
 //     category: 'enemy', type: 'drone',
@@ -22,7 +35,21 @@
 //                frameWidth: 48, frameHeight: 48, frames: 5, frameRate: 12 },
 //     },
 //   },
-export const SPRITE_MANIFEST = [
+//
+// Tier variants (#49): an entry may also declare per-tier art, keyed t2, t3,
+// t4a or t4b. BootScene loads each declared state under
+// sprite-<category>-<type>-<state>-<variant>; scale/anchor/ground override
+// the entry's own for that variant. Variants are declared in the generated
+// spriteVariants.js (written by `npm run art:apply`), merged in below —
+// declaring one whose PNG is missing logs a boot 404, which fails captures.
+//   variants: {
+//     t4a: { scale?, anchor?, ground?,
+//            states: { idle: { path, frameWidth, frameHeight, frames, frameRate } } },
+//   },
+// Soldier tier keys a manifest doesn't fill are generated at boot by
+// recolouring the base sheets (src/systems/soldierTierTextures.js); declared
+// art that loaded always wins over the generated copy.
+const BASE_SPRITE_MANIFEST = [
   // Veth Drone — ground, def.radius 9. The 64px cell renders at ~38px. That is
   // deliberately larger than the Graphics circle it replaced: at the original
   // ~27px a drone read as an indistinct speck next to 52-99px towers.
@@ -31,6 +58,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'enemy', type: 'drone',
     scale: 0.59, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 17.7, width: 32.2 },
     states: {
       move:  { path: 'assets/sprites/enemies/drone_move.png',
                frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 12 },
@@ -42,6 +70,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'enemy', type: 'skitter',
     scale: 0.52, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 16.1, width: 26.0 },
     states: {
       move:  { path: 'assets/sprites/enemies/skitter_move.png',
                frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 16 },
@@ -53,6 +82,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'enemy', type: 'brute',
     scale: 0.91, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 27.3, width: 32.8 },
     states: {
       move:  { path: 'assets/sprites/enemies/brute_move.png',
                frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 9 },
@@ -65,6 +95,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'enemy', type: 'colossus',
     scale: 0.56, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 25.8, width: 41.7 },
     states: {
       move:  { path: 'assets/sprites/enemies/colossus_move.png',
                frameWidth: 96, frameHeight: 96, frames: 8, frameRate: 8 },
@@ -77,6 +108,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'enemy', type: 'phantom',
     scale: 0.58, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 15.1, width: 31.3 },
     states: {
       move:  { path: 'assets/sprites/enemies/phantom_move.png',
                frameWidth: 64, frameHeight: 64, frames: 8, frameRate: 14 },
@@ -85,10 +117,12 @@ export const SPRITE_MANIFEST = [
     },
   },
   // Veth Titan — boss, def.radius 22. 128px cell for the same reason as the
-  // colossus, and it is a tall standing silhouette rather than a low one.
+  // colossus. The art is a four-legged beast, about 93 x 104 display px drawn;
+  // scale 0.99 holds its longest side at 104.
   {
     category: 'enemy', type: 'titan',
-    scale: 1.08, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    scale: 0.99, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 57.4, width: 95.5 },
     states: {
       move:  { path: 'assets/sprites/enemies/titan_move.png',
                frameWidth: 128, frameHeight: 128, frames: 8, frameRate: 8 },
@@ -104,7 +138,8 @@ export const SPRITE_MANIFEST = [
   // correct). Attack is the firing beat.
   {
     category: 'tower', type: 'archer',
-    scale: 1.03, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    scale: 0.78, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 32.0, width: 37.4 },
     states: {
       idle:   { path: 'assets/sprites/towers/archer_idle.png',
                 frameWidth: 96, frameHeight: 96, frames: 1 },
@@ -112,13 +147,12 @@ export const SPRITE_MANIFEST = [
                 frameWidth: 96, frameHeight: 96, frames: 5, frameRate: 14 },
     },
   },
-  // Mage — the narrowest tower (silhouette aspect 0.48). At a 64px cell it
-  // would be only 25px wide and need a 1.44x upscale to reach the 36px tower
-  // footprint, which looks soft, so it gets a 96px cell like the colossus
-  // and titan do.
+  // Mage keeps the 96px cell from its old, narrow art. The 4.2 art is the
+  // widest tower, so it scales down hardest to hold the 36px tower footprint.
   {
     category: 'tower', type: 'mage',
-    scale: 0.86, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    scale: 0.54, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 22.7, width: 37.3 },
     states: {
       idle:   { path: 'assets/sprites/towers/mage_idle.png',
                 frameWidth: 96, frameHeight: 96, frames: 1 },
@@ -128,7 +162,8 @@ export const SPRITE_MANIFEST = [
   },
   {
     category: 'tower', type: 'cannon',
-    scale: 0.86, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    scale: 0.65, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 18.2, width: 35.8 },
     states: {
       idle:   { path: 'assets/sprites/towers/cannon_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 1 },
@@ -138,7 +173,8 @@ export const SPRITE_MANIFEST = [
   },
   {
     category: 'tower', type: 'ice',
-    scale: 0.88, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    scale: 0.78, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 21.8, width: 35.9 },
     states: {
       idle:   { path: 'assets/sprites/towers/ice_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 1 },
@@ -148,7 +184,8 @@ export const SPRITE_MANIFEST = [
   },
   {
     category: 'tower', type: 'sniper',
-    scale: 0.82, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    scale: 0.75, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 21.0, width: 36.0 },
     states: {
       idle:   { path: 'assets/sprites/towers/sniper_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 1 },
@@ -160,7 +197,8 @@ export const SPRITE_MANIFEST = [
   // attack state at all.
   {
     category: 'tower', type: 'barracks',
-    scale: 0.86, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    scale: 0.75, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 21.0, width: 36.0 },
     states: {
       idle: { path: 'assets/sprites/towers/barracks_idle.png',
               frameWidth: 64, frameHeight: 64, frames: 1 },
@@ -173,6 +211,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'hero', type: 'rael',
     scale: 0.76, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 21.3, width: 27.4 },
     states: {
       idle:   { path: 'assets/sprites/heroes/rael_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 6, frameRate: 8 },
@@ -184,7 +223,8 @@ export const SPRITE_MANIFEST = [
   },
   {
     category: 'hero', type: 'engineer',
-    scale: 0.78, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    scale: 0.75, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 21.0, width: 30.0 },
     states: {
       idle:   { path: 'assets/sprites/heroes/engineer_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 6, frameRate: 8 },
@@ -197,6 +237,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'hero', type: 'scout',
     scale: 0.76, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 21.3, width: 28.9 },
     states: {
       idle:   { path: 'assets/sprites/heroes/scout_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 6, frameRate: 8 },
@@ -209,6 +250,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'hero', type: 'pyro',
     scale: 0.78, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 21.8, width: 31.2 },
     states: {
       idle:   { path: 'assets/sprites/heroes/pyro_idle.png',
                 frameWidth: 64, frameHeight: 64, frames: 6, frameRate: 8 },
@@ -220,11 +262,13 @@ export const SPRITE_MANIFEST = [
   },
 
   // --- Units -------------------------------------------------------------
-  // The soldier holds a blocking post and the sentry is bolted down, so
-  // neither gets a move state — just idle and attack, like the towers.
+  // The soldier walks to its rally point: a `move` state is wired in
+  // Soldier.update and falls back to idle until a sheet is registered here.
+  // The sentry is bolted down — just idle and attack, like the towers.
   {
     category: 'soldier', type: 'default',
-    scale: 0.36, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    scale: 0.54, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 12.4, width: 16.2 },
     states: {
       idle:   { path: 'assets/sprites/soldiers/default_idle.png',
                 frameWidth: 48, frameHeight: 48, frames: 6, frameRate: 8 },
@@ -235,6 +279,7 @@ export const SPRITE_MANIFEST = [
   {
     category: 'sentry', type: 'default',
     scale: 0.58, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
+    ground: { footY: 12.8, width: 15.1 },
     states: {
       idle:   { path: 'assets/sprites/sentry/default_idle.png',
                 frameWidth: 48, frameHeight: 48, frames: 6, frameRate: 8 },
@@ -244,7 +289,34 @@ export const SPRITE_MANIFEST = [
   },
 ];
 
+// Tier-variant art is declared in the GENERATED spriteVariants.js (written by
+// the art apply step) so the hand-written manifest above never needs editing.
+// Pure: returns new entries for matches, never mutates the input.
+export function mergeVariants(manifest, variants) {
+  return manifest.map(entry => {
+    const extra = variants[`${entry.category}/${entry.type}`];
+    return extra ? { ...entry, variants: { ...entry.variants, ...extra } } : entry;
+  });
+}
+
+// The 1x manifest, kept for tooling (asset check, art:apply, normalize via node).
+// Runtime code must use spriteManifest() / getSpriteConfig so render scale 2 resolves
+// to the @2x sheets; reading this directly would silently pin the game to 1x art.
+export const SPRITE_MANIFEST = mergeVariants(BASE_SPRITE_MANIFEST, SPRITE_VARIANTS);
+
+// The manifest the runtime loads and reads. Resolved at call time because
+// main.js sets the render scale AFTER this module is imported; memoised per k so
+// callers get a stable array (and the same entry objects) within a scale.
+const resolvedByScale = new Map();
+export function spriteManifest() {
+  const k = getRenderScale();
+  if (!resolvedByScale.has(k)) {
+    resolvedByScale.set(k, resolveManifest(SPRITE_MANIFEST, k, p => SPRITE_2X.has(p)));
+  }
+  return resolvedByScale.get(k);
+}
+
 // Look up the manifest entry for an entity, or null if none is registered.
 export function getSpriteConfig(category, type) {
-  return SPRITE_MANIFEST.find(e => e.category === category && e.type === type) ?? null;
+  return spriteManifest().find(e => e.category === category && e.type === type) ?? null;
 }

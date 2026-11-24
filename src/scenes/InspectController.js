@@ -2,8 +2,12 @@ import { describeEnemyMatchups } from '../data/weaknessMatrix.js';
 import { shortEnemyName } from '../systems/entityDescriptors.js';
 import { TOWER_DEFS } from '../data/towers.js';
 import { HEROES } from '../data/heroes.js';
-import { gameToPageCss } from '../systems/viewport.js';
+import { worldToPageCss, clampPanelWithin, placeBeside } from '../systems/viewport.js';
+import { mapRectPage } from '../ui/hudLayer.js';
+import { PANEL_EDGE_MARGIN, PEEK_GAP_PX, TAP_TOWER_RADIUS } from '../data/input.js';
 import { heroAttackDamage } from '../systems/heroLeveling.js';
+import { describeTowerDetail } from '../systems/towerDetail.js';
+import { appendArmourRows } from '../ui/armourRows.js';
 
 export class InspectController {
   constructor(scene) {
@@ -18,22 +22,54 @@ export class InspectController {
     window.addEventListener('keydown', this._onKeyDown);
   }
 
-  // Called by GameScene._onPointerDown. Returns true if click was consumed.
-  tryClickInspect(mx, my) {
+  // Side-effect-free: the tap pipeline asks this before deciding to pin.
+  inspectableAt(mx, my) {
     const enemy = this._hitTestEnemy(mx, my);
-    if (enemy) { this.pin({ kind: 'enemy', target: enemy }); return true; }
-    if (this._hitTestHero(mx, my)) {
-      this.pin({ kind: 'hero', target: this.scene.hero });
-      return true;
-    }
-    return false;
+    if (enemy) return { kind: 'enemy', target: enemy };
+    if (this._hitTestHero(mx, my)) return { kind: 'hero', target: this.scene.hero };
+    return null;
+  }
+
+  // Touch long-press only. Kept out of inspectableAt on purpose: a TAP on a
+  // tower must reach the tap pipeline (it opens the ring), so only a held press
+  // falls back to inspecting one. Side-effect-free, like inspectableAt.
+  longPressTargetAt(mx, my) {
+    const tower = this._towers().find(t => Math.hypot(t.x - mx, t.y - my) < TAP_TOWER_RADIUS);
+    return tower ? { kind: 'tower', target: tower } : null;
+  }
+
+  // Called by GameScene._onTap. Returns true if the tap was consumed — including
+  // a same-target dismiss — so it agrees with inspectableAt by construction.
+  tryClickInspect(mx, my) {
+    const hit = this.inspectableAt(mx, my);
+    if (!hit) return false;
+    this.pin(hit);
+    return true;
   }
 
   onPointerMove(mx, my) {
-    const enemy = this._hitTestEnemy(mx, my);
-    if (enemy) { this._showPeek('enemy', enemy, mx, my); return; }
-    if (this._hitTestHero(mx, my)) { this._showPeek('hero', this.scene.hero, mx, my); return; }
-    this._hidePeek();
+    const hit = this.inspectableAt(mx, my);
+    if (hit) this._showPeek(hit.kind, hit.target, mx, my);
+    else     this.hidePeek();
+  }
+
+  // Touch long-press: `hit` was taken at the press, so a target that walked out
+  // of its hit radius during the hold is still the one shown — at where it is
+  // now. Returns false (no peek) if it died or left the field meanwhile.
+  peekHit(hit) {
+    const t = hit.target;
+    if (hit.kind === 'tower') {
+      // Sold during the hold: nothing left to describe.
+      if (!this._towers().includes(t)) return false;
+      this.peekTower(t, this._towerRectPage(t));
+      return true;
+    }
+    const live = hit.kind === 'enemy'
+      ? !t.dead && this.scene.enemies.includes(t)
+      : !t.dead;
+    if (!live) return false;
+    this._showPeek(hit.kind, t, t.x, t.y);
+    return true;
   }
 
   refresh() {
@@ -56,7 +92,7 @@ export class InspectController {
       return;
     }
     this.pinned = spec;
-    this._hidePeek();
+    this.hidePeek();
     this._showPanel(spec.kind);
     if (spec.kind === 'enemy') this._renderEnemyPanel(spec.target);
     else                       this._renderHeroPanel(spec.target);
@@ -82,6 +118,17 @@ export class InspectController {
       if (Math.hypot(e.x - mx, e.y - my) <= r) return e;
     }
     return null;
+  }
+
+  _towers() {
+    return this.scene.placementManager?.getTowers() ?? [];
+  }
+
+  // The tower's tap footprint in page px, so the card clears the sprite.
+  _towerRectPage(tower) {
+    const a = worldToPageCss(this.scene?.scale, tower.x - TAP_TOWER_RADIUS, tower.y - TAP_TOWER_RADIUS);
+    const b = worldToPageCss(this.scene?.scale, tower.x + TAP_TOWER_RADIUS, tower.y + TAP_TOWER_RADIUS);
+    return { left: a.x, top: a.y, width: b.x - a.x, height: b.y - a.y };
   }
 
   _hitTestHero(mx, my) {
@@ -285,37 +332,81 @@ export class InspectController {
       stat.textContent = `HP ${Math.ceil(target.hp)} / ${target.maxHp} · Level ${target.level}`;
       peek.appendChild(stat);
     }
-    const peekCss = gameToPageCss(this.scene?.scale, mx, my);
+    const peekCss = worldToPageCss(this.scene?.scale, mx, my);
     this._positionPanel(peek, peekCss.x, peekCss.y);
     peek.style.display = 'block';
   }
 
-  _hidePeek() {
+  hidePeek() {
     this.peekTarget = null;
     document.getElementById('inspect-peek').style.display = 'none';
+    document.getElementById('tower-inspector').style.display = 'none';
+  }
+
+  // Peek-only (never pinned): a tap on a tower opens the ring, so there is no
+  // free gesture left to pin with. `anchorRect` is in page px — the tower on the
+  // canvas, or the ring hub — and the card opens beside it, not over it.
+  peekTower(tower, anchorRect) {
+    this.peekTarget = tower;
+    document.getElementById('inspect-peek').style.display = 'none';
+    const d = describeTowerDetail(tower);
+    document.getElementById('ti-name').textContent = d.name;
+    document.getElementById('ti-level').textContent = d.level;
+
+    const stats = document.getElementById('ti-stats');
+    stats.replaceChildren(...d.stats.map((text) => {
+      const line = document.createElement('div');
+      line.className = 'inspector-stat';
+      line.textContent = text;
+      return line;
+    }));
+
+    const matchups = document.getElementById('ti-matchups');
+    matchups.replaceChildren(...d.matchups.map(({ tone, text }) => {
+      const line = document.createElement('span');
+      line.className = tone === 'good' ? 'mu-good' : 'mu-bad';
+      line.textContent = text;
+      return line;
+    }));
+
+    const armour = document.getElementById('ti-armour');
+    armour.replaceChildren();
+    if (d.armour) {
+      const head = document.createElement('span');
+      head.className = 'ar-head';
+      head.textContent = d.armour.head;
+      appendArmourRows(head, d.armour.rows);
+      armour.appendChild(head);
+    }
+    armour.style.display = d.armour ? '' : 'none';
+
+    const el = document.getElementById('tower-inspector');
+    // Measured once populated and displayed: display:none reports 0.
+    el.style.display = 'block';
+    const size = { width: el.offsetWidth || 220, height: el.offsetHeight || 100 };
+    const spot = placeBeside(anchorRect, size, mapRectPage(document), PEEK_GAP_PX, PANEL_EDGE_MARGIN);
+    el.style.left = `${spot.left}px`;
+    el.style.top  = `${spot.top}px`;
   }
 
   _positionPanel(el, targetX, targetY) {
+    const map = mapRectPage(document);
+    const size = { width: el.offsetWidth || 220, height: el.offsetHeight || 100 };
     let left = targetX + 24;
-    let top  = Math.max(0, targetY - 60);
-
-    const vw = (typeof window !== 'undefined' && window.innerWidth)  ? window.innerWidth  : 1024;
-    const vh = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 768;
-    const w = el.offsetWidth  || 220;
-    const h = el.offsetHeight || 100;
-
-    if (left + w > vw) left = Math.max(0, targetX - w - 24);
-    if (top + h > vh)  top  = Math.max(0, vh - h - 8);
-
-    el.style.left = `${left}px`;
-    el.style.top  = `${top}px`;
+    // Prefer opening to the target's left over sliding on top of it.
+    if (left + size.width > map.left + map.width) left = targetX - size.width - 24;
+    const spot = clampPanelWithin(
+      { left, top: Math.max(0, targetY - 60) }, size, map, PANEL_EDGE_MARGIN,
+    );
+    el.style.left = `${spot.left}px`;
+    el.style.top  = `${spot.top}px`;
   }
 
   _positionPanelForTarget(spec) {
     const el = spec.kind === 'enemy'
       ? document.getElementById('enemy-inspector')
       : document.getElementById('hero-inspector');
-    const css = gameToPageCss(this.scene?.scale, spec.target.x, spec.target.y);
+    const css = worldToPageCss(this.scene?.scale, spec.target.x, spec.target.y);
     this._positionPanel(el, css.x, css.y);
   }
 }

@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { AbilityTooltip } from '../ui/AbilityTooltip.js';
+import { attachHint } from '../ui/HintPeek.js';
 import { describeAbility } from '../systems/entityDescriptors.js';
+import { cooldownFraction } from '../systems/juiceMath.js';
 
 export default class UIScene extends Phaser.Scene {
   constructor() { super('UIScene'); }
@@ -18,13 +20,19 @@ export default class UIScene extends Phaser.Scene {
     this._heroXpPct    = null;
     this._heroXpAtMax  = null;
     this._heroXpLevel  = null;
+    this._heroXpHint   = '';
 
-    document.getElementById('hud').style.display        = 'flex';
-    document.getElementById('bottom-bar').style.display = 'flex';
-    document.getElementById('game-msg').style.display   = 'none';
+    document.getElementById('hud-layer').style.display = 'block';
+    document.getElementById('game-msg').style.display  = 'none';
 
     this._bindDOMEvents();
     this._subscribeToGameEvents();
+
+    // UIScene owns the hero card, so it (not GameScene) attaches and detaches
+    // this hint: UIScene outlives levels and GameScene's shutdown clone would
+    // strip a foreign listener.
+    this._detachHeroHint?.();
+    this._detachHeroHint = attachHint(document.getElementById('hero-section'), () => this._heroXpHint);
 
     // GameScene paints the stats and wave button itself before launching this
     // scene; only the hero HUD is owned here.
@@ -35,8 +43,7 @@ export default class UIScene extends Phaser.Scene {
   }
 
   shutdown() {
-    document.getElementById('hud').style.display        = 'none';
-    document.getElementById('bottom-bar').style.display = 'none';
+    document.getElementById('hud-layer').style.display = 'none';
 
     this.game.events.off('hero:hud-init',      this._onHeroHudInit,       this);
     this.game.events.off('hero:update',        this._onHeroUpdate,        this);
@@ -48,6 +55,8 @@ export default class UIScene extends Phaser.Scene {
 
     this._abilityTip?.destroy();
     this._abilityTip = null;
+    this._detachHeroHint?.();
+    this._detachHeroHint = null;
 
     // Only the ids this scene binds. GameScene binds the rest itself, and
     // cloning one here would strip GameScene's handler along with ours.
@@ -66,10 +75,19 @@ export default class UIScene extends Phaser.Scene {
 
     // Keyboard shortcuts
     this._onKeyDown = (e) => {
+      // UIScene is never stopped, so this listener outlives the level; on the world
+      // map it would eat Space on focused buttons. Paused counts: the user pause is
+      // a scene.pause(), and Space must still resume it.
+      if (!this.scene.isActive('GameScene') && !this.scene.isPaused('GameScene')) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       if (e.key === ' ') {
         e.preventDefault();
         this.game.events.emit('ui:pause-toggle');
+        return;
+      }
+      // GameScene ignores this unless a build/aim/reposition mode is active.
+      if (e.key === 'Escape') {
+        this.game.events.emit('ui:cancel');
         return;
       }
       const key = e.key.toLowerCase();
@@ -95,6 +113,12 @@ export default class UIScene extends Phaser.Scene {
     this._heroDef   = def;
     this._heroLevel = 1;
     this._heroCds   = { q: 0, w: 0, e: 0 };
+    // The shutdown cloneNode copies an inline --cd into the next level's buttons,
+    // and a stale max would skew the first sweep.
+    this._cdMax = {};
+    for (const id of ['ability-q', 'ability-w', 'ability-e']) {
+      document.getElementById(id)?.style.removeProperty('--cd');
+    }
 
     const portrait = document.getElementById('hero-portrait');
     if (portrait) {
@@ -118,6 +142,12 @@ export default class UIScene extends Phaser.Scene {
       const nameEl = btn.querySelector('.ability-name');
       if (keyEl)  keyEl.textContent  = slot.toUpperCase();
       if (nameEl) nameEl.textContent = a.icon;
+      // The face is only a key + glyph and native title= is gone (#42a), so
+      // assistive tech gets the name and effect here. The focusable wrapper
+      // carries it too: a disabled button is skipped by focus.
+      const spoken = `${slot.toUpperCase()}: ${a.label}. ${a.tooltip}`;
+      btn.setAttribute('aria-label', spoken);
+      document.getElementById(`ability-${slot}-wrap`)?.setAttribute('aria-label', spoken);
       btn.classList.add('locked');
       btn.disabled = true;
     }
@@ -159,9 +189,7 @@ export default class UIScene extends Phaser.Scene {
     this._heroXpAtMax = xp.atMax;
     this._heroXpLevel = xp.level;
 
-    const section = document.getElementById('hero-section');
-    if (!section) return;
-    section.title = xp.atMax
+    this._heroXpHint = xp.atMax
       ? `Level ${xp.level} — MAX`
       : `Level ${xp.level} — ${pct}% to Level ${xp.level + 1}`
         + ` · damage dealt ${Math.round(xp.current).toLocaleString('en-US')}`
@@ -212,9 +240,16 @@ export default class UIScene extends Phaser.Scene {
     if (!btn) return;
     const cdEl = btn.querySelector('.ability-cd');
     if (secs > 0) {
+      // Max is seeded from the hero def (fallback: first non-zero tick); the wedge is remaining/max.
+      this._cdMax ??= {};
+      // Seed from the hero def so a mid-cooldown start can't skew the sweep.
+      this._cdMax[id] ||= this._heroDef?.abilities?.[id.slice(-1)]?.cooldown ?? secs;
+      btn.style.setProperty('--cd', cooldownFraction(secs, this._cdMax[id]));
       btn.disabled = true;
       if (cdEl) cdEl.textContent = secs + 's';
     } else {
+      if (this._cdMax) this._cdMax[id] = 0;
+      btn.style.removeProperty('--cd');
       if (!btn.classList.contains('locked')) btn.disabled = false;
       if (cdEl) cdEl.textContent = '';
     }

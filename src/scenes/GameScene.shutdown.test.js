@@ -13,7 +13,27 @@ vi.mock('phaser', () => ({
   },
 }));
 
+vi.mock('../entities/Hero.js', async () => {
+  const { HEROES } = await import('../data/heroes.js');
+  return {
+    Hero: class {
+      constructor(scene, { x, y, heroId }) {
+        Object.assign(this, { x, y, heroId, def: HEROES[heroId], level: 1, dead: false });
+      }
+      update() {}
+      destroy() {}
+    },
+  };
+});
+vi.mock('../entities/Enemy.js', () => ({
+  Enemy: class { constructor(scene, opts) { Object.assign(this, opts, { dead: false }); } },
+}));
+vi.mock('../systems/AmbientBackgroundLayer.js', () => ({
+  AmbientBackgroundLayer: class { update() {} destroy() {} },
+}));
+
 import GameScene from './GameScene.js';
+import { loadShippedDOM, liveScene, startLevel } from './gameSceneHarness.js';
 
 function el(tag, attrs, parent) {
   const node = document.createElement(tag);
@@ -27,21 +47,17 @@ function el(tag, attrs, parent) {
 
 function setupDOM() {
   document.body.textContent = '';
-  el('div', { id: 'hud', display: 'flex' });
-  el('div', { id: 'tower-panel', display: 'block' });
+  el('div', { id: 'hud-layer', display: 'block' });
   const gameMsg = el('div', { id: 'game-msg', display: 'block' });
   el('button', { id: 'msg-btn' }, gameMsg);
   el('button', { id: 'msg-cancel-btn' }, gameMsg);
   el('div', { id: 'paused-overlay', className: 'shown' });
-  const bar = el('div', { id: 'bottom-bar', display: 'flex' });
+  const bar = el('div', { id: 'rail-right' });
   el('button', { className: 'tower-btn' }, bar);
   el('button', { id: 'exit-btn' }, bar);
   el('button', { id: 'wave-btn' }, bar);
   el('button', { id: 'speed-btn' });
   el('button', { id: 'pause-btn' });
-  el('button', { id: 'panel-upgrade-btn' });
-  el('button', { id: 'panel-sell-btn' });
-  el('button', { id: 'panel-reposition-btn' });
   el('button', { id: 'story-dismiss' });
 }
 
@@ -95,11 +111,9 @@ function makeScene() {
 describe('GameScene.shutdown', () => {
   beforeEach(setupDOM);
 
-  it('hides hud/bottom-bar/tower-panel/game-msg and clears the paused-overlay shown class', () => {
+  it('hides the hud layer/game-msg and clears the paused-overlay shown class', () => {
     makeScene().shutdown();
-    expect(document.getElementById('hud').style.display).toBe('none');
-    expect(document.getElementById('bottom-bar').style.display).toBe('none');
-    expect(document.getElementById('tower-panel').style.display).toBe('none');
+    expect(document.getElementById('hud-layer').style.display).toBe('none');
     expect(document.getElementById('game-msg').style.display).toBe('none');
     expect(document.getElementById('paused-overlay').classList.contains('shown')).toBe(false);
   });
@@ -199,5 +213,91 @@ describe('GameScene scene-event wiring survives a replay', () => {
     scene.events.emit('hero:level-up', { level: 3 });
 
     expect(relayed).toEqual([['hero:level-up', { level: 3 }]]);
+  });
+});
+
+// RETRY restarts the same scene instance (ScenePlugin.restart: shutdown, then
+// init + create), so it is the replay path at its tightest loop.
+describe('GameScene scene-event wiring survives RETRY', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    loadShippedDOM();
+  });
+
+  const SCENE_EVENTS = ['shutdown', 'enemy:spawn', 'economy:update', 'game:defeat', 'hero:level-up',
+    'damage-dealt', 'wave:start'];
+  const counts = (events) => Object.fromEntries(events.eventNames().map(e => [e, events.listenerCount(e)]));
+
+  it('three retries leave one listener per scene event and one enemy per spawn', () => {
+    const scene = liveScene();
+    startLevel(scene, { mapId: 0, heroId: 'rael' });
+    const firstEntry = counts(scene.events);
+
+    for (let i = 0; i < 3; i++) {
+      scene._onDefeat();
+      scene._retry();
+    }
+
+    expect(scene.scene.restart).toHaveBeenCalledTimes(3);
+    for (const evt of SCENE_EVENTS) expect(scene.events.listenerCount(evt, scene)).toBe(1);
+    expect(counts(scene.events)).toEqual(firstEntry);
+    scene.events.emit('enemy:spawn', { def: { type: 'drone' }, scaleFactor: 1 });
+    expect(scene.enemies).toHaveLength(1);
+  });
+});
+
+describe('GameScene.shutdown shell listeners', () => {
+  beforeEach(setupDOM);
+
+  it('removes the visibilitychange and portrait-query listeners it added', () => {
+    const scene = makeScene();
+    scene._onShellChange = () => {};
+    const mql = { removeEventListener: vi.fn() };
+    scene._portraitMql = mql;
+    const remove = vi.spyOn(document, 'removeEventListener');
+
+    scene.shutdown();
+
+    expect(remove).toHaveBeenCalledWith('visibilitychange', scene._onShellChange);
+    expect(mql.removeEventListener).toHaveBeenCalledWith('change', scene._onShellChange);
+    remove.mockRestore();
+  });
+});
+
+
+describe('GameScene.shutdown input model', () => {
+  beforeEach(() => {
+    setupDOM();
+    el('button', { id: 'cancel-btn', hidden: false });
+  });
+
+  it('strips the cancel-btn listener by replacing the node, and hides it', () => {
+    const old = document.getElementById('cancel-btn');
+    const spy = vi.fn();
+    old.addEventListener('click', spy);
+
+    makeScene().shutdown();
+
+    const fresh = document.getElementById('cancel-btn');
+    expect(fresh).not.toBe(old);
+    fresh.click();
+    expect(spy).not.toHaveBeenCalled();
+    expect(fresh.hidden).toBe(true);
+  });
+
+  it('stops listening for ui:cancel', () => {
+    const scene = makeScene();
+    scene.game.events.off = vi.fn();
+    scene.shutdown();
+    expect(scene.game.events.off).toHaveBeenCalledWith('ui:cancel', scene._onUiCancel, scene);
+  });
+
+  it('destroys the canvas input controller', () => {
+    const scene = makeScene();
+    const destroy = vi.fn();
+    scene._inputCtl = { destroy };
+    scene.shutdown();
+    expect(destroy).toHaveBeenCalledTimes(1);
+    expect(scene._inputCtl).toBeNull();
   });
 });

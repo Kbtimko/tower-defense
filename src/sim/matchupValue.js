@@ -41,6 +41,7 @@ export function towerSpecAt(type, tier = 1, branch = null) {
   const spec = {
     type, tier, branch,
     damage: def.damage, fireRate: def.fireRate, pierce: def.pierce, cost: def.cost,
+    shots: def.shots ?? 1, slow: def.slow ?? 0, slowedMult: def.slowedMult ?? 1,
   };
   for (let t = 2; t <= tier; t++) {
     const td = def[TIER_KEY(t, branch)];
@@ -48,6 +49,9 @@ export function towerSpecAt(type, tier = 1, branch = null) {
     if (td.damage   !== undefined) spec.damage   = td.damage;
     if (td.fireRate !== undefined) spec.fireRate = td.fireRate;
     if (td.pierce   !== undefined) spec.pierce   = td.pierce;
+    if (td.shots      !== undefined) spec.shots      = td.shots;
+    if (td.slow       !== undefined) spec.slow       = td.slow;
+    if (td.slowedMult !== undefined) spec.slowedMult = td.slowedMult;
   }
   return spec;
 }
@@ -55,10 +59,17 @@ export function towerSpecAt(type, tier = 1, branch = null) {
 // Expected damage per second against the weighted mix. Every candidate goes
 // through the real computeDamage, so armour, the weakness matrix and pierce
 // are all honoured and no combat arithmetic is duplicated here. Prices raw
-// single-target damage only — splash and slow go unpriced, so it under-rates
-// cannon and ice, same as the towerValue caveat in buildPolicy.js.
+// per-target damage: multi-shot (Volley's 2 arrows) and Shatter's 2x vs slowed
+// targets, the latter only when the tower itself slows (else nothing slows its
+// targets). The 2x is an upper bound: each enemy's first hit lands before its
+// own slow does, and it assumes the slow (TOWER_SLOW_DURATION) outlasts the
+// tower's cooldown, true for Shatter. Splash, chain and cluster stay unpriced,
+// so it under-rates cannon, mage and ice, same as the towerValue caveat in
+// buildPolicy.js.
 export function towerDpsAgainst(spec, weights) {
   if (!spec || !weights || weights.size === 0) return 0;
+  const shots = spec.shots ?? 1;
+  const slowedMult = spec.slow > 0 && spec.slowedMult > 1 ? spec.slowedMult : 1;
   let total = 0, mass = 0;
   for (const [enemyType, weight] of weights) {
     if (!(weight > 0)) continue;
@@ -69,7 +80,7 @@ export function towerDpsAgainst(spec, weights) {
       source: { kind: 'tower', type: spec.type, tier: spec.tier, branch: spec.branch },
       enemyType,
     });
-    total += dmg * spec.fireRate * weight;
+    total += dmg * spec.fireRate * shots * slowedMult * weight;
     mass  += weight;
   }
   return mass > 0 ? total / mass : 0;

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('phaser', () => ({
   default: {
@@ -14,6 +14,7 @@ vi.mock('phaser', () => ({
 }));
 
 import GameScene from './GameScene.js';
+import { PHONE_PORTRAIT_QUERY } from '../data/mobile.js';
 
 function setupDOM() {
   document.body.textContent = '';
@@ -38,7 +39,13 @@ function makeScene({ over = false, won = false } = {}) {
   scene.over = over;
   scene.won  = won;
   scene._userPaused = false;
-  scene.scene = { pause: vi.fn(), resume: vi.fn() };
+  // Stateful like Phaser: pausing a PAUSED scene would warn there.
+  let paused = false;
+  scene.scene = {
+    pause: vi.fn(() => { paused = true; }),
+    resume: vi.fn(() => { paused = false; }),
+    isPaused: () => paused,
+  };
   return scene;
 }
 
@@ -161,5 +168,144 @@ describe('GameScene pause button state hook', () => {
     expect(btn.classList.contains('paused')).toBe(false);
     expect(btn.classList.contains('disabled')).toBe(false);
     expect(btn.textContent).toBe('⏸ Pause');
+  });
+});
+
+
+describe('GameScene._onShellChange (auto-pause)', () => {
+  beforeEach(() => {
+    setupDOM();
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+  });
+
+  // Own-property stubs shadow jsdom's prototype getter; drop them so they cannot leak.
+  afterEach(() => { delete document.hidden; });
+
+  const hide = (v) => Object.defineProperty(document, 'hidden', { configurable: true, get: () => v });
+
+  it('pauses with the overlay up when the tab is hidden', () => {
+    const scene = makeScene();
+    hide(true);
+    scene._onShellChange();
+    expect(scene._userPaused).toBe(true);
+    expect(scene.scene.pause).toHaveBeenCalledOnce();
+    expect(document.getElementById('paused-overlay').classList.contains('shown')).toBe(true);
+    expect(document.getElementById('pause-btn').textContent).toBe('▶ Resume');
+  });
+
+  it('pauses on a phone in portrait', () => {
+    const scene = makeScene();
+    scene._portraitMql = { matches: true };
+    scene._onShellChange();
+    expect(scene._userPaused).toBe(true);
+  });
+
+  it('does not auto-resume when the tab comes back', () => {
+    const scene = makeScene();
+    hide(true);
+    scene._onShellChange();
+    hide(false);
+    scene._onShellChange();
+    expect(scene._userPaused).toBe(true);
+    expect(scene.scene.resume).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when visible and landscape (no matchMedia)', () => {
+    const scene = makeScene();
+    scene._onShellChange();
+    expect(scene._userPaused).toBe(false);
+    expect(scene.scene.pause).not.toHaveBeenCalled();
+  });
+
+  it('does not un-pause a user-paused game when hidden again', () => {
+    const scene = makeScene();
+    scene._onPauseToggle();
+    hide(true);
+    scene._onShellChange();
+    expect(scene._userPaused).toBe(true);
+  });
+
+  it('does nothing after the level is over', () => {
+    const scene = makeScene({ over: true });
+    hide(true);
+    scene._onShellChange();
+    expect(scene.scene.pause).not.toHaveBeenCalled();
+  });
+
+  it('keeps the game paused when hidden under the codex and the codex is closed', () => {
+    const scene = makeScene();
+    scene.game = { registry: { get: () => null } };
+    let onClose;
+    scene._codexOverlay = { open: (_c, opts) => { onClose = opts.onClose; } };
+    scene._openCodex();                    // bare scene.pause()
+    hide(true);
+    scene._onShellChange();                // sets _userPaused
+    scene.scene.resume.mockClear();
+    onClose();                             // close codex
+    expect(scene._userPaused).toBe(true);
+    expect(scene.scene.resume).not.toHaveBeenCalled();
+    expect(document.getElementById('paused-overlay').classList.contains('shown')).toBe(true);
+  });
+
+  it('does not pause an already-paused scene (codex open) when the tab hides', () => {
+    const scene = makeScene();
+    scene.game = { registry: { get: () => null } };
+    scene._codexOverlay = { open: () => {} };
+    scene._openCodex();                    // pause #1
+    hide(true);
+    scene._onShellChange();
+    expect(scene.scene.pause).toHaveBeenCalledOnce(); // a 2nd call would console.warn in Phaser
+    expect(scene._userPaused).toBe(true);
+  });
+});
+
+describe('GameScene._wireShellListeners', () => {
+  it('registers visibilitychange and the portrait query, and defers the portrait check to the create event', () => {
+    setupDOM();
+    const mql = { matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() };
+    window.matchMedia = vi.fn(() => mql);
+    const add = vi.spyOn(document, 'addEventListener');
+    const scene = makeScene();
+    const createHandlers = [];
+    scene.events = { once: (evt, fn) => createHandlers.push([evt, fn]) };
+    scene._onShellChange = scene._onShellChange.bind(scene);
+    scene._wireShellListeners();
+    // Not inside create(): Phaser would overwrite a CREATING-time pause with RUNNING.
+    expect(scene._userPaused).toBe(false);
+    expect(scene.scene.pause).not.toHaveBeenCalled();
+    expect(createHandlers).toEqual([['create', scene._onShellChange]]);
+    createHandlers[0][1]();
+    expect(window.matchMedia).toHaveBeenCalledWith(PHONE_PORTRAIT_QUERY);
+    expect(add).toHaveBeenCalledWith('visibilitychange', scene._onShellChange);
+    expect(mql.addEventListener).toHaveBeenCalledWith('change', scene._onShellChange);
+    expect(scene._userPaused).toBe(true);
+    add.mockRestore();
+    delete window.matchMedia;
+  });
+
+  it('survives a browser without matchMedia', () => {
+    setupDOM();
+    delete window.matchMedia;
+    const scene = makeScene();
+    scene.events = { once: vi.fn() };
+    scene._onShellChange = scene._onShellChange.bind(scene);
+    expect(() => scene._wireShellListeners()).not.toThrow();
+    expect(scene._userPaused).toBe(false);
+  });
+
+  it('constructor binds _onShellChange so a real visibilitychange pauses the scene', () => {
+    setupDOM();
+    delete window.matchMedia;
+    const scene = new GameScene();
+    scene.over = false;
+    scene.won = false;
+    scene.scene = { pause: vi.fn(), resume: vi.fn(), isPaused: () => false };
+    scene.events = { once: vi.fn() };
+    scene._wireShellListeners();
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    document.removeEventListener('visibilitychange', scene._onShellChange);
+    delete document.hidden;
+    expect(scene._userPaused).toBe(true);
   });
 });

@@ -4,7 +4,11 @@ import { armourAbsorption } from '../systems/armourLegibility.js';
 import { SFX_KEYS } from '../systems/AudioManager.js';
 import { enemyHitSfxKey } from '../systems/sfxKeys.js';
 import { EntitySprite } from '../systems/EntitySprite.js';
+import { unitDepth } from '../systems/grounding.js';
 import { hpBarFillWidth, hpBarGeometry } from '../systems/hpBar.js';
+import { mergeSlow, mergeStun } from '../systems/statusMerge.js';
+import { squashScale, statusTint } from '../systems/hitFx.js';
+import { HIT_SQUASH, STATUS_FX, STATUS_DRAW } from '../data/fx.js';
 
 // Long enough to read at 1x, short enough not to smear at 2x (update() is fed
 // speed-scaled dt, so the flash keeps pace with the rest of the sim).
@@ -31,20 +35,30 @@ export class Enemy extends Phaser.GameObjects.Container {
     };
     // The only hit feedback that does not depend on how big the hit was.
     this.hitFlash = { active: false, timer: 0 };
+    // Plain number fields so squash / orbit / ember animation allocates nothing per frame.
+    this._squashing  = false;
+    this._squashT    = 0;
+    this._starAngle  = 0;
+    this._statusAcc  = 0;
+    this._starCy     = 0; // orbit centre y, set from the art's top when a stun starts
+    this._artHalfWidth = def.radius; // half the art's width; refreshed when a status starts (getDisplaySize allocates)
 
     this._body    = scene.add.graphics();
     this._flash   = scene.add.graphics();  // hit flash — over the body, under the rings
     this._overlay = scene.add.graphics();  // status rings — always visible
+    // Created once and cleared/redrawn per frame only while stunned.
+    this._stars   = scene.add.graphics().setVisible(false);
     this._hpBar   = scene.add.graphics();
-    this.add([this._body, this._flash, this._overlay, this._hpBar]);
+    this.add([this._body, this._flash, this._overlay, this._stars, this._hpBar]);
     scene.add.existing(this);
-    this.setDepth(14); // above the static road/build-pad layer (depth 10)
+    // Y-sorted inside the unit band so a lower unit draws in front.
+    this.setDepth(unitDepth(this.y));
     this._redrawBody();
     this._redrawStatusOverlay();
     this._redrawHpBar();
 
     this._sprite = new EntitySprite(this, scene, {
-      category: 'enemy', type: def.type, initialState: 'move',
+      category: 'enemy', type: def.type, initialState: 'move', flying: !!def.flying,
     });
     if (this._sprite.active) this._body.setVisible(false);
   }
@@ -60,6 +74,9 @@ export class Enemy extends Phaser.GameObjects.Container {
   playDeathAnimation(onComplete) {
     this._hpBar.setVisible(false);
     this._overlay.setVisible(false);
+    this._stars.setVisible(false);
+    this._sprite.setBaseTint(null); // a corpse must not play its death frames slow-blue / burn-orange
+    this._endSquash();
     this._clearHitFlash();
     this._flash.setVisible(false);
     this._sprite.playOnce('death', onComplete);
@@ -72,23 +89,27 @@ export class Enemy extends Phaser.GameObjects.Container {
   }
 
   update(dt) {
+    this.setDepth(unitDepth(this.y));
     if (this.hitFlash.active) {
       this.hitFlash.timer -= dt;
       if (this.hitFlash.timer <= 0) this.hitFlash = { active: false, timer: 0 };
       this._applyHitFlash(); // the run-out pass is what clears the tint
     }
+    if (this._squashing) this._advanceSquash(dt);
     if (this.statusEffects.slow.active) {
       this.statusEffects.slow.timer -= dt;
       if (this.statusEffects.slow.timer <= 0) {
         this.statusEffects.slow = { active: false, timer: 0, factor: 1 };
-        this._redrawStatusOverlay();
+        this._refreshStatusVisuals();
       }
     }
     if (this.statusEffects.stun.active) {
       this.statusEffects.stun.timer -= dt;
       if (this.statusEffects.stun.timer <= 0) {
         this.statusEffects.stun = { active: false, timer: 0 };
-        this._redrawStatusOverlay();
+        this._refreshStatusVisuals();
+      } else {
+        this._drawStars(dt);
       }
     }
     if (this.statusEffects.burn.active) {
@@ -100,6 +121,9 @@ export class Enemy extends Phaser.GameObjects.Container {
       }
       if (this.statusEffects.burn.timer <= 0) {
         this.statusEffects.burn = { active: false, timer: 0, dps: 0, tickAccum: 0 };
+        this._refreshStatusVisuals();
+      } else if (!this.dead) {
+        this.scene.particleSpawner?.emitStatus('burn', this, dt);
       }
     }
     if (this.statusEffects.vulnerable.active) {
@@ -120,7 +144,8 @@ export class Enemy extends Phaser.GameObjects.Container {
       pierce: optsObj.pierce,
       source: optsObj.source,
       enemyType: this.def.type,
-      vulnerableMult: vulnMult,
+      // Per-hit multiplier (e.g. a slowed-target bonus) stacks with the status.
+      vulnerableMult: vulnMult * (optsObj.hitMult ?? 1),
     });
     this.hp -= dmg;
     const justDied = this.hp <= 0 && !this.dead;
@@ -129,7 +154,7 @@ export class Enemy extends Phaser.GameObjects.Container {
     // A corpse keeps whatever tint it had: once dead it leaves `enemies` and
     // stops being updated, so a flash lit here would ride out the death fade.
     // The kill has its own particles, sfx and death anim to sell the hit.
-    if (this.dead) this._clearHitFlash();
+    if (this.dead) { this._clearHitFlash(); this._endSquash(); }
     else           this._triggerHitFlash();
 
     const am = this.scene.game?.registry?.get('audio');
@@ -168,18 +193,23 @@ export class Enemy extends Phaser.GameObjects.Container {
   }
 
   applyStatus({ type, duration, factor, dps, multiplier }) {
+    // Visuals only change when a status starts; a refresh of a running one
+    // just resets its timer, so skip the redraw (and its point-array allocs).
     if (type === 'slow') {
-      this.statusEffects.slow = { active: true, timer: duration, factor };
-      this._redrawStatusOverlay();
+      const started = !this.statusEffects.slow.active;
+      this.statusEffects.slow = mergeSlow(this.statusEffects.slow, { duration, factor });
+      if (started) this._refreshStatusVisuals();
     }
     if (type === 'stun') {
-      this.statusEffects.stun = { active: true, timer: duration };
-      this._redrawStatusOverlay();
+      const started = !this.statusEffects.stun.active;
+      this.statusEffects.stun = mergeStun(this.statusEffects.stun, { duration });
+      if (started) this._refreshStatusVisuals();
     }
     if (type === 'burn') {
       const existing = this.statusEffects.burn;
       const newDps = existing.active ? Math.max(existing.dps, dps) : dps;
       this.statusEffects.burn = { active: true, timer: duration, dps: newDps, tickAccum: existing.active ? existing.tickAccum : 0 };
+      if (!existing.active) this._refreshStatusVisuals();
     }
     if (type === 'vulnerable') {
       this.statusEffects.vulnerable = { active: true, timer: duration, multiplier };
@@ -191,6 +221,23 @@ export class Enemy extends Phaser.GameObjects.Container {
   _triggerHitFlash() {
     this.hitFlash = { active: true, timer: HIT_FLASH_DURATION };
     this._applyHitFlash();
+    this._squashing = true;
+    this._squashT   = 0;
+  }
+
+  // Squash plays on the sprite only; with no art, setSquash is a no-op and the
+  // Graphics body keeps the disc flash as its hit read.
+  _advanceSquash(dt) {
+    this._squashT += dt;
+    if (this._squashT >= HIT_SQUASH.duration) { this._endSquash(); return; }
+    const s = squashScale(this._squashT, HIT_SQUASH);
+    this._sprite?.setSquash(s.x, s.y); // copy now: squashScale returns a shared object
+  }
+
+  _endSquash() {
+    if (!this._squashing) return;
+    this._squashing = false;
+    this._sprite?.setSquash(1, 1);
   }
 
   _clearHitFlash() {
@@ -261,6 +308,18 @@ export class Enemy extends Phaser.GameObjects.Container {
     }
   }
 
+  // Single entry point when a status starts or ends: tint, static overlay and
+  // the orbiting stars' visibility all follow the same state.
+  _refreshStatusVisuals() {
+    this._sprite?.setBaseTint(statusTint(this.statusEffects));
+    this._redrawStatusOverlay();
+    const stunned = this.statusEffects.stun.active;
+    this._artHalfWidth = this._sprite?.getDisplaySize?.()?.width / 2 || this.def.radius;
+    if (stunned) this._starCy = this._starCentreY();
+    this._stars.setVisible(stunned);
+    if (!stunned) this._stars.clear();
+  }
+
   _redrawStatusOverlay() {
     const r = this.def.radius;
     const t = this.def.type;
@@ -275,9 +334,52 @@ export class Enemy extends Phaser.GameObjects.Container {
         this._overlay.strokeCircle(0, 0, r + 2);
       }
     }
-    if (this.statusEffects.stun.active) {
-      this._overlay.lineStyle(2, 0xffffff, 0.85);
-      this._overlay.strokeCircle(0, 0, r + 3);
+    if (this.statusEffects.slow.active) this._drawCrystals(r + 2);
+  }
+
+  // Frost shards pointing outward from the ring, positions computed in place.
+  _drawCrystals(ringR) {
+    const { inner, length, halfWidth, alpha, phase } = STATUS_DRAW.crystal;
+    const n = STATUS_FX.slow.crystals;
+    this._overlay.fillStyle(STATUS_FX.slow.tint, alpha);
+    for (let i = 0; i < n; i++) {
+      const a  = (Math.PI * 2 * i) / n + phase;
+      const ux = Math.cos(a), uy = Math.sin(a);
+      const bx = ux * (ringR + inner), by = uy * (ringR + inner);
+      this._overlay.fillTriangle(
+        bx - uy * halfWidth, by + ux * halfWidth,
+        bx + uy * halfWidth, by - ux * halfWidth,
+        bx + ux * length,    by + uy * length,
+      );
+    }
+  }
+
+  // Stars ride above the HP bar, which is already laid out from the rendered
+  // art (def.radius is only the Graphics fallback), so they clear tall sprites.
+  _starCentreY() {
+    const size = this._sprite?.getDisplaySize?.() ?? null;
+    const { top } = hpBarGeometry(this.def.radius, size?.width, size?.height);
+    return top - STATUS_DRAW.star.lift;
+  }
+
+  // Each star is two overlapping triangles (up + down). Orbits on a flattened
+  // ellipse above the head so it reads as stars circling in perspective.
+  _drawStars(dt) {
+    const { size, orbitRatio, squash, tail, outline } = STATUS_DRAW.star;
+    const { stars, spin, color } = STATUS_FX.stun;
+    const orbit = this._artHalfWidth * orbitRatio;
+    this._starAngle += spin * dt;
+    this._stars.clear();
+    this._stars.fillStyle(color, 1);
+    this._stars.lineStyle(outline.width, outline.color, 1);
+    for (let i = 0; i < stars; i++) {
+      const a  = this._starAngle + (Math.PI * 2 * i) / stars;
+      const cx = Math.cos(a) * orbit;
+      const cy = this._starCy + Math.sin(a) * orbit * squash;
+      this._stars.fillTriangle(cx, cy - size, cx - size, cy + size * tail, cx + size, cy + size * tail);
+      this._stars.fillTriangle(cx, cy + size, cx - size, cy - size * tail, cx + size, cy - size * tail);
+      this._stars.strokeTriangle(cx, cy - size, cx - size, cy + size * tail, cx + size, cy + size * tail);
+      this._stars.strokeTriangle(cx, cy + size, cx - size, cy - size * tail, cx + size, cy - size * tail);
     }
   }
 

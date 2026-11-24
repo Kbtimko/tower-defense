@@ -213,7 +213,7 @@ describe('startingGold', () => {
   });
   it('adds the rounded percentage of the base', () => {
     expect(startingGold(180, 0.40)).toBe(252);
-    expect(startingGold(300, 0.40)).toBe(420);   // map 9: same as today's 300 + 120
+    expect(startingGold(300, 0.40)).toBe(420);   // #31's sizing: map 9's old 300 + 120
   });
   it('rounds a half-gold bonus to a whole number', () => {
     expect(startingGold(130, 0.15)).toBe(150);   // 19.5 -> 20

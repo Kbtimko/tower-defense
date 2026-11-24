@@ -40,6 +40,8 @@ describe('CodexOverlay', () => {
     // Derived, not hardcoded: a hardcoded 6 would silently stop catching a
     // new tower being added without a codex entry.
     expect(dom.list.querySelectorAll('.codex-entry').length).toBe(Object.keys(TOWER_DEFS).length);
+    // Entries are built in JS, so the kit button class rides in className (3.1).
+    expect(dom.list.querySelectorAll('.codex-entry:not(.ui-btn)').length).toBe(0);
   });
 
   it('switches tabs', () => {
@@ -128,8 +130,28 @@ describe('CodexOverlay', () => {
     codex.open(buildCatalog(ALL));
     const ice = [...dom.list.querySelectorAll('.codex-entry')].find(e => e.textContent.includes('Ice'));
     ice.dispatchEvent(new Event('click', { bubbles: true }));
-    expect(dom.detail.textContent).toContain(`Slow: ${Math.round(TOWER_DEFS.ice.tier2.slow * 100)}%`);
-    expect(dom.detail.textContent).toContain(`Slow: ${Math.round(TOWER_DEFS.ice.tier3.slow * 100)}%`);
+    expect(dom.detail.textContent).toContain(`Slows to ${Math.round(TOWER_DEFS.ice.tier2.slow * 100)}% speed`);
+    expect(dom.detail.textContent).toContain(`Slows to ${Math.round(TOWER_DEFS.ice.tier3.slow * 100)}% speed`);
+  });
+
+  // `slow` is a speed multiplier (0.7 = a 30% slow); "Slow: 70%" read as the
+  // opposite of the tower card's own wording.
+  const tierRow = (towerName, label) => {
+    codex.open(buildCatalog(ALL));
+    const entry = [...dom.list.querySelectorAll('.codex-entry')].find(e => e.textContent.includes(towerName));
+    entry.dispatchEvent(new Event('click', { bubbles: true }));
+    return [...dom.detail.querySelectorAll('.codex-tier')].find(r => r.textContent.includes(label)).textContent;
+  };
+
+  it('words a slow multiplier as the speed it leaves, not "Slow: N%"', () => {
+    const row = tierRow('Mage', TOWER_DEFS.mage.tier4B.label);
+    expect(row).toContain(`Slows to ${Math.round(TOWER_DEFS.mage.tier4B.slow * 100)}% speed`);
+    expect(row).not.toContain('Slow:');
+  });
+
+  it('does not list "0 splash" on a tier that sets splashRadius to 0', () => {
+    expect(TOWER_DEFS.cannon.tier4B.splashRadius).toBe(0);
+    expect(tierRow('Cannon', TOWER_DEFS.cannon.tier4B.label)).not.toContain('splash');
   });
 
   // The barracks deals 0 damage; a blank damage row would read as a bug.

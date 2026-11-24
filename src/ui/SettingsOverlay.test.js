@@ -1,5 +1,32 @@
+// loadShippedDOM pulls in GameScene, so Phaser and its heavy collaborators are stubbed.
+vi.mock('phaser', () => ({
+  default: {
+    Scene: class { constructor(key) { this._key = key; } },
+    GameObjects: { Container: class {} },
+  },
+}));
+vi.mock('../entities/Hero.js', async () => {
+  const { HEROES } = await import('../data/heroes.js');
+  return {
+    Hero: class {
+      constructor(scene, { x, y, heroId }) {
+        Object.assign(this, { x, y, heroId, def: HEROES[heroId], level: 1, dead: false });
+      }
+      update() {}
+      destroy() {}
+    },
+  };
+});
+vi.mock('../entities/Enemy.js', () => ({
+  Enemy: class { constructor(scene, opts) { Object.assign(this, opts, { dead: false }); } },
+}));
+vi.mock('../systems/AmbientBackgroundLayer.js', () => ({
+  AmbientBackgroundLayer: class { update() {} destroy() {} },
+}));
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SettingsOverlay } from './SettingsOverlay.js';
+import { loadShippedDOM } from '../scenes/gameSceneHarness.js';
+import { GRAPHICS_LEVELS } from '../data/graphicsQuality.js';
 
 function setupDom() {
   while (document.body.firstChild) document.body.removeChild(document.body.firstChild);
@@ -31,15 +58,34 @@ function setupDom() {
   overlay.appendChild(mute);
 
   const ambient = document.createElement('input');
-  ambient.id = 'ambient-motion';
+  ambient.id = 'reduce-motion';
   ambient.type = 'checkbox';
   overlay.appendChild(ambient);
+
+  const graphics = document.createElement('select');
+  graphics.id = 'graphics-quality';
+  for (const v of ['auto', 'high', 'low']) {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = v;
+    graphics.appendChild(o);
+  }
+  overlay.appendChild(graphics);
+
+  const autoSend = document.createElement('input');
+  autoSend.id = 'auto-send';
+  autoSend.type = 'checkbox';
+  overlay.appendChild(autoSend);
 
   document.body.appendChild(overlay);
 }
 
-function makeGame(initial = true) {
-  const store = { ambientMotion: initial, save: { setSettings: vi.fn() } };
+function makeGame(initial = true, graphics = 'auto') {
+  const store = {
+    ambientMotion: initial, mapGrade: initial, autoSend: initial,
+    graphicsEnv: { webgl: true, touch: true },
+    save: { setSettings: vi.fn(), getSettings: () => ({ graphics }) },
+  };
   return {
     _store: store,
     registry: {
@@ -160,23 +206,100 @@ describe('SettingsOverlay', () => {
     expect(document.getElementById('settings-overlay').style.display).toBe('flex');
   });
 
-  it('ambient-motion checkbox reflects the registry flag on open', () => {
-    const am = makeAm();
-    const game = makeGame(false);
-    const ov = new SettingsOverlay(am, game);
-    ov.open();
-    expect(document.getElementById('ambient-motion').checked).toBe(false);
+  // Reduce motion is the inverse of ambientMotion: checked = ambientMotion false.
+  it('reduce-motion is checked when ambientMotion is false, unchecked when true', () => {
+    const off = new SettingsOverlay(makeAm(), makeGame(false));
+    off.open();
+    expect(document.getElementById('reduce-motion').checked).toBe(true);
+    off.close();
+    new SettingsOverlay(makeAm(), makeGame(true)).open();
+    expect(document.getElementById('reduce-motion').checked).toBe(false);
   });
 
-  it('toggling ambient-motion updates the registry and persists', () => {
-    const am = makeAm();
+  it('checking reduce-motion sets ambientMotion false in the registry and the save', () => {
     const game = makeGame(true);
-    const ov = new SettingsOverlay(am, game);
-    ov.open();
-    const cb = document.getElementById('ambient-motion');
-    cb.checked = false;
+    new SettingsOverlay(makeAm(), game).open();
+    const cb = document.getElementById('reduce-motion');
+    cb.checked = true;
     cb.dispatchEvent(new Event('change', { bubbles: true }));
     expect(game.registry.get('ambientMotion')).toBe(false);
     expect(game._store.save.setSettings).toHaveBeenCalledWith({ ambientMotion: false });
+  });
+
+  it('the shipped index.html has the reduce-motion checkbox, the graphics select, and no old controls', () => {
+    loadShippedDOM();
+    expect(document.getElementById('reduce-motion').type).toBe('checkbox');
+    const opts = [...document.getElementById('graphics-quality').options].map((o) => o.value);
+    expect(opts).toEqual(GRAPHICS_LEVELS);
+    expect(document.getElementById('ambient-motion')).toBeNull();
+    expect(document.getElementById('map-grade')).toBeNull();
+  });
+
+  it('graphics-quality shows the saved level on open', () => {
+    new SettingsOverlay(makeAm(), makeGame(true, 'low')).open();
+    expect(document.getElementById('graphics-quality').value).toBe('low');
+  });
+
+  it('choosing High saves graphics and sets mapGrade, ambientFx and particleScale live', () => {
+    const game = makeGame(true, 'low');
+    game._store.mapGrade = false;
+    game._store.ambientFx = false;
+    game._store.particleScale = 0.5;
+    new SettingsOverlay(makeAm(), game).open();
+    const sel = document.getElementById('graphics-quality');
+    sel.value = 'high';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(game._store.save.setSettings).toHaveBeenCalledWith({ graphics: 'high' });
+    expect(game.registry.get('mapGrade')).toBe(true);
+    expect(game.registry.get('ambientFx')).toBe(true);
+    expect(game.registry.get('particleScale')).toBe(1);
+  });
+
+  it('choosing Low turns grading and ambient off and halves particles', () => {
+    const game = makeGame(true, 'high');
+    new SettingsOverlay(makeAm(), game).open();
+    const sel = document.getElementById('graphics-quality');
+    sel.value = 'low';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(game.registry.get('mapGrade')).toBe(false);
+    expect(game.registry.get('ambientFx')).toBe(false);
+    expect(game.registry.get('particleScale')).toBe(0.5);
+  });
+
+  it('close() removes both listeners: later changes do not touch the registry', () => {
+    const game = makeGame(true, 'high');
+    const ov = new SettingsOverlay(makeAm(), game);
+    ov.open();
+    ov.close();
+    const sel = document.getElementById('graphics-quality');
+    sel.value = 'low';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    const cb = document.getElementById('reduce-motion');
+    cb.checked = true;
+    cb.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(game._store.mapGrade).toBe(true);
+    expect(game._store.ambientMotion).toBe(true);
+    expect(game._store.save.setSettings).not.toHaveBeenCalled();
+  });
+
+  // Both polarities: an unwired checkbox starts unchecked, so the false case
+  // alone would pass with no handler at all.
+  it('auto-send checkbox reflects the registry flag on open', () => {
+    const on = new SettingsOverlay(makeAm(), makeGame(true));
+    on.open();
+    expect(document.getElementById('auto-send').checked).toBe(true);
+    on.close();
+    new SettingsOverlay(makeAm(), makeGame(false)).open();
+    expect(document.getElementById('auto-send').checked).toBe(false);
+  });
+
+  it('toggling auto-send updates the registry and persists', () => {
+    const game = makeGame(true);
+    new SettingsOverlay(makeAm(), game).open();
+    const cb = document.getElementById('auto-send');
+    cb.checked = false;
+    cb.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(game.registry.get('autoSend')).toBe(false);
+    expect(game._store.save.setSettings).toHaveBeenCalledWith({ autoSend: false });
   });
 });

@@ -23,6 +23,9 @@ import {
   parseFencedSection, parseSpritePrompts,
 } from '../src/assets/promptParser.js';
 import { requiredAssets } from '../src/assets/assetManifest.js';
+import { FLUX } from '../src/assets/drawThingsRequest.js';
+import { LEGACY_SEED } from '../src/assets/artJob.js';
+import { candidatePorts, discoverPort, noServerHelp, post } from './art/drawThings.mjs';
 
 const argv = process.argv.slice(2);
 const flag = name => argv.includes(`--${name}`);
@@ -31,23 +34,33 @@ const value = (name, fallback = null) => {
   return i !== -1 && argv[i + 1] ? argv[i + 1] : fallback;
 };
 
+if (flag('job')) {
+  const { runJob } = await import('./art/runJob.mjs');
+  const { cliPath } = await import('../src/assets/candidates.js');
+  const code = await runJob({
+    repoRoot: process.cwd(),
+    batch: value('job'),
+    candidates: value('candidates') ? Number(value('candidates')) : undefined,
+    fake: flag('fake'),
+    reroll: cliPath(value('reroll')),
+    cache: cliPath(value('cache')),
+    port: value('port'),
+    dryRun: flag('dry-run'),
+    noPrepare: flag('no-prepare'),
+  });
+  process.exit(code);
+}
+
 const dryRun   = flag('dry-run');
 const force    = flag('force');
 const kind     = value('kind');
 const only     = value('only');
 const endpoint = value('endpoint', '/sdapi/v1/txt2img');
-// Draw Things shows the port when you enable the API Server, but the default is
-// not documented anywhere we can read, so scan the plausible range rather than
-// making the user hunt for it. An explicit --port short-circuits the scan.
+// An explicit --port short-circuits the port scan.
 const explicitPort = Number(value('port')) || null;
-const CANDIDATE_PORTS = explicitPort
-  ? [explicitPort]
-  : [7860, 7859, 3080, 8080, ...Array.from({ length: 21 }, (_, i) => 7850 + i)]
-      .filter((p, i, a) => a.indexOf(p) === i);
+const CANDIDATE_PORTS = candidatePorts(explicitPort);
 
-// FLUX.1 [schnell] is distilled: 4 steps, CFG 0. Matches the PROMPTS.md guidance.
-const FLUX = { steps: 4, cfg_scale: 0, sampler_name: 'Euler a', width: 1024, height: 1024 };
-const SEED = Number(value('seed', '77021'));   // one locked seed keeps the set cohesive
+const SEED = Number(value('seed', String(LEGACY_SEED)));   // one locked seed keeps the set cohesive
 
 // ── Assemble the job list ──────────────────────────────────────────────────
 const assets = requiredAssets();
@@ -84,7 +97,9 @@ for (const p of parsePortraitPrompts(portraitMd)) {
 const SPRITE_REF_DIR = '.art-cache/sprites';
 const spriteMd = readFileSync('public/assets/sprites/PROMPTS.md', 'utf8');
 const spriteStyle = parseFencedSection(spriteMd, 'Shared style anchor');
-for (const p of parseSpritePrompts(spriteMd)) {
+// Variants share the base's category_type id; including them would write over
+// the base reference.
+for (const p of parseSpritePrompts(spriteMd).filter(p => !p.variant)) {
   jobs.push({
     kind: 'sprite', id: `${p.category}_${p.type}`,
     path: `${SPRITE_REF_DIR}/${p.category}_${p.type}.png`,
@@ -121,40 +136,9 @@ if (dryRun) {
 }
 
 // ── Find the server ────────────────────────────────────────────────────────
-async function probe(port) {
-  // A live HTTP server answers *something* on the root; a closed port rejects
-  // immediately. Short timeout keeps a 25-port scan near-instant on loopback.
-  const res = await fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(400) })
-    .catch(() => null);
-  return Boolean(res);
-}
-
-async function discoverPort() {
-  const hits = await Promise.all(CANDIDATE_PORTS.map(async p => (await probe(p)) ? p : null));
-  return hits.find(Boolean) ?? null;
-}
-
-const port = await discoverPort();
+const port = await discoverPort(CANDIDATE_PORTS);
 if (!port) {
-  console.error(`
-No local server answered on any of ${CANDIDATE_PORTS.length} scanned ports.
-
-Draw Things already has FLUX.1 [schnell] downloaded; its API Server is just
-switched off. To turn it on:
-
-  1. Open Draw Things
-  2. Open Settings and find "API Server"
-  3. Set it to "HTTP"  (per the app's own description, HTTP "runs a compatible
-     HTTP API server, allowing extensions that use the txt2img or img2img APIs
-     to connect locally" — that is what this script speaks. "gRPC" will NOT
-     work here.)
-  4. Leave Draw Things running and re-run:  npm run art
-
-The port is auto-discovered. If Draw Things shows a port outside the scanned
-range, pass it explicitly:  npm run art -- --port <port>
-
-Works right now with no server:  npm run art -- --dry-run
-`);
+  console.error(noServerHelp(CANDIDATE_PORTS));
   process.exit(1);
 }
 
@@ -174,14 +158,10 @@ for (const j of selected) {
     batch_size: 1,
   };
   try {
-    const res = await fetch(`http://127.0.0.1:${port}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    const res = await post(port, endpoint, body);
     if (!res.ok) { console.log(`FAILED (HTTP ${res.status})`); continue; }
-    const json = await res.json();
-    const b64 = json.images?.[0] ?? json.image;
+    const json = res.json;
+    const b64 = json?.images?.[0] ?? json?.image;
     if (!b64) { console.log('FAILED (no image in response)'); continue; }
     mkdirSync(dirname(j.path), { recursive: true });
     writeFileSync(j.path, Buffer.from(b64.replace(/^data:image\/\w+;base64,/, ''), 'base64'));

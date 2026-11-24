@@ -26,9 +26,11 @@ function setupHeroDOM() {
   document.body.appendChild(section);
 }
 
-const makeScene = () => Object.create(UIScene.prototype);
+// The XP string is memoised on the scene for HintPeek, not written to a native title=.
+let lastScene;
+const makeScene = () => (lastScene = Object.create(UIScene.prototype));
 const xpFill    = () => document.getElementById('hero-xp-fill').style.width;
-const tooltip   = () => document.getElementById('hero-section').title;
+const tooltip   = () => lastScene._heroXpHint;
 
 describe('UIScene hero XP bar', () => {
   beforeEach(setupHeroDOM);
@@ -72,7 +74,7 @@ describe('UIScene hero XP bar', () => {
     s._onHeroUpdate({ hp: 100, maxHp: 100,
       xp: { level: 2, progress: 0.380, current: 456, needed: 1200, atMax: false } });
     const first = tooltip();
-    document.getElementById('hero-section').title = 'SENTINEL';
+    s._heroXpHint = 'SENTINEL';
     s._onHeroUpdate({ hp: 100, maxHp: 100,
       xp: { level: 2, progress: 0.384, current: 461, needed: 1200, atMax: false } });
     expect(tooltip()).toBe('SENTINEL');
@@ -142,7 +144,7 @@ describe('UIScene hero XP tooltip memo correctness', () => {
 
 function setupCreateDOM() {
   document.body.textContent = '';
-  for (const id of ['hud', 'bottom-bar', 'game-msg']) {
+  for (const id of ['hud-layer', 'game-msg']) {
     const d = document.createElement('div');
     d.id = id;
     document.body.appendChild(d);
@@ -156,8 +158,7 @@ function setupCreateDOM() {
   }
   document.body.appendChild(section);
   const btnIds = [
-    'wave-btn', 'speed-btn', 'panel-upgrade-btn', 'panel-sell-btn', 'msg-btn',
-    'panel-reposition-btn', 'ability-q', 'ability-w', 'ability-e',
+    'wave-btn', 'speed-btn', 'msg-btn', 'ability-q', 'ability-w', 'ability-e',
   ];
   for (const id of btnIds) {
     const b = document.createElement('button');
@@ -194,5 +195,36 @@ describe('UIScene hero XP memo reset on scene relaunch', () => {
     expect(s._heroXpPct).toBeNull();
     expect(s._heroXpAtMax).toBeNull();
     expect(s._heroXpLevel).toBeNull();
+  });
+
+  it('the hero card hint shows the memoised XP string on hover and is detached on shutdown', () => {
+    const peek = document.createElement('div');
+    peek.id = 'hint-peek';
+    document.body.appendChild(peek);
+    const s = makeLaunchableScene();
+    s.create();
+    s._onHeroUpdate({ hp: 100, maxHp: 100,
+      xp: { level: 2, progress: 0.4, current: 240, needed: 600, atMax: false } });
+    const section = document.getElementById('hero-section');
+    const enter = () => section.dispatchEvent(Object.assign(new Event('pointerenter'), { pointerType: 'mouse' }));
+    enter();
+    expect(peek.textContent).toContain('Level 2 — 40%');
+    s.shutdown();
+    expect(peek.classList.contains('shown')).toBe(false);
+    enter();
+    expect(peek.classList.contains('shown')).toBe(false);
+  });
+});
+
+// The rails are one layer now; UIScene shows it for the level and hides it after.
+describe('UIScene HUD layer visibility', () => {
+  beforeEach(setupCreateDOM);
+
+  it('shows #hud-layer on create and hides it on shutdown', () => {
+    const s = makeLaunchableScene();
+    s.create();
+    expect(document.getElementById('hud-layer').style.display).toBe('block');
+    s.shutdown();
+    expect(document.getElementById('hud-layer').style.display).toBe('none');
   });
 });

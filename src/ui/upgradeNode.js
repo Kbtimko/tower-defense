@@ -4,7 +4,7 @@
 // Args:
 //   node      — the upgrade def (from src/data/upgrades.js)
 //   upgradeMgr — UpgradeManager instance (must expose getNodeState/purchase/refund)
-//   heroDefs   — HEROES registry (for the locked-hero unlock tooltip)
+//   heroDefs   — HEROES registry (for the locked-hero unlock line)
 //   onChange   — invoked after purchase or refund so the caller can re-render
 //
 // Returns: a <div class="upgrade-node {state}"> ready to append.
@@ -36,7 +36,10 @@ export function renderUpgradeNode(node, upgradeMgr, heroDefs, onChange) {
 
   if (state === 'locked-hero') {
     const heroDef = heroDefs[node.heroUnlock];
-    el.title = `🔒 Locked — Clear Map ${heroDef.unlockMapAfter + 1} to unlock ${heroDef.displayName}`;
+    const gate = document.createElement('div');
+    gate.className   = 'upgrade-node-gate';
+    gate.textContent = `🔒 Locked — Clear Map ${heroDef.unlockMapAfter + 1} to unlock ${heroDef.displayName}`;
+    el.appendChild(gate);
   }
 
   if (state === 'affordable') {

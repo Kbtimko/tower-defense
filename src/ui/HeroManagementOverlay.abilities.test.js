@@ -77,7 +77,7 @@ describe('HeroManagementOverlay — ability reference strip', () => {
     ov.open();
 
     const rows = document.querySelectorAll('#hero-tree .ho-ability');
-    rows[0].dispatchEvent(new Event('pointerenter'));
+    rows[0].dispatchEvent(Object.assign(new Event('pointerenter'), { pointerType: 'mouse' }));
 
     expect(cardShown()).toBe(true);
     expect(cardText()).toContain(HEROES.rael.abilities.q.tooltip);
@@ -91,7 +91,7 @@ describe('HeroManagementOverlay — ability reference strip', () => {
     // Engineer (index 1 in HERO_ORDER) is locked in this fixture.
     document.querySelectorAll('#hero-rail .ho-card')[1].click();
     const rows = document.querySelectorAll('#hero-tree .ho-ability');
-    rows[0].dispatchEvent(new Event('pointerenter'));
+    rows[0].dispatchEvent(Object.assign(new Event('pointerenter'), { pointerType: 'mouse' }));
 
     expect(cardText()).toContain(`Clear Map ${HEROES.engineer.unlockMapAfter + 1}`);
     expect(cardText()).not.toContain('Unlocks at level');
@@ -103,7 +103,7 @@ describe('HeroManagementOverlay — ability reference strip', () => {
 
     const row = document.querySelectorAll('#hero-tree .ho-ability')[0];
     ov.close();
-    row.dispatchEvent(new Event('pointerenter'));
+    row.dispatchEvent(Object.assign(new Event('pointerenter'), { pointerType: 'mouse' }));
 
     expect(cardShown()).toBe(false);
   });

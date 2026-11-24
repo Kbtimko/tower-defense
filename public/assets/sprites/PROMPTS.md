@@ -1,4 +1,4 @@
-# Entity Sprite Art — Prompts & Pipeline (SDXL)
+# Entity Sprite Art — Prompts & Pipeline (FLUX.1 [schnell])
 
 Deferred-asset pipeline for backlog #8 sub-projects (b) enemies, (c) towers,
 (d) heroes/soldiers/sentries. Mirrors `public/assets/overworld/PROMPTS.md` and
@@ -6,32 +6,30 @@ Deferred-asset pipeline for backlog #8 sub-projects (b) enemies, (c) towers,
 already wired with a Graphics fallback, so dropping a PNG + adding one manifest
 entry lights an entity up with no code change.
 
-> **Model:** these prompts target **SDXL 1.0** (OpenRAIL++ — commercial-OK),
-> run locally via **Draw Things** (single frames) and **ComfyUI** (the
-> consistency pipeline). SDXL wants **comma-separated weighted tags**, not
-> DALL-E prose — that's why the prompts below read as tag lists. For the static
-> portrait/overworld art we use FLUX.1 [schnell] instead (see those PROMPTS.md
-> files); sprites stay on SDXL for its mature ControlNet / LoRA / IP-Adapter
-> ecosystem, which is the only realistic way to hold a character consistent
-> across animation frames.
+> **Model:** these prompts target **FLUX.1 [schnell]**, run locally in
+> **Draw Things** through its HTTP API (`npm run art`). FLUX reads natural
+> prose, so each prompt is a descriptive noun phrase that slots into the shared
+> anchor below; settings are in the next section. Animation frames are derived
+> from one reference image per entity (see the pipeline notes below).
 
-## Recommended SDXL settings
+## Recommended settings (FLUX.1 [schnell])
 
-- **Resolution:** generate at 1024×1024, downscale to the target frame size.
-- **Sampler:** DPM++ 2M Karras · **Steps:** 30–35 · **CFG:** 6–7.
-- **Seed:** lock a seed per character so re-rolls stay on-model.
-- A **game-sprite / clean-vector LoRA** at ~0.6 weight sharpens the style; a
-  per-character LoRA (below) locks identity across frames.
+- **Resolution:** 1024×1024, downscaled to the target frame size.
+- **Steps:** 4 · **CFG:** 0 · **Sampler:** Euler a.
+- FLUX at CFG 0 ignores negative prompts and reads `(...:1.2)` weighting as
+  literal text, so every exclusion lives in the positive anchor below.
+- **Seed:** one seed per job keeps a set cohesive; re-roll by changing it.
 
-## Shared style anchor (paste into EVERY sprite prompt for cohesion)
+## Shared style anchor (the `{subject}` slot takes each entity's prompt)
 
 ```
-(top-down 3/4 game sprite:1.2), sci-fi tower-defense unit, clean
-vector-painterly shading, bold readable silhouette, rim light, centered,
-plain flat background, no ground shadow, no text, high detail
+high-angle top-down game sprite of {subject}, sci-fi tower defense, painterly
+vector shading, bold readable silhouette, lit from the upper left with a rim
+light, single subject centered, plain flat mid-grey background, no ground
+shadow, no outline, no text, no lettering
 ```
 
-## Shared negative prompt (use for ALL sprites)
+## Shared negative prompt (inert under FLUX at CFG 0; kept for an SDXL fallback)
 
 ```
 photo, photorealistic, realistic skin, busy background, scenery, multiple
@@ -44,11 +42,13 @@ extra limbs, deformed, side view, front portrait view
 
 1. Produce a transparent PNG. For an animation, lay frames out left-to-right in
    a single row (a spritesheet); for a static look, a single frame is fine.
-2. Save it under `public/assets/sprites/<category>/<type>_<state>.png`, e.g.
-   `public/assets/sprites/enemies/drone_move.png`. **It must live under `public/`**
-   or Vite will not copy it into the production build (see the note at the end).
-   The `path` in the manifest stays the site-root-relative URL
-   (`assets/sprites/...`), not the on-disk path.
+2. Save the ORIGINAL under `assets-src/sprites/<category>/<type>_<state>.png`,
+   e.g. `assets-src/sprites/enemies/drone_move.png`, then run
+   `python3 scripts/art/normalize.py`. It writes the shipped copy (outline,
+   tone, rim light) to `public/assets/sprites/...`. Only `public/` ships, so a
+   sheet that was never normalized is missing from the production build (see
+   the note at the end). The `path` in the manifest stays the site-root-relative
+   URL (`assets/sprites/...`), not the on-disk path.
 3. Add an entry to `src/data/sprites.js` `SPRITE_MANIFEST`:
    ```js
    {
@@ -69,6 +69,16 @@ extra limbs, deformed, side view, front portrait view
      would never revert it to the looping default — it would stay stuck on that
      frame. Use a looping state for any single-frame art.
    - The texture key is derived as `sprite-<category>-<type>-<state>` — never set it.
+
+### Tier variants
+
+A tier-variant prompt is a bullet named `<type>.<variant>` (e.g. `archer.t4a`) in
+the Towers section below. A job lists it as `{ "kind": "sprite", "entity":
+"tower_archer", "variant": "t4a" }`; add `"init": "base"` (and optionally a
+`strength`, default 0.45) to generate it img2img from the base tower's reference
+so it reads as an upgrade of the same emplacement. `npm run art:apply` builds
+the variant sheets and writes the declaration to `src/data/spriteVariants.js`.
+See `scripts/art/README.md`.
 
 ## Texture-key / state conventions
 
@@ -97,7 +107,8 @@ impossible **by construction** rather than merely constrained.
 
 ```
 npm run art -- --kind sprite                  # 1 reference per entity -> .art-cache/
-python3 scripts/build-sprite-sheets.py --all  # cutout -> mirror -> move + death sheets
+python3 scripts/build-sprite-sheets.py --all  # cutout -> mirror -> move + death sheets (assets-src/)
+python3 scripts/art/normalize.py              # outline + tone -> public/; prints new `ground` metrics
 npm run assets                                # confirm sizes match the manifest
 ```
 
@@ -140,12 +151,11 @@ downloads and expect to hand-author poses rather than lean on OpenPose.
 
 ### Model settings
 
-The prompts below are written as SDXL-style comma-separated weighted tags. The
-**installed** model is FLUX.1 [schnell], which is what `npm run art` drives:
-4 steps, CFG 0, Euler a, 1024×1024. FLUX ignores `negative_prompt` at CFG 0, so
-the shared negative prompt is advisory here — fold exclusions into the positive
-prose instead. The SDXL settings above (DPM++ 2M Karras, 30–35 steps, CFG 6–7)
-apply only if an SDXL checkpoint is installed later.
+The installed model is FLUX.1 [schnell], which is what `npm run art` drives:
+the settings are the FLUX ones above (4 steps, CFG 0, Euler a, 1024×1024).
+FLUX at CFG 0 ignores `negative_prompt` and reads `(...:1.2)` weighting as
+literal text, so the shared negative prompt is advisory only; fold exclusions
+into the positive prose.
 
 Check every generated frame for stray lettering before compositing; the
 generator has a habit of rendering the game title into artwork.
@@ -165,8 +175,9 @@ shatter) optional. Author facing right, moving right.
 
 - **drone** — `Veth Drone`, hp 70, ground, tint `#33ff66`:
   ```
-  small alien recon drone, hexagonal chitin carapace, single glowing green
-  optic, four skittering biomech legs, toxic-green emissive accents
+  small alien recon drone seen from a high angle, walking to the right, compact
+  rounded hexagonal chitin carapace in dark charcoal, one large glowing
+  toxic-green optic on the front, four short biomech legs, green emissive seams
   ```
 - **skitter** — `Veth Skitter`, fast, ground, tint `#ff6600`:
   ```
@@ -186,15 +197,18 @@ shatter) optional. Author facing right, moving right.
   ```
 - **phantom** — `Veth Phantom`, flying, fast, tint `#9b59b6`:
   ```
-  one single ghostly flying alien creature, translucent violet organic body with
-  long trailing wisp tendrils, faint glowing core, ethereal semi-transparent
-  edges, airborne in mid-air with nothing touching the ground, a floating
-  living wraith, not a monolith, not a tower, not a structure
+  one single flying alien creature seen from above at a high angle, gliding to
+  the right, broad solid manta-ray wing membrane of dark violet chitin with a
+  thick central body, a bright glowing violet core and glowing violet wing
+  edges, short trailing tendrils, airborne with nothing touching the ground,
+  wide bold silhouette
   ```
 - **titan** — `Veth Titan` (boss), huge & armored, tint `#e74c3c`:
   ```
-  colossal alien boss titan, towering layered red-chitin armor, multiple glowing
-  red eyes, jagged crown of spines, menacing hive-overlord presence, epic scale
+  colossal four-legged alien boss beast seen from above at a high angle, walking
+  to the right, long broad body of layered dark chitin armor plates with glowing
+  red seams, a jagged crown of spines along its back, a heavy head pointing right
+  with several glowing red eyes, low wide stance, hive overlord
   ```
 
 ### (c) Towers — `assets/sprites/towers/`
@@ -203,12 +217,36 @@ shatter) optional. Author facing right, moving right.
 Towers are static emplacements viewed top-down 3/4 — author the muzzle/business
 end facing right.
 
-- **archer** — `#8B4513` brown: `automated crossbow ballista turret emplacement, tall upright swivel mount, dark weathered iron and deep brown wood, taut bowstring, high contrast against pale ground, compact dark base disc`
-- **mage** — `#6a0dad` purple: `arcane energy spire turret, floating violet crystal orb, glowing runic rings, purple magic emissive, metal base disc`
-- **cannon** — `#666666` grey: `heavy artillery cannon turret, stubby thick grey barrel, riveted armor plating, recoil mount, base disc`
-- **ice** — `#4a8fa8` teal: `cryo frost turret, glowing teal ice-crystal emitter, frosted condenser coils, pale-blue vapor, base disc`
-- **sniper** — `#556b2f` olive: `long-barreled railgun sniper turret, slim olive-drab rail, targeting scope, sleek precise build, base disc`
-- **barracks** — `#4caf50` green: `military barracks bunker, small reinforced green-walled structure with a rally flag on top, sandbag perimeter, deployment doorway, blank unmarked walls, no signage and no lettering anywhere, compact footprint on a round base disc` (static building, no `attack`)
+- **archer** — `#ffb000` amber: `an automated crossbow ballista turret on a compact round base, tall upright swivel mount, cool steel and teal armor plates, glowing amber accent lights along the bow arms, taut bowstring`
+- **archer.t2** — `#ffb000` amber: `an automated crossbow ballista turret on a compact round base, a reinforced swivel mount with extra armor plates, a larger bow with metal-capped limbs, cool steel and teal armor plates, two rows of glowing amber accent lights`
+- **archer.t3** — `#ffb000` amber: `a heavy automated crossbow ballista turret on a compact round base, a thick armored swivel mount, a large heavy bow with a glowing amber power core at its center, cool steel and teal armor plates, bright glowing amber accent lights along the bow arms`
+- **archer.t4a** — `#ffb000` amber: `a heavy automated twin crossbow ballista turret on a compact round base, two stacked bow arms on one thick armored swivel mount with two bolts loaded, a glowing amber power core, cool steel and teal armor plates, bright glowing amber accent lights`
+- **archer.t4b** — `#ffb000` amber: `a heavy automated long-range crossbow turret on a compact round base, one long-limbed bow on an extended rail with a scope lens, tall and slim, a glowing amber power core, cool steel and teal armor, bright glowing amber accent lights`
+- **mage** — `#dd00ff` violet: `an arcane energy spire turret on a compact round base, floating violet crystal orb above steel prongs, glowing violet runic rings, cool steel and teal hull`
+- **mage.t2** — `#dd00ff` violet: `an arcane energy spire turret on a compact round base, a larger floating violet crystal orb above reinforced steel prongs, two glowing violet runic rings, extra armor plates on a cool steel and teal hull`
+- **mage.t3** — `#dd00ff` violet: `a heavy arcane energy spire turret on a compact round base, a large blazing violet crystal orb above tall armored steel prongs, three glowing violet runic rings orbiting the orb, thick cool steel and teal hull`
+- **mage.t4a** — `#dd00ff` violet: `a heavy arcane energy spire turret on a compact round base, a large crackling violet orb arcing lightning to three floating conductor prongs, glowing violet runic rings, thick cool steel and teal hull`
+- **mage.t4b** — `#dd00ff` violet: `a heavy arcane frost spire turret on a compact round base, a large violet orb sheathed in pale lilac-white ice shards, frosted armored steel prongs, glowing violet runic rings, thick cool steel and teal hull`
+- **cannon** — `#ff7a2f` ember: `a heavy artillery cannon turret on a compact round base, stubby thick barrel with a glowing ember-orange muzzle and vents, riveted cool steel and teal armor plating, recoil mount`
+- **cannon.t2** — `#ff7a2f` ember: `a heavy artillery cannon turret on a compact round base, a longer reinforced barrel with a glowing ember-orange muzzle and twin vents, extra riveted cool steel and teal armor plating, recoil mount`
+- **cannon.t3** — `#ff7a2f` ember: `a heavy siege cannon turret on a compact round base, a thick long barrel with a reinforced muzzle brake glowing ember-orange, glowing ember-orange heat vents along an armored housing, heavy riveted cool steel and teal plating`
+- **cannon.t4a** — `#ff7a2f` ember: `a heavy mortar artillery turret on a compact round base, a tall steeply angled wide-bore barrel, a rack of three shells beside it, glowing ember-orange heat vents, heavy riveted cool steel and teal plating`
+- **cannon.t4b** — `#ff7a2f` ember: `a heavy rotary autocannon turret on a compact round base, a rotating cluster of three barrels fed by an ammo belt, glowing ember-orange muzzles and heat vents, heavy riveted cool steel and teal plating`
+- **ice** — `#00eeff` cyan: `a cryo frost turret on a compact round base, glowing cyan ice-crystal emitter, frosted condenser coils, dark cool steel and teal hull`
+- **ice.t2** — `#00eeff` cyan: `a cryo frost turret on a compact round base, a larger glowing cyan ice-crystal emitter ringed with smaller crystal spikes, frosted condenser coils, extra armor plates on a dark cool steel and teal hull`
+- **ice.t3** — `#00eeff` cyan: `a heavy cryo frost turret on a compact round base, a large cluster of glowing cyan ice crystals on an armored emitter, thick frosted condenser coils, frost-rimed armor on a dark cool steel and teal hull`
+- **ice.t4a** — `#00eeff` cyan: `a massive cryo turret on a compact round base, a large glowing cyan emitter crown on thick frozen crystal pillars, a heavy frost mantle over a dark cool steel and teal hull`
+- **ice.t4b** — `#00eeff` cyan: `a heavy cryo lance turret on a compact round base, a jagged faceted glowing cyan crystal lance with fracture lines and sharp shards, frost-rimed armor on a dark cool steel and teal hull`
+- **sniper** — `#ff3355` red: `a long-barreled railgun sniper turret on a compact round base, slim rail with a glowing red targeting lens, cool steel and teal hull, sleek precise build`
+- **sniper.t2** — `#ff3355` red: `a long-barreled railgun sniper turret on a compact round base, a longer slim rail with a glowing red targeting lens and a stabilizer fin, extra armor plates, cool steel and teal hull`
+- **sniper.t3** — `#ff3355` red: `a heavy railgun sniper turret on a compact round base, a long twin-coil rail with glowing red charge coils and a large glowing red targeting lens, an armored mount, cool steel and teal hull`
+- **sniper.t4a** — `#ff3355` red: `a heavy stealth railgun sniper turret on a compact round base, a sleek dark rail with a long suppressor and a glowing red lens, an armored mount, cool steel and teal hull`
+- **sniper.t4b** — `#ff3355` red: `a heavy rapid-fire railgun turret on a compact round base, shorter twin rails with a drum magazine and glowing red heat vents, an armored mount, cool steel and teal hull`
+- **barracks** — `#ffd34d` gold: `a small reinforced military bunker on a round base, cool steel and teal walls, a gold rally flag on top, sandbag perimeter, deployment doorway, blank unmarked walls, no signage` (static building, no `attack`)
+- **barracks.t2** — `#ffd34d` gold: `a reinforced military bunker on a round base, cool steel and teal walls with extra armor plating, a gold rally flag on top, a double row of sandbags, deployment doorway, blank unmarked walls, no signage`
+- **barracks.t3** — `#ffd34d` gold: `a fortified military command bunker on a round base, thick armored cool steel and teal walls, a tall gold banner and a small gold-lit watchtower on top, sandbag perimeter, reinforced deployment gate, blank unmarked walls, no signage`
+- **barracks.t4a** — `#ffd34d` gold: `a fortified military bunker on a round base behind a heavy steel shield wall, a tall gold banner on top, thick armored cool steel and teal walls, blank unmarked walls, no signage`
+- **barracks.t4b** — `#ffd34d` gold: `a fortified military bunker on a round base with its launch-bay doors open and a glowing gold signal beacon on top, thick armored cool steel and teal walls, blank unmarked walls, no signage`
 
 ### (d) Heroes / Soldiers / Sentries
 

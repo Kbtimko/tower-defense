@@ -7,8 +7,9 @@
 export const REGISTERED_PORTRAITS = new Set();
 
 // Single source for where portrait art lives, so the BootScene probe and the
-// story dialog's <img> can't drift apart. Site-root-relative: the dialog
-// prefixes '/', Phaser resolves it against the same base.
+// story dialog's <img> can't drift apart. Relative to the page (no leading
+// slash), so it resolves under a subfolder host like itch: the dialog and
+// Phaser both resolve it against the same base.
 export function portraitPath(key) {
   return `assets/portraits/${key}.png`;
 }

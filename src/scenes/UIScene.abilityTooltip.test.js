@@ -19,7 +19,7 @@ import { HEROES } from '../data/heroes.js';
 function setupHeroDOM() {
   document.body.textContent = '';
 
-  for (const id of ['hud', 'bottom-bar', 'game-msg']) {
+  for (const id of ['hud-layer', 'game-msg']) {
     const d = document.createElement('div');
     d.id = id;
     document.body.appendChild(d);
@@ -63,8 +63,7 @@ function setupHeroDOM() {
   card.id = 'ability-card';
   document.body.appendChild(card);
 
-  for (const id of ['wave-btn', 'speed-btn', 'panel-upgrade-btn', 'panel-sell-btn',
-                     'msg-btn', 'panel-reposition-btn']) {
+  for (const id of ['wave-btn', 'speed-btn', 'msg-btn']) {
     const b = document.createElement('button');
     b.id = id;
     document.body.appendChild(b);
@@ -81,11 +80,30 @@ const cardText = () => document.getElementById('ability-card').textContent;
 const cardShown = () => document.getElementById('ability-card').classList.contains('shown');
 // Hover the WRAPPER, not the button: that's what a real pointer does, since a
 // disabled button fires no pointer events at all in Chrome/Safari.
-const hover = (slot) => document.getElementById(`ability-${slot}-wrap`).dispatchEvent(new Event('pointerenter'));
-const unhover = (slot) => document.getElementById(`ability-${slot}-wrap`).dispatchEvent(new Event('pointerleave'));
+const hover = (slot) => document.getElementById(`ability-${slot}-wrap`).dispatchEvent(Object.assign(new Event('pointerenter'), { pointerType: 'mouse' }));
+const unhover = (slot) => document.getElementById(`ability-${slot}-wrap`).dispatchEvent(Object.assign(new Event('pointerleave'), { pointerType: 'mouse' }));
 
 describe('UIScene ability hover card', () => {
   beforeEach(setupHeroDOM);
+
+  // title= went away with #42a; screen readers still need the name and effect.
+  it('labels every ability wrapper and button from the hero data, and relabels on a hero change', () => {
+    const s = makeScene();
+    for (const heroId of ['rael', 'engineer']) {
+      const def = HEROES[heroId];
+      s._onHeroHudInit({ heroId, def });
+      for (const slot of ['q', 'w', 'e']) {
+        const a = def.abilities[slot];
+        for (const el of [document.getElementById(`ability-${slot}-wrap`), document.getElementById(`ability-${slot}`)]) {
+          const label = el.getAttribute('aria-label');
+          expect(label).toContain(slot.toUpperCase());
+          expect(label).toContain(a.label);
+          expect(label).toContain(a.tooltip);
+          expect(el.hasAttribute('title')).toBe(false);
+        }
+      }
+    }
+  });
 
   it('shows the card with the ability label and effect on hover', () => {
     const s = makeScene();
@@ -198,8 +216,23 @@ describe('UIScene ability hover card', () => {
     expect(enterListeners.every(l => l.el !== btn)).toBe(true);
     expect(enterListeners.some(l => l.el === wrap)).toBe(true);
 
-    wrap.dispatchEvent(new Event('pointerenter'));
+    wrap.dispatchEvent(Object.assign(new Event('pointerenter'), { pointerType: 'mouse' }));
 
     expect(cardShown()).toBe(true);
+  });
+});
+
+describe('UIScene cooldown wedge reset', () => {
+  beforeEach(setupHeroDOM);
+
+  it('hero init clears the previous level\'s cooldown max and inline --cd', () => {
+    const s = makeScene();
+    s._onHeroHudInit({ heroId: 'rael', def: HEROES.rael });
+    s._onHeroCooldownTick({ q: 5, w: 0, e: 0 });
+    const q = document.getElementById('ability-q');
+    expect(q.style.getPropertyValue('--cd')).not.toBe('');
+    s._onHeroHudInit({ heroId: 'rael', def: HEROES.rael });
+    expect(s._cdMax).toEqual({});
+    expect(q.style.getPropertyValue('--cd')).toBe('');
   });
 });

@@ -1,0 +1,150 @@
+// Pure verdicts for the capture harness's phone-layout audit (roadmap 2.3).
+// The harness gathers the metrics in a real browser; this decides what is wrong,
+// so the rules are unit-testable without one.
+
+import { WORLD_HEIGHT, MIN_TOUCH_PX, MIN_TOUCH_PX_SMALL_PHONE, railMetricsFor } from '../data/layout.js';
+
+const EDGE_TOLERANCE_PX = 1;
+// DPR rounding can shave a fraction off a nominally-44px control.
+const TOUCH_SUBPIXEL_SLACK_PX = 0.5;
+const ZOOM_TOLERANCE = 0.01;
+// A control mostly inside its overflow-hidden ancestor is still tappable; below this it is not.
+const MIN_VISIBLE_FRACTION = 0.9;
+
+const area = r => (r ? Math.max(0, r.width) * Math.max(0, r.height) : 0);
+const fmt = r => `[${[r.left, r.top, r.right, r.bottom].map(n => Math.round(n)).join(',')}]`;
+
+function isOffScreen(r, innerWidth, innerHeight) {
+  return r.width <= 0 || r.height <= 0
+    || r.left < -EDGE_TOLERANCE_PX || r.top < -EDGE_TOLERANCE_PX
+    || r.right > innerWidth + EDGE_TOLERANCE_PX || r.bottom > innerHeight + EDGE_TOLERANCE_PX;
+}
+
+// target.visibleRect is rect intersected with every overflow-clipping ancestor
+// (null when nothing survives); rect alone cannot see a clipped control, because
+// getBoundingClientRect ignores ancestor clipping.
+function targetProblems(t, innerWidth, innerHeight) {
+  if (!t.rect) return [`${t.name} missing`];
+  if (!t.visible) return [`${t.name} hidden`];
+  const problems = [];
+  if (isOffScreen(t.rect, innerWidth, innerHeight)) problems.push(`${t.name} off-screen ${fmt(t.rect)}`);
+  if (t.visibleRect !== undefined && area(t.visibleRect) < MIN_VISIBLE_FRACTION * area(t.rect)) {
+    problems.push(`${t.name} clipped`);
+  }
+  return problems;
+}
+
+// The HUD is scaled with the canvas (FIT), so a phone's touch size is HUD_CELL x that scale.
+// Below 44 only when the geometry physically cannot reach it (iphone 750x340).
+// Touch floors only apply to coarse devices, so use the coarse metrics explicitly: the
+// module constants follow the environment's pointer class and would shift with it.
+export function minTouchFor({ vw, vh }) {
+  const { canvasWidth, hudCell } = railMetricsFor({ pointerFine: false });
+  const scale = Math.min(vw / canvasWidth, vh / WORLD_HEIGHT);
+  return scale * hudCell < MIN_TOUCH_PX ? MIN_TOUCH_PX_SMALL_PHONE : MIN_TOUCH_PX;
+}
+
+const insideRect = (r, rail) => r.left >= rail.left - EDGE_TOLERANCE_PX && r.right <= rail.right + EDGE_TOLERANCE_PX
+  && r.top >= rail.top - EDGE_TOLERANCE_PX && r.bottom <= rail.bottom + EDGE_TOLERANCE_PX;
+
+// A touch target must be at least minTouchPx in both dimensions. Absent/hidden targets are
+// layoutProblems' job (missing/hidden), so they are skipped here. Shared by the rail audit
+// (floor scales with the canvas) and the DOM-overlay audit (CSS px, floor always MIN_TOUCH_PX).
+export function targetSizeProblems(targets, minTouchPx) {
+  const problems = [];
+  for (const t of targets) {
+    if (!t.rect || !t.visible) continue;
+    if (t.rect.width < minTouchPx - TOUCH_SUBPIXEL_SLACK_PX || t.rect.height < minTouchPx - TOUCH_SUBPIXEL_SLACK_PX) {
+      problems.push(`${t.name} too small ${Math.round(t.rect.width)}x${Math.round(t.rect.height)}`);
+    }
+  }
+  return problems;
+}
+
+// Every HUD control must live fully inside one rail; on touch devices it must also be tappable.
+export function railProblems({ device, rails, targets, minTouchPx }) {
+  if (!rails?.left || !rails?.right) return ['rails missing'];
+  const problems = [];
+  for (const t of targets) {
+    if (!t.rect || !t.visible) continue;
+    if (!insideRect(t.rect, rails.left) && !insideRect(t.rect, rails.right)) problems.push(`${t.name} outside rails`);
+  }
+  if (device.hasTouch) problems.push(...targetSizeProblems(targets, minTouchPx));
+  return problems;
+}
+
+const RAIL_WIDTH_TOLERANCE_PX = 1;
+const ASPECT_TOLERANCE = 0.01;
+
+// The canvas size is fixed at boot from the pointer class, so a touch device that reports
+// pointer: fine got the narrow desktop rails; check rails and aspect match that class.
+export function railGeometryProblems({ device, pointerFine, canvasRect, rails }) {
+  const { railWidth, canvasWidth } = railMetricsFor({ pointerFine });
+  const problems = [];
+  if (device.hasTouch && pointerFine) problems.push(`${device.name}: touch device reports pointer: fine`);
+  const expectedAspect = canvasWidth / WORLD_HEIGHT;
+  const aspect = canvasRect.width / canvasRect.height;
+  if (Math.abs(aspect - expectedAspect) > ASPECT_TOLERANCE * expectedAspect) {
+    problems.push(`${device.name}: canvas aspect ${aspect.toFixed(3)} != ${expectedAspect.toFixed(3)}`);
+  }
+  const expectedRail = railWidth * canvasRect.width / canvasWidth;
+  for (const r of rails) {
+    if (Math.abs(r.width - expectedRail) > RAIL_WIDTH_TOLERANCE_PX) {
+      problems.push(`${device.name}: rail ${r.id} width ${r.width.toFixed(1)} != ${expectedRail.toFixed(1)}`);
+    }
+  }
+  return problems;
+}
+
+// DOM overlays live in CSS px outside the scaled canvas, so geometry never excuses a small
+// control: the floor is always MIN_TOUCH_PX. Mouse devices have no size rule.
+export function overlayProblems({ device, targets }) {
+  return device.hasTouch ? targetSizeProblems(targets, MIN_TOUCH_PX) : [];
+}
+
+export function layoutProblems(m) {
+  const problems = [];
+  if (Math.abs(m.scale - 1) > ZOOM_TOLERANCE) problems.push(`zoomed: visualViewport.scale=${m.scale}`);
+  if (m.innerWidth > m.device.width) {
+    problems.push(`layout viewport ${m.innerWidth}x${m.innerHeight} wider than device ${m.device.width}x${m.device.height}`);
+  }
+  if (m.scrollWidth > m.innerWidth) problems.push(`page overflows: scrollWidth ${m.scrollWidth} > innerWidth ${m.innerWidth}`);
+  for (const t of m.targets) problems.push(...targetProblems(t, m.innerWidth, m.innerHeight));
+  return problems;
+}
+
+const intersects = (a, b) => a.left < b.right - EDGE_TOLERANCE_PX && a.right > b.left + EDGE_TOLERANCE_PX
+  && a.top < b.bottom - EDGE_TOLERANCE_PX && a.bottom > b.top + EDGE_TOLERANCE_PX;
+
+// Radial faces are round, so overlap is circle-vs-circle: the hub's bounding
+// square legitimately overlaps the diagonal items' squares while the faces clear.
+function facesOverlap(a, b) {
+  const r = f => Math.min(f.rect.width, f.rect.height) / 2;
+  const cx = f => f.rect.left + f.rect.width / 2;
+  const cy = f => f.rect.top + f.rect.height / 2;
+  return Math.hypot(cx(a) - cx(b), cy(a) - cy(b)) < r(a) + r(b) - EDGE_TOLERANCE_PX;
+}
+
+// An open radial (roadmap 3.3) must sit wholly on the map, clear of both rails,
+// tappable, and with no face covering another. Hidden items are unused ring
+// slots. minTouchPx 0 skips the size rule (a fine pointer has no touch floor).
+export function radialProblems({ items, hub, mapRect, rails, minTouchPx }) {
+  const faces = items.filter(t => t.rect && t.visible);
+  const problems = [];
+  if (faces.length === 0) problems.push('radial has no visible items');
+  if (hub?.rect && hub.visible) faces.push(hub);
+  else problems.push(`${hub?.name ?? 'hub'} hidden`);
+  for (const f of faces) {
+    if (!insideRect(f.rect, mapRect)) problems.push(`${f.name} outside map ${fmt(f.rect)}`);
+    for (const [id, rail] of [['rail-left', rails.left], ['rail-right', rails.right]]) {
+      if (rail && intersects(f.rect, rail)) problems.push(`${f.name} intersects ${id}`);
+    }
+  }
+  if (minTouchPx > 0) problems.push(...targetSizeProblems(faces, minTouchPx));
+  for (let i = 0; i < faces.length; i++) {
+    for (let j = i + 1; j < faces.length; j++) {
+      if (facesOverlap(faces[i], faces[j])) problems.push(`${faces[i].name} overlaps ${faces[j].name}`);
+    }
+  }
+  return problems;
+}

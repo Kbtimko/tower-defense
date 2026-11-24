@@ -19,8 +19,8 @@ import { describe, it, expect, vi } from 'vitest';
 import GameScene from './GameScene.js';
 
 const makeTower = (x, y) => ({
-  type: 'archer', branch: null, x, y, range: 200, damage: 10, fireRate: 1,
-  cooldown: 0, level: 1, splashRadius: 0, pierce: 0, slow: 0,
+  type: 'archer', branch: null, x, y, range: 200, damage: 10, fireRate: 1, updatePop: () => {},
+  cooldown: 0, level: 1, splashRadius: 0, pierce: 0, slow: 0, muzzlePoint: () => ({ x, y }),
   _sprite: { setFacing: vi.fn(), setState: vi.fn() },
 });
 const makeEnemy = (x, y, waypointIndex = 1) => ({ x, y, waypointIndex });
@@ -28,6 +28,7 @@ const makeCtx = (towers, enemies) => ({
   placementManager: { getTowers: () => towers },
   enemies,
   projectiles: [],
+  _projectilePool: { acquire: opts => ({ ...opts }) },
   particleSpawner: null,
   game: { registry: { get: () => null } },
 });

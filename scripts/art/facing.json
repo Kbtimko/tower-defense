@@ -1,0 +1,13 @@
+{
+  "default": true,
+  "enemy_titan": false,
+  "hero_engineer": false,
+  "hero_scout": false,
+  "sentry_default": false,
+  "soldier_default": false,
+  "tower_archer": false,
+  "tower_barracks": false,
+  "tower_ice": false,
+  "tower_mage": false,
+  "tower_sniper": false
+}

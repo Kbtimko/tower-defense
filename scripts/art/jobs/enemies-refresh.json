@@ -1,0 +1,9 @@
+{
+  "batch": "enemies-refresh",
+  "candidates": 8,
+  "assets": [
+    { "kind": "sprite", "entity": "enemy_drone" },
+    { "kind": "sprite", "entity": "enemy_phantom" },
+    { "kind": "sprite", "entity": "enemy_titan" }
+  ]
+}

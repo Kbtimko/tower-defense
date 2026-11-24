@@ -3,6 +3,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 vi.mock('../entities/Hero.js', () => ({}));
 
 import { InspectController } from './InspectController.js';
+import { RAIL_WIDTH, CANVAS_WIDTH, WORLD_WIDTH, WORLD_HEIGHT } from '../data/layout.js';
+import { PANEL_EDGE_MARGIN, TAP_TOWER_RADIUS } from '../data/input.js';
 
 // Build the inspector DOM scaffolding (createElement/appendChild — no innerHTML).
 function setupDom() {
@@ -42,6 +44,12 @@ function setupDom() {
   hi.appendChild(mk('div', 'hi-abilities'));
   hi.appendChild(mk('div', 'hi-matchups'));
   document.body.appendChild(hi);
+
+  // #tower-inspector (peek-only: no close button)
+  const ti = mk('div', 'tower-inspector');
+  ti.style.display = 'none';
+  for (const id of ['ti-name', 'ti-level', 'ti-stats', 'ti-matchups', 'ti-armour']) ti.appendChild(mk('div', id));
+  document.body.appendChild(ti);
 
   // #inspect-peek
   const peek = mk('div', 'inspect-peek');
@@ -492,7 +500,8 @@ describe('InspectController — panel positioning', () => {
     const ctrl = new InspectController(makeScene());
     ctrl.pin({ kind: 'enemy', target: enemy });
     const panel = document.getElementById('enemy-inspector');
-    expect(panel.style.left).toBe('224px');
+    // World x sits RAIL_WIDTH into the canvas; anchor adds +24.
+    expect(panel.style.left).toBe(`${200 + RAIL_WIDTH + 24}px`);
   });
 
   it('pin converts target game coords through the scale transform', () => {
@@ -502,8 +511,76 @@ describe('InspectController — panel positioning', () => {
     const ctrl = new InspectController(scene);
     ctrl.pin({ kind: 'enemy', target: enemy });
     const panel = document.getElementById('enemy-inspector');
-    // game (200,300) -> page (400,600); anchor adds +24 to left
-    expect(panel.style.left).toBe('424px');
+    // displayScale 2 = 2 canvas px per CSS px: world x 200 is canvas x
+    // 200 + RAIL_WIDTH, so page x (200 + RAIL_WIDTH) / 2; anchor adds +24.
+    expect(panel.style.left).toBe(`${(200 + RAIL_WIDTH) / 2 + 24}px`);
+  });
+
+  it('peek converts the target world coords through the rail offset and scale', () => {
+    const enemy = makeEnemy({ x: 200, y: 300 });
+    const scene = { enemies: [enemy], hero: null,
+      scale: { canvasBounds: { x: 10, y: 0 }, displayScale: { x: 2, y: 2 } } };
+    const ctrl = new InspectController(scene);
+    ctrl.onPointerMove(200, 300);
+    const peek = document.getElementById('inspect-peek');
+    expect(peek.style.display).toBe('block');
+    expect(peek.style.left).toBe(`${10 + (200 + RAIL_WIDTH) / 2 + 24}px`);
+  });
+});
+
+// Inspector cards are body-level and z40, so a card over a rail eats the tap.
+// phone844: canvas 844x372 at y 8, rails 91 CSS px each; the page is offset by
+// a 10px #game left so the clamp must work in PAGE (not #game-local) coords.
+describe('InspectController — clamp to the map', () => {
+  const GAME_LEFT = 10;
+  const scale = 844 / CANVAS_WIDTH;
+  const map = {
+    left: GAME_LEFT + RAIL_WIDTH * scale, top: 8,
+    width: WORLD_WIDTH * scale, height: WORLD_HEIGHT * scale,
+  };
+  const size = (el, w, h) => {
+    Object.defineProperty(el, 'offsetWidth', { configurable: true, get: () => w });
+    Object.defineProperty(el, 'offsetHeight', { configurable: true, get: () => h });
+  };
+  beforeEach(() => {
+    setupDom();
+    const game = document.createElement('div');
+    game.id = 'game';
+    const canvas = document.createElement('canvas');
+    game.appendChild(canvas);
+    document.body.appendChild(game);
+    game.getBoundingClientRect = () => ({ left: GAME_LEFT, top: 0, width: 844, height: 390 });
+    canvas.getBoundingClientRect = () => ({ left: GAME_LEFT, top: 8, width: 844, height: 372 });
+  });
+
+  it('keeps a pinned card left of the right rail and above the bottom edge', () => {
+    const ctrl = new InspectController(makeScene());
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    size(el, 200, 150);
+    ctrl._positionPanel(el, map.left + map.width - 20, map.top + map.height - 5);
+    expect(parseFloat(el.style.left) + 200).toBeLessThanOrEqual(map.left + map.width - PANEL_EDGE_MARGIN);
+    expect(parseFloat(el.style.top)).toBeCloseTo(map.top + map.height - 150 - PANEL_EDGE_MARGIN, 6);
+  });
+
+  it('never sits left of the map (left rail) or above it', () => {
+    const ctrl = new InspectController(makeScene());
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    size(el, 200, 150);
+    ctrl._positionPanel(el, 0, 0);
+    expect(parseFloat(el.style.left)).toBeCloseTo(map.left + PANEL_EDGE_MARGIN, 6);
+    expect(parseFloat(el.style.top)).toBeCloseTo(map.top + PANEL_EDGE_MARGIN, 6);
+  });
+
+  it('the peek is clamped the same way', () => {
+    const peek = document.getElementById('inspect-peek');
+    size(peek, 180, 60);
+    const enemy = makeEnemy({ x: WORLD_WIDTH - 5, y: 100 });
+    const scene = { enemies: [enemy], hero: null,
+      scale: { canvasBounds: { x: GAME_LEFT, y: 8 }, displayScale: { x: 1 / scale, y: 1 / scale } } };
+    new InspectController(scene).onPointerMove(WORLD_WIDTH - 5, 100);
+    expect(parseFloat(peek.style.left) + 180).toBeLessThanOrEqual(map.left + map.width - PANEL_EDGE_MARGIN);
   });
 });
 
@@ -682,5 +759,158 @@ describe('InspectController — hero XP progress on the card', () => {
       xpProgress: () => ({ level: 3, progress: 0, current: 0, needed: 650, atMax: false }),
     }) });
     expect(document.getElementById('hi-xp-label').textContent).toBe('0 / 650 to Level 4');
+  });
+});
+
+// The tap pipeline decides "pin" from inspectableAt BEFORE it calls
+// tryClickInspect, so the two must agree or a pin decision could fall through.
+describe('InspectController — side-effect-free hit test and touch peek', () => {
+  beforeEach(setupDom);
+
+  it('inspectableAt reports enemy before hero and pins nothing', () => {
+    const enemy = makeEnemy({ x: 50, y: 50 });
+    const ctrl = new InspectController(makeScene([enemy], makeHero()));
+    expect(ctrl.inspectableAt(50, 50)).toEqual({ kind: 'enemy', target: enemy });
+    expect(ctrl.pinned).toBeNull();
+  });
+
+  it('inspectableAt reports the hero, and null over empty space', () => {
+    const hero = makeHero();
+    const ctrl = new InspectController(makeScene([], hero));
+    expect(ctrl.inspectableAt(50, 50)).toEqual({ kind: 'hero', target: hero });
+    expect(ctrl.inspectableAt(500, 500)).toBeNull();
+  });
+
+  it('tryClickInspect still reports consumed when it dismisses the same target', () => {
+    const enemy = makeEnemy();
+    const ctrl = new InspectController(makeScene([enemy]));
+    ctrl.tryClickInspect(100, 100);
+    expect(ctrl.tryClickInspect(100, 100)).toBe(true);
+    expect(ctrl.pinned).toBeNull();
+  });
+
+  it('peekHit shows a live enemy at its CURRENT position and returns true', () => {
+    const enemy = makeEnemy();
+    const ctrl = new InspectController(makeScene([enemy]));
+    const hit = ctrl.inspectableAt(100, 100);
+    enemy.x = 300;
+    const spy = vi.spyOn(ctrl, '_showPeek');
+    expect(ctrl.peekHit(hit)).toBe(true);
+    expect(spy).toHaveBeenCalledWith('enemy', enemy, 300, 100);
+    expect(document.getElementById('inspect-peek').style.display).toBe('block');
+  });
+
+  it('peekHit refuses a dead enemy, or one no longer in the scene', () => {
+    const enemy = makeEnemy();
+    const scene = makeScene([enemy]);
+    const ctrl = new InspectController(scene);
+    const hit = ctrl.inspectableAt(100, 100);
+    enemy.dead = true;
+    expect(ctrl.peekHit(hit)).toBe(false);
+    enemy.dead = false;
+    scene.enemies = [];
+    expect(ctrl.peekHit(hit)).toBe(false);
+    expect(document.getElementById('inspect-peek').style.display).toBe('none');
+  });
+
+  it('peekHit refuses a hero who died during the press', () => {
+    const hero = makeHero();
+    const ctrl = new InspectController(makeScene([], hero));
+    const hit = ctrl.inspectableAt(50, 50);
+    hero.dead = true;
+    expect(ctrl.peekHit(hit)).toBe(false);
+  });
+
+  it('hidePeek hides a shown peek', () => {
+    const ctrl = new InspectController(makeScene([makeEnemy()]));
+    ctrl.onPointerMove(100, 100);
+    ctrl.hidePeek();
+    expect(document.getElementById('inspect-peek').style.display).toBe('none');
+    expect(ctrl.peekTarget).toBeNull();
+  });
+});
+
+describe('InspectController — tower long-press target and peek', () => {
+  beforeEach(setupDom);
+
+  const makeTower = (over = {}) => ({
+    x: 200, y: 200, type: 'ice', level: 1, branch: null,
+    damage: 8, range: 115, fireRate: 0.7, pierce: false, ...over,
+  });
+  const sceneWith = (towers, enemies = [], hero = null) =>
+    ({ enemies, hero, placementManager: { getTowers: () => towers } });
+  const ti = () => document.getElementById('tower-inspector');
+
+  it('longPressTargetAt reports a tower within the tap radius and pins nothing', () => {
+    const t = makeTower();
+    const ctrl = new InspectController(sceneWith([t]));
+    expect(ctrl.longPressTargetAt(200 + TAP_TOWER_RADIUS - 1, 200)).toEqual({ kind: 'tower', target: t });
+    expect(ctrl.longPressTargetAt(200 + TAP_TOWER_RADIUS, 200)).toBeNull();
+    expect(ctrl.pinned).toBeNull();
+    expect(ti().style.display).toBe('none');
+  });
+
+  it('longPressTargetAt is null with no placement manager or no towers', () => {
+    expect(new InspectController(makeScene()).longPressTargetAt(200, 200)).toBeNull();
+    expect(new InspectController(sceneWith([])).longPressTargetAt(200, 200)).toBeNull();
+  });
+
+  it('inspectableAt never reports a tower, so a tap on one still reaches the ring', () => {
+    const ctrl = new InspectController(sceneWith([makeTower()]));
+    expect(ctrl.inspectableAt(200, 200)).toBeNull();
+    expect(ctrl.tryClickInspect(200, 200)).toBe(false);
+  });
+
+  it('peekHit shows the tower inspector for a standing tower', () => {
+    const t = makeTower();
+    const ctrl = new InspectController(sceneWith([t]));
+    expect(ctrl.peekHit({ kind: 'tower', target: t })).toBe(true);
+    expect(ti().style.display).toBe('block');
+    expect(document.getElementById('ti-name').textContent).toContain('Ice');
+  });
+
+  it('peekHit refuses a tower sold during the hold', () => {
+    const t = makeTower();
+    const scene = sceneWith([t]);
+    const ctrl = new InspectController(scene);
+    scene.placementManager.getTowers = () => [];
+    expect(ctrl.peekHit({ kind: 'tower', target: t })).toBe(false);
+    expect(ti().style.display).toBe('none');
+  });
+
+  it('peekTower renders level, stats, matchups and the armour line', () => {
+    const ctrl = new InspectController(sceneWith([]));
+    ctrl.peekTower(makeTower(), { left: 300, top: 300, width: 40, height: 40 });
+    expect(document.getElementById('ti-level').textContent).toBe('Level: 1/4');
+    expect(document.getElementById('ti-stats').textContent).toContain('Damage: 8');
+    expect(document.getElementById('ti-matchups').querySelector('.mu-good, .mu-bad')).not.toBeNull();
+    const armour = document.getElementById('ti-armour');
+    expect(armour.style.display).toBe('');
+    expect(armour.querySelector('.ar-head').textContent).toContain('Armour absorbs');
+    expect(armour.querySelector('.ar-floor')).not.toBeNull();
+  });
+
+  it('peekTower hides the armour line for a tower armour barely dents, and clears the last one', () => {
+    const ctrl = new InspectController(sceneWith([]));
+    const rect = { left: 300, top: 300, width: 40, height: 40 };
+    ctrl.peekTower(makeTower(), rect);
+    ctrl.peekTower(makeTower({ type: 'sniper', damage: 80, pierce: true }), rect);
+    const armour = document.getElementById('ti-armour');
+    expect(armour.childNodes.length).toBe(0);
+    expect(armour.style.display).toBe('none');
+  });
+
+  it('peekTower opens beside the anchor rect, not on top of it', () => {
+    const ctrl = new InspectController(sceneWith([]));
+    ctrl.peekTower(makeTower(), { left: 300, top: 300, width: 40, height: 40 });
+    expect(parseFloat(ti().style.left)).toBeGreaterThanOrEqual(340);
+  });
+
+  it('hidePeek hides the tower inspector too', () => {
+    const ctrl = new InspectController(sceneWith([]));
+    ctrl.peekTower(makeTower(), { left: 300, top: 300, width: 40, height: 40 });
+    ctrl.hidePeek();
+    expect(ti().style.display).toBe('none');
+    expect(ctrl.peekTarget).toBeNull();
   });
 });

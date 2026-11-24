@@ -29,18 +29,27 @@
 //     nearest the barracks. A player who walks a squad onto a chokepoint gets
 //     more out of a barracks than this model does.
 //   * No sentries.
-//   * No send-wave-early bonus, so gold income is the floor, not the ceiling.
+//   * No early wave calls, so no send-wave-early bonus: gold income is the
+//     floor, not the ceiling. In 'countdown' mode (the shipped game) the next
+//     wave sends only when the countdown reaches zero.
+//   * The player dismisses every between-wave banner instantly, so the model
+//     never gets the countdown hold a real player gets while reading one (that
+//     hold only adds player time).
 //   * Tower tiers are honoured up to the map's maxTierAllowed, but Tier-4
 //     branch choice is not modelled (branch A is assumed) — so Rapid Response
 //     (4 soldiers, half respawn) never appears.
 //   * No meta upgrades, so soldierMaxHpBonus / soldierRespawnMult are absent.
+// One simplification runs the other way (OPTIMISTIC): in 'countdown' mode, a
+// countdown waited out on an empty board gives soldiers and the hero extra
+// regen and respawn time that a player who calls waves early would not get.
 // A map the simulator LOSES is therefore not automatically broken; it means a
 // defence built to this policy is not sufficient, which is the signal worth
 // looking at.
 import { PathManager } from '../systems/PathManager.js';
 import { WaveManager } from '../systems/WaveManager.js';
-import { TOWER_DEFS } from '../data/towers.js';
+import { TOWER_DEFS, TOWER_SLOW_DURATION } from '../data/towers.js';
 import { computeDamage } from '../systems/damage.js';
+import { T4_EFFECT_KEYS, shotTargets, resolveHit, isBossType } from '../systems/towerShot.js';
 import { pointAtProgress } from '../systems/pathGeometry.js';
 import { HEROES } from '../data/heroes.js';
 import { heroSource, soldierSource } from '../data/sourceBuilders.js';
@@ -52,6 +61,8 @@ import {
 import { makeHeroUnit, damageHeroUnit, tickHeroUnit, registerHeroUnitDamage } from './heroUnit.js';
 import { heroAttackDamage } from '../systems/heroLeveling.js';
 import { totalEnemyHp } from '../data/waves.js';
+import { countdownMsFor, shouldStartCountdown, WaveCountdown } from '../systems/waveCountdown.js';
+import { mergeSlow, mergeStun } from '../systems/statusMerge.js';
 
 const PROJECTILE_SPEED = 280;   // Projectile.js
 const WAVE_CLEAR_BONUS = 38;    // GameScene.js
@@ -65,7 +76,7 @@ class Emitter {
   emit(evt, payload) { for (const fn of this._handlers[evt] ?? []) fn(payload); }
 }
 
-function makeTower(type, x, y) {
+function makeTower(type, x, y, branchPref = null, tierCap = null, tag = null) {
   const def = TOWER_DEFS[type];
   return {
     type, x, y,
@@ -80,6 +91,10 @@ function makeTower(type, x, y) {
     slow: def.slow,
     level: 1,
     branch: null,
+    // Tier-4 ability slots, empty until the tier-4 def supplies them (as Tower's are).
+    shots: 1, chain: null, cluster: null, slowedMult: 1, bossStun: 0,
+    // Sweep-only knobs: the tier-4 branch to buy, a ceiling below the map's, a label.
+    branchPref, tierCap, tag,
     cooldown: 0,
   };
 }
@@ -126,6 +141,11 @@ export function simulateMap({
   // solving for the smallest value that wins a map, we turn "this model loses"
   // into "the systems this model omits must be worth about this much".
   damageMult = 1,
+  // 'countdown' (the shipped game, #51): the next wave sends a countdown after
+  // the previous wave's last spawn, so waves can overlap. 'onClear' (legacy):
+  // the next wave sends the tick the board clears — the pre-#51 model, kept so
+  // calibration can compare against it.
+  waveTiming = 'countdown',
 }) {
   const pathMgr = new PathManager(map.waypoints, map.towerSlots, width, height);
   const path = pathMgr.path;
@@ -163,6 +183,7 @@ export function simulateMap({
       waypointIndex: 0,
       dead: false,
       slow: { active: false, timer: 0, factor: 1 },
+      stun: { active: false, timer: 0 },
     });
   });
 
@@ -179,12 +200,26 @@ export function simulateMap({
   const heroRespawnPoint = pointAtProgress(path, 0);
   let heroAttackTimer = 0;
 
-  const waveLog = [];
+  if (waveTiming !== 'countdown' && waveTiming !== 'onClear') {
+    throw new Error(`simulateMap: unknown waveTiming '${waveTiming}'`);
+  }
 
-  for (let w = 0; w < waves.length; w++) {
-    // ── Build phase: spend gold before the wave starts ──────────────────────
+  const waveLog = [];
+  const clearBonus = Math.round(WAVE_CLEAR_BONUS * rewardMult);
+  const countdown = waveTiming === 'countdown' ? new WaveCountdown() : null;
+  let soldiers = [];
+  let sends = 0;          // waves sent so far — the legacy loop's wave counter
+  let open = null;        // the latest send's log row, closed at the next send
+  let sinceSend = 0;      // seconds since the latest send: the legacy per-wave clock
+  let ticks = 0;
+  let overlapSends = 0;   // sends made with enemies still on the board
+  let boardClears = 0;    // clear bonuses paid for an empty board
+  let timeouts = 0;       // advances forced by the maxSecondsPerWave safety valve
+
+  // ── Build phase: spend gold before each send ─────────────────────────────
+  function build() {
     const purchases = buildPlan({
-      gold, towers, slotsUsed, buildZones: pathMgr.buildZones, path, waveNumber: w + 1, map, waves,
+      gold, towers, slotsUsed, buildZones: pathMgr.buildZones, path, waveNumber: sends + 1, map, waves,
     }) ?? [];
     for (const p of purchases) {
       if (p.upgrade) {
@@ -192,9 +227,10 @@ export function simulateMap({
         const t = towers[p.towerIndex];
         if (!t) continue;
         const nextTier = t.level + 1;
-        const key = nextTier === 4 ? 'tier4A' : `tier${nextTier}`;
+        const letter = p.branch ?? t.branchPref ?? 'A';
+        const key = nextTier === 4 ? `tier4${letter}` : `tier${nextTier}`;
         const tierDef = TOWER_DEFS[t.type][key];
-        if (!tierDef || nextTier > (map.maxTierAllowed ?? 4) || tierDef.cost > gold) continue;
+        if (!tierDef || nextTier > Math.min(map.maxTierAllowed ?? 4, t.tierCap ?? 4) || tierDef.cost > gold) continue;
         gold -= tierDef.cost;
         t.level = nextTier;
         if (tierDef.damage       !== undefined) t.damage       = tierDef.damage;
@@ -203,7 +239,8 @@ export function simulateMap({
         if (tierDef.slow         !== undefined) t.slow         = tierDef.slow;
         if (tierDef.fireRate     !== undefined) t.fireRate     = tierDef.fireRate;
         if (tierDef.pierce       !== undefined) t.pierce       = tierDef.pierce;
-        if (nextTier === 4)                     t.branch       = 'A';
+        if (nextTier === 4)                     t.branch       = letter;
+        for (const k of T4_EFFECT_KEYS) if (tierDef[k] !== undefined) t[k] = tierDef[k];
         // Barracks gain nothing from the tier stat block; their upgrade lands on
         // the soldiers (Barracks.upgrade + _rebuildSoldiers, which respawns the
         // squad at full strength with the new stats).
@@ -218,7 +255,7 @@ export function simulateMap({
       if (cost > gold || !zone || slotsUsed.has(p.slotIndex)) continue;
       gold -= cost;
       slotsUsed.add(p.slotIndex);
-      const tower = makeTower(p.type, zone.cx, zone.cy);
+      const tower = makeTower(p.type, zone.cx, zone.cy, p.branch ?? null, p.maxTier ?? null, p.tag ?? null);
       if (tower.soldierStats) {
         tower.soldierPathProgress = pathMgr.getNearestPathProgress(zone.cx, zone.cy);
         spawnSoldiers(tower, path);
@@ -226,209 +263,287 @@ export function simulateMap({
       towers.push(tower);
     }
 
-    // Towers only change between waves, so the roster is fixed for this one.
-    const soldiers = towers.flatMap(t => t.soldiers);
+    // Towers only change at a send, so the roster is fixed until the next one.
+    soldiers = towers.flatMap(t => t.soldiers);
+  }
 
-    const goldAtWaveStart = gold;
-    const livesAtWaveStart = lives;
-    waveMgr.startWave();
-
-    // ── Combat phase ───────────────────────────────────────────────────────
-    let elapsed = 0;
-    while (elapsed < maxSecondsPerWave) {
-      waveMgr.update(dt * 1000);
-
-      // Enemies move (GameScene._updateEnemies)
-      // One hero, one held enemy per tick — the same frame-local flag
-      // GameScene._updateEnemies carries, so the model bills the hero for at
-      // most dt per tick instead of dt per enemy standing on it.
-      let heroHolding = false;
-      for (const e of enemies) {
-        if (e.slow.active) {
-          e.slow.timer -= dt;
-          if (e.slow.timer <= 0) e.slow = { active: false, timer: 0, factor: 1 };
-        }
-        // Blocking (GameScene._updateEnemies): a blocked enemy skips the whole
-        // movement loop and trades melee instead, so it sits inside tower range
-        // for as long as a soldier survives in front of it.
-        const blocker = soldiers.length > 0 ? findBlockingSoldier(e, soldiers) : null;
-        if (blocker) {
-          blockedSeconds += dt;
-          if (damageSoldier(blocker, ENEMY_MELEE_DAMAGE * dt)) soldierDeaths++;
-          if (blocker.attackTimer <= 0) {
-            e.hp -= computeDamage({
-              amount: blocker.damage * damageMult, armor: e.armor,
-              source: soldierSource(blocker), enemyType: e.def.type,
-            });
-            blocker.attackTimer = 1 / SOLDIER_ATTACK_RATE;
-            if (e.hp <= 0 && !e.dead) {
-              e.dead = true; kills++; gold += killReward(e.reward);
-            }
-          }
-          continue;
-        }
-        // Hero blocking, checked after soldiers exactly as GameScene does: a
-        // soldier already holding this enemy wins, so the hero is not charged
-        // for it as well. The hero does not strike back from here — its
-        // auto-attack below already covers everything inside MELEE_RANGE.
-        if (!heroHolding && heroBlocksEnemy(heroUnit, e)) {
-          heroHolding = true;
-          heroBlockedSeconds += dt;
-          if (damageHeroUnit(heroUnit, ENEMY_MELEE_DAMAGE * dt)) heroDeaths++;
-          continue;
-        }
-
-        const speed = e.slow.active ? e.def.speed * e.slow.factor : e.def.speed;
-        let rem = speed * dt;
-        while (rem > 0 && e.waypointIndex < path.length - 1) {
-          const tgt = path[e.waypointIndex + 1];
-          const dx = tgt.x - e.x, dy = tgt.y - e.y;
-          const dist = Math.hypot(dx, dy);
-          if (dist <= rem) {
-            e.x = tgt.x; e.y = tgt.y; e.waypointIndex++; rem -= dist;
-          } else {
-            e.x += (dx / dist) * rem; e.y += (dy / dist) * rem; rem = 0;
-          }
-        }
-        if (e.waypointIndex >= path.length - 1) {
-          e.dead = true;
-          leaked++;
-          lives--;
-        }
-      }
-      enemies = enemies.filter(e => !e.dead);
-
-      // Towers fire at the furthest-along enemy in range (GameScene._updateTowers)
-      for (const t of towers) {
-        if (!t.fireRate) continue;
-        t.cooldown = Math.max(0, t.cooldown - dt);
-        if (t.cooldown > 0) continue;
-        let best = null, bestProg = -1;
-        for (const e of enemies) {
-          if (Math.hypot(e.x - t.x, e.y - t.y) <= t.range && e.waypointIndex > bestProg) {
-            best = e; bestProg = e.waypointIndex;
-          }
-        }
-        if (best) {
-          projectiles.push({
-            x: t.x, y: t.y, target: best, targetX: best.x, targetY: best.y,
-            damage: t.damage, splashRadius: t.splashRadius, pierce: t.pierce,
-            slowFactor: t.slow, towerType: t.type, tier: t.level, branch: t.branch,
-            dead: false,
-          });
-          t.cooldown = 1 / t.fireRate;
-        }
-      }
-
-      // Projectiles travel and hit (GameScene._updateProjectiles / _onProjectileHit)
-      for (const p of projectiles) {
-        if (p.target && !p.target.dead) { p.targetX = p.target.x; p.targetY = p.target.y; }
-        const dx = p.targetX - p.x, dy = p.targetY - p.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist < 10) {
-          const source = { kind: 'tower', type: p.towerType, tier: p.tier, branch: p.branch };
-          const hits = p.splashRadius > 0
-            ? enemies.filter(e => Math.hypot(e.x - p.targetX, e.y - p.targetY) <= p.splashRadius)
-            : (p.target && !p.target.dead ? [p.target] : []);
-          for (const e of hits) {
-            e.hp -= computeDamage({
-              amount: p.damage * damageMult, armor: e.armor, pierce: p.pierce,
-              source, enemyType: e.def.type,
-            });
-            if (e.hp <= 0 && !e.dead) {
-              e.dead = true; kills++; gold += killReward(e.reward);
-            } else if (p.splashRadius === 0 && p.slowFactor > 0) {
-              e.slow = { active: true, timer: 2, factor: p.slowFactor };
-            }
-          }
-          p.dead = true;
-        } else {
-          const step = Math.min(PROJECTILE_SPEED * dt, dist);
-          p.x += (dx / dist) * step; p.y += (dy / dist) * step;
-        }
-      }
-      projectiles = projectiles.filter(p => !p.dead);
-
-      // Soldier cooldowns and respawns (GameScene._updateSoldiers)
-      for (const s of soldiers) tickSoldier(s, dt);
-
-      // Hero regen / respawn, then auto-attack (GameScene._updateHero ->
-      // Hero.update, which returns early while dead so neither the regen nor
-      // the attack cooldown advances).
-      if (heroDef) {
-        if (tickHeroUnit(heroUnit, dt, heroRespawnPoint)) {
-          heroAttackTimer = 1 / heroDef.stats.attackRate;  // Hero.respawn
-        }
-        if (!heroUnit.dead) {
-          heroAttackTimer -= dt;
-          if (heroAttackTimer <= 0) {
-            const range = heroDef.stats.attackRange;
-            let nearest = null, nearestDist = Infinity;
-            for (const e of enemies) {
-              if (e.dead) continue;
-              const d = Math.hypot(e.x - heroUnit.x, e.y - heroUnit.y);
-              if (d <= range && d < nearestDist) { nearest = e; nearestDist = d; }
-            }
-            if (nearest) {
-              const dealt = computeDamage({
-                amount: heroAttackDamage(heroDef.stats, heroUnit.level) * damageMult,
-                armor: nearest.armor,
-                source: heroSrc,
-                enemyType: nearest.def.type,
-              });
-              nearest.hp -= dealt;
-              heroDamageDealt += dealt;
-              registerHeroUnitDamage(heroUnit, dealt);
-              if (nearest.hp <= 0 && !nearest.dead) {
-                nearest.dead = true; kills++; gold += killReward(nearest.reward);
-              }
-              heroAttackTimer = 1 / heroDef.stats.attackRate;
-            }
-          }
-        }
-      }
-
-      enemies = enemies.filter(e => !e.dead);
-
-      elapsed += dt;
-      if (lives <= 0) break;
-      if (!waveMgr.hasQueuedEnemies && enemies.length === 0) break;
-    }
-
-    if (lives > 0) gold += Math.round(WAVE_CLEAR_BONUS * rewardMult);
-
+  // One row per send, covering "this send to the next" — under 'onClear' that
+  // is exactly the legacy per-wave row.
+  function closeLog() {
     waveLog.push({
-      wave: w + 1,
-      goldAtWaveStart,
+      wave: open.wave,
+      goldAtWaveStart: open.goldAtWaveStart,
       goldAfter: gold,
       towersBuilt: towers.length,
-      livesLost: livesAtWaveStart - lives,
+      livesLost: open.livesAtSend - lives,
       livesRemaining: lives,
       heroDamageDealt,          // cumulative, so the levelling curve can be paced
       heroLevel: heroUnit?.level ?? 0,
-      timedOut: elapsed >= maxSecondsPerWave,
+      timedOut: sinceSend >= maxSecondsPerWave,
+      sentAtMs: open.sentAtMs,
+      spawnsDoneAtMs: open.spawnsDoneAtMs,
+      rewardAliveAtSpawnsDone: open.rewardAliveAtSpawnsDone,
+      overlapped: open.overlapped,
     });
-
-    if (lives <= 0) {
-      return {
-        map: map.id, name: map.name, won: false,
-        wavesSurvived: w, totalWaves: waves.length,
-        livesRemaining: 0, livesLost: map.startLives,
-        goldFinal: gold, towersBuilt: towers.length, kills, leaked,
-        blockedSeconds: Number(blockedSeconds.toFixed(2)), soldierDeaths,
-        heroBlockedSeconds: Number(heroBlockedSeconds.toFixed(2)), heroDeaths,
-        heroDamageDealt, heroLevel: heroUnit?.level ?? 0, waveLog,
-      };
-    }
+    open = null;
   }
 
-  return {
-    map: map.id, name: map.name, won: true,
-    wavesSurvived: waves.length, totalWaves: waves.length,
-    livesRemaining: lives, livesLost: map.startLives - lives,
-    goldFinal: gold, towersBuilt: towers.length, kills, leaked,
-    blockedSeconds: Number(blockedSeconds.toFixed(2)), soldierDeaths,
-    heroBlockedSeconds: Number(heroBlockedSeconds.toFixed(2)), heroDeaths,
-    heroDamageDealt, heroLevel: heroUnit?.level ?? 0, waveLog,
-  };
+  // GameScene._startWave: build, then start the next wave. Cancelling the
+  // countdown is what keeps it from re-arming for the wave just sent.
+  function send() {
+    if (open) closeLog();
+    build();
+    countdown?.cancel();
+    if (enemies.length > 0) overlapSends++;
+    open = {
+      wave: sends + 1,
+      goldAtWaveStart: gold,
+      livesAtSend: lives,
+      sentAtMs: ticks * dt * 1000,
+      overlapped: enemies.length,
+      spawnsDoneAtMs: null,
+      rewardAliveAtSpawnsDone: null,
+    };
+    waveMgr.startWave();
+    sends++;
+    sinceSend = 0;
+  }
+
+  function result(won) {
+    closeLog();
+    return {
+      map: map.id, name: map.name, won,
+      wavesSurvived: won ? waves.length : sends - 1, totalWaves: waves.length,
+      livesRemaining: won ? lives : 0, livesLost: won ? map.startLives - lives : map.startLives,
+      goldFinal: gold, towersBuilt: towers.length, kills, leaked,
+      blockedSeconds: Number(blockedSeconds.toFixed(2)), soldierDeaths,
+      heroBlockedSeconds: Number(heroBlockedSeconds.toFixed(2)), heroDeaths,
+      heroDamageDealt, heroLevel: heroUnit?.level ?? 0,
+      overlapSends, boardClears, timeouts, waveLog,
+    };
+  }
+
+  // ── One continuous combat loop; waves are sent into it ──────────────────
+  send();
+  for (;;) {
+    waveMgr.update(dt * 1000);
+
+    // Enemies move (GameScene._updateEnemies)
+    // One hero, one held enemy per tick — the same frame-local flag
+    // GameScene._updateEnemies carries, so the model bills the hero for at
+    // most dt per tick instead of dt per enemy standing on it.
+    let heroHolding = false;
+    for (const e of enemies) {
+      if (e.slow.active) {
+        e.slow.timer -= dt;
+        if (e.slow.timer <= 0) e.slow = { active: false, timer: 0, factor: 1 };
+      }
+      if (e.stun.active) {
+        e.stun.timer -= dt;
+        if (e.stun.timer <= 0) e.stun = { active: false, timer: 0 };
+      }
+      // Before the blocker lookup, as in GameScene._updateEnemies: a stunned
+      // enemy neither moves nor trades melee, and no blocker strikes it either.
+      if (e.stun.active) continue;
+      // Blocking (GameScene._updateEnemies): a blocked enemy skips the whole
+      // movement loop and trades melee instead, so it sits inside tower range
+      // for as long as a soldier survives in front of it.
+      const blocker = soldiers.length > 0 ? findBlockingSoldier(e, soldiers) : null;
+      if (blocker) {
+        blockedSeconds += dt;
+        if (damageSoldier(blocker, ENEMY_MELEE_DAMAGE * dt)) soldierDeaths++;
+        if (blocker.attackTimer <= 0) {
+          e.hp -= computeDamage({
+            amount: blocker.damage * damageMult, armor: e.armor,
+            source: soldierSource(blocker), enemyType: e.def.type,
+          });
+          blocker.attackTimer = 1 / SOLDIER_ATTACK_RATE;
+          if (e.hp <= 0 && !e.dead) {
+            e.dead = true; kills++; gold += killReward(e.reward);
+          }
+        }
+        continue;
+      }
+      // Hero blocking, checked after soldiers exactly as GameScene does: a
+      // soldier already holding this enemy wins, so the hero is not charged
+      // for it as well. The hero does not strike back from here — its
+      // auto-attack below already covers everything inside MELEE_RANGE.
+      if (!heroHolding && heroBlocksEnemy(heroUnit, e)) {
+        heroHolding = true;
+        heroBlockedSeconds += dt;
+        if (damageHeroUnit(heroUnit, ENEMY_MELEE_DAMAGE * dt)) heroDeaths++;
+        continue;
+      }
+
+      const speed = e.slow.active ? e.def.speed * e.slow.factor : e.def.speed;
+      let rem = speed * dt;
+      while (rem > 0 && e.waypointIndex < path.length - 1) {
+        const tgt = path[e.waypointIndex + 1];
+        const dx = tgt.x - e.x, dy = tgt.y - e.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist <= rem) {
+          e.x = tgt.x; e.y = tgt.y; e.waypointIndex++; rem -= dist;
+        } else {
+          e.x += (dx / dist) * rem; e.y += (dy / dist) * rem; rem = 0;
+        }
+      }
+      if (e.waypointIndex >= path.length - 1) {
+        e.dead = true;
+        leaked++;
+        lives--;
+      }
+    }
+    enemies = enemies.filter(e => !e.dead);
+
+    // Towers fire at the furthest-along enemy in range (GameScene._updateTowers)
+    for (const t of towers) {
+      if (!t.fireRate) continue;
+      t.cooldown = Math.max(0, t.cooldown - dt);
+      if (t.cooldown > 0) continue;
+      let best = null, bestProg = -1;
+      const inRange = [];
+      for (const e of enemies) {
+        if (Math.hypot(e.x - t.x, e.y - t.y) <= t.range) {
+          inRange.push(e);
+          if (e.waypointIndex > bestProg) { best = e; bestProg = e.waypointIndex; }
+        }
+      }
+      if (best) {
+        for (const target of shotTargets(t.shots, best, inRange)) {
+          projectiles.push({
+            x: t.x, y: t.y, target, targetX: target.x, targetY: target.y,
+            damage: t.damage, splashRadius: t.splashRadius, pierce: t.pierce,
+            slowFactor: t.slow, towerType: t.type, tier: t.level, branch: t.branch,
+            chain: t.chain, cluster: t.cluster,
+            slowedMult: t.slowedMult, bossStun: t.bossStun,
+            slowDuration: TOWER_SLOW_DURATION,
+            dead: false,
+          });
+        }
+        t.cooldown = 1 / t.fireRate;
+      }
+    }
+
+    // Projectiles travel and hit (GameScene._updateProjectiles / _onProjectileHit)
+    for (const p of projectiles) {
+      if (p.target && !p.target.dead) { p.targetX = p.target.x; p.targetY = p.target.y; }
+      const dx = p.targetX - p.x, dy = p.targetY - p.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 10) {
+        const source = { kind: 'tower', type: p.towerType, tier: p.tier, branch: p.branch };
+        const records = resolveHit(p, enemies, {
+          isSlowed: e => e.slow.active,
+          isBoss: e => isBossType(e.def.type),
+        });
+        for (const rec of records) {
+          const e = rec.enemy;
+          // An earlier record in this same hit (a cluster bomblet) may have killed it.
+          if (e.dead) continue;
+          e.hp -= computeDamage({
+            amount: rec.amount * damageMult, armor: e.armor, pierce: p.pierce,
+            source, enemyType: e.def.type, vulnerableMult: rec.hitMult,
+          });
+          if (e.hp <= 0) {
+            e.dead = true; kills++; gold += killReward(e.reward);
+          } else {
+            // Status only lands on a survivor, as in GameScene._onProjectileHit.
+            if (rec.slow) e.slow = mergeSlow(e.slow, rec.slow);
+            if (rec.stun) e.stun = mergeStun(e.stun, rec.stun);
+          }
+        }
+        p.dead = true;
+      } else {
+        const step = Math.min(PROJECTILE_SPEED * dt, dist);
+        p.x += (dx / dist) * step; p.y += (dy / dist) * step;
+      }
+    }
+    projectiles = projectiles.filter(p => !p.dead);
+
+    // Soldier cooldowns and respawns (GameScene._updateSoldiers)
+    for (const s of soldiers) tickSoldier(s, dt);
+
+    // Hero regen / respawn, then auto-attack (GameScene._updateHero ->
+    // Hero.update, which returns early while dead so neither the regen nor
+    // the attack cooldown advances).
+    if (heroDef) {
+      if (tickHeroUnit(heroUnit, dt, heroRespawnPoint)) {
+        heroAttackTimer = 1 / heroDef.stats.attackRate;  // Hero.respawn
+      }
+      if (!heroUnit.dead) {
+        heroAttackTimer -= dt;
+        if (heroAttackTimer <= 0) {
+          const range = heroDef.stats.attackRange;
+          let nearest = null, nearestDist = Infinity;
+          for (const e of enemies) {
+            if (e.dead) continue;
+            const d = Math.hypot(e.x - heroUnit.x, e.y - heroUnit.y);
+            if (d <= range && d < nearestDist) { nearest = e; nearestDist = d; }
+          }
+          if (nearest) {
+            const dealt = computeDamage({
+              amount: heroAttackDamage(heroDef.stats, heroUnit.level) * damageMult,
+              armor: nearest.armor,
+              source: heroSrc,
+              enemyType: nearest.def.type,
+            });
+            nearest.hp -= dealt;
+            heroDamageDealt += dealt;
+            registerHeroUnitDamage(heroUnit, dealt);
+            if (nearest.hp <= 0 && !nearest.dead) {
+              nearest.dead = true; kills++; gold += killReward(nearest.reward);
+            }
+            heroAttackTimer = 1 / heroDef.stats.attackRate;
+          }
+        }
+      }
+    }
+
+    enemies = enemies.filter(e => !e.dead);
+
+    sinceSend += dt;
+    ticks++;
+    if (lives <= 0) return result(false);
+
+    // Spawns done: the frame the countdown starts. Calibration reads the reward
+    // still alive here — what the pre-#51 early-call bonus paid on.
+    if (open.spawnsDoneAtMs === null && !waveMgr.hasQueuedEnemies) {
+      open.spawnsDoneAtMs = ticks * dt * 1000;
+      open.rewardAliveAtSpawnsDone = enemies.reduce((sum, e) => sum + e.def.reward, 0);
+    }
+
+    // Board clear (GameScene._checkWaveComplete): one bonus per empty board,
+    // however many overlapping waves it took to get there.
+    if (waveMgr.active && !waveMgr.hasQueuedEnemies && enemies.length === 0) {
+      waveMgr.active = false;
+      gold += clearBonus;
+      boardClears++;
+      if (sends === waves.length) return result(true);
+      if (waveTiming === 'onClear') { send(); continue; }
+    }
+
+    // Countdown (GameScene._updateCountdown, which runs after the clear check).
+    // Not ticked on its start frame, so the full length counts from the last
+    // spawn. The modelled player never calls early: it sends only at zero.
+    if (countdown) {
+      if (shouldStartCountdown({
+        spawnsDone: !waveMgr.hasQueuedEnemies, done: waveMgr.done,
+        currentWave: waveMgr.currentWave, startedFor: countdown.startedFor,
+      })) {
+        countdown.start(countdownMsFor(map), waveMgr.currentWave);
+      } else {
+        countdown.tick(dt * 1000);
+      }
+      if (countdown.shouldAutoSend(true)) { send(); continue; }
+    }
+
+    // Timeout: the legacy safety valve, kept as it was — pay the clear bonus
+    // anyway and move on; enemies still alive carry into the next wave, and a
+    // timed-out final wave still counts as won.
+    if (sinceSend >= maxSecondsPerWave) {
+      timeouts++;
+      gold += clearBonus;
+      if (sends === waves.length) return result(true);
+      send();
+    }
+  }
 }

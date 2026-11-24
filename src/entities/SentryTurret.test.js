@@ -51,6 +51,18 @@ describe('SentryTurret', () => {
     expect(scene.projectiles[0].tier).toBe(1);
   });
 
+  it('acquires from the scene projectile pool when present, with sentry visuals', () => {
+    const scene = makeScene();
+    scene._projectilePool = { acquire: vi.fn((o) => o) };
+    const s = new SentryTurret(scene, { x: 0, y: 0, ownerHeroId: 'engineer' });
+    s.update(1.5, [makeEnemy(30, 0)]);
+    expect(scene._projectilePool.acquire).toHaveBeenCalledTimes(1);
+    const shot = scene._projectilePool.acquire.mock.calls[0][0];
+    expect(shot.towerType).toBe('archer');
+    expect(shot.fxType).toBe('sentry');
+    expect(scene.projectiles).toEqual([shot]);
+  });
+
   it('does not fire when no enemy is in range', () => {
     const scene = makeScene();
     const s = new SentryTurret(scene, { x: 0, y: 0, ownerHeroId: 'engineer' });

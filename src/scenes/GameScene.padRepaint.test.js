@@ -34,7 +34,7 @@ const makeCtx = (overrides = {}) => ({
     sellTower: vi.fn(),
     getZones: () => [{ occupied: false }, { occupied: false }],
   },
-  inspector: { tryClickInspect: () => false },
+  inspector: { inspectableAt: () => null, tryClickInspect: () => false },
   hero: { dead: false, moveToProgress: vi.fn() },
   pathMgr: {
     isOnPath: () => true,
@@ -42,17 +42,24 @@ const makeCtx = (overrides = {}) => ({
     getPathPoints: () => [],
   },
   _repaintStaticLayers: vi.fn(),
-  _closeTowerPanel: vi.fn(),
-  _openTowerPanel: vi.fn(),
+  _playTowerPop: vi.fn(),
+  _playSellFx: vi.fn(),
+  _drawTierRings: vi.fn(),
+  _closeRadial: vi.fn(),
+  _openRing: vi.fn(),
   _deselectButtons: vi.fn(),
   _toast: vi.fn(),
   ...overrides,
 });
 
+// The canvas tap entry point (InputController calls it on release). The ctx
+// inherits the real prototype so the tap pipeline's own helpers run.
+const tap = (ctx) => GameScene.prototype._onTap.call(Object.setPrototypeOf(ctx, GameScene.prototype), 400, 300);
+
 describe('GameScene static pad repaint', () => {
   it('repaints the static layer after a tower is placed', () => {
     const ctx = makeCtx();
-    GameScene.prototype._onPointerDown.call(ctx, { x: 400, y: 300 });
+    tap(ctx);
     expect(ctx.placementManager.placeTower).toHaveBeenCalled();
     expect(ctx._repaintStaticLayers).toHaveBeenCalledTimes(1);
   });
@@ -60,7 +67,7 @@ describe('GameScene static pad repaint', () => {
   it('does not repaint when placement fails for want of gold', () => {
     const ctx = makeCtx();
     ctx.placementManager.placeTower = vi.fn(() => null);
-    GameScene.prototype._onPointerDown.call(ctx, { x: 400, y: 300 });
+    tap(ctx);
     expect(ctx._repaintStaticLayers).not.toHaveBeenCalled();
   });
 
@@ -79,7 +86,8 @@ describe('GameScene static pad repaint', () => {
 
   it('repaints after a barracks reposition frees one slot and occupies another', () => {
     const zones = [{ occupied: true }, { occupied: false }];
-    const barracks = { zoneIndex: 0, setPosition: vi.fn() };
+    // A move also hands the squad its new rally point (#48 R5).
+    const barracks = { zoneIndex: 0, setPosition: vi.fn(), setDepth: vi.fn(), setRallyPoint: vi.fn() };
     const ctx = makeCtx({
       repositionMode: true,
       repositioningBarracks: barracks,
@@ -91,7 +99,7 @@ describe('GameScene static pad repaint', () => {
         getZones: () => zones,
       },
     });
-    GameScene.prototype._onPointerDown.call(ctx, { x: 400, y: 300 });
+    tap(ctx);
     expect(zones[0].occupied).toBe(false);
     expect(zones[1].occupied).toBe(true);
     expect(ctx._repaintStaticLayers).toHaveBeenCalledTimes(1);
@@ -110,7 +118,7 @@ describe('GameScene static pad repaint', () => {
         getZones: () => [],
       },
     });
-    GameScene.prototype._onPointerDown.call(ctx, { x: 400, y: 300 });
+    tap(ctx);
     expect(ctx._repaintStaticLayers).not.toHaveBeenCalled();
   });
 });

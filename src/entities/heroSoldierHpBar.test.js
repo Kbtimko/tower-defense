@@ -19,6 +19,7 @@ vi.mock('phaser', () => ({
 import { describe, it, expect, vi } from 'vitest';
 import { Hero } from './Hero.js';
 import { Soldier } from './Soldier.js';
+import { SPRITE_MANIFEST } from '../data/sprites.js';
 
 // Records every fillRect with the fill colour in force when it was drawn.
 function recordingGraphics() {
@@ -28,7 +29,7 @@ function recordingGraphics() {
     fillStyle(c, a = 1) { g._color = c; g._alpha = a; },
     fillRect(x, y, w, h) { g.rects.push({ x, y, w, h, color: g._color, alpha: g._alpha }); },
     fillCircle() {}, lineStyle() {}, strokeCircle() {}, strokeRect() {},
-    setVisible() { return g; },
+    setVisible() { return g; }, setScale() { return g; },
   });
   return g;
 }
@@ -45,9 +46,14 @@ const makeSoldier = () => new Soldier(scene(), {
   soldierStats: { hp: 50, damage: 5, respawnDuration: 8, canBlockFlyers: false },
 });
 
-// Real rendered sizes: 64px cell x 0.76, 48px cell x 0.36 (src/data/sprites.js).
-const HERO_ART    = { width: 48.64, height: 48.64 };
-const SOLDIER_ART = { width: 17.28, height: 17.28 };
+// Rendered art size = idle frame x manifest scale, read from the manifest so a
+// rescale cannot leave this test pinning the old size. `new Hero(...)` is rael.
+const artSize = (category, type) => {
+  const { scale, states } = SPRITE_MANIFEST.find((e) => e.category === category && e.type === type);
+  return { width: states.idle.frameWidth * scale, height: states.idle.frameHeight * scale };
+};
+const HERO_ART    = artSize('hero', 'rael');
+const SOLDIER_ART = artSize('soldier', 'default');
 const withArt = (e, size) => { e._sprite = { active: true, getDisplaySize: () => size }; return e; };
 
 const damage = (e) => { e.hp = e.maxHp * 0.6; e._redrawHpBar(); return e._hpBar.rects; };
@@ -68,6 +74,11 @@ for (const [name, make, art, fallbackTop] of [
       const t = frame(damage(withArt(make(), art)));
       expect(t.w).toBeGreaterThanOrEqual(art.width * 0.8 - 1e-9);
       expect(t.x).toBeCloseTo(-t.w / 2);
+    });
+
+    it('lifts above the radius fallback once the art is taller than the radius body', () => {
+      // Sprite-height branch of hpBarGeometry: art.height / 2 beats the radius floor.
+      expect(frame(damage(withArt(make(), art))).y).toBeLessThan(fallbackTop);
     });
 
     it('keeps its old position when no art is registered', () => {

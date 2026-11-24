@@ -1,4 +1,4 @@
-import { raelOvercharge, raelAirstrike, raelEmp, engRepair, engDeployTurret, engPowerSurge, scoutMark, scoutVolley, scoutPhase, pyroFlameWave, pyroImmolate, pyroFirefield, pyroBurnOnHit } from './heroAbilities.js';
+import { raelOvercharge, raelAirstrike, raelEmp, engRepair, engDeployTurret, engPowerSurge, scoutMark, scoutVolley, scoutPhase, pyroFlameWave, pyroImmolate, pyroFirefield, pyroBurnOnHit, AIRSTRIKE_RADIUS, FIREFIELD_RADIUS } from './heroAbilities.js';
 
 export const HERO_ORDER = ['rael', 'engineer', 'scout', 'pyro'];
 
@@ -56,7 +56,7 @@ export const HEROES = {
     abilities: {
       q: { id:'overcharge', label:'Overcharge', icon:'⚡', cooldown:30, aim:false, run: raelOvercharge,
            tooltip:'+50% tower fire rate for 6s' },
-      w: { id:'airstrike',  label:'Airstrike',  icon:'🎯', cooldown:25, aim:true,  run: raelAirstrike,
+      w: { id:'airstrike',  label:'Airstrike',  icon:'🎯', cooldown:25, aim:true,  radius: AIRSTRIKE_RADIUS, run: raelAirstrike,
            tooltip:'Click ground — 70px AoE, 80 damage' },
       e: { id:'emp_pulse',  label:'EMP Pulse',  icon:'💥', cooldown:45, aim:false, run: raelEmp,
            tooltip:'Stun all enemies for 3s' },
@@ -175,7 +175,7 @@ export const HEROES = {
            tooltip:'90° cone, 100px reach: 30 damage + burn' },
       w: { id:'immolate',   label:'Immolate',   icon:'♨️', cooldown:30, aim:false, run: pyroImmolate,
            tooltip:'8s aura: 10 dmg/s in 60px + 1.5× auto-attack damage' },
-      e: { id:'firefield',  label:'Firefield',  icon:'🌋', cooldown:50, aim:true,  run: pyroFirefield,
+      e: { id:'firefield',  label:'Firefield',  icon:'🌋', cooldown:50, aim:true,  radius: FIREFIELD_RADIUS, run: pyroFirefield,
            tooltip:'Click ground — 100px fire pool for 6s, 15 dmg/s + slow' },
     },
     onHit:    pyroBurnOnHit,
