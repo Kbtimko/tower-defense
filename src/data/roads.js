@@ -11,8 +11,8 @@ export const ROAD_PAD_GAP = 10;
 // endpoints (9) and blockers/pads (10).
 export const ROAD_DEPTH = 8;
 // Ground-level hero FX (fire field, flame wave, volley) must sit ABOVE the opaque road
-// or it cuts a gap through them; below endpoints (9) and pads/units (10) as they are
-// still ground effects. Above the near ambient layer (8.5).
+// or it cuts a gap through them; below endpoints (9), pads/blockers (10) and the unit
+// band (11+), as they are still ground effects. Above the near ambient layer (8.5).
 export const GROUND_FX_DEPTH = 8.75;
 
 // 'procedural' bakes the textured road; 'legacy' keeps the Graphics PathRenderer.
