@@ -1,4 +1,5 @@
 import { MAPS } from './maps.js';
+import { MAP_WAVES } from './waves.js';
 import { PATH_STYLES } from '../systems/PathRenderer.js';
 
 describe('MAPS', () => {
@@ -94,6 +95,14 @@ describe('MAPS waveCountdownSec', () => {
       expect(Number.isInteger(map.waveCountdownSec), `map ${map.id}`).toBe(true);
       expect(map.waveCountdownSec, `map ${map.id}`).toBeGreaterThan(20);
       expect(map.waveCountdownSec, `map ${map.id}`).toBeLessThanOrEqual(120);
+    }
+  });
+});
+
+describe('MAPS waveCount', () => {
+  it("every map's waveCount matches its wave table", () => {
+    for (const map of MAPS) {
+      expect(map.waveCount, `map ${map.id}`).toBe(MAP_WAVES[map.id].length);
     }
   });
 });

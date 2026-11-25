@@ -395,6 +395,7 @@ export default class GameScene extends Phaser.Scene {
     // node but cloneNode preserves classes — without this, a second play in
     // the same tab opens with Exit + Pause permanently dead).
     document.getElementById('exit-btn').classList.remove('disabled');
+    this._resetHudPulses();
     this._resetPauseButton();
 
     // Wire DOM buttons (use once-registered named functions; shutdown() cleans up via clone)
@@ -2059,10 +2060,20 @@ export default class GameScene extends Phaser.Scene {
 
   // ─── HUD ───────────────────────────────────────────────────────────────────
 
+  // display none -> block restarts a CSS animation, so a pulse class left on
+  // when the last level ended would replay as the next one opens.
+  _resetHudPulses() {
+    const layer = document.getElementById('hud-layer');
+    if (!layer) return;
+    layer.querySelectorAll('.life-lost-pulse, .gold-gain-pulse, .cd-tick').forEach((el) => {
+      el.classList.remove('life-lost-pulse', 'gold-gain-pulse', 'cd-tick');
+    });
+  }
+
   _updateHUD() {
     document.getElementById('stat-lives').textContent = this.economy.lives;
     document.getElementById('stat-gold').textContent  = this.economy.gold;
-    document.getElementById('stat-wave').textContent  = `${this.waveMgr.currentWave}/${MAPS[this.mapId].waveCount}`;
+    document.getElementById('stat-wave').textContent  = `${this.waveMgr.currentWave}/${this.waveMgr.waves.length}`;
     document.getElementById('stat-kills').textContent = this.kills;
     // Runs on every economy:update, so the dimming tracks gold as it moves.
     const gold = this.economy.gold;
