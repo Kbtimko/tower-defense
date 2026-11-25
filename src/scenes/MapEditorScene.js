@@ -1,6 +1,8 @@
 // src/scenes/MapEditorScene.js
 import Phaser from 'phaser';
 import { MAPS } from '../data/maps.js';
+import { bakeRoad } from '../systems/RoadRenderer.js';
+import { roadRendererFor, ROAD_DEPTH } from '../data/roads.js';
 import { renderPath } from '../systems/PathRenderer.js';
 import { renderPlatforms } from '../systems/PlatformRenderer.js';
 import { serializeMapArrays, slotInPathCorridor } from '../systems/mapEditorUtils.js';
@@ -23,6 +25,9 @@ export default class MapEditorScene extends Phaser.Scene {
     // Local editable copies (normalized) — never mutate MAPS directly.
     this.waypoints = map.waypoints.map(([x, y]) => [x, y]);
     this.slots = map.towerSlots.map(([x, y]) => [x, y]);
+    // The baked road is expensive; it is re-baked only when the waypoints settle.
+    this._roadDirty = true;
+    this._roadImage = null;
   }
 
   create() {
@@ -54,18 +59,27 @@ export default class MapEditorScene extends Phaser.Scene {
 
     this.input.on('pointerdown', this._onPointerDown, this);
 
-    this.input.on('pointermove', (pointer) => {
-      if (!this.drag) return;
-      const nx = Phaser.Math.Clamp(pointer.worldX / this.W, 0, 1);
-      const ny = Phaser.Math.Clamp(pointer.worldY / this.H, 0, 1);
-      const arr = this.drag.kind === 'wp' ? this.waypoints : this.slots;
-      arr[this.drag.index] = [nx, ny];
-      this._render();
-    });
-
-    this.input.on('pointerup', () => { this.drag = null; });
+    this.input.on('pointermove', this._onPointerMove, this);
+    this.input.on('pointerup', this._onPointerUp, this);
 
     this.input.keyboard?.on('keydown-E', () => this._export());
+  }
+
+  _onPointerMove(pointer) {
+    if (!this.drag) return;
+    const nx = Phaser.Math.Clamp(pointer.worldX / this.W, 0, 1);
+    const ny = Phaser.Math.Clamp(pointer.worldY / this.H, 0, 1);
+    const arr = this.drag.kind === 'wp' ? this.waypoints : this.slots;
+    arr[this.drag.index] = [nx, ny];
+    if (this.drag.kind === 'wp') this._roadDirty = true;
+    this._render();
+  }
+
+  // Ending a waypoint drag is when the baked road catches up with the line.
+  _onPointerUp() {
+    const wasWp = this.drag?.kind === 'wp';
+    this.drag = null;
+    if (wasWp) this._render();
   }
 
   _onPointerDown(pointer) {
@@ -76,6 +90,7 @@ export default class MapEditorScene extends Phaser.Scene {
     if (pointer.rightButtonDown()) {
       if (hit?.kind === 'wp' && this.waypoints.length > 2) {
         this.waypoints.splice(hit.index, 1);
+        this._roadDirty = true;
         this._render();
       }
       return;
@@ -97,7 +112,15 @@ export default class MapEditorScene extends Phaser.Scene {
 
     // Curve + platforms (reuse the real renderers).
     this.layer.clear();
-    renderPath(this.layer, wpPx, map.pathRenderStyle);
+    // Mid-drag the bake is stale and too slow to redo per frame, so a live line
+    // stands in until the drag ends.
+    const live = this.drag?.kind === 'wp';
+    if (roadRendererFor(map) === 'procedural' && !live) {
+      this._showBakedRoad(wpPx, map);
+    } else {
+      this._roadImage?.setVisible(false);
+      renderPath(this.layer, wpPx, map.pathRenderStyle);
+    }
     const zones = this.slots.map(p => {
       const px = this._toPx(p);
       return { cx: px.x, cy: px.y, radius: 22, occupied: false };
@@ -127,6 +150,24 @@ export default class MapEditorScene extends Phaser.Scene {
     });
 
     this._renderHud();
+  }
+
+  _showBakedRoad(wpPx, map) {
+    if (this._roadDirty) {
+      // Same k-carrying key scheme as GameScene; bakeRoad reuses an existing key,
+      // so the stale texture must go first.
+      const k = getRenderScale();
+      const roadKey = `road_editor@${k}`;
+      if (this.textures.exists(roadKey)) this.textures.remove(roadKey);
+      const key = bakeRoad(this, {
+        key: roadKey, resolution: k, waypoints: wpPx,
+        styleKey: map.pathRenderStyle, seed: map.blockerSeed, width: WORLD_WIDTH, height: WORLD_HEIGHT,
+      });
+      if (this._roadImage) this._roadImage.setTexture(key);
+      else this._roadImage = this.add.image(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, key).setDisplaySize(WORLD_WIDTH, WORLD_HEIGHT).setDepth(ROAD_DEPTH);
+      this._roadDirty = false;
+    }
+    this._roadImage.setVisible(true);
   }
 
   _label(x, y, text, color) {
@@ -182,6 +223,7 @@ export default class MapEditorScene extends Phaser.Scene {
         Phaser.Math.Clamp(x / this.W, 0, 1),
         Phaser.Math.Clamp(y / this.H, 0, 1),
       ]);
+      this._roadDirty = true;
       this._render();
     }
   }
