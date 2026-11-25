@@ -20,6 +20,9 @@ export class DamageNumberOverlay {
     this._scene  = scene;
     this._pool   = [];
     this._inUse  = new Set();
+    // Insertion-ordered subset of _inUse showing an absorbed number, oldest
+    // first: the only numbers a big or AoE hit may displace.
+    this._absorbedInUse = new Set();
     this._onHit  = (p) => this._handle(p);
     this._absorbedAt = new WeakMap();
     this._now = () => Date.now();
@@ -29,6 +32,7 @@ export class DamageNumberOverlay {
   destroy() {
     this._scene.events.off('damage-dealt', this._onHit);
     this._absorbedAt = new WeakMap();
+    this._absorbedInUse.clear();
   }
 
   _handle({ target, amount, isAoe = false, abilityLabel = null, absorbedBand = 'none' }) {
@@ -45,8 +49,6 @@ export class DamageNumberOverlay {
       return;
     }
 
-    if (this._inUse.size >= POOL_SIZE && this._pool.length === 0) return;
-
     let txt;
     if (this._pool.length) {
       txt = this._pool.pop();
@@ -55,13 +57,24 @@ export class DamageNumberOverlay {
       txt.setOrigin(0.5, 0.5);
       txt.setDepth(100);
     } else {
-      return;
+      // Pool full. A muted absorbed number must not starve a big or AoE hit,
+      // so those take over the oldest absorbed slot; absorbed hits just drop.
+      if (absorbed) return;
+      const oldest = this._absorbedInUse.values().next().value;
+      if (oldest === undefined) return;
+      // Phaser's killTweensOf destroys tweens without firing onComplete, so
+      // the evicted text's expiry callback can never double-release it.
+      this._scene.tweens.killTweensOf(oldest);
+      this._absorbedInUse.delete(oldest);
+      this._inUse.delete(oldest);
+      txt = oldest;
     }
     // Spend the throttle window only once the number is actually going to be
     // shown — writing it earlier let a pool-exhausted absorbed hit silently
     // eat this enemy's next window too.
     if (absorbed) this._absorbedAt.set(target, now);
     this._inUse.add(txt);
+    if (absorbed) this._absorbedInUse.add(txt);
 
     const style = absorbed ? STYLES.absorbed
                 : (isAoe  ? STYLES.aoe : STYLES.big);
@@ -86,6 +99,7 @@ export class DamageNumberOverlay {
         this._scene.tweens.killTweensOf(txt);
         txt.setVisible(false);
         this._inUse.delete(txt);
+        this._absorbedInUse.delete(txt);
         this._pool.push(txt);
       },
     });
