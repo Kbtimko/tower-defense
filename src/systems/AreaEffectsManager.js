@@ -1,3 +1,5 @@
+import { GROUND_FX_DEPTH } from '../data/roads.js';
+
 export class AreaEffectsManager {
   constructor(scene) {
     this.scene = scene;
@@ -5,7 +7,7 @@ export class AreaEffectsManager {
   }
 
   add(spec) {
-    const g = this.scene.add.graphics().setDepth(2);
+    const g = this.scene.add.graphics().setDepth(GROUND_FX_DEPTH);
     const eff = { ...spec, _remaining: spec.duration, _tickAccum: 0, _g: g };
     const cx = eff.followsTarget ? eff.followsTarget.x : eff.x;
     const cy = eff.followsTarget ? eff.followsTarget.y : eff.y;

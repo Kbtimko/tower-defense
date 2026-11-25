@@ -59,7 +59,7 @@ import { SentryTurret } from '../entities/SentryTurret.js';
 import { renderPath } from '../systems/PathRenderer.js';
 import { bakeRoad, evictOtherRoads } from '../systems/RoadRenderer.js';
 import { PathEndpoints } from '../systems/PathEndpoints.js';
-import { ROAD_DEPTH, ROAD_STYLES, roadRendererFor } from '../data/roads.js';
+import { ROAD_DEPTH, GROUND_FX_DEPTH, ROAD_STYLES, roadRendererFor } from '../data/roads.js';
 import { renderPlatforms } from '../systems/PlatformRenderer.js';
 import { AmbientBackgroundLayer } from '../systems/AmbientBackgroundLayer.js';
 import { computeBlockerPlacements } from '../systems/BlockerPlacement.js';
@@ -1261,7 +1261,7 @@ export default class GameScene extends Phaser.Scene {
 
   _handleVolley(result) {
     let hits = 0;
-    const g = this.add.graphics().setDepth(5);
+    const g = this.add.graphics().setDepth(GROUND_FX_DEPTH);
     g.lineStyle(2, 0x3fb950, 1);
     for (const e of this.enemies) {
       if (e.dead) continue;
@@ -1301,7 +1301,7 @@ export default class GameScene extends Phaser.Scene {
         e.applyStatus({ type:'burn', duration: result.burn.duration, dps: result.burn.dps });
       }
     }
-    const g = this.add.graphics().setDepth(5);
+    const g = this.add.graphics().setDepth(GROUND_FX_DEPTH);
     g.fillStyle(0xff6600, 0.4);
     g.beginPath();
     g.moveTo(result.x, result.y);
