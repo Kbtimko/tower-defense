@@ -180,6 +180,37 @@ describe('BootScene portrait registration', () => {
     expect(start).toHaveBeenCalledWith('TitleScene', {});
   });
 
+  describe('editor route gate (#88e)', () => {
+    afterEach(() => vi.unstubAllEnvs());
+
+    function boot(url) {
+      const scene = makeScene([]);
+      const start = vi.fn();
+      scene.scene = { start };
+      window.history.replaceState(null, '', url);
+      try { scene.create(); } finally { window.history.replaceState(null, '', '/'); }
+      return start;
+    }
+
+    it('ignores ?edit=1 in a production build and boots to the title', () => {
+      vi.stubEnv('DEV', false);
+      vi.stubEnv('MODE', 'production');
+      const start = boot('/?edit=1&map=3');
+      expect(start).toHaveBeenCalledWith('TitleScene', {});
+      expect(start).not.toHaveBeenCalledWith('MapEditorScene', expect.anything());
+    });
+
+    it('opens the editor in a capture build', () => {
+      vi.stubEnv('DEV', false);
+      vi.stubEnv('MODE', 'capture');
+      expect(boot('/?edit=1&map=3')).toHaveBeenCalledWith('MapEditorScene', { mapId: 3 });
+    });
+
+    it('opens the editor in dev', () => {
+      expect(boot('/?edit=1&map=3')).toHaveBeenCalledWith('MapEditorScene', { mapId: 3 });
+    });
+  });
+
   it('registers every portrait once all the art exists', () => {
     const all = Object.values(STORY_SPEAKERS).map(sp => sp.portraitKey);
     makeScene(all).create();

@@ -75,8 +75,10 @@ export default class MapEditorScene extends Phaser.Scene {
     if (!this.drag) return;
     // The mouse-up was lost (window blur, alt-tab): end the drag instead of following a free cursor.
     if (!pointer.isDown) { this._onPointerUp(); return; }
-    const nx = Phaser.Math.Clamp(pointer.worldX / this.W, 0, 1);
-    const ny = Phaser.Math.Clamp(pointer.worldY / this.H, 0, 1);
+    // pointer.worldX/Y go stale over a HUD rail; converting by hand keeps the handle following the cursor, and the clamp pins it to the edge.
+    const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const nx = Phaser.Math.Clamp(world.x / this.W, 0, 1);
+    const ny = Phaser.Math.Clamp(world.y / this.H, 0, 1);
     const arr = this.drag.kind === 'wp' ? this.waypoints : this.slots;
     arr[this.drag.index] = [nx, ny];
     if (this.drag.kind === 'wp') this._roadDirty = true;
@@ -84,13 +86,17 @@ export default class MapEditorScene extends Phaser.Scene {
   }
 
   // Ending a waypoint drag is when the baked road catches up with the line.
-  _onPointerUp() {
+  // Releasing the right button mid-drag must not end a left drag; no pointer = the lost-mouse-up path.
+  _onPointerUp(pointer) {
+    if (pointer && !pointer.leftButtonReleased()) return;
     const wasWp = this.drag?.kind === 'wp';
     this.drag = null;
     if (wasWp) this._render();
   }
 
   _onPointerDown(pointer) {
+    // A press mid-drag (e.g. a right-click) would splice the dragged waypoint out from under it.
+    if (this.drag) return;
     // Over a HUD rail Phaser fires with no camera and a stale worldX/Y.
     if (!pointer.camera) return;
     const { worldX: x, worldY: y } = pointer;
@@ -186,7 +192,7 @@ export default class MapEditorScene extends Phaser.Scene {
 
   _renderHud() {
     const map = MAPS[this.mapId];
-    const target = 6 + map.id;
+    const target = map.towerSlots.length;
     const ok = this.slots.length === target;
     const margin = this._corridorMargin();
     const inCorridor = this.slots.filter(s => slotInPathCorridor(s, this.waypoints, margin)).length;

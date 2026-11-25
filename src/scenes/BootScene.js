@@ -133,7 +133,8 @@ export default class BootScene extends Phaser.Scene {
     this.game.registry.set('worldBackdrop', this.textures.exists(WORLD_BACKDROP_KEY) ? BACKDROP_ART : false);
 
     const params = new URLSearchParams(window.location.search);
-    if (params.get('edit') === '1') {
+    // Dev tool: same gate as the ?debug= entry below, so production ignores ?edit=1.
+    if ((import.meta.env.DEV || import.meta.env.MODE === 'capture') && params.get('edit') === '1') {
       const mapId = Math.max(0, Math.min(MAPS.length - 1,
         Number.parseInt(params.get('map') ?? '0', 10) || 0));
       this.scene.start('MapEditorScene', { mapId });
