@@ -228,3 +228,94 @@ describe('DamageNumberOverlay resolution', () => {
     }
   });
 });
+
+describe('pool priority', () => {
+  // Models Phaser: killTweensOf destroys a target's tweens WITHOUT firing
+  // onComplete, and nothing completes unless the test asks.
+  function makePoolScene() {
+    const scene = makeScene();
+    const texts = [];
+    const tweenLog = new Map();
+    scene.add.text = vi.fn(() => { const t = makeText(); texts.push(t); return t; });
+    scene.tweens.add = vi.fn((cfg) => {
+      const list = tweenLog.get(cfg.targets) ?? [];
+      list.push(cfg);
+      tweenLog.set(cfg.targets, list);
+      return {};
+    });
+    scene.tweens.killTweensOf = vi.fn((t) => { tweenLog.delete(t); });
+    const overlay = new DamageNumberOverlay(scene);
+    let n = 0;
+    const emit = (p) => scene.events.emit('damage-dealt', { target: { x: ++n, y: n }, ...p });
+    const reading = (s) => texts.filter((t) => t.text === s && t.visible !== false);
+    const complete = (text) => {
+      const cfg = (tweenLog.get(text) ?? []).find((c) => c.onComplete);
+      cfg.onComplete();
+      // onComplete's own cleanup calls killTweensOf; the tests assert on
+      // evictions only.
+      scene.tweens.killTweensOf.mockClear();
+    };
+    return { scene, overlay, emit, reading, complete, texts };
+  }
+  const fillAbsorbed = (emit) => {
+    for (let i = 0; i < 24; i++) emit({ amount: 1, absorbedBand: 'floored' });
+  };
+
+  it('a big hit evicts an absorbed number when the pool is full', () => {
+    const { scene, emit, reading } = makePoolScene();
+    fillAbsorbed(emit);
+    emit({ amount: 50 });
+    expect(scene.add.text).toHaveBeenCalledTimes(24);
+    expect(scene.tweens.killTweensOf).toHaveBeenCalledTimes(1);
+    expect(reading('50')).toHaveLength(1);
+  });
+
+  it('evicts the OLDEST absorbed number', () => {
+    const { scene, emit, texts } = makePoolScene();
+    for (let i = 0; i < 12; i++) emit({ amount: 50 });
+    for (let i = 1; i <= 12; i++) emit({ amount: i, absorbedBand: 'heavy' });
+    const oldest = texts.find((t) => t.text === '🛡1');
+    emit({ amount: 7, isAoe: true });
+    expect(scene.tweens.killTweensOf).toHaveBeenCalledWith(oldest);
+    expect(oldest.text).toBe('7');
+  });
+
+  it('an absorbed hit never evicts', () => {
+    const { scene, emit, reading } = makePoolScene();
+    fillAbsorbed(emit);
+    emit({ amount: 99, absorbedBand: 'heavy' });
+    expect(scene.tweens.killTweensOf).not.toHaveBeenCalled();
+    expect(reading('🛡99')).toHaveLength(0);
+  });
+
+  it('a completed absorbed number is no longer evictable', () => {
+    const { scene, emit, reading, complete, texts } = makePoolScene();
+    emit({ amount: 3, absorbedBand: 'heavy' });
+    complete(texts[0]);
+    for (let i = 30; i <= 53; i++) emit({ amount: i });
+    emit({ amount: 77 });
+    expect(scene.tweens.killTweensOf).not.toHaveBeenCalled();
+    expect(reading('77')).toHaveLength(0);
+    expect(texts[0].text).toBe('30');
+  });
+
+  it('the pool stays at 24 across evictions', () => {
+    const { scene, emit, reading } = makePoolScene();
+    fillAbsorbed(emit);
+    for (const a of [60, 61, 62]) emit({ amount: a });
+    emit({ amount: 5, absorbedBand: 'heavy' });
+    expect(scene.add.text).toHaveBeenCalledTimes(24);
+    expect(reading('60')).toHaveLength(1);
+    expect(reading('61')).toHaveLength(1);
+    expect(reading('62')).toHaveLength(1);
+    expect(reading('🛡5')).toHaveLength(0);
+  });
+
+  it('a big hit is still dropped when the pool holds no absorbed numbers', () => {
+    const { scene, emit, reading } = makePoolScene();
+    for (let i = 0; i < 24; i++) emit({ amount: 50 });
+    emit({ amount: 88 });
+    expect(scene.tweens.killTweensOf).not.toHaveBeenCalled();
+    expect(reading('88')).toHaveLength(0);
+  });
+});

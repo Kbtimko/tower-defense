@@ -3,7 +3,16 @@
 ## Goal
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
-## Current Status (2026-11-24, #39)
+## Current Status (2026-11-24, #23)
+
+**2026-11-24 (latest): #146 (#39b) merged. Backlog #23, damage-number pool priority, has a PR open into `visual/integration` (`fix/23-damage-number-priority`).**
+- **Fixed:** `DamageNumberOverlay` has a 24-slot pool, and muted `🛡` absorbed numbers could fill it in a crowded armoured wave. Once they did, every big and AoE number was dropped. Now, when the pool is full, a big (≥30) or AoE number evicts the **oldest** in-flight `🛡` number. An absorbed number never evicts anything and is dropped as before. No constant, style, label or tween changed.
+- **How:** `_absorbedInUse` is an insertion-ordered `Set` kept in step with `_inUse`. On eviction the oldest entry's tweens are killed. Phaser 3.90's `destroy()` never fires `onComplete`, which was checked in the source, by the final review and by the live probe. The text then leaves both sets and is reused. `onComplete` also drops it from the absorbed set, so a recycled text is never evicted by mistake.
+- **Tests:** 6 new `pool priority` tests. RED was 3 failures, and each of the four mutations (no eviction, newest-first, no cleanup on complete, absorbed evicts) fails its own test. Suite: 4259 tests in 267 files, exit 0.
+- **Live:** a capture build on map 0, driving `damage-dealt` in the real engine. With 24 `🛡` numbers in flight, a big hit and an AoE hit replaced 🛡1 and 🛡2, and a 25th `🛡` was dropped. After the tweens ran out: in use 0, pool 24, all unique, none visible, no page errors.
+- **Worktree gotcha, again:** a `node_modules` symlink to the primary checkout made 59 files fail at import. A real `npm ci` in the worktree fixed it.
+
+## Earlier Status (2026-11-24, #39)
 
 **2026-11-24 (latest): #145 (#86) merged. Backlog #39(b), hero ground effects drawn under the road, has a PR open into `visual/integration` (`fix/39-ground-fx-depth`).**
 - **Fixed:** the opaque road (depth 8) cut a road-shaped gap through three hero-ability visuals. These were the pyro fire field and Immolate ring (`AreaEffectsManager`, depth 2), and the flame-wave cone and volley lines (`GameScene`, depth 5). The backlog named only the fire field. All three now use `GROUND_FX_DEPTH = 8.75` (`src/data/roads.js`). That puts them above the road and the near ambient layer (8.5), and below the endpoints (9), the pads (10) and units (11+).
@@ -404,6 +413,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
+- **2026-11-24:** #146 (#39b) merged. #23 damage-number pool priority PR open into `visual/integration` (`fix/23-damage-number-priority`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
 - **2026-11-24:** #145 (#86) merged. #39(b) ground-FX depth PR open into `visual/integration` (`fix/39-ground-fx-depth`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
 - **2026-11-24:** #143 (6.3) and #144 (`visual/integration` → `main`) merged; the itch zip was built from `main` (975ce5c). The backlog #86 PR is open into `visual/integration` (`chore/86-release-tooling`). Next: 6.4 publish (G5, the user's gate). Before it: the #82 trademark check. Upload the zip from `main` now, or rebuild after #86 reaches `main` for a zip without folder entries.
 - **2026-11-23:** #142 (#81) merged. Roadmap 6.3 README PR open into `visual/integration` (`docs/6.3-portfolio-readme`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
@@ -570,7 +580,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 
 22. `[review]` **Armour legibility for heroes, soldiers and the codex** _(raised 2026-09-21)_. #17 deliberately scoped to the tower panel and the in-world number. The hero inspector, the soldier display and the codex all still show a bare `Armor N` (or nothing) with no indication of what it does to a given attacker. The pure half (`armourAbsorption` / `describeTowerArmour`) is already built and reusable. Decide first whether the hero inspector should show the hero's OWN absorption against the enemy it is fighting, or the enemy's armour against everything — they are different questions and the tower panel answers only the first.
 
-23. `[auto]` **Absorbed damage numbers have no pool priority** _(raised 2026-09-21 by #17's final review; ceiling case, not currently reachable in normal play)_. `DamageNumberOverlay` has a 24-slot pool. The per-enemy 700ms throttle bounds the per-enemy rate but nothing bounds the global rate. Map 9 wave 18 ships 6 titans + 12 brutes; archer T1/T2 are `heavy` against both and fire ~1/s, each number holding a slot for its 1200ms tween — roughly 21+ slots held by `🛡` numbers alone. Past 24, **every** hit is dropped, including the crit/AoE/big numbers that predate this feature and previously had the pool to themselves. Absorbed numbers are the least valuable of the set and should yield first. Needs a priority rule, not a bigger pool.
+23. `[auto]` ✅ **Absorbed damage numbers have no pool priority** — **DONE 2026-11-24**, PR `fix/23-damage-number-priority`: when the pool is full, big and AoE numbers evict the oldest in-flight `🛡` number, and absorbed numbers never evict. Parked: no test fires a killed tween's `onComplete`, because Phaser 3.90 never does. Re-check after a Phaser upgrade. _(original:)_ _(raised 2026-09-21 by #17's final review; ceiling case, not currently reachable in normal play)_. `DamageNumberOverlay` has a 24-slot pool. The per-enemy 700ms throttle bounds the per-enemy rate but nothing bounds the global rate. Map 9 wave 18 ships 6 titans + 12 brutes; archer T1/T2 are `heavy` against both and fire ~1/s, each number holding a slot for its 1200ms tween — roughly 21+ slots held by `🛡` numbers alone. Past 24, **every** hit is dropped, including the crit/AoE/big numbers that predate this feature and previously had the pool to themselves. Absorbed numbers are the least valuable of the set and should yield first. Needs a priority rule, not a bigger pool.
 
 24. `[auto]` ✅ **Hero and soldier HP bars lifted off their sprites — DONE, PR pending** _(2026-10-07, branch `fix/hero-soldier-hpbar`)_. **The entry's diagnosis was slightly off:** neither entity read `def.radius`. Both bars were hard-coded pixel boxes from the old Graphics bodies (hero 16x2 at y=-22, soldier 14x2 at y=-17). Reproduced live:
     - **Hero:** the bar sat across the hero's head on 49px art.
