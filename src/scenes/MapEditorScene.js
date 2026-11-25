@@ -59,14 +59,22 @@ export default class MapEditorScene extends Phaser.Scene {
 
     this.input.on('pointerdown', this._onPointerDown, this);
 
-    this.input.on('pointermove', this._onPointerMove, this);
-    this.input.on('pointerup', this._onPointerUp, this);
+    this._bindPointer();
 
     this.input.keyboard?.on('keydown-E', () => this._export());
   }
 
+  _bindPointer() {
+    this.input.on('pointermove', this._onPointerMove, this);
+    this.input.on('pointerup', this._onPointerUp, this);
+    // A release off the canvas fires only pointerupoutside; without it the drag sticks.
+    this.input.on('pointerupoutside', this._onPointerUp, this);
+  }
+
   _onPointerMove(pointer) {
     if (!this.drag) return;
+    // The mouse-up was lost (window blur, alt-tab): end the drag instead of following a free cursor.
+    if (!pointer.isDown) { this._onPointerUp(); return; }
     const nx = Phaser.Math.Clamp(pointer.worldX / this.W, 0, 1);
     const ny = Phaser.Math.Clamp(pointer.worldY / this.H, 0, 1);
     const arr = this.drag.kind === 'wp' ? this.waypoints : this.slots;

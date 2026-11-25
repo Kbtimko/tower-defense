@@ -123,6 +123,8 @@ describe('MapEditorScene road preview', () => {
     s._onPointerUp();
     expect(s.textures.remove).toHaveBeenCalledWith('road_editor@2');
     expect(bakeRoad).toHaveBeenCalledTimes(1);
+    // Order is the contract: bakeRoad returns early when the key already exists, so a bake
+    // before the remove would silently serve the old road.
     expect(s.textures.remove.mock.invocationCallOrder[0]).toBeLessThan(bakeRoad.mock.invocationCallOrder[0]);
     expect(image.setTexture).toHaveBeenCalledWith('road_editor@2');
     expect(image.setVisible).toHaveBeenLastCalledWith(true);
@@ -133,10 +135,32 @@ describe('MapEditorScene road preview', () => {
     const s = makeScene();
     s._roadDirty = false;
     s.drag = { kind: 'wp', index: 1 };
-    s._onPointerMove({ worldX: 300, worldY: 200 });
+    s._onPointerMove({ worldX: 300, worldY: 200, isDown: true });
     expect(s._roadDirty).toBe(true);
     expect(bakeRoad).not.toHaveBeenCalled();
     expect(s.waypoints[1]).toEqual([300 / WORLD_WIDTH, 200 / WORLD_HEIGHT]);
+  });
+
+  it('a move with the button already up ends the drag (focus lost mid-drag)', () => {
+    const s = makeScene();
+    s._render();
+    s.drag = { kind: 'wp', index: 1 };
+    const before = [...s.waypoints[1]];
+    s._render();
+    vi.clearAllMocks();
+    s._onPointerMove({ worldX: 300, worldY: 200, isDown: false });
+    expect(s.drag).toBeNull();
+    expect(s.waypoints[1]).toEqual(before);
+    expect(image.setVisible).toHaveBeenLastCalledWith(true);
+  });
+
+  // Phaser emits only pointerupoutside when the button is released off the canvas.
+  it('also ends a drag released off the canvas', () => {
+    const s = makeScene();
+    s.input = { on: vi.fn() };
+    s._bindPointer();
+    expect(s.input.on).toHaveBeenCalledWith('pointerupoutside', MapEditorScene.prototype._onPointerUp, s);
+    expect(s.input.on).toHaveBeenCalledWith('pointerup', MapEditorScene.prototype._onPointerUp, s);
   });
 
   it('inserting or deleting a waypoint re-bakes', () => {
