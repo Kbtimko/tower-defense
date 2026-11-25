@@ -74,7 +74,8 @@ export default class MapEditorScene extends Phaser.Scene {
   _onPointerMove(pointer) {
     if (!this.drag) return;
     // The mouse-up was lost (window blur, alt-tab): end the drag instead of following a free cursor.
-    if (!pointer.isDown) { this._onPointerUp(); return; }
+    // Phaser 3.90's Pointer.move refreshes `buttons` but never clears isDown, so check both.
+    if (!pointer.isDown || pointer.noButtonDown()) { this._onPointerUp(); return; }
     // pointer.worldX/Y go stale over a HUD rail; converting by hand keeps the handle following the cursor, and the clamp pins it to the edge.
     const world = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
     const nx = Phaser.Math.Clamp(world.x / this.W, 0, 1);
@@ -86,9 +87,10 @@ export default class MapEditorScene extends Phaser.Scene {
   }
 
   // Ending a waypoint drag is when the baked road catches up with the line.
-  // Releasing the right button mid-drag must not end a left drag; no pointer = the lost-mouse-up path.
+  // A release that leaves no button held always ends the drag; one that leaves the left held (a right
+  // release mid-drag) is ignored. No pointer = the lost-mouse-up path.
   _onPointerUp(pointer) {
-    if (pointer && !pointer.leftButtonReleased()) return;
+    if (pointer && !pointer.leftButtonReleased() && !pointer.noButtonDown()) return;
     const wasWp = this.drag?.kind === 'wp';
     this.drag = null;
     if (wasWp) this._render();
