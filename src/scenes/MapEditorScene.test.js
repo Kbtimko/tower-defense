@@ -44,6 +44,84 @@ describe('MapEditorScene pointerdown', () => {
   });
 });
 
+describe('MapEditorScene rough edges (#88)', () => {
+  const W = 1280, H = 720;
+  const withCamera = (s, pt) => {
+    const getWorldPoint = vi.fn(() => pt);
+    s.cameras = { main: { getWorldPoint } };
+    return getWorldPoint;
+  };
+  const threeWp = (s) => { s.waypoints = [[0, 0.5], [0.5, 0.5], [1, 0.5]]; };
+
+  it('a press during a drag is ignored', () => {
+    const s = makeEditor();
+    threeWp(s);
+    s.drag = { kind: 'wp', index: 1 };
+    s._hitTest = vi.fn(() => ({ kind: 'wp', index: 1 }));
+    s._onPointerDown({ camera: {}, worldX: 640, worldY: 360, rightButtonDown: () => true });
+    expect(s.waypoints.length).toBe(3);
+    expect(s.drag).toEqual({ kind: 'wp', index: 1 });
+    s._hitTest.mockClear();
+    s._onPointerDown({ camera: {}, worldX: 640, worldY: 360, rightButtonDown: () => false });
+    expect(s._hitTest).not.toHaveBeenCalled();
+    expect(s._insertWaypointAt).not.toHaveBeenCalled();
+  });
+
+  it('a drag over a rail follows the cursor to the edge (waypoint)', () => {
+    const s = makeEditor();
+    threeWp(s);
+    s.drag = { kind: 'wp', index: 1 };
+    const gwp = withCamera(s, { x: -40, y: 200 });
+    s._onPointerMove({ x: 5, y: 300, isDown: true, noButtonDown: () => false, worldX: 640, worldY: 360 });
+    expect(gwp).toHaveBeenCalledWith(5, 300);
+    expect(s.waypoints[1]).toEqual([0, 200 / H]);
+  });
+
+  it('a drag over a rail follows the cursor to the edge (slot)', () => {
+    const s = makeEditor();
+    s.slots = [[0.5, 0.5]];
+    s.drag = { kind: 'slot', index: 0 };
+    withCamera(s, { x: W + 30, y: 100 });
+    s._onPointerMove({ x: 5, y: 300, isDown: true, noButtonDown: () => false, worldX: 640, worldY: 360 });
+    expect(s.slots[0]).toEqual([1, 100 / H]);
+  });
+
+  it("only the left button's release ends a drag", () => {
+    const s = makeEditor();
+    threeWp(s);
+    s.drag = { kind: 'wp', index: 1 };
+    s._onPointerUp({ leftButtonReleased: () => false, noButtonDown: () => false });
+    expect(s.drag).toEqual({ kind: 'wp', index: 1 });
+    expect(s._render).not.toHaveBeenCalled();
+    s._onPointerUp({ leftButtonReleased: () => true, noButtonDown: () => true });
+    expect(s.drag).toBeNull();
+    s.drag = { kind: 'wp', index: 1 };
+    s._onPointerUp();
+    expect(s.drag).toBeNull();
+  });
+
+  it('a release that leaves no button held ends the drag (middle button)', () => {
+    const s = makeEditor();
+    threeWp(s);
+    s.drag = { kind: 'wp', index: 1 };
+    s._onPointerUp({ leftButtonReleased: () => false, noButtonDown: () => true });
+    expect(s.drag).toBeNull();
+  });
+
+  it('a move with no button held ends the drag even when isDown is stale', () => {
+    const s = makeEditor();
+    threeWp(s);
+    s.drag = { kind: 'wp', index: 1 };
+    const before = [...s.waypoints[1]];
+    const gwp = withCamera(s, { x: 10, y: 10 });
+    gwp.mockClear();
+    s._onPointerMove({ x: 5, y: 300, isDown: true, noButtonDown: () => true });
+    expect(s.drag).toBeNull();
+    expect(s.waypoints[1]).toEqual(before);
+    expect(gwp).not.toHaveBeenCalled();
+  });
+});
+
 describe('MapEditorScene road preview', () => {
   const map = MAPS[0];
   let image;
@@ -131,11 +209,27 @@ describe('MapEditorScene road preview', () => {
     expect(s.drag).toBeNull();
   });
 
+  it("the HUD slot target is the map's shipped slot count", () => {
+    const id = MAPS.findIndex(m => m.towerSlots.length !== 6 + m.id);
+    expect(id).toBeGreaterThanOrEqual(0);
+    const n = MAPS[id].towerSlots.length;
+    const s = makeScene();
+    s.mapId = id;
+    s.slots = MAPS[id].towerSlots.map(([x, y]) => [x, y]);
+    s.waypoints = MAPS[id].waypoints.map(([x, y]) => [x, y]);
+    s._renderHud();
+    expect(s.hud.setText.mock.calls.at(-1)[0]).toContain(`slots: ${n} / ${n} OK`);
+    s.slots.push([0.5, 0.5]);
+    s._renderHud();
+    expect(s.hud.setText.mock.calls.at(-1)[0]).toContain(`slots: ${n + 1} / ${n} MISMATCH`);
+  });
+
   it('pointermove on a waypoint marks the road dirty without baking', () => {
     const s = makeScene();
     s._roadDirty = false;
     s.drag = { kind: 'wp', index: 1 };
-    s._onPointerMove({ worldX: 300, worldY: 200, isDown: true });
+    s.cameras = { main: { getWorldPoint: vi.fn(() => ({ x: 300, y: 200 })) } };
+    s._onPointerMove({ x: 900, y: 50, isDown: true, noButtonDown: () => false });
     expect(s._roadDirty).toBe(true);
     expect(bakeRoad).not.toHaveBeenCalled();
     expect(s.waypoints[1]).toEqual([300 / WORLD_WIDTH, 200 / WORLD_HEIGHT]);
@@ -148,7 +242,7 @@ describe('MapEditorScene road preview', () => {
     const before = [...s.waypoints[1]];
     s._render();
     vi.clearAllMocks();
-    s._onPointerMove({ worldX: 300, worldY: 200, isDown: false });
+    s._onPointerMove({ worldX: 300, worldY: 200, isDown: false, noButtonDown: () => true });
     expect(s.drag).toBeNull();
     expect(s.waypoints[1]).toEqual(before);
     expect(image.setVisible).toHaveBeenLastCalledWith(true);

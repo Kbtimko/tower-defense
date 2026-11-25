@@ -3,9 +3,22 @@
 ## Goal
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
-## Current Status (2026-11-25, #39c)
+## Current Status (2026-11-25, #88)
 
-**2026-11-25 (latest): #147 (#23) merged. Backlog #39(c), the map editor previewing the legacy road, has a PR open into `visual/integration` (`fix/39c-editor-road-preview`).**
+**2026-11-25 (latest): #148 (#39c) merged. Backlog #88, the map editor's rough edges, has a PR open into `visual/integration` (`fix/88-editor-rough-edges`).**
+- **(a) Slot target:** the HUD compared against `6 + map.id`, stale since slot counts were calibrated per map, so map 3 read "12 / 9 MISMATCH". The target is now the map's own `towerSlots.length`. Map 3 reads "12 / 12 OK".
+- **(b) Press during a drag:** any pointerdown while a drag is active is ignored. A right-click no longer deletes the waypoint being dragged.
+- **(c) Drag over a HUD rail:** the move handler converts through `cameras.main.getWorldPoint(pointer.x, pointer.y)` and then clamps, so the handle pins to the map edge instead of freezing (`pointer.worldX` is stale there).
+- **(d) Button-aware release:** a release ends the drag only when it was the left button, or when no button is left held. A right release mid-drag is ignored; a middle release ends it at once.
+- **(e) Production:** BootScene opens the editor only under `DEV || MODE === 'capture'`, the same gate as `?debug=`. In production `?edit=1` lands on the title.
+- **(f) closed without code:** `MapEditorScene` never shuts down, so a shutdown handler would be dead code.
+- **Correction to #39c:** its lost-mouse-up guard (`!pointer.isDown`) never fired, because Phaser 3.90's `Pointer.move` refreshes `buttons` but never clears `isDown`. The final review caught it. A move with `noButtonDown()` now ends the drag; a live A/B showed the handle following the free cursor before and stopping after.
+- **Tests:** 9 new or strengthened editor and boot tests. Seven mutations each fail their own test. Suite: 4278 tests in 267 files, exit 0.
+- **Live, real mouse, capture build, map 3:** HUD "12 / 12 OK"; w2 dragged into the left rail pins to x = 0; a right press and release mid-drag keeps 23 waypoints and the drag; a middle release re-bakes the road at once; a CDP no-button move ends a left drag. A production build with `?edit=1&map=3` shows the title. No page errors.
+
+## Earlier Status (2026-11-25, #39c)
+
+**2026-11-25: #147 (#23) merged. Backlog #39(c), the map editor previewing the legacy road, has a PR open into `visual/integration` (`fix/39c-editor-road-preview`).**
 - **Fixed:** the dev map editor (`?edit=1&map=N`) drew the legacy Graphics `renderPath` strip, while every map in the game bakes a textured road. It now bakes the same road `GameScene._setupRoad` does: the same waypoints, style, seed, size and render scale `k`, at `ROAD_DEPTH`, under the texture key `road_editor@k`.
 - **Drag behaviour:** while a waypoint is dragged, the stale bake is hidden and the cheap `renderPath` line follows the mouse. The road re-bakes once when the edit settles: on pointer-up, insert or delete. Slot drags never re-bake. Each re-bake removes the old texture first, because `bakeRoad` silently reuses an existing key.
 - **Found by the final review and fixed:** Phaser 3.90 sends only `pointerupoutside` for a release off the canvas, so an overshooting drag stayed stuck with the road hidden. That event is now bound. A move with no button held (mouse-up lost to alt-tab) also ends the drag.
@@ -422,6 +435,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
+- **2026-11-25:** #148 (#39c) merged. #88 map editor rough edges PR open into `visual/integration` (`fix/88-editor-rough-edges`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first). Remaining `[auto]`: #39(d) optional `featherAlpha`.
 - **2026-11-25:** #147 (#23) merged. #39(c) editor road preview PR open into `visual/integration` (`fix/39c-editor-road-preview`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
 - **2026-11-24:** #146 (#39b) merged. #23 damage-number pool priority PR open into `visual/integration` (`fix/23-damage-number-priority`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
 - **2026-11-24:** #145 (#86) merged. #39(b) ground-FX depth PR open into `visual/integration` (`fix/39-ground-fx-depth`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
@@ -705,7 +719,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 85. `[auto]` **Perf gate: a heavier scenario and tidier reporting** _(raised 2026-11-22 by 6.1)_. The gate samples 12 s after a 3 s warm-up of each map's last wave, which peaks at 3-17 enemies (map 9: 3), so it under-tests crowded late waves; consider `autosend=1` or a longer window. Also: `report.json` should flag a dirty tree, and a build/launch error before the run loop should still write a report. Each `rebake()` adds one entry to Phaser's `Graphics.TargetCamera.renderList`, which is never cleared (tiny; check on a long session).
 86. `[auto]` ~~**Release tooling tidy-ups**~~ **DONE 2026-11-24.** The PR into `visual/integration` (`chore/86-release-tooling`) fixes all seven. Parked minors: an error from `context.close()` in `recordClip`'s finally can mask the real error; the test fakes count `Date.now` calls and detect `boardRect` by the string `'matchMedia'`.
 87. `[review]` **`no-undef` lint over `scripts/`** _(raised 2026-11-24 by #86's final review)_. A variable declared in one function and assigned in another (#86's `recordClip` ReferenceError) passed per-task review and the whole suite. A lint would catch that class of bug for free. This needs a new dev dependency (ESLint), so it's the user's call.
-88. `[auto]` **Map editor pre-existing rough edges** _(raised 2026-11-25 by the #39c reviews; dev tool only)_. (a) The HUD slot target `6 + map.id` is stale since the difficulty-calibrated slot counts: map 3 reads "12 / 9 MISMATCH". Derive it from the data, or drop it. (b) A right-click during a waypoint drag splices the dragged index, so the next move writes a stale or out-of-range index (appending a point). (c) A pointermove over a HUD rail uses a stale `worldX` (`pointer.camera` undefined); only pointerdown is guarded. (d) `_onPointerUp` ignores which button was released. (e) `?edit=1` is reachable on production builds. (f) The editor's `road_editor@k` texture is never freed on shutdown (bounded: one per k).
+88. `[auto]` ~~**Map editor pre-existing rough edges**~~ **DONE 2026-11-25** — (a)–(e) fixed, (f) closed (the scene never shuts down); PR `fix/88-editor-rough-edges`. Also fixed the #39c lost-mouse-up guard, which never fired. _Original:_ _(raised 2026-11-25 by the #39c reviews; dev tool only)_. (a) The HUD slot target `6 + map.id` is stale since the difficulty-calibrated slot counts: map 3 reads "12 / 9 MISMATCH". Derive it from the data, or drop it. (b) A right-click during a waypoint drag splices the dragged index, so the next move writes a stale or out-of-range index (appending a point). (c) A pointermove over a HUD rail uses a stale `worldX` (`pointer.camera` undefined); only pointerdown is guarded. (d) `_onPointerUp` ignores which button was released. (e) `?edit=1` is reachable on production builds. (f) The editor's `road_editor@k` texture is never freed on shutdown (bounded: one per k).
 
 ## Completed
 <!-- Tags below are retrospective/illustrative — runner skips done items regardless. -->
