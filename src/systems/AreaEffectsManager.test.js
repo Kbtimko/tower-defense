@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { AreaEffectsManager } from './AreaEffectsManager.js';
+import { GROUND_FX_DEPTH } from '../data/roads.js';
 
 function makeScene() {
   const created = [];
@@ -9,7 +10,7 @@ function makeScene() {
       graphics: () => {
         const g = {
           destroyed: false, x: 0, y: 0,
-          setDepth() { return g; },
+          setDepth(d) { g.depth = d; return g; },
           setPosition(x, y) { g.x = x; g.y = y; return g; },
           destroy() { g.destroyed = true; },
           clear() {}, fillStyle() {}, fillCircle() {}, lineStyle() {}, strokeCircle() {},
@@ -31,6 +32,13 @@ function makeEnemy(x, y) {
 }
 
 describe('AreaEffectsManager', () => {
+  it('draws effects at GROUND_FX_DEPTH so the opaque road cannot cut them', () => {
+    const scene = makeScene();
+    const mgr = new AreaEffectsManager(scene);
+    mgr.add({ x: 0, y: 0, radius: 50, duration: 5, dps: 0, sourceTag: {}, drawFn() {} });
+    expect(scene._created[0].depth).toBe(GROUND_FX_DEPTH);
+  });
+
   it('damages enemies in radius at 1-second ticks', () => {
     const scene = makeScene();
     const mgr = new AreaEffectsManager(scene);
