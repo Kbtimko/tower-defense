@@ -243,7 +243,7 @@ describe('ring layer redraws on board changes', () => {
         getZones: () => [{ occupied: true }, { occupied: false }],
       },
       pathMgr: { getNearestPathProgress: () => 0.5 },
-      _repaintStaticLayers: vi.fn(), _drawTierRings: vi.fn(),
+      _repaintStaticLayers: vi.fn(), _drawTierRings: vi.fn(), _drawRallyOverlay: vi.fn(),
     };
     proto._repositionTo.call(ctx, 400, 300);
     expect(ctx._drawTierRings).toHaveBeenCalledTimes(1);
