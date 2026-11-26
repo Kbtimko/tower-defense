@@ -1578,6 +1578,9 @@ export default class GameScene extends Phaser.Scene {
 
   _repositionTo(mx, my) {
     const barracks = this.repositioningBarracks;
+    // Tapping the barracks itself backs out, as in rally mode. Without this, on pads whose
+    // neighbour is inside the snap radius the tap would relocate it.
+    if (Math.hypot(barracks.x - mx, barracks.y - my) < TAP_TOWER_RADIUS) { this._cancelMode(); return; }
     // requireFree=true with a 60px reposition snap range (looser than the 22px
     // placement radius because the player is dragging, not single-clicking).
     const slot = this.placementManager.getNearestSlot(mx, my, REPOSITION_SNAP_RADIUS, true);
@@ -2028,7 +2031,7 @@ export default class GameScene extends Phaser.Scene {
     this._closeRadial();
     this.repositionMode = true;
     this.repositioningBarracks = barracks;
-    // The first frame previews a tap on the barracks itself: its nearest free pad in reach, else a bad ring on its own pad.
+    // The cursor starts on the barracks, and a tap there cancels, so the first frame is always the cancel ring on its own pad.
     this._buildCursorX = barracks.x;
     this._buildCursorY = barracks.y;
     this._syncCancelButton();
@@ -2474,10 +2477,12 @@ export default class GameScene extends Phaser.Scene {
     }
     const mover = this.repositioningBarracks;
     if (this.repositionMode && mover) {
-      // The exact call _repositionTo makes, so the ring never lies about where a tap lands.
-      const slot = this.placementManager.getNearestSlot(x, y, REPOSITION_SNAP_RADIUS, true);
-      const cx = slot ? slot.x : x;
-      const cy = slot ? slot.y : y;
+      // The same two checks _repositionTo makes, in the same order, so the ring never lies about
+      // where a tap lands: near the barracks it cancels (ring stays on it), else the snapped pad.
+      const cancels = Math.hypot(mover.x - x, mover.y - y) < TAP_TOWER_RADIUS;
+      const slot = cancels ? null : this.placementManager.getNearestSlot(x, y, REPOSITION_SNAP_RADIUS, true);
+      const cx = cancels ? mover.x : slot ? slot.x : x;
+      const cy = cancels ? mover.y : slot ? slot.y : y;
       g.lineStyle(RALLY_FLAG.lineWidth + 2 * RALLY_FLAG.haloPx, RALLY_HALO, RALLY_FLAG.ghostAlpha);
       g.strokeCircle(cx, cy, mover.range);
       g.lineStyle(RALLY_FLAG.lineWidth, slot ? RALLY_OK : RALLY_BAD, RALLY_FLAG.ghostAlpha);

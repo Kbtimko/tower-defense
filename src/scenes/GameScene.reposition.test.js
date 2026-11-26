@@ -47,7 +47,7 @@ vi.mock('../data/soldiers.js', async (importOriginal) => {
 import { describe, it, expect, beforeEach } from 'vitest';
 import { loadShippedDOM, liveScene, startLevel } from './gameSceneHarness.js';
 import { RALLY_FLAG } from '../data/soldiers.js';
-import { REPOSITION_SNAP_RADIUS } from '../data/input.js';
+import { REPOSITION_SNAP_RADIUS, TAP_TOWER_RADIUS } from '../data/input.js';
 import { hexToInt } from '../ui/theme.js';
 
 // Backlog #63: barracks move mode ghosts the range at the pad a tap would land on,
@@ -102,10 +102,10 @@ function rings(g) {
   return out;
 }
 
-function level() {
+function level(mapId = 0) {
   const scene = liveScene({ registry: { ambientMotion: false } });
   scene.add = recordingAdd();
-  startLevel(scene, { mapId: 0, heroId: 'rael' });
+  startLevel(scene, { mapId, heroId: 'rael' });
   return scene;
 }
 function buildBarracks(scene, slotIndex = PAD) {
@@ -206,6 +206,16 @@ describe('reposition overlay (#63, map 0)', () => {
     ended();
   });
 
+  it('tapping the barracks with no free pad in reach cancels', () => {
+    const s = level();
+    const b = buildBarracks(s);
+    enterMove(s, b);
+    s._onTap(b.x, b.y);
+    expect(s.repositionMode).toBe(false);
+    expect(b.zoneIndex).toBe(PAD);
+    expect(overlay(s).calls.at(-1)[0]).toBe('clear');
+  });
+
   it('the old cyan ring and path dots are gone', () => {
     const s = level();
     const b = buildBarracks(s);
@@ -227,5 +237,86 @@ describe('reposition overlay (#63, map 0)', () => {
     s._selectTowerType('archer', btn);
     expect(s.repositionMode).toBe(false);
     expect(rings(overlay(s))).toHaveLength(0);
+  });
+});
+
+// Backlog #89: on map 5 pad 10 is 33.3 px from pad 6, inside the 60 px snap, so a tap
+// on the barracks used to move it. A tap within TAP_TOWER_RADIUS now cancels, as rally does.
+describe('move-mode tap on the barracks cancels (#89, map 5)', () => {
+  const HOME = 6;
+  const NEIGHBOUR = 10;
+  beforeEach(() => { localStorage.clear(); loadShippedDOM(); });
+
+  function fixture() {
+    const s = level(5);
+    const b = buildBarracks(s, HOME);
+    enterMove(s, b);
+    const zones = s.placementManager.getZones();
+    const to = padXY(s, NEIGHBOUR);
+    const d = Math.hypot(to.x - b.x, to.y - b.y);
+    expect(d).toBeLessThan(REPOSITION_SNAP_RADIUS);
+    expect(d).toBeGreaterThan(TAP_TOWER_RADIUS + 2);
+    expect(zones[NEIGHBOUR].occupied).toBe(false);
+    const at = (k) => [b.x + k * (to.x - b.x) / d, b.y + k * (to.y - b.y) / d];
+    return { s, b, zones, at };
+  }
+  const ringAt = (r, x, y) => r.filter(k => k.x === x && k.y === y);
+
+  it('tapping the barracks centre cancels and leaves it on its pad', () => {
+    const { s, b, zones } = fixture();
+    const home = padXY(s, HOME);
+    s._onTap(b.x, b.y);
+    expect(s.repositionMode).toBe(false);
+    expect(b.zoneIndex).toBe(HOME);
+    expect({ x: b.x, y: b.y }).toEqual(home);
+    expect(zones[HOME].occupied).toBe(true);
+    expect(zones[NEIGHBOUR].occupied).toBe(false);
+    expect(document.getElementById('cancel-btn').hidden).toBe(true);
+  });
+
+  it('the cancel boundary is TAP_TOWER_RADIUS', () => {
+    const { s, b, zones, at } = fixture();
+    expect(s.placementManager.getNearestSlot(...at(21), REPOSITION_SNAP_RADIUS, true).slotIndex).toBe(NEIGHBOUR);
+    s._onTap(...at(21));
+    expect(s.repositionMode).toBe(false);
+    expect(b.zoneIndex).toBe(HOME);
+    enterMove(s, b);
+    s._onTap(...at(23));
+    expect(b.zoneIndex).toBe(NEIGHBOUR);
+    expect(zones[HOME].occupied).toBe(false);
+  });
+
+  it('the ghost on the barracks is the cancel ring', () => {
+    const { s, b } = fixture();
+    s._buildCursorX = b.x;
+    s._buildCursorY = b.y;
+    s._drawRallyOverlay();
+    const r = rings(overlay(s));
+    const to = padXY(s, NEIGHBOUR);
+    expect(r).toHaveLength(2);
+    expect(r[0]).toEqual({ x: b.x, y: b.y, r: b.range, width: HALO_WIDTH, colour: HALO, alpha: RALLY_FLAG.ghostAlpha });
+    expect(r[1]).toEqual({ x: b.x, y: b.y, r: b.range, width: RALLY_FLAG.lineWidth, colour: BAD, alpha: RALLY_FLAG.ghostAlpha });
+    expect(ringAt(r, to.x, to.y)).toEqual([]);
+  });
+
+  it('the ghost 21 px out is still the cancel ring centred on the barracks', () => {
+    const { s, b, at } = fixture();
+    [s._buildCursorX, s._buildCursorY] = at(21);
+    s._drawRallyOverlay();
+    const r = rings(overlay(s));
+    expect(r).toHaveLength(2);
+    expect(ringAt(r, b.x, b.y)).toHaveLength(2);
+    expect(r[1].colour).toBe(BAD);
+  });
+
+  it('the ghost 23 px out is the move ring on the neighbour', () => {
+    const { s, at } = fixture();
+    [s._buildCursorX, s._buildCursorY] = at(23);
+    s._drawRallyOverlay();
+    const r = rings(overlay(s));
+    const to = padXY(s, NEIGHBOUR);
+    expect(r).toHaveLength(2);
+    expect(ringAt(r, to.x, to.y)).toHaveLength(2);
+    expect(r[1].colour).toBe(OK);
   });
 });
