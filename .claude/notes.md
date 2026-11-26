@@ -3,9 +3,27 @@
 ## Goal
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
-## Current Status (2026-11-26, #65b)
+## Current Status (2026-11-26, #65c)
 
-**2026-11-26 (latest): #154 (#65a) merged. Backlog #65(b), moving the pure pennant geometry out of GameScene, has a PR open into `visual/integration` (`refactor/65b-pennant-geometry`).**
+**2026-11-26 (latest): #155 (#65b) merged. Backlog #65(c), making the rally capture run check march speed, has a PR open into `visual/integration` (`chore/65c-walk-budget`).**
+- **Harness only, `src/` untouched:** `captureRally` installs an in-page `requestAnimationFrame` recorder before the march tap. It stores `simMs` on the first marching frame and on the arrival frame, plus the largest frame step. The new pure `marchTimeProblem` (`scripts/captureCore.mjs`) fails the run when the span differs from `|Δprogress| × pathLength / SOLDIER_MARCH.speed` by more than **2 × the largest observed frame**. The old `untilGameTime` budgets (`walkMs × 1.33 + 5 s`) still bound a hang.
+- **The final review caught a real flaw in the first version:** it sampled both ends with Node-side polls. The arrival poll came after the mid-walk screenshot, so a slow screenshot made a correct game fail. Reproduced live: with a 1.2 s delay before the shot, the pre-fix commit reported 2843 ms against 2484 ± 200. The fix moved both samples in-page.
+- **Live A/B** (rally-only desktop runs in throwaway worktrees):
+
+  | Variant | Measured, ms | Expected, ms | Result |
+  |---|---|---|---|
+  | normal | 2533 | 2484 ± 93 | pass |
+  | soldiers at 0.7× speed, new harness | 3580 | 2484 ± 87 | **fails** |
+  | 0.7×, old harness | — | — | passes (the gap) |
+  | 1.2 s screenshot delay | 2537 | 2484 | pass |
+
+- **Suite:** 4308 tests in 271 files, exit 0.
+- **Parked:** the failure message prints the tolerance unrounded (`± 86.66 ms`). The spec asked for whole ms.
+- **Next:** 6.4 publish (G5, the user's gate; #82 trademark check first). Remaining `[auto]`: #65(d) (G3-dependent), #66/#67 (design options), #69(d), older follow-up bundles.
+
+## Earlier Status (2026-11-26, #65b)
+
+**2026-11-26: #154 (#65a) merged. Backlog #65(b), moving the pure pennant geometry out of GameScene, has a PR open into `visual/integration` (`refactor/65b-pennant-geometry`).**
 - **Refactor, no behaviour change:** `pennantCorners(x, top, { w, h })` and `growTriangle([A, B, C], d)` now live in the new pure `src/systems/pennantGeometry.js` (no imports; the pennant size is passed in, the way `rallyTarget.js` takes `range`). GameScene passes `RALLY_FLAG.pennant` at its two call sites. `growTriangle` moved verbatim.
 - **Tests:** a new `pennantGeometry.test.js` checks that both ends of every grown edge sit exactly d outside the original edge (pennant and 3-4-5 triangles, d = 2 and 3), plus d = 0 and the corner layout. The scene tests are unchanged. Three mutations each fail their own test, and the final review's two extra wrong implementations (scaled about the centroid, rotated corners) failed too. Suite: 4305 tests in 271 files, exit 0.
 - **Live:** in frozen-frame capture builds of map 5, the bad rally flag (pole, pennant and halo) is pixel-identical before and after. No page errors.
@@ -485,6 +503,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
+- **2026-11-26:** #155 (#65b) merged. #65(c) rally capture march-speed check PR open into `visual/integration` (`chore/65c-walk-budget`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
 - **2026-11-26:** #154 (#65a) merged. #65(b) pennant-geometry refactor PR open into `visual/integration` (`refactor/65b-pennant-geometry`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
 - **2026-11-26:** #153 (#89) merged. #65(a) bad ghost full-alpha PR open into `visual/integration` (`fix/65a-bad-ghost-alpha`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
 - **2026-11-26:** #152 (#63) merged. #89 move-mode tap-to-cancel PR open into `visual/integration` (`fix/89-move-mode-tap-cancel`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
@@ -752,7 +771,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 62. `[local]` **Soldier move sheet** _(#48 follow-up)_. `Soldier` already calls `setState('move')` while marching; it falls back to idle until a `move` sheet is registered in `src/data/sprites.js` (don't add the entry before the file exists — BootScene would 404). Derive the frames from the soldier reference (sprite pipeline memory).
 63. `[auto]` ~~**Move mode's stale rally drawing**~~ **DONE 2026-11-25** — rally-style ghost ring at the destination pad, PR `fix/63-reposition-overlay`. _Original:_ _(#48 follow-up)_. Reposition mode still draws its old range ring + road dots (`GameScene` reposition draw, ~:2256-2266); make it match the rally look (halo, ghost) or drop it.
 64. `[auto]` ✅ **DONE 2026-11-20 (fix/68-64-57-bug-bundle)** ~~Reposition mode: newest intent wins~~ `_leaveBarracksModes` drops a pending Move too. Original: _(#48 final review, pre-existing)_. Arming a HUD tower while Move mode is on leaves Move armed, so a pad tap moves the barracks instead of building. #48 fixed this for rally mode (`_leaveRallyMode`); apply the same rule to reposition.
-65. `[auto]` **#48 polish** _(final reviews)_. (a) ~~The out-of-range red ghost reads pink at `ghostAlpha` 0.6 on red maps — consider full alpha for the bad ghost.~~ **DONE 2026-11-26** (`fix/65a-bad-ghost-alpha`): bad marks and their halos draw at `RALLY_FLAG.badAlpha` 1. The remaining salmon tint is `PALETTE.danger` itself, a palette call. (b) ~~`pennantCorners`/`growTriangle` are pure geometry inside GameScene — move to `src/systems/`.~~ **DONE 2026-11-26** (`refactor/65b-pennant-geometry`): now in `src/systems/pennantGeometry.js` with unit tests. A degenerate triangle (inradius 0) still returns NaN corners; the only input is the frozen pennant. (c) The capture run's walk budgets carry +5 s game-time slack, so they don't check speed (unit + scene tests do). (d) Soldiers outpace drones by only 10 px/s; a following drone can re-engage once the 60-px disengage window ends — retune `disengagePx` if it feels sticky at G3.
+65. `[auto]` **#48 polish** _(final reviews)_. (a) ~~The out-of-range red ghost reads pink at `ghostAlpha` 0.6 on red maps — consider full alpha for the bad ghost.~~ **DONE 2026-11-26** (`fix/65a-bad-ghost-alpha`): bad marks and their halos draw at `RALLY_FLAG.badAlpha` 1. The remaining salmon tint is `PALETTE.danger` itself, a palette call. (b) ~~`pennantCorners`/`growTriangle` are pure geometry inside GameScene — move to `src/systems/`.~~ **DONE 2026-11-26** (`refactor/65b-pennant-geometry`): now in `src/systems/pennantGeometry.js` with unit tests. A degenerate triangle (inradius 0) still returns NaN corners; the only input is the frozen pennant. (c) ~~The capture run's walk budgets carry +5 s game-time slack, so they don't check speed (unit + scene tests do).~~ **DONE 2026-11-26** (`chore/65c-walk-budget`): an in-page recorder times the march, and `marchTimeProblem` fails it outside ±2 observed frames. A 0.7× march now fails the run. Leftover: the tolerance prints unrounded in the message. (d) Soldiers outpace drones by only 10 px/s; a following drone can re-engage once the 60-px disengage window ends — retune `disengagePx` if it feels sticky at G3.
 66. `[auto]` **Old tier stroke ring is now redundant** _(#49 follow-up)_. `Tower._redraw` still strokes the r=18 tier circle (1.5–4 px) OVER the sprite (S6 kept it). With pips/badge/core/ring it reads as clutter across the new core glow. Drop it when art is on, or keep only for the no-art fallback — user's call.
 67. `[auto]` **Tier badge occlusion** _(#49 live check)_. (a) On the accepted tight pairs (map 5 slots 6/10, map 9 9/2) the upper archer's A/B badge is fully / half hidden by the lower tower — the ring still shows the branch. (b) A barracks on a road-hugging pad: the default rally squad stands on its own badge (4B's 4th soldier covers "B"; 4A squad overlaps its ring). Options: lift the badge above the core, or nudge the default rally point off the pad foot.
 68. `[auto]` ✅ **DONE 2026-11-20 (fix/68-64-57-bug-bundle)** ~~Stale tower depth after a barracks Move~~ `_repositionTo` re-sorts depth. Original: _(#49 spec non-goal, pre-existing)_. `_repositionTo` calls `setPosition` but tower depth is set only in the constructor, so a moved barracks Y-sorts from its old y; taller T4 art makes a wrong sort easier to see. Re-`setDepth(unitDepth(y))` after the move.
