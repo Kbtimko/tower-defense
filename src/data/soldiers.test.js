@@ -10,10 +10,14 @@ describe('soldier tunables', () => {
     expect(SOLDIER_FORMATION).toEqual({ spacingFrac: 0.55, fallbackSpacingPx: 9, flankBackFrac: 0.4, turnMs: 120 });
     expect(WALK_BOB).toEqual({ amplitudePx: 1.5, hz: 4 });
     expect(RALLY_FLAG).toEqual({
-      fadeMs: 900, ghostAlpha: 0.6, routeDotSpacingPx: 10, routeDotRadius: 2, lineWidth: 2,
+      fadeMs: 900, ghostAlpha: 0.6, badAlpha: 1, routeDotSpacingPx: 10, routeDotRadius: 2, lineWidth: 2,
       poleHeight: 18, pennant: { w: 10, h: 7 }, depth: 10.6,
       ok: PALETTE.accent, bad: PALETTE.danger, halo: PALETTE.panel, haloPx: 2,
     });
+  });
+
+  it('a bad ghost is more opaque than an ok one', () => {
+    expect(RALLY_FLAG.badAlpha).toBeGreaterThan(RALLY_FLAG.ghostAlpha);
   });
 
   it('substep is fine enough that a marching soldier cannot skip over melee range', () => {
