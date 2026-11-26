@@ -12,16 +12,20 @@ The red ghost is the game saying "this tap won't do what you want": a rally poin
 
 ## Measured (before choosing)
 
-These are composites of `PALETTE.danger` `#f07a7a` and the halo `PALETTE.panel` `#0f1424` over mean ground pixels from live captures. CR is the WCAG contrast ratio.
+These are composites of `PALETTE.danger` `#f07a7a` and the halo `PALETTE.panel` `#0f1424` over mean ground pixels from live captures. The 2 px stroke sits on its own halo, so the mark is blended over the halo composite, not the bare ground. CR is the WCAG contrast ratio.
 
-| Ground | alpha | Mark colour | Hue | CR mark/ground | CR mark/halo |
+_Corrected after the final review: the first draft blended the 0.6 mark straight over the ground. The live frozen-frame reading of the old ring, (157,87,82) after anti-aliasing, matches these rows._
+
+| Ground | alpha | Halo | Mark colour | CR mark/ground | CR mark/halo |
 |---|---|---|---|---|---|
-| map 5 desert (211,142,57), hue 33° | 0.6 | (228,130,96) | 15° | 1.00 | 3.26 |
-| | 1.0 | (240,122,122) | 0° | 1.01 | **6.78** |
-| map 0 (155,90,53), hue 22° | 0.6 | (206,109,94) | 8° | 1.53 | 3.46 |
-| | 1.0 | (240,122,122) | 0° | **1.99** | **6.78** |
+| map 5 desert (211,142,57) | 0.6 | (93,69,44) | (181,101,91) | 1.55 | 2.12 |
+| | 1.0 | (15,20,36) | (240,122,122) | 1.01 | **6.78** |
+| map 0 (155,90,53) | 0.6 | (71,48,43) | (172,92,90) | 1.13 | 2.57 |
+| | 1.0 | (15,20,36) | (240,122,122) | **1.99** | **6.78** |
 
-The danger red has almost the same luminance as the desert, so the dark halo carries the legibility. Full alpha doubles the mark-to-halo contrast and moves the hue away from the ground's. The "pink" is partly the palette's own `#f07a7a`, a salmon red. Changing the palette is out of scope, because the same token colours the UI's danger buttons.
+Full alpha raises the mark-to-halo contrast 3.2× on the desert and 2.6× on map 0, and the halo becomes a solid dark outline instead of a 60% brown smear. On the desert, the full-strength danger red has the same luminance as the sand (CR 1.01), so there the halo carries the legibility. The "pink" is partly the palette's own `#f07a7a`, a salmon red. Changing the palette is out of scope, because the same token colours the UI's danger buttons.
+
+**Measured live after the change** (map 5, frozen frame, median of the strongest-coloured pixel at the ring radius over 120 angles): bad ring (157,87,82) → (208,107,110). The OK ring was unchanged at (85,123,131).
 
 ## Behaviour
 
