@@ -15,7 +15,7 @@ Barracks **Move** (reposition) mode lets the player tap a free pad, and the barr
 - If no free pad is in snap range, the ring is drawn at the cursor in `RALLY_BAD` (with the halo). A tap there does nothing.
 - The old cyan ring and path dots are removed.
 - The overlay is drawn at once when move mode starts, and cleared when a tap commits or cancels the move. This matters under a user pause, because `update()` does not run then (rally's S5).
-- When move mode starts, the cursor is put on the barracks, so the first frame shows a red ring on its own (occupied) pad until the pointer moves.
+- When move mode starts, the cursor is put on the barracks, so the first frame previews a tap on the barracks itself: its nearest free pad in reach, else a bad ring on its own pad.
 
 ## Non-goals
 - No change to the snapping rule, the move itself, the toast, the Cancel button or rally mode.

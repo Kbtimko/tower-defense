@@ -1657,12 +1657,12 @@ export default class GameScene extends Phaser.Scene {
   // rally or Move, or the next tap would still go to it and the build would be
   // silently ignored. Callers sync Cancel afterwards.
   _leaveBarracksModes() {
+    const had = this.repositionMode || this.rallyMode;
     this.repositionMode = false;
     this.repositioningBarracks = null;
-    if (!this.rallyMode) return;
     this.rallyMode = false;
     this.rallyBarracks = null;
-    this._drawRallyOverlay();
+    if (had) this._drawRallyOverlay();
   }
 
   // Escape arrives here for every press; with no mode it must not swallow it,
@@ -2028,7 +2028,7 @@ export default class GameScene extends Phaser.Scene {
     this._closeRadial();
     this.repositionMode = true;
     this.repositioningBarracks = barracks;
-    // The first frame's ring sits on the barracks' own (occupied) pad until the pointer moves.
+    // The first frame previews a tap on the barracks itself: its nearest free pad in reach, else a bad ring on its own pad.
     this._buildCursorX = barracks.x;
     this._buildCursorY = barracks.y;
     this._syncCancelButton();

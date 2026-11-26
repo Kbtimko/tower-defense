@@ -1,7 +1,6 @@
-// Backlog #48: barracks rally mode wired into the REAL GameScene — create, the
-// tap pipeline, the frame loop and shutdown — with real Barracks/Soldier entities
-// on map 0's road. Phaser's scene graph is stubbed; Graphics layers record their
-// calls so the overlay, route and flag can be read back.
+// Backlog #63: barracks move mode's ghost range ring, driven through the real
+// GameScene (create, the tap pipeline, the frame loop) with real Barracks entities
+// on map 0's road. Phaser's scene graph is stubbed; Graphics record their calls.
 vi.mock('phaser', () => ({
   default: {
     Scene: class { constructor(key) { this._key = key; } },
@@ -217,5 +216,16 @@ describe('reposition overlay (#63, map 0)', () => {
     expect(s.gfx.calls.some(c => c[0] === 'lineStyle')).toBe(true);
     expect(s.gfx.calls.filter(c => c[0] === 'lineStyle' && c[2] === 0x4fc3f7)).toEqual([]);
     expect(s.gfx.calls.filter(c => c[0] === 'fillStyle' && c[1] === 0x4fc3f7)).toEqual([]);
+  });
+
+  it('leaving move mode for a tower button clears the ghost (paused)', () => {
+    const s = level();
+    const b = buildBarracks(s);
+    enterMove(s, b);
+    expect(rings(overlay(s))).toHaveLength(2);
+    const btn = document.querySelector('.tower-btn');
+    s._selectTowerType('archer', btn);
+    expect(s.repositionMode).toBe(false);
+    expect(rings(overlay(s))).toHaveLength(0);
   });
 });
