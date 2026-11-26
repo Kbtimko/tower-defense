@@ -95,6 +95,7 @@ import { WAVE_COUNTDOWN }     from '../data/waveCountdown.js';
 import { RALLY_FLAG }         from '../data/soldiers.js';
 import { resolveRallyTarget } from '../systems/rallyTarget.js';
 import { isMarching, routeDots, stepFlagFade } from '../systems/soldierMarch.js';
+import { pennantCorners, growTriangle } from '../systems/pennantGeometry.js';
 import { pointAtProgress }    from '../systems/pathGeometry.js';
 import { hexToInt }           from '../ui/theme.js';
 import { TIER_RING, towerAccent } from '../data/tierLooks.js';
@@ -110,27 +111,6 @@ const BUILD_HUB          = 'Build';
 const RALLY_OK           = hexToInt(RALLY_FLAG.ok);
 const RALLY_BAD          = hexToInt(RALLY_FLAG.bad);
 const RALLY_HALO         = hexToInt(RALLY_FLAG.halo);
-
-// The rally pennant: pole top, tip, and down the pole.
-function pennantCorners(x, top) {
-  const { w, h } = RALLY_FLAG.pennant;
-  return [{ x, y: top }, { x: x + w, y: top + h / 2 }, { x, y: top + h }];
-}
-
-// Push every edge of a triangle `d` px outward. Scaling about the incentre by
-// (r + d) / r moves each edge's tangent line from r to r + d, so the outline is
-// even all round; nudging the corners by d would leave the sharp tip bare.
-function growTriangle([A, B, C], d) {
-  const a = Math.hypot(B.x - C.x, B.y - C.y);
-  const b = Math.hypot(A.x - C.x, A.y - C.y);
-  const c = Math.hypot(A.x - B.x, A.y - B.y);
-  const per = a + b + c;
-  const ix = (a * A.x + b * B.x + c * C.x) / per;
-  const iy = (a * A.y + b * B.y + c * C.y) / per;
-  const r = Math.abs((B.x - A.x) * (C.y - A.y) - (C.x - A.x) * (B.y - A.y)) / per;
-  const k = (r + d) / r;
-  return [A, B, C].map(p => ({ x: ix + (p.x - ix) * k, y: iy + (p.y - iy) * k }));
-}
 
 // Every pool reduced to one line, so the audit can force the longest caption.
 function onlyLine(line) {
@@ -2544,14 +2524,14 @@ export default class GameScene extends Phaser.Scene {
     const top = y - RALLY_FLAG.poleHeight;
     g.lineStyle(RALLY_FLAG.lineWidth + 2 * d, RALLY_HALO, alpha);
     g.lineBetween(x, y + d, x, top - d);
-    const [a, b, c] = growTriangle(pennantCorners(x, top), d);
+    const [a, b, c] = growTriangle(pennantCorners(x, top, RALLY_FLAG.pennant), d);
     g.fillStyle(RALLY_HALO, alpha);
     g.fillTriangle(a.x, a.y, b.x, b.y, c.x, c.y);
   }
 
   _drawFlagMarks(g, { x, y }, colour, alpha) {
     const top = y - RALLY_FLAG.poleHeight;
-    const [a, b, c] = pennantCorners(x, top);
+    const [a, b, c] = pennantCorners(x, top, RALLY_FLAG.pennant);
     g.lineStyle(RALLY_FLAG.lineWidth, colour, alpha);
     g.lineBetween(x, y, x, top);
     g.fillStyle(colour, alpha);
