@@ -8,7 +8,7 @@
 
 ## Why
 
-`GameScene.js` is ~2,500 lines, and CLAUDE.md asks that pure logic live outside the scene so Vitest can exercise it directly. Today these two functions are module-private, so they're covered only through the scene's Graphics mock (`expectFlagOnHalo` in `GameScene.rally.test.js`). Moving them gives the incentre maths its own unit tests.
+`GameScene.js` is ~2,600 lines, and CLAUDE.md asks that pure logic live outside the scene so Vitest can exercise it directly. Today these two functions are module-private, so they're covered only through the scene's Graphics mock (`expectFlagOnHalo` in `GameScene.rally.test.js`). Moving them gives the incentre maths its own unit tests.
 
 ## Design
 
@@ -16,7 +16,7 @@
   - `pennantCorners(x, top, { w, h })`: returns the pennant's three corners: pole top `{x, y: top}`, tip `{x: x + w, y: top + h/2}`, and down the pole `{x, y: top + h}`. The size is now a parameter, so the module has no data import. This matches `rallyTarget.js`, which takes `range` and `tapRadius` in.
   - `growTriangle([A, B, C], d)`: unchanged body and comment, moved verbatim.
 - `GameScene.js` deletes both local functions, imports the two exports, and passes `RALLY_FLAG.pennant` at its two `pennantCorners` call sites (`_drawFlagHalo`, `_drawFlagMarks`).
-- No drawing changes. The scene tests stay unchanged and must pass untouched. They are the proof that nothing moved on screen.
+- No drawing changes. The scene tests stay unchanged and must pass untouched. They catch a broken call (a missing size argument throws), but `expectFlagOnHalo` only checks a margin of at least `haloPx`. Identical output rests on the verbatim move, which the diff shows, and on a frozen-frame pixel A/B.
 
 ## Approaches
 
@@ -36,4 +36,4 @@
 | `growTriangle(t, 0)` | returns the same corners |
 | `growTriangle(t, d)`, any non-degenerate t | each edge moves out by exactly d (parallel, inradius r → r + d, same incentre) |
 | scalene vs. isoceles input (pennant is isoceles) | both hold; the test uses a 3-4-5 right triangle as well as the pennant |
-| scene drawing, every rally/move/route state | pixel calls identical; the existing scene tests pass unchanged |
+| scene drawing, every rally/move/route state | the existing scene tests pass unchanged; the live frozen-frame flag is pixel-identical before and after |
