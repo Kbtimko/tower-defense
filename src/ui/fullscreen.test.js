@@ -54,6 +54,35 @@ describe('toggleFullscreen', () => {
     expect(doc.webkitExitFullscreen).toHaveBeenCalledTimes(1);
   });
 
+  it('calls only the standard request when it returns undefined', async () => {
+    const el = { requestFullscreen: vi.fn(() => undefined), webkitRequestFullscreen: vi.fn() };
+    await toggleFullscreen({}, el, undefined);
+    expect(el.requestFullscreen).toHaveBeenCalledTimes(1);
+    expect(el.webkitRequestFullscreen).not.toHaveBeenCalled();
+  });
+
+  it('exits only via the standard API when it returns undefined', async () => {
+    const doc = { fullscreenElement: {}, exitFullscreen: vi.fn(() => undefined), webkitExitFullscreen: vi.fn() };
+    await toggleFullscreen(doc, {}, undefined);
+    expect(doc.exitFullscreen).toHaveBeenCalledTimes(1);
+    expect(doc.webkitExitFullscreen).not.toHaveBeenCalled();
+  });
+
+  it('calls the chosen method on its own element and document', async () => {
+    const receivers = [];
+    const stdEl = { requestFullscreen: function () { receivers.push(this); } };
+    await toggleFullscreen({}, stdEl, undefined);
+    expect(receivers[0]).toBe(stdEl);
+
+    const webkitEl = { webkitRequestFullscreen: function () { receivers.push(this); } };
+    await toggleFullscreen({}, webkitEl, undefined);
+    expect(receivers[1]).toBe(webkitEl);
+
+    const doc = { fullscreenElement: {}, exitFullscreen: function () { receivers.push(this); } };
+    await toggleFullscreen(doc, {}, undefined);
+    expect(receivers[2]).toBe(doc);
+  });
+
   it('swallows a rejecting orientation.lock', async () => {
     const el = { requestFullscreen: vi.fn().mockResolvedValue() };
     const orientation = { lock: vi.fn().mockRejectedValue(new Error('NotSupportedError')) };

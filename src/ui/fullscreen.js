@@ -18,11 +18,13 @@ async function lockLandscape(orientation) {
   }
 }
 
+// Pick one method, then call it: `?.() ?? ?.()` would fall through on an undefined
+// return and call both. `.call` keeps the receiver, since DOM methods throw unbound.
 export async function toggleFullscreen(doc, el, orientation) {
   if (isFullscreen(doc)) {
-    await (doc.exitFullscreen?.() ?? doc.webkitExitFullscreen?.());
+    await (doc.exitFullscreen ?? doc.webkitExitFullscreen)?.call(doc);
     return;
   }
-  await (el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.());
+  await (el.requestFullscreen ?? el.webkitRequestFullscreen)?.call(el);
   await lockLandscape(orientation);
 }
