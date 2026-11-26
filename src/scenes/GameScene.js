@@ -2460,6 +2460,7 @@ export default class GameScene extends Phaser.Scene {
   // Move: the barracks' range ring at the free pad a tap would land on, bad at the
   // cursor when none is in reach, and bad on the barracks itself when the cursor is
   // within TAP_TOWER_RADIUS of it (that tap cancels). Rally wins if both flags are somehow set.
+  // Bad marks (halo included) draw at badAlpha, full: at ghostAlpha the red blends into warm maps.
   _drawRallyOverlay() {
     const g = this._rallyOverlayGfx;
     if (!g) return;
@@ -2469,11 +2470,14 @@ export default class GameScene extends Phaser.Scene {
     const b = this.rallyBarracks;
     if (this.rallyMode && b) {
       const t = this._rallyTarget(x, y);
-      g.lineStyle(RALLY_FLAG.lineWidth + 2 * RALLY_FLAG.haloPx, RALLY_HALO, RALLY_FLAG.ghostAlpha);
+      const ringBad = t.onRoad && !t.inRange;
+      const ringAlpha = ringBad ? RALLY_FLAG.badAlpha : RALLY_FLAG.ghostAlpha;
+      g.lineStyle(RALLY_FLAG.lineWidth + 2 * RALLY_FLAG.haloPx, RALLY_HALO, ringAlpha);
       g.strokeCircle(b.x, b.y, b.range);
-      g.lineStyle(RALLY_FLAG.lineWidth, t.onRoad && !t.inRange ? RALLY_BAD : RALLY_OK, RALLY_FLAG.ghostAlpha);
+      g.lineStyle(RALLY_FLAG.lineWidth, ringBad ? RALLY_BAD : RALLY_OK, ringAlpha);
       g.strokeCircle(b.x, b.y, b.range);
-      this._drawFlag(g, t.onRoad ? t.point : { x, y }, t.valid ? RALLY_OK : RALLY_BAD, RALLY_FLAG.ghostAlpha);
+      this._drawFlag(g, t.onRoad ? t.point : { x, y }, t.valid ? RALLY_OK : RALLY_BAD,
+        t.valid ? RALLY_FLAG.ghostAlpha : RALLY_FLAG.badAlpha);
       return;
     }
     const mover = this.repositioningBarracks;
@@ -2484,9 +2488,10 @@ export default class GameScene extends Phaser.Scene {
       const slot = cancels ? null : this.placementManager.getNearestSlot(x, y, REPOSITION_SNAP_RADIUS, true);
       const cx = cancels ? mover.x : slot ? slot.x : x;
       const cy = cancels ? mover.y : slot ? slot.y : y;
-      g.lineStyle(RALLY_FLAG.lineWidth + 2 * RALLY_FLAG.haloPx, RALLY_HALO, RALLY_FLAG.ghostAlpha);
+      const ringAlpha = slot ? RALLY_FLAG.ghostAlpha : RALLY_FLAG.badAlpha;
+      g.lineStyle(RALLY_FLAG.lineWidth + 2 * RALLY_FLAG.haloPx, RALLY_HALO, ringAlpha);
       g.strokeCircle(cx, cy, mover.range);
-      g.lineStyle(RALLY_FLAG.lineWidth, slot ? RALLY_OK : RALLY_BAD, RALLY_FLAG.ghostAlpha);
+      g.lineStyle(RALLY_FLAG.lineWidth, slot ? RALLY_OK : RALLY_BAD, ringAlpha);
       g.strokeCircle(cx, cy, mover.range);
     }
   }

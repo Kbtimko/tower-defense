@@ -165,8 +165,8 @@ describe('reposition overlay (#63, map 0)', () => {
     s._drawRallyOverlay();
     const r = rings(overlay(s));
     expect(r).toHaveLength(2);
-    expect(r[0]).toEqual({ x: cursor.x, y: cursor.y, r: b.range, width: HALO_WIDTH, colour: HALO, alpha: RALLY_FLAG.ghostAlpha });
-    expect(r[1]).toEqual({ x: cursor.x, y: cursor.y, r: b.range, width: RALLY_FLAG.lineWidth, colour: BAD, alpha: RALLY_FLAG.ghostAlpha });
+    expect(r[0]).toEqual({ x: cursor.x, y: cursor.y, r: b.range, width: HALO_WIDTH, colour: HALO, alpha: RALLY_FLAG.badAlpha });
+    expect(r[1]).toEqual({ x: cursor.x, y: cursor.y, r: b.range, width: RALLY_FLAG.lineWidth, colour: BAD, alpha: RALLY_FLAG.badAlpha });
   });
 
   it('starting move mode draws at once and seeds the cursor on the barracks', () => {
@@ -298,8 +298,8 @@ describe('move-mode tap on the barracks cancels (#89, map 5)', () => {
     const r = rings(overlay(s));
     const to = padXY(s, NEIGHBOUR);
     expect(r).toHaveLength(2);
-    expect(r[0]).toEqual({ x: b.x, y: b.y, r: b.range, width: HALO_WIDTH, colour: HALO, alpha: RALLY_FLAG.ghostAlpha });
-    expect(r[1]).toEqual({ x: b.x, y: b.y, r: b.range, width: RALLY_FLAG.lineWidth, colour: BAD, alpha: RALLY_FLAG.ghostAlpha });
+    expect(r[0]).toEqual({ x: b.x, y: b.y, r: b.range, width: HALO_WIDTH, colour: HALO, alpha: RALLY_FLAG.badAlpha });
+    expect(r[1]).toEqual({ x: b.x, y: b.y, r: b.range, width: RALLY_FLAG.lineWidth, colour: BAD, alpha: RALLY_FLAG.badAlpha });
     expect(ringAt(r, to.x, to.y)).toEqual([]);
   });
 
@@ -311,6 +311,7 @@ describe('move-mode tap on the barracks cancels (#89, map 5)', () => {
     expect(r).toHaveLength(2);
     expect(ringAt(r, b.x, b.y)).toHaveLength(2);
     expect(r[1].colour).toBe(BAD);
+    expect([r[0].alpha, r[1].alpha]).toEqual([RALLY_FLAG.badAlpha, RALLY_FLAG.badAlpha]);
   });
 
   it('the ghost 23 px out is the move ring on the neighbour', () => {

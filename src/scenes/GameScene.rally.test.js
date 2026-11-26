@@ -487,9 +487,9 @@ describe('rally overlay (R15, S1, S2, S5)', () => {
     expect(ghostAt(near.x, near.y + 5)).toEqual([{ x: inSnap.x, y: inSnap.y, colour: OK, alpha: RALLY_FLAG.ghostAlpha }]);
     const far = road(s, OUT_OF_RANGE);
     const farSnap = road(s, snapped(s, far));
-    expect(ghostAt(far.x, far.y)).toEqual([{ x: farSnap.x, y: farSnap.y, colour: BAD, alpha: RALLY_FLAG.ghostAlpha }]);
+    expect(ghostAt(far.x, far.y)).toEqual([{ x: farSnap.x, y: farSnap.y, colour: BAD, alpha: RALLY_FLAG.badAlpha }]);
     // Off the road the ghost is un-snapped, at the cursor.
-    expect(ghostAt(OFF_ROAD.x, OFF_ROAD.y)).toEqual([{ x: OFF_ROAD.x, y: OFF_ROAD.y, colour: BAD, alpha: RALLY_FLAG.ghostAlpha }]);
+    expect(ghostAt(OFF_ROAD.x, OFF_ROAD.y)).toEqual([{ x: OFF_ROAD.x, y: OFF_ROAD.y, colour: BAD, alpha: RALLY_FLAG.badAlpha }]);
   });
 });
 
@@ -816,16 +816,20 @@ describe('rally visuals sit on a halo (ruling 15)', () => {
   it('the range ring and the ghost flag draw their halo first, then the colour', () => {
     const s = level();
     const b = buildBarracks(s);
-    for (const [where, colour] of [[road(s, IN_RANGE), OK], [road(s, OUT_OF_RANGE), BAD], [OFF_ROAD, BAD]]) {
+    const { ghostAlpha: ok, badAlpha: bad } = RALLY_FLAG;
+    // [cursor, ring colour, ring alpha, flag colour, flag alpha]: off the road the ring is OK but the flag is bad.
+    for (const [where, ringColour, ringAlpha, flagColour, flagAlpha] of [
+      [road(s, IN_RANGE), OK, ok, OK, ok], [road(s, OUT_OF_RANGE), BAD, bad, BAD, bad], [OFF_ROAD, OK, ok, BAD, bad],
+    ]) {
       enterRally(s, b);
       s._buildCursorX = where.x; s._buildCursorY = where.y;
       frame(s);
       const ms = marks(overlay(s));
       const rings = ms.filter(k => k.m === 'strokeCircle');
       expect(rings.map(k => k.a)).toEqual([[b.x, b.y, b.range], [b.x, b.y, b.range]]);
-      expect(rings[0]).toMatchObject({ colour: HALO, width: RALLY_FLAG.lineWidth + 2 * RALLY_FLAG.haloPx, alpha: RALLY_FLAG.ghostAlpha });
-      expect(rings[1]).toMatchObject({ width: RALLY_FLAG.lineWidth, alpha: RALLY_FLAG.ghostAlpha });
-      expectFlagOnHalo(ms, colour, RALLY_FLAG.ghostAlpha);
+      expect(rings[0]).toMatchObject({ colour: HALO, width: RALLY_FLAG.lineWidth + 2 * RALLY_FLAG.haloPx, alpha: ringAlpha });
+      expect(rings[1]).toMatchObject({ colour: ringColour, width: RALLY_FLAG.lineWidth, alpha: ringAlpha });
+      expectFlagOnHalo(ms, flagColour, flagAlpha);
       s._cancelMode();
     }
   });
