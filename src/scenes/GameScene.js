@@ -1583,6 +1583,8 @@ export default class GameScene extends Phaser.Scene {
     const slot = this.placementManager.getNearestSlot(mx, my, REPOSITION_SNAP_RADIUS, true);
     this.repositionMode = false;
     this.repositioningBarracks = null;
+    // Clears the ring now: under a user pause update() does not run.
+    this._drawRallyOverlay();
     // No valid target — cancel reposition silently.
     if (!slot) return;
     // Free the old slot, occupy the new one, move barracks.
@@ -1655,12 +1657,12 @@ export default class GameScene extends Phaser.Scene {
   // rally or Move, or the next tap would still go to it and the build would be
   // silently ignored. Callers sync Cancel afterwards.
   _leaveBarracksModes() {
+    const had = this.repositionMode || this.rallyMode;
     this.repositionMode = false;
     this.repositioningBarracks = null;
-    if (!this.rallyMode) return;
     this.rallyMode = false;
     this.rallyBarracks = null;
-    this._drawRallyOverlay();
+    if (had) this._drawRallyOverlay();
   }
 
   // Escape arrives here for every press; with no mode it must not swallow it,
@@ -2026,8 +2028,13 @@ export default class GameScene extends Phaser.Scene {
     this._closeRadial();
     this.repositionMode = true;
     this.repositioningBarracks = barracks;
+    // The first frame previews a tap on the barracks itself: its nearest free pad in reach, else a bad ring on its own pad.
+    this._buildCursorX = barracks.x;
+    this._buildCursorY = barracks.y;
     this._syncCancelButton();
     this._redrawZones();
+    // Drawn now as well as per frame: under a user pause update() does not run.
+    this._drawRallyOverlay();
     // _repositionTo snaps the tap to the nearest free pad and moves the barracks there.
     this._toast('Tap a free pad to move the barracks there');
   }
@@ -2401,18 +2408,6 @@ export default class GameScene extends Phaser.Scene {
         this.gfx.strokeCircle(cx, cy, radius);
       }
     }
-
-    if (this.repositionMode && this.repositioningBarracks) {
-      const b = this.repositioningBarracks;
-      this.gfx.lineStyle(2, 0x4fc3f7, 0.7);
-      this.gfx.strokeCircle(b.x, b.y, b.range);
-      for (const pt of this.pathMgr.getPathPoints()) {
-        if (Math.hypot(pt.x - b.x, pt.y - b.y) <= b.range) {
-          this.gfx.fillStyle(0x4fc3f7, 0.45);
-          this.gfx.fillCircle(pt.x, pt.y, 6);
-        }
-      }
-    }
   }
 
   _drawSelectionRing() {
@@ -2455,24 +2450,39 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  // Range ring plus a ghost flag at the snapped road point: OK colour when valid,
-  // bad when out of range, and un-snapped at the cursor when off the road (S2).
-  // The ring turns bad too when the ghost is on the road but past it, so the
-  // ring itself says what is wrong (ruling 15).
+  // Draws both modes' ghosts. Rally: range ring plus a ghost flag at the snapped
+  // road point, OK colour when valid, bad when out of range, and un-snapped at the
+  // cursor when off the road (S2). The ring turns bad too when the ghost is on the
+  // road but past it, so the ring itself says what is wrong (ruling 15).
+  // Move: the barracks' range ring at the free pad a tap would land on, bad at the
+  // cursor when none is in reach. Rally wins if both flags are somehow set.
   _drawRallyOverlay() {
     const g = this._rallyOverlayGfx;
     if (!g) return;
     g.clear();
-    const b = this.rallyBarracks;
-    if (!this.rallyMode || !b) return;
     const x = this._buildCursorX;
     const y = this._buildCursorY;
-    const t = this._rallyTarget(x, y);
-    g.lineStyle(RALLY_FLAG.lineWidth + 2 * RALLY_FLAG.haloPx, RALLY_HALO, RALLY_FLAG.ghostAlpha);
-    g.strokeCircle(b.x, b.y, b.range);
-    g.lineStyle(RALLY_FLAG.lineWidth, t.onRoad && !t.inRange ? RALLY_BAD : RALLY_OK, RALLY_FLAG.ghostAlpha);
-    g.strokeCircle(b.x, b.y, b.range);
-    this._drawFlag(g, t.onRoad ? t.point : { x, y }, t.valid ? RALLY_OK : RALLY_BAD, RALLY_FLAG.ghostAlpha);
+    const b = this.rallyBarracks;
+    if (this.rallyMode && b) {
+      const t = this._rallyTarget(x, y);
+      g.lineStyle(RALLY_FLAG.lineWidth + 2 * RALLY_FLAG.haloPx, RALLY_HALO, RALLY_FLAG.ghostAlpha);
+      g.strokeCircle(b.x, b.y, b.range);
+      g.lineStyle(RALLY_FLAG.lineWidth, t.onRoad && !t.inRange ? RALLY_BAD : RALLY_OK, RALLY_FLAG.ghostAlpha);
+      g.strokeCircle(b.x, b.y, b.range);
+      this._drawFlag(g, t.onRoad ? t.point : { x, y }, t.valid ? RALLY_OK : RALLY_BAD, RALLY_FLAG.ghostAlpha);
+      return;
+    }
+    const mover = this.repositioningBarracks;
+    if (this.repositionMode && mover) {
+      // The exact call _repositionTo makes, so the ring never lies about where a tap lands.
+      const slot = this.placementManager.getNearestSlot(x, y, REPOSITION_SNAP_RADIUS, true);
+      const cx = slot ? slot.x : x;
+      const cy = slot ? slot.y : y;
+      g.lineStyle(RALLY_FLAG.lineWidth + 2 * RALLY_FLAG.haloPx, RALLY_HALO, RALLY_FLAG.ghostAlpha);
+      g.strokeCircle(cx, cy, mover.range);
+      g.lineStyle(RALLY_FLAG.lineWidth, slot ? RALLY_OK : RALLY_BAD, RALLY_FLAG.ghostAlpha);
+      g.strokeCircle(cx, cy, mover.range);
+    }
   }
 
   // Derived from barracks state every frame (S10), so a sold barracks leaves
