@@ -156,13 +156,17 @@ describe('reposition overlay (#63, map 0)', () => {
     const free = zones.filter(z => !z.occupied);
     expect(free.every(z => Math.hypot(z.cx - b.x, z.cy - b.y) > REPOSITION_SNAP_RADIUS)).toBe(true);
     expect(s.placementManager.getNearestSlot(b.x, b.y, REPOSITION_SNAP_RADIUS, true)).toBeFalsy();
-    s._buildCursorX = b.x;
-    s._buildCursorY = b.y;
+    // Outside TAP_TOWER_RADIUS, or the cancel branch (ring on the barracks) would be exercised instead.
+    const cursor = { x: 10, y: 10 };
+    expect(Math.hypot(cursor.x - b.x, cursor.y - b.y)).toBeGreaterThanOrEqual(TAP_TOWER_RADIUS);
+    expect(s.placementManager.getNearestSlot(cursor.x, cursor.y, REPOSITION_SNAP_RADIUS, true)).toBeFalsy();
+    s._buildCursorX = cursor.x;
+    s._buildCursorY = cursor.y;
     s._drawRallyOverlay();
     const r = rings(overlay(s));
     expect(r).toHaveLength(2);
-    expect(r[0]).toMatchObject({ x: b.x, y: b.y, r: b.range, width: HALO_WIDTH, colour: HALO, alpha: RALLY_FLAG.ghostAlpha });
-    expect(r[1]).toMatchObject({ x: b.x, y: b.y, r: b.range, width: RALLY_FLAG.lineWidth, colour: BAD, alpha: RALLY_FLAG.ghostAlpha });
+    expect(r[0]).toEqual({ x: cursor.x, y: cursor.y, r: b.range, width: HALO_WIDTH, colour: HALO, alpha: RALLY_FLAG.ghostAlpha });
+    expect(r[1]).toEqual({ x: cursor.x, y: cursor.y, r: b.range, width: RALLY_FLAG.lineWidth, colour: BAD, alpha: RALLY_FLAG.ghostAlpha });
   });
 
   it('starting move mode draws at once and seeds the cursor on the barracks', () => {

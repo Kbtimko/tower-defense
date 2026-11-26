@@ -2458,7 +2458,8 @@ export default class GameScene extends Phaser.Scene {
   // cursor when off the road (S2). The ring turns bad too when the ghost is on the
   // road but past it, so the ring itself says what is wrong (ruling 15).
   // Move: the barracks' range ring at the free pad a tap would land on, bad at the
-  // cursor when none is in reach. Rally wins if both flags are somehow set.
+  // cursor when none is in reach, and bad on the barracks itself when the cursor is
+  // within TAP_TOWER_RADIUS of it (that tap cancels). Rally wins if both flags are somehow set.
   _drawRallyOverlay() {
     const g = this._rallyOverlayGfx;
     if (!g) return;
