@@ -108,7 +108,7 @@ function makeScene({ gold = 500, mapId = TIER2_MAP, mods = {} } = {}) {
     _towerRangeMult: mods.towerRangeMult ?? 1, _towerCostMult: mods.towerCostMult ?? 1,
     economy,
     placementManager: new TowerPlacementManager(zones, economy, (type, s, opts) => fakeTower(type, opts), mods),
-    waveMgr: { currentWave: 0 },
+    waveMgr: { currentWave: 0, waves: [] },
     pathMgr: { isOnPath: () => true, getNearestPathProgress: () => 0.5, getPathPoints: () => [] },
     hero: {
       dead: false, level: 5, _timers: { w: 0 }, moveToProgress: vi.fn(),

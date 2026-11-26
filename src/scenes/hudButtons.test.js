@@ -90,7 +90,7 @@ describe('affordability dimming', () => {
   function hudScene(gold) {
     const gs = Object.create(GameScene.prototype);
     gs.economy = { gold, lives: 20 };
-    gs.waveMgr = { currentWave: 0 };
+    gs.waveMgr = { currentWave: 0, waves: [] };
     gs.mapId = 0;
     gs.kills = 0;
     return gs;
