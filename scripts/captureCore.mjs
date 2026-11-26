@@ -105,3 +105,12 @@ export async function shootBestFrame(page, { fromSimMs, toSimMs, file, midBand, 
   const { errors, towers } = await page.evaluate(() => ({ errors: window.__capture.errors, towers: window.__capture.towers }));
   return { best, total, simMs, centroid, board, errors, towers };
 }
+
+// A march's elapsed game time vs distance / speed. The tolerance is one frame because
+// the first and last polls each land on a frame boundary, so either end can be off by
+// up to a frame's worth of game time.
+export function marchTimeProblem({ elapsedMs, arcPx, speed, frameMs }) {
+  const expectedMs = (arcPx / speed) * 1000;
+  if (Math.abs(elapsedMs - expectedMs) <= frameMs) return null;
+  return `march took ${Math.round(elapsedMs)} ms of game time for ${Math.round(arcPx)} px; at ${speed} px/s that is ${Math.round(expectedMs)} ± ${frameMs} ms`;
+}

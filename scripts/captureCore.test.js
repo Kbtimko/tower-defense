@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { shootBestFrame } from './captureCore.mjs';
+import { shootBestFrame, marchTimeProblem } from './captureCore.mjs';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -27,5 +27,27 @@ describe('shootBestFrame deadline', () => {
     const page = stalledPage([100, 200, 300]);
     await expect(shootBestFrame(page, { fromSimMs: 0, toSimMs: 1000, file: 'x.png', midBand: { from: 0.15, to: 0.85 }, label: 'map 1 shot' }))
       .rejects.toThrow(/map 1 shot: sim time never reached 1000 ms \(stopped at 300 ms\)/);
+  });
+});
+
+describe('marchTimeProblem', () => {
+  // 150 px at 60 px/s is 2500 ms of game time.
+  const base = { arcPx: 150, speed: 60, frameMs: 200 };
+  it('passes an on-speed march, and one frame either side (inclusive)', () => {
+    expect(marchTimeProblem({ ...base, elapsedMs: 2500 })).toBeNull();
+    expect(marchTimeProblem({ ...base, elapsedMs: 2300 })).toBeNull();
+    expect(marchTimeProblem({ ...base, elapsedMs: 2700 })).toBeNull();
+  });
+  it('flags a march one ms past a frame late or early', () => {
+    expect(marchTimeProblem({ ...base, elapsedMs: 2701 })).toMatch(/2701/);
+    expect(marchTimeProblem({ ...base, elapsedMs: 2299 })).toMatch(/2299/);
+  });
+  it('flags a slow march (0.7x speed) and a near-teleport, naming expected and tolerance', () => {
+    const slow = marchTimeProblem({ ...base, elapsedMs: 3571 });
+    expect(slow).toMatch(/3571/);
+    expect(slow).toMatch(/150 px/);
+    expect(slow).toMatch(/2500/);
+    expect(slow).toMatch(/200/);
+    expect(marchTimeProblem({ ...base, elapsedMs: 17 })).toMatch(/17 ms/);
   });
 });
