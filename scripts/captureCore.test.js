@@ -32,7 +32,7 @@ describe('shootBestFrame deadline', () => {
 
 describe('marchTimeProblem', () => {
   // 150 px at 60 px/s is 2500 ms of game time.
-  const base = { arcPx: 150, speed: 60, frameMs: 200 };
+  const base = { arcPx: 150, speed: 60, toleranceMs: 200 };
   it('passes an on-speed march, and one frame either side (inclusive)', () => {
     expect(marchTimeProblem({ ...base, elapsedMs: 2500 })).toBeNull();
     expect(marchTimeProblem({ ...base, elapsedMs: 2300 })).toBeNull();
