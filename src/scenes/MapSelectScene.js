@@ -366,10 +366,7 @@ export default class MapSelectScene extends Phaser.Scene {
     this._root.style.setProperty('--wm-light-ms', `${ARRIVAL.lightMs}ms`);
   }
 
-  // Re-measure, recompute the frame, publish the --wm-* vars, place the nodes and
-  // tags, redraw. Bound to resize / orientationchange / fonts loadingdone.
-  // A rotation fires resize, orientationchange and a fonts event in quick
-  // succession; one frame-aligned layout serves them all.
+  // A resize burst (resize + orientationchange + fonts) re-lays out once, on the next frame.
   _scheduleLayout() {
     if (this._layoutRaf) return;
     this._layoutRaf = requestAnimationFrame(() => {
@@ -378,6 +375,8 @@ export default class MapSelectScene extends Phaser.Scene {
     });
   }
 
+  // Re-measure, recompute the frame, publish the --wm-* vars, place the nodes and
+  // tags, redraw. Runs from _scheduleLayout.
   _layout() {
     if (!this._renderer) return;
     const { origin, box, viewport } = this._measure();

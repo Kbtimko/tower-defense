@@ -125,6 +125,8 @@ export class WorldMapRenderer {
       if (this._viewport) {
         this._far = this._layer((ctx) => paintFar(ctx, this._viewport, img));
         this._painted = null;
+        // As in resize: the idle cap would otherwise delay the new far layer.
+        this._space.redraw();
       }
     };
     img.src = url;

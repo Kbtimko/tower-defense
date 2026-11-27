@@ -126,6 +126,20 @@ describe('WorldMapRenderer', () => {
     expect(redraw).toHaveBeenCalledTimes(2);
   });
 
+  it('art onload redraws the backdrop at once', () => {
+    const images = [];
+    vi.stubGlobal('Image', class { set src(v) { this._src = v; images.push(this); } });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => recordingCtx(log));
+    const r = new WorldMapRenderer({
+      backdrop: document.createElement('canvas'), story: document.createElement('canvas'), maxDpr: 2, source: 'art.png',
+    });
+    r.resize(frame, viewport);
+    const redraw = vi.spyOn(SpaceCanvas.prototype, 'redraw');
+    expect(images).toHaveLength(1);
+    images[0].onload();
+    expect(redraw).toHaveBeenCalledTimes(1);
+  });
+
   describe('backdrop loop', () => {
     let frames;
 
