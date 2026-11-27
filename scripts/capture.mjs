@@ -40,7 +40,7 @@ import { build, preview } from 'vite';
 import { chromium, devices } from 'playwright';
 import { DEVICES } from './captureDevices.mjs';
 import { startStaticServer } from './staticServer.mjs';
-import { captureUrl, watchProblems, shootBusiestFrame, contextOptions } from './captureCore.mjs';
+import { captureUrl, watchProblems, shootBusiestFrame, contextOptions, marchTimeProblem } from './captureCore.mjs';
 import { MAPS } from '../src/data/maps.js';
 import { MAP_WAVES } from '../src/data/waves.js';
 import { TOWER_DEFS } from '../src/data/towers.js';
@@ -1495,7 +1495,7 @@ function rallyPlan() {
         && dist(px) > TAP_TOWER_RADIUS && Math.abs(pm.getNearestPathProgress(q.x, q.y) - (p0 + px / total)) * total < RALLY_SNAP_PX;
     });
     if (!usable) continue;
-    return { pad, centre, ghost: at(points.ghost), out: at(points.out), march: at(marchPx), marchArcPx: Math.abs(marchPx) };
+    return { pad, centre, ghost: at(points.ghost), out: at(points.out), march: at(marchPx), marchArcPx: Math.abs(marchPx), totalPx: total };
   }
   throw new Error(`map ${RALLY_MAP}: no pad whose barracks ring covers road on both sides of its rally point`);
 }
@@ -1557,9 +1557,28 @@ function captureRally(browser, base, deviceName, dir) {
 
     // (d) A valid tap at the far end of the ring: the squad walks, it doesn't teleport.
     const [before] = await page.evaluate(() => window.__capture.rally);
+    await page.evaluate(() => {
+      // Both ends of the march, sampled every frame in the page: a Node-side poll would
+      // start late after the tap's and the mid-walk screenshot's round trips.
+      const rec = window.__marchRec = { startSim: null, endSim: null, maxFrameMs: 0 };
+      let last = window.__capture.simMs;
+      const tick = () => {
+        const sim = window.__capture.simMs;
+        const marching = window.__capture.rally[0]?.marching === true;
+        if (rec.startSim === null) { if (marching) rec.startSim = sim; }
+        else {
+          rec.maxFrameMs = Math.max(rec.maxFrameMs, sim - last);
+          if (!marching) { rec.endSim = sim; return; }
+        }
+        last = sim;
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
     await tapGamePoint(page, deviceName, plan.march.x, plan.march.y);
     await untilGameTime(page, () => window.__capture.rally[0]?.marching === true, null,
       { gameMs: 0, label: '(d) the squad never marched after a valid rally tap' });
+    // These budgets only bound a hang; the march's speed is checked in (e).
     const walkMs = (plan.marchArcPx / SOLDIER_MARCH.speed) * 1000;
     // Mid-walk for the shot, so the route, the flag and the moving squad all show.
     await untilGameTime(page, from => {
@@ -1575,6 +1594,10 @@ function captureRally(browser, base, deviceName, dir) {
     }, null, { gameMs: walkMs, label: '(e) the squad never arrived at the flag' });
     const off = done.soldiers.filter(s => s.dead || s.progress !== done.target);
     if (off.length) throw new Error(`(e) ${off.length} soldier(s) off the flag at ${done.target}: ${JSON.stringify(off)}`);
+    const arcPx = Math.abs(done.target - before.target) * plan.totalPx;
+    const rec = await (await page.waitForFunction(() => window.__marchRec.endSim !== null && window.__marchRec, null, { timeout: 5_000 })).jsonValue();
+    const problem = marchTimeProblem({ elapsedMs: rec.endSim - rec.startSim, arcPx, speed: SOLDIER_MARCH.speed, toleranceMs: 2 * rec.maxFrameMs });
+    if (problem) throw new Error(`(e) ${problem}`);
     await expectVisible(page, '#cancel-btn', false, 0);
   });
 }

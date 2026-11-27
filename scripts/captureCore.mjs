@@ -105,3 +105,13 @@ export async function shootBestFrame(page, { fromSimMs, toSimMs, file, midBand, 
   const { errors, towers } = await page.evaluate(() => ({ errors: window.__capture.errors, towers: window.__capture.towers }));
   return { best, total, simMs, centroid, board, errors, towers };
 }
+
+// A march's elapsed game time vs distance / speed. The caller passes two of the largest
+// frames seen during the march as the tolerance: the capture write runs before the
+// soldiers step (so a sample's simMs is one frame ahead of its rally state), and the
+// last frame overshoots arrival.
+export function marchTimeProblem({ elapsedMs, arcPx, speed, toleranceMs }) {
+  const expectedMs = (arcPx / speed) * 1000;
+  if (Math.abs(elapsedMs - expectedMs) <= toleranceMs) return null;
+  return `march took ${Math.round(elapsedMs)} ms of game time for ${Math.round(arcPx)} px; at ${speed} px/s that is ${Math.round(expectedMs)} ± ${toleranceMs} ms`;
+}
