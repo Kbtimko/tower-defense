@@ -519,6 +519,9 @@ describe('MapSelectScene post-win arrival (spec 2.3)', () => {
       vi.advanceTimersByTime(t);
       sizeMapSelect(750, 340);
       window.dispatchEvent(new Event('resize'));
+      // The re-layout runs on the next frame; it redraws the arrival at t + one frame.
+      render.mockClear();
+      vi.advanceTimersByTime(FRAME_MS);
       expect(arrival()).toBe('playing');
       const f = arrivalFrame(planArrival({ from: FIRST_CLEAR_0, stars: AFTER_FIRST_CLEAR }), t);
       expect(f.shipT).toBeGreaterThan(0);

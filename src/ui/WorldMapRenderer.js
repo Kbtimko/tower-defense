@@ -53,6 +53,8 @@ export class WorldMapRenderer {
     this._painted = null;
     this._fitStory();
     this._space.start(this._drawBackdrop);
+    // start is a no-op once running, and the idle cap would delay the new layers.
+    this._space.redraw();
     if (this._state) this.render(this._state);
   }
 

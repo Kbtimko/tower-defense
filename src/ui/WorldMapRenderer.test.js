@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { WorldMapRenderer } from './WorldMapRenderer.js';
+import { SpaceCanvas } from './SpaceCanvas.js';
 import { HAZE, TRAIL, STARS_MAP } from '../data/worldMap.js';
 import { PALETTE } from '../data/theme.js';
 import { splitRoute } from '../systems/worldRoute.js';
@@ -113,6 +114,16 @@ describe('WorldMapRenderer', () => {
     expect(raf.size).toBe(1);
     r.destroy();
     expect(raf.size).toBe(0);
+  });
+
+  it('resize redraws the backdrop at once, also on a second resize', () => {
+    const redraw = vi.spyOn(SpaceCanvas.prototype, 'redraw');
+    const r = make();
+    redraw.mockClear();
+    r.resize(frame, viewport);
+    expect(redraw).toHaveBeenCalledTimes(1);
+    r.resize(frame, viewport);
+    expect(redraw).toHaveBeenCalledTimes(2);
   });
 
   describe('backdrop loop', () => {

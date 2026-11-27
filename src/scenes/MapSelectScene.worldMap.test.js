@@ -273,6 +273,7 @@ describe('MapSelectScene world map', () => {
       const q = sizeQuote(180);
       expect(q.classList.contains('fq-more')).toBe(false);
       window.dispatchEvent(new Event('resize'));
+      vi.advanceTimersByTime(32);
       expect(q.classList.contains('fq-more')).toBe(true);
     });
   });
@@ -401,9 +402,53 @@ describe('MapSelectScene world map', () => {
       enter();
       sizeMapSelect(750, 340);
       window.dispatchEvent(new Event('resize'));
+      vi.advanceTimersByTime(32);
       expect($('#map-select').style.getPropertyValue('--wm-node')).toBe(`${LAYOUT.node.compact.d}px`);
       const pts = routePoints(routeFrameFor({ width: 750, height: 340 }, 'compact'), ROUTE);
       expect($('.ow-node[data-map-id="0"]').style.left).toBe(`${pts[1].x}px`);
+    });
+  });
+
+  describe('re-layout coalescing (#54c)', () => {
+    let frames;
+    const flush = () => { while (frames.length) frames.shift().fn(16); };
+
+    beforeEach(() => {
+      frames = [];
+      let next = 1;
+      vi.stubGlobal('requestAnimationFrame', (fn) => { const id = next++; frames.push({ id, fn }); return id; });
+      vi.stubGlobal('cancelAnimationFrame', (id) => { frames = frames.filter(f => f.id !== id); });
+    });
+
+    it('three resize events run _layout once, on the next frame', () => {
+      enter();
+      const layout = vi.spyOn(MapSelectScene.prototype, '_layout');
+      window.dispatchEvent(new Event('resize'));
+      window.dispatchEvent(new Event('orientationchange'));
+      window.dispatchEvent(new Event('resize'));
+      expect(layout).toHaveBeenCalledTimes(0);
+      flush();
+      expect(layout).toHaveBeenCalledTimes(1);
+    });
+
+    it('a fonts loadingdone schedules too', () => {
+      const fonts = new EventTarget();
+      Object.defineProperty(document, 'fonts', { value: fonts, configurable: true });
+      enter();
+      const layout = vi.spyOn(MapSelectScene.prototype, '_layout');
+      fonts.dispatchEvent(new Event('loadingdone'));
+      expect(layout).toHaveBeenCalledTimes(0);
+      flush();
+      expect(layout).toHaveBeenCalledTimes(1);
+    });
+
+    it('shutdown with a re-layout pending cancels it', () => {
+      const scene = enter();
+      const layout = vi.spyOn(MapSelectScene.prototype, '_layout');
+      window.dispatchEvent(new Event('resize'));
+      scene.shutdown();
+      flush();
+      expect(layout).toHaveBeenCalledTimes(0);
     });
   });
 
