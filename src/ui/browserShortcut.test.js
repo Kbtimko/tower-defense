@@ -8,6 +8,14 @@ describe('isBrowserShortcut', () => {
     expect(isBrowserShortcut(key({ [mod]: true }))).toBe(true);
   });
 
+  it('F5, the bare reload key, belongs to the browser', () => {
+    expect(isBrowserShortcut(new KeyboardEvent('keydown', { key: 'F5' }))).toBe(true);
+  });
+
+  it.each(['ctrlKey', 'metaKey', 'altKey'])('a %s-modified pointer event is not a browser shortcut', (mod) => {
+    expect(isBrowserShortcut(new MouseEvent('pointerdown', { [mod]: true }))).toBe(false);
+  });
+
   it('a plain key is not a browser shortcut', () => {
     expect(isBrowserShortcut(key({}))).toBe(false);
   });

@@ -304,6 +304,23 @@ describe('MapSelectScene world map', () => {
       }
     });
 
+    it('a bare F5 inside inputGuardMs is not swallowed', () => {
+      seedSave(PARTIAL);
+      enter();
+      const ev = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'F5' });
+      document.body.dispatchEvent(ev);
+      expect(ev.defaultPrevented).toBe(false);
+    });
+
+    it('a Ctrl-click inside inputGuardMs is swallowed', () => {
+      seedSave(PARTIAL);
+      const scene = enter();
+      const ev = new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true });
+      $('#featured-play').dispatchEvent(ev);
+      expect(ev.defaultPrevented).toBe(true);
+      expect(scene.scene.start).not.toHaveBeenCalled();
+    });
+
     it.each(['pointerdown', 'pointerup', 'click', 'keydown', 'keyup'])('blocks %s during the window', (type) => {
       seedSave(PARTIAL);
       enter();

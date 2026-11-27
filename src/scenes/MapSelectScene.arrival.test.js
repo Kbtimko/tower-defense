@@ -277,6 +277,26 @@ describe('MapSelectScene post-win arrival (spec 2.3)', () => {
       expect(arrival()).toBe('playing');
     });
 
+    it('a bare F5 mid-arrival is neither prevented nor a skip', () => {
+      seedSave(AFTER_FIRST_CLEAR);
+      enter({ from: FIRST_CLEAR_0 });
+      vi.advanceTimersByTime(LAYOUT.inputGuardMs);
+      const ev = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'F5' });
+      document.body.dispatchEvent(ev);
+      expect(ev.defaultPrevented).toBe(false);
+      expect(arrival()).toBe('playing');
+    });
+
+    it('a Ctrl/Cmd/Alt-click mid-arrival is a skip', () => {
+      seedSave(AFTER_FIRST_CLEAR);
+      enter({ from: FIRST_CLEAR_0 });
+      vi.advanceTimersByTime(LAYOUT.inputGuardMs);
+      const ev = new MouseEvent('pointerdown', { bubbles: true, cancelable: true, ctrlKey: true });
+      node(0).dispatchEvent(ev);
+      expect(ev.defaultPrevented).toBe(true);
+      expect(arrival()).toBe('done');
+    });
+
     it('a skip followed by shutdown leaves zero net document / #map-select listeners', () => {
       const rootLive = trackLive($('#map-select'));
       const docLive = trackLive(document);
