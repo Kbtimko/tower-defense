@@ -26,6 +26,7 @@
 1. **`isBrowserShortcut(e)` is true only for keyboard events** (`e.type` starts with `key`), when Ctrl, Meta or Alt is held **or** `e.key === 'F5'`. Fixing the helper fixes (b), (h), and the guard's matching pointer flaw in one place. The keyboard-only callers are unaffected, apart from F5 now being exempt there too. Neither of them acts on F5 today, so for them it only changes whether F5's propagation is stopped.
 2. **Coalesce re-layout.** The `resize`, `orientationchange` and `loadingdone` listeners call a new `_scheduleLayout()`. It requests one animation frame if none is pending, and that frame runs `_layout()`. `create()` still calls `_layout()` directly, so the first paint isn't delayed. `shutdown()` cancels a pending frame and removes the listeners for `_scheduleLayout`.
 3. **Repaint on resize.** `WorldMapRenderer.resize` calls `this._space.redraw()` right after `this._space.start(...)`, so the new layers paint in the same task. `redraw()` is a frame with dt 0, which already exists for re-layouts.
+   _Added after the final review:_ the art `onload` in `_loadArt` rebuilds only the far layer and never calls `resize`, so it gets the same `redraw()`. On the first `resize` from `create()`, `start` also schedules a tick that repaints once more, which costs one extra full-viewport paint per map entry. That's accepted.
 
 ## Approaches
 
@@ -52,4 +53,5 @@
 | 3 resize events in one frame | `_layout` runs once, on the next frame |
 | shutdown with a re-layout pending | the frame is cancelled; no `_layout` after shutdown |
 | `WorldMapRenderer.resize` on a started canvas | the backdrop is redrawn in the same call |
+| deferred backdrop art finishes loading | the backdrop is redrawn in the `onload` call |
 | `WorldMapRenderer.resize` with no 2D context (jsdom) | no-op, no throw (unchanged) |
