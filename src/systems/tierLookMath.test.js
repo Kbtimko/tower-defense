@@ -101,6 +101,22 @@ describe('emberPose', () => {
     expect(a.dy).toBeCloseTo(
       ground.footY - TIER_EMBERS.startFrac * ground.height - eased * TIER_EMBERS.riseFrac * ground.height, 8);
   });
+  // #69(d): each division sits behind the branch that keeps its divisor non-zero.
+  it('stays finite and in [0, 1] at fadeInFrac 0 and 1', () => {
+    for (const fadeInFrac of [0, 1]) {
+      const cfg = { ...TIER_EMBERS, fadeInFrac };
+      for (let k = 0; k <= 1000; k++) {
+        for (let i = 0; i < cfg.count; i++) {
+          const { alpha } = emberPose((k / 1000) * P * (1 - 1e-9), i, cfg, ground, false);
+          expect(Number.isFinite(alpha)).toBe(true);
+          expect(alpha).toBeGreaterThanOrEqual(0);
+          expect(alpha).toBeLessThanOrEqual(1);
+        }
+      }
+    }
+    expect(emberPose(0, 0, { ...TIER_EMBERS, fadeInFrac: 0 }, ground, false).alpha).toBe(1);
+    expect(emberPose(0, 0, { ...TIER_EMBERS, fadeInFrac: 1 }, ground, false).alpha).toBe(0);
+  });
 });
 
 describe('ringBreath', () => {
