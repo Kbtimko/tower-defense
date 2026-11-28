@@ -674,6 +674,8 @@ export default class MapSelectScene extends Phaser.Scene {
           btn.className = 'ui-btn story-log-entry';
           btn.textContent = e.label;
           btn.addEventListener('click', () => {
+            // The entry is about to be hidden; the dialog returns focus to the opener.
+            openBtn.focus();
             overlay.style.display = 'none';
             this._storyDialog.play(e.id, () => {});
           });

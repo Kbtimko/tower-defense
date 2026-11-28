@@ -521,4 +521,31 @@ describe('MapSelectScene world map', () => {
       }
     });
   });
+
+  describe('Story Log replay focus (#55a)', () => {
+    const replay = () => {
+      seedSave(PARTIAL);
+      const scene = makeScene();
+      scenes.push(scene);
+      scene.create({});
+      passGuard();
+      $('#open-story-log').click();
+      $('.story-log-entry').click();
+      expect($('#story-dialog').style.display).toBe('flex');
+    };
+
+    it('returns focus to #open-story-log when the replay is skipped', () => {
+      replay();
+      $('#story-dialog-skip').click();
+      expect($('#story-dialog').style.display).toBe('none');
+      expect(document.activeElement).toBe($('#open-story-log'));
+    });
+
+    it('returns focus to #open-story-log when the replay is closed by Escape', () => {
+      replay();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      expect($('#story-dialog').style.display).toBe('none');
+      expect(document.activeElement).toBe($('#open-story-log'));
+    });
+  });
 });
