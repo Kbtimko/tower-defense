@@ -69,7 +69,7 @@
 
 - [ ] **Step 2: Run to verify they fail.** `npx vitest run src/entities/Tower.test.js`. Expected: the first two new tests FAIL (strokeCircle found on `_bg`); the fallback tests pass.
 
-- [ ] **Step 3: Implement.** In `_redraw`, move `this._bg.lineStyle(sw, def.color, 1);` and `this._bg.strokeCircle(0, 0, 18);` inside the `if (!this._sprite?.active)` block. Replace that block's comment with one saying *why*: with art on, the disc would be an opaque plate and the ring clutter over the art; tier reads from the pips, badge and T4 ring instead, which fallback towers lack. In the constructor, change "The tier ring stays." to say the redraw drops the fallback disc and ring.
+- [ ] **Step 3: Implement.** In `_redraw`, move `this._bg.lineStyle(sw, def.color, 1);` and `this._bg.strokeCircle(0, 0, 18);` inside the `if (!this._sprite?.active)` block. Replace that block's comment with one saying *why*: with art on, the disc would be an opaque plate and the ring clutter over the art; tier reads from the pips, badge and T4 ring instead. (Corrected in the fix wave: fallback towers have those too; their ring is kept by choice.) In the constructor, change "The tier ring stays." to say the redraw drops the fallback disc and ring.
 
 - [ ] **Step 4: Run the file, then `npm run test`.** Expected: all PASS. Record file/test counts and the exit code.
 

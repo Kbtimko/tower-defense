@@ -21,8 +21,8 @@ In `_redraw`, the `lineStyle` and `strokeCircle` calls move inside the existing 
 
 ## Approaches
 
-1. **Move the stroke into the fallback branch (chosen).** Fallback towers have no pips, badge or embers on art, so they still need the stroke for tier.
-2. Remove the stroke everywhere. Then an art-less fallback tower shows no tier at all. Rejected.
+1. **Move the stroke into the fallback branch (chosen).** It's what the user picked from the sheet. _Corrected after the final review:_ fallback towers also get the pips, the A/B badge and the T4 ring (`TowerTierLook.setTier` draws pips whether or not there's art; `tierRingPose` ignores art), plus the core glow at T2+. So their ring is kept by choice, not because it's their only tier cue.
+2. Remove the stroke everywhere. This would also be safe, since the fallback has the other tier marks, but it isn't what the sheet showed. Rejected.
 3. Hide `_bg` when art is on. Same pixels, but it adds a visibility state that `_redraw` would have to keep in step. Rejected.
 
 ## Rulings (mine)
@@ -36,5 +36,5 @@ In `_redraw`, the `lineStyle` and `strokeCircle` calls move inside the existing 
 | art on, tier 1 | no stroke, no fill on `_bg` |
 | art on, upgraded to tier 3, then to T4 A/B | still no stroke after each `_redraw` |
 | no art, tier 1 → 3 | fill + stroke; width 1.5 → 3 (unchanged) |
-| barracks with art | no stroke (inherits `_redraw`) |
+| barracks with art | no stroke (inherits `_redraw`; pinned by its own test) |
 | range ring | drawn as before in both cases |
