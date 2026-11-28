@@ -19,7 +19,7 @@ vi.mock('phaser', () => ({
 vi.mock('../data/sprites.js', () => ({
   SPRITE_MANIFEST: [],
   getSpriteConfig: (category, type) =>
-    category === 'tower' && type === 'archer'
+    category === 'tower' && (type === 'archer' || type === 'barracks')
       ? {
           scale: 0.6, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
           ground: { footY: 41.2, width: 37.1 },
@@ -33,6 +33,7 @@ vi.mock('../data/sprites.js', () => ({
 
 import { TOWER_DEFS } from '../data/towers.js';
 import { Tower } from './Tower.js';
+import { Barracks } from './Barracks.js';
 import { BUILD_POP, UPGRADE_POP } from '../data/juice.js';
 import { popScale } from '../systems/juiceMath.js';
 import { TIER_FALLBACK_GROUND } from '../data/tierLooks.js';
@@ -132,6 +133,12 @@ describe('Tower tier ring (#66: fallback only)', () => {
     expect(sinceLastClear(t._bg).some(c => c[0] === 'fillCircle')).toBe(true);
     expect(sinceLastClear(t._bg).some(c => c[0] === 'strokeCircle')).toBe(true);
     expect(t._icon.visible).toBe(true);
+  });
+
+  it('barracks with art draws no tier ring', () => {
+    const b = new Barracks(makeScene(['sprite-tower-barracks-idle', 'sprite-tower-barracks-attack']), { type: 'barracks', x: 0, y: 0, def: TOWER_DEFS.barracks, zoneIndex: 0 });
+    expect(b._sprite.active).toBe(true);
+    expect(sinceLastClear(b._bg).some(c => c[0] === 'strokeCircle')).toBe(false);
   });
 
   it('thickens the fallback ring as the tower upgrades', () => {

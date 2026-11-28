@@ -98,8 +98,8 @@ export class Tower extends Phaser.GameObjects.Container {
     const sw  = [1.5, 2, 3, 4][this.level - 1];
     this._bg.clear();
     // With sprite art the disc would be an opaque plate and the ring would clutter
-    // the art; tier reads from the pips, badge and T4 ring there. Fallback towers
-    // have none of those, so the disc and ring stay for them.
+    // the art; tier reads from the pips, badge and T4 ring. The art-less fallback
+    // keeps both: the disc is its only body, and the ring was kept by choice (#66).
     if (!this._sprite?.active) {
       this._bg.fillStyle(0x2a2a3a, 1);
       this._bg.fillCircle(0, 0, 18);
