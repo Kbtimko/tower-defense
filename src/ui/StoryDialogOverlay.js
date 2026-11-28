@@ -336,7 +336,7 @@ export class StoryDialogOverlay {
     this._portrait.replaceChildren(face);
   }
 
-  // Back to where the player was, unless that element is gone: then focus falls
+  // Back to where the player was, unless that element is gone or hidden: then focus falls
   // to <body>.
   _restoreFocus() {
     const back = this._returnFocus;
