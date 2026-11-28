@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { WorldMapRenderer } from './WorldMapRenderer.js';
+import { SpaceCanvas } from './SpaceCanvas.js';
 import { HAZE, TRAIL, STARS_MAP } from '../data/worldMap.js';
 import { PALETTE } from '../data/theme.js';
 import { splitRoute } from '../systems/worldRoute.js';
@@ -113,6 +114,30 @@ describe('WorldMapRenderer', () => {
     expect(raf.size).toBe(1);
     r.destroy();
     expect(raf.size).toBe(0);
+  });
+
+  it('resize redraws the backdrop at once, also on a second resize', () => {
+    const redraw = vi.spyOn(SpaceCanvas.prototype, 'redraw');
+    const r = make();
+    redraw.mockClear();
+    r.resize(frame, viewport);
+    expect(redraw).toHaveBeenCalledTimes(1);
+    r.resize(frame, viewport);
+    expect(redraw).toHaveBeenCalledTimes(2);
+  });
+
+  it('art onload redraws the backdrop at once', () => {
+    const images = [];
+    vi.stubGlobal('Image', class { set src(v) { this._src = v; images.push(this); } });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => recordingCtx(log));
+    const r = new WorldMapRenderer({
+      backdrop: document.createElement('canvas'), story: document.createElement('canvas'), maxDpr: 2, source: 'art.png',
+    });
+    r.resize(frame, viewport);
+    const redraw = vi.spyOn(SpaceCanvas.prototype, 'redraw');
+    expect(images).toHaveLength(1);
+    images[0].onload();
+    expect(redraw).toHaveBeenCalledTimes(1);
   });
 
   describe('backdrop loop', () => {

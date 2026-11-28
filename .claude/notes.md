@@ -3,9 +3,36 @@
 ## Goal
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
-## Current Status (2026-11-26, #65c)
+## Current Status (2026-11-27, #54)
 
-**2026-11-26 (latest): #155 (#65b) merged. Backlog #65(c), making the rally capture run check march speed, has a PR open into `visual/integration` (`chore/65c-walk-budget`).**
+**2026-11-27 (latest): #156 (#65c) and #157 (#69d, closed as not a bug) merged. Backlog #54 (b, c, g, h), the world-map input and re-layout fixes, has a PR open into `visual/integration` (`fix/54-world-map-input`).**
+- **(b, h)** `isBrowserShortcut` (`src/ui/browserShortcut.js`) is now keyboard-only and also covers a bare F5. As a result:
+  - F5 is no longer swallowed by the 250 ms entry guard or the arrival skip.
+  - A Ctrl/Cmd/Alt-click mid-arrival now counts as a skip.
+  - The entry guard's matching Ctrl-click hole is closed too.
+- **(c)** `resize`/`orientationchange`/fonts `loadingdone` go through `_scheduleLayout()`, which runs one `_layout` per frame. `shutdown()` cancels a pending frame.
+- **(g)** `WorldMapRenderer.resize` and the art `onload` call `SpaceCanvas.redraw()`, so the backdrop repaints at once instead of after the idle cap (≤ ~143 ms).
+- **Live A/B** (capture builds, real Playwright input):
+
+  | Check | Before | After |
+  |---|---|---|
+  | Ctrl-click mid-arrival | not a skip | skip |
+  | F5 mid-arrival | blocked and counted as a skip | not blocked, the arrival plays on |
+  | 5 resize events | 5 synchronous re-layouts | 0 synchronous, 1 on the next frame |
+  | redraws on re-layout | 0 | 1 |
+
+  No page errors.
+- **Suite:** 4322 tests in 271 files, exit 0.
+- **Accepted:** one extra full-viewport backdrop paint per map entry, because `start` schedules a tick right after `redraw`.
+- **Backlog triage (2026-11-27):** every open `[auto]` sub-item was checked against the code. The results are under the Prioritized Backlog heading.
+- **Waiting on the user:**
+  - #66, the tier stroke ring over the tower art. The comparison sheet is `/private/tmp/claude-501/-Users-keithtimko-projects-tower-defense/8a95f03b-58d2-452c-b9a7-6b7e063ddf52/scratchpad/probe/66-compare.png` (scratch, may be cleared).
+  - #67 badge occlusion.
+- **Next:** 6.4 publish (G5, the user's gate; #82 trademark check first).
+
+## Earlier Status (2026-11-26, #65c)
+
+**2026-11-26: #155 (#65b) merged. Backlog #65(c), making the rally capture run check march speed, has a PR open into `visual/integration` (`chore/65c-walk-budget`).**
 - **Harness only, `src/` untouched:** `captureRally` installs an in-page `requestAnimationFrame` recorder before the march tap. It stores `simMs` on the first marching frame and on the arrival frame, plus the largest frame step. The new pure `marchTimeProblem` (`scripts/captureCore.mjs`) fails the run when the span differs from `|Δprogress| × pathLength / SOLDIER_MARCH.speed` by more than **2 × the largest observed frame**. The old `untilGameTime` budgets (`walkMs × 1.33 + 5 s`) still bound a hang.
 - **The final review caught a real flaw in the first version:** it sampled both ends with Node-side polls. The arrival poll came after the mid-walk screenshot, so a slow screenshot made a correct game fail. Reproduced live: with a 1.2 s delay before the shot, the pre-fix commit reported 2843 ms against 2484 ± 200. The fix moved both samples in-page.
 - **Live A/B** (rally-only desktop runs in throwaway worktrees):
@@ -503,6 +530,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
+- **2026-11-27:** #156 (#65c) and #157 (#69d) merged. #54 (b, c, g, h) world-map input/re-layout PR open into `visual/integration` (`fix/54-world-map-input`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
 - **2026-11-26:** #155 (#65b) merged. #65(c) rally capture march-speed check PR open into `visual/integration` (`chore/65c-walk-budget`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
 - **2026-11-26:** #154 (#65a) merged. #65(b) pennant-geometry refactor PR open into `visual/integration` (`refactor/65b-pennant-geometry`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
 - **2026-11-26:** #153 (#89) merged. #65(a) bad ghost full-alpha PR open into `visual/integration` (`fix/65a-bad-ghost-alpha`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
@@ -592,6 +620,39 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - Long-standing uncommitted edits to `SESSION_NOTES.md` (auto-generated commit log) and an untracked `.claude/prompts/` sit in the primary checkout's working tree; both are session bookkeeping, not user data.
 
 ## Prioritized Backlog
+**Triage of the open `[auto]` sub-items, 2026-11-27.** Each was checked against the code at fe94f51. Re-check an item before acting, because code moves.
+- **Stale:**
+  - #41(c): the audits already log `innerWidth`, cover `.ow-node`, and check Skip/Next.
+  - #47(e): the harness literal `Level: n/4` is gone. `▶ Send Wave 1` matches the real label, and the game's `/4` is the fixed four-tier design.
+- **Not worth it (real, but low value or speculative):**
+  - #41(d)
+  - #45(a, b)
+  - #47(a, b, c)
+  - #50(c, d, f)
+  - #53(e, f, g)
+  - #54(d, f)
+  - #55(c, d, e)
+  - #56(c–f)
+  - #60
+  - #61: it can't be proven without a loaded host, and waits must not be loosened.
+  - #69(b, c, f)
+  - #73(d, e)
+- **Needs the user** (a design or palette call, real hardware, or a playtest):
+  - real hardware or browsers: #41(b), #47(d)
+  - design or palette calls: #50(b, e), #53(a–d), #54(a, e), #66, #67, #69(a, e)
+  - balance: #58
+  - local art generation: #73(c), #83
+- **Ready to build without the user:**
+  - #55(a): the Story Log replay drops focus to `<body>`.
+  - #55(b): the inspector or banner sits above the epilogue's z-index.
+  - #56(a): await the `rs-fade` `finished` promise instead of a fixed wait.
+  - #56(b): run the tall-results audit on defeat too.
+  - #71(a, g, h): unguarded `JSON.parse` in apply/review/runJob, the README undo, and the Python tests not in `npm test`.
+  - #73(b): `tierLooksPlan` should use the footprint across all variants.
+  - #73(f): derive the variant list from `VARIANT_KEYS`.
+  - #79: GPU launch args for the matrix (needs a matrix rerun on an idle host).
+  - #85: the perf report should flag a dirty tree, and write a report even when setup fails.
+
 <!-- Risk tiers: [auto] runner may build→test→PR unattended · [review] needs spec/plan approval · [human] you drive. See ~/projects/CLAUDE.md → Backlog Risk Tiers. Note: this is a static Phaser game (no DB/auth/payments) — items are [review] (features/design) or [auto] (localized fixes/chores). -->
 1. `[review]` ✅ **Phase 8b — remaining SFX work** — DONE, **PR #38 merged** → `feature/map0-path-fit` (2026-06-20). Code derives branch/enemy-specific SFX keys with graceful fallback to the base sound (mirrors PR #37 overworld-art pattern): new pure `src/systems/sfxKeys.js` (`towerFireSfxKey(type,branch,registeredKeys)`, `enemyHitSfxKey(type,registeredKeys)`) returns the specific key if registered in `SFX_KEYS` else the base; wired at GameScene tower-fire + Enemy hit call sites. `SFX_KEYS` unchanged so every call falls back today (0 audio decode errors); the 16 future assets (10 tower-branch + 6 enemy-hit) are documented in `assets/audio/PROMPTS.md` and drop in later with zero code change. 9 helper tests; 750 total; build clean; browser-verified (live branch-A tower resolved `tower-fire-archer-A` once registered; enemy-hit fired in real combat).
 2. `[review]` ✅ **Verify hero on Level 2** — DONE (2026-06-18), **not a bug**. Root cause: the hero is a path-positioned ranged auto-attacker (range ~45), never a hard-blocker; `_checkSoldierBlock` is soldier-only **by explicit design** (hero-path-restriction spec §"Hero does NOT block enemies", flagged out-of-scope). Live-verified on Level 2 with `window.__game` introspection: hero spawns on-path, detects enemies in range, attacks (timer resets), and deals damage (skitter 45→17 hp) as they pass — it just doesn't stop them. Hero attack/move/respawn also covered by passing unit tests. _Optional future feature (not scheduled):_ soldier-style hero blocking — would need `_checkSoldierBlock` to include the hero + enemy-vs-hero melee; its own spec/plan.
@@ -741,13 +802,13 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 
 54. `[auto]` **3.4 world-map follow-ups** _(2026-10-23, final review)_.
     - (a) The world-map fit test covers only the capture devices. The conservative rect model flags overlaps at 1024×700, 1080×750 (iPad 10.2" Safari), 1133×690 (iPad mini), 1100×900 and 960×1040, though the painted boxes measured clean. Add an iPad-Safari and a ~1000-px desktop viewport to the live audit, measured from painted boxes, before any `ROUTE` retune. At 960 px wide the objective line truncates and the meta bar wraps.
-    - (b) A bare F5 is still swallowed during the 250-ms map entry guard and the 3.2-s arrival (Ctrl/Cmd/Alt are exempt).
-    - (c) A window resize rebuilds both offscreen layers synchronously per event; coalesce `_layout` into one rAF.
+    - (b) ~~A bare F5 is still swallowed during the 250-ms map entry guard and the 3.2-s arrival (Ctrl/Cmd/Alt are exempt).~~ **DONE 2026-11-27** (`fix/54-world-map-input`).
+    - (c) ~~A window resize rebuilds both offscreen layers synchronously per event; coalesce `_layout` into one rAF.~~ **DONE 2026-11-27**: `_scheduleLayout`.
     - (d) On covered legs `parkShip(to)` sits slightly behind `exitParam(from)`, so the ship drifts ≤8 px backward on capture devices (about 6% of the route at 568×320).
     - (e) `#featured-name`/`#featured-threats` truncate to one line on compact; the threat list for mission 1 shows "Veth Drone, Veth Skitter, Ve…".
     - (f) A reduced-motion title repaints static stars at the frame cap rather than drawing once.
-    - (g) After a `resize()` that leaves the canvas size unchanged (fonts `loadingdone`, art `onload`, an early iOS `orientationchange`), the backdrop takes up to ~143 ms to repaint because of the 7-fps idle cap. Fix: force `SpaceCanvas.redraw()`.
-    - (h) During the arrival, a Ctrl/Alt/Cmd-click on a node, LAUNCH or the meta bar is not swallowed as a skip, because the shortcut exemption also covers pointer events. Limit `isBrowserShortcut` to key events in `_skipArrival`.
+    - (g) ~~After a `resize()` that leaves the canvas size unchanged (fonts `loadingdone`, art `onload`, an early iOS `orientationchange`), the backdrop takes up to ~143 ms to repaint because of the 7-fps idle cap. Fix: force `SpaceCanvas.redraw()`.~~ **DONE 2026-11-27**: `redraw()` in `resize` and in the art `onload`.
+    - (h) ~~During the arrival, a Ctrl/Alt/Cmd-click on a node, LAUNCH or the meta bar is not swallowed as a skip, because the shortcut exemption also covers pointer events. Limit `isBrowserShortcut` to key events in `_skipArrival`.~~ **DONE 2026-11-27**: `isBrowserShortcut` is keyboard-only.
 
 55. `[auto]` **3.5 story-dialog follow-ups** _(2026-10-24, final review)_.
     - (a) The Story Log replay returns focus to `<body>`; fall back to `#open-story-log` for keyboard users.

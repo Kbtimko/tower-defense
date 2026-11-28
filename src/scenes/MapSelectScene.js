@@ -53,7 +53,8 @@ export default class MapSelectScene extends Phaser.Scene {
     super('MapSelectScene');
     // Bound once so add/removeEventListener see the same reference.
     this._onFullscreenChange = this._onFullscreenChange.bind(this);
-    this._layout = this._layout.bind(this);
+    this._scheduleLayout = this._scheduleLayout.bind(this);
+    this._layoutRaf = 0;
     this._swallow = this._swallow.bind(this);
     this._endInputGuard = this._endInputGuard.bind(this);
     this._syncQuoteFade = this._syncQuoteFade.bind(this);
@@ -118,11 +119,11 @@ export default class MapSelectScene extends Phaser.Scene {
     this._bindFullscreen();
 
     this._layout();
-    window.addEventListener('resize', this._layout);
-    window.addEventListener('orientationchange', this._layout);
+    window.addEventListener('resize', this._scheduleLayout);
+    window.addEventListener('orientationchange', this._scheduleLayout);
     // Labels re-measure once the webfonts land (old WebViews have no FontFaceSet).
     this._fonts = document.fonts;
-    this._fonts?.addEventListener?.('loadingdone', this._layout);
+    this._fonts?.addEventListener?.('loadingdone', this._scheduleLayout);
 
     const am = this.game.registry.get('audio');
     if (am) am.playMusic('menu');
@@ -365,8 +366,17 @@ export default class MapSelectScene extends Phaser.Scene {
     this._root.style.setProperty('--wm-light-ms', `${ARRIVAL.lightMs}ms`);
   }
 
+  // A resize burst (resize + orientationchange + fonts) re-lays out once, on the next frame.
+  _scheduleLayout() {
+    if (this._layoutRaf) return;
+    this._layoutRaf = requestAnimationFrame(() => {
+      this._layoutRaf = 0;
+      this._layout();
+    });
+  }
+
   // Re-measure, recompute the frame, publish the --wm-* vars, place the nodes and
-  // tags, redraw. Bound to resize / orientationchange / fonts loadingdone.
+  // tags, redraw. Runs from _scheduleLayout.
   _layout() {
     if (!this._renderer) return;
     const { origin, box, viewport } = this._measure();
@@ -712,9 +722,11 @@ export default class MapSelectScene extends Phaser.Scene {
   shutdown() {
     this._stopArrival();
     this._endGestureSwallow();
-    window.removeEventListener('resize', this._layout);
-    window.removeEventListener('orientationchange', this._layout);
-    this._fonts?.removeEventListener?.('loadingdone', this._layout);
+    window.removeEventListener('resize', this._scheduleLayout);
+    window.removeEventListener('orientationchange', this._scheduleLayout);
+    this._fonts?.removeEventListener?.('loadingdone', this._scheduleLayout);
+    if (this._layoutRaf) cancelAnimationFrame(this._layoutRaf);
+    this._layoutRaf = 0;
     this._fonts = null;
     this._stopInputGuard();
     this._renderer?.destroy();

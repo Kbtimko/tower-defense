@@ -53,6 +53,8 @@ export class WorldMapRenderer {
     this._painted = null;
     this._fitStory();
     this._space.start(this._drawBackdrop);
+    // start is a no-op once running, and the idle cap would delay the new layers.
+    this._space.redraw();
     if (this._state) this.render(this._state);
   }
 
@@ -123,6 +125,8 @@ export class WorldMapRenderer {
       if (this._viewport) {
         this._far = this._layer((ctx) => paintFar(ctx, this._viewport, img));
         this._painted = null;
+        // As in resize: the idle cap would otherwise delay the new far layer.
+        this._space.redraw();
       }
     };
     img.src = url;

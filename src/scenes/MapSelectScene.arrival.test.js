@@ -277,6 +277,26 @@ describe('MapSelectScene post-win arrival (spec 2.3)', () => {
       expect(arrival()).toBe('playing');
     });
 
+    it('a bare F5 mid-arrival is neither prevented nor a skip', () => {
+      seedSave(AFTER_FIRST_CLEAR);
+      enter({ from: FIRST_CLEAR_0 });
+      vi.advanceTimersByTime(LAYOUT.inputGuardMs);
+      const ev = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'F5' });
+      document.body.dispatchEvent(ev);
+      expect(ev.defaultPrevented).toBe(false);
+      expect(arrival()).toBe('playing');
+    });
+
+    it('a Ctrl/Cmd/Alt-click mid-arrival is a skip', () => {
+      seedSave(AFTER_FIRST_CLEAR);
+      enter({ from: FIRST_CLEAR_0 });
+      vi.advanceTimersByTime(LAYOUT.inputGuardMs);
+      const ev = new MouseEvent('pointerdown', { bubbles: true, cancelable: true, ctrlKey: true });
+      node(0).dispatchEvent(ev);
+      expect(ev.defaultPrevented).toBe(true);
+      expect(arrival()).toBe('done');
+    });
+
     it('a skip followed by shutdown leaves zero net document / #map-select listeners', () => {
       const rootLive = trackLive($('#map-select'));
       const docLive = trackLive(document);
@@ -494,13 +514,16 @@ describe('MapSelectScene post-win arrival (spec 2.3)', () => {
       sizeMapSelect(1440, 900);
       seedSave(AFTER_FIRST_CLEAR);
       enter({ from: FIRST_CLEAR_0 });
-      // On a frame boundary, so the frame the resize redraws is the one at t.
+      // On a frame boundary; the re-layout renders at the next one, t + FRAME_MS.
       const t = FRAME_MS * Math.round((ARRIVAL.flyStartMs + ARRIVAL.flyMs / 2) / FRAME_MS);
       vi.advanceTimersByTime(t);
       sizeMapSelect(750, 340);
       window.dispatchEvent(new Event('resize'));
+      // The re-layout runs on the next frame; it redraws the arrival at t + one frame.
+      render.mockClear();
+      vi.advanceTimersByTime(FRAME_MS);
       expect(arrival()).toBe('playing');
-      const f = arrivalFrame(planArrival({ from: FIRST_CLEAR_0, stars: AFTER_FIRST_CLEAR }), t);
+      const f = arrivalFrame(planArrival({ from: FIRST_CLEAR_0, stars: AFTER_FIRST_CLEAR }), t + FRAME_MS);
       expect(f.shipT).toBeGreaterThan(0);
       expect(f.shipT).toBeLessThan(1);
       const { frame, points, rects } = geometry(750, 340, 'compact');
