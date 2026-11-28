@@ -19,7 +19,7 @@ vi.mock('phaser', () => ({
 vi.mock('../data/sprites.js', () => ({
   SPRITE_MANIFEST: [],
   getSpriteConfig: (category, type) =>
-    category === 'tower' && type === 'archer'
+    category === 'tower' && (type === 'archer' || type === 'barracks')
       ? {
           scale: 0.6, anchor: { x: 0.5, y: 0.5 }, baseFacing: 'right',
           ground: { footY: 41.2, width: 37.1 },
@@ -33,6 +33,7 @@ vi.mock('../data/sprites.js', () => ({
 
 import { TOWER_DEFS } from '../data/towers.js';
 import { Tower } from './Tower.js';
+import { Barracks } from './Barracks.js';
 import { BUILD_POP, UPGRADE_POP } from '../data/juice.js';
 import { popScale } from '../systems/juiceMath.js';
 import { TIER_FALLBACK_GROUND } from '../data/tierLooks.js';
@@ -106,30 +107,45 @@ const strokeWidths = g => sinceLastClear(g).filter(c => c[0] === 'lineStyle').ma
 const makeTower = (scene, x = 0, y = 0) =>
   new Tower(scene, { type: 'archer', x, y, def: TOWER_DEFS.archer, zoneIndex: 0 });
 
-describe('Tower tier ring with sprite art active', () => {
+describe('Tower tier ring (#66: fallback only)', () => {
   const ARCHER_KEYS = ['sprite-tower-archer-idle', 'sprite-tower-archer-attack'];
 
-  it('keeps the tier ring visible and drops the dark fill disc', () => {
+  it('draws neither the ring nor the fill disc when sprite art is active', () => {
     const t = makeTower(makeScene(ARCHER_KEYS));
     expect(t._sprite.active).toBe(true);
-    expect(t._bg.visible).toBe(true);
     expect(sinceLastClear(t._bg).some(c => c[0] === 'fillCircle')).toBe(false);
-    expect(sinceLastClear(t._bg).some(c => c[0] === 'strokeCircle')).toBe(true);
+    expect(sinceLastClear(t._bg).some(c => c[0] === 'strokeCircle')).toBe(false);
     expect(t._icon.visible).toBe(false);
   });
 
-  it('thickens the tier ring as the tower upgrades', () => {
+  it('keeps the ring off after upgrades with art, but still draws the range ring', () => {
     const t = makeTower(makeScene(ARCHER_KEYS));
-    expect(strokeWidths(t._bg)).toContain(1.5);   // tier 1
     t.upgrade(3);
-    expect(strokeWidths(t._bg)).toContain(3);     // tier 3
+    expect(sinceLastClear(t._bg).some(c => c[0] === 'strokeCircle')).toBe(false);
+    t.upgrade(4, 'A');
+    expect(sinceLastClear(t._bg).some(c => c[0] === 'strokeCircle')).toBe(false);
+    expect(sinceLastClear(t._rangeRing).some(c => c[0] === 'strokeCircle')).toBe(true);
   });
 
-  it('still fills the disc when there is no sprite art (Graphics fallback)', () => {
+  it('fills the disc and strokes the ring when there is no sprite art (Graphics fallback)', () => {
     const t = makeTower(makeScene([]));
     expect(t._sprite.active).toBe(false);
     expect(sinceLastClear(t._bg).some(c => c[0] === 'fillCircle')).toBe(true);
+    expect(sinceLastClear(t._bg).some(c => c[0] === 'strokeCircle')).toBe(true);
     expect(t._icon.visible).toBe(true);
+  });
+
+  it('barracks with art draws no tier ring', () => {
+    const b = new Barracks(makeScene(['sprite-tower-barracks-idle', 'sprite-tower-barracks-attack']), { type: 'barracks', x: 0, y: 0, def: TOWER_DEFS.barracks, zoneIndex: 0 });
+    expect(b._sprite.active).toBe(true);
+    expect(sinceLastClear(b._bg).some(c => c[0] === 'strokeCircle')).toBe(false);
+  });
+
+  it('thickens the fallback ring as the tower upgrades', () => {
+    const t = makeTower(makeScene([]));
+    expect(strokeWidths(t._bg)).toEqual([1.5]);
+    t.upgrade(3);
+    expect(strokeWidths(t._bg)).toEqual([3]);
   });
 });
 

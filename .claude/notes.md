@@ -3,7 +3,25 @@
 ## Goal
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
-## Current Status (2026-11-27, #54)
+## Current Status (2026-11-27, #66)
+
+**2026-11-27 (latest): #158 (#54 b, c, g, h) merged. Backlog #66, the user's call "drop the ring", has a PR open into `visual/integration` (`fix/66-tier-ring-art`).**
+- `Tower._redraw` strokes the r=18 tier ring only on art-less fallback towers, together with their dark disc. Towers with art (barracks included, via inheritance) draw nothing on `_bg`. Tier still reads from the pips, the A/B badge and the T4 ring. Fallback towers have those marks too, so keeping their ring was a choice (the sheet's bottom row) and not a necessity.
+- **Live A/B** (capture builds of map 9, six towers at T1 to T4B, plus barracks):
+
+  | Check | Before | After |
+  |---|---|---|
+  | `_bg` commands, art on | 14 per tower | 0 |
+  | `_bg` commands, tower sprites blocked (fallback) | 27 | 27 |
+  | range ring commands | 14 | 14 |
+
+  No page errors. The final commit was re-probed with the same results.
+- **Final review:** "Ready with fixes". The comment, spec and plan had claimed fallback towers lack the pips, badge and T4 ring, which is wrong, and all three are corrected. A barracks-with-art test was added.
+- **Suite:** 4324 tests in 271 files, exit 0.
+- **Waiting on the user:** #67 badge occlusion (a design call).
+- **Next:** 6.4 publish (G5, the user's gate; #82 trademark check first). Ready `[auto]`: #55(a, b), #56(a, b), #85.
+
+## Earlier Status (2026-11-27, #54)
 
 **2026-11-27 (latest): #156 (#65c) and #157 (#69d, closed as not a bug) merged. Backlog #54 (b, c, g, h), the world-map input and re-layout fixes, has a PR open into `visual/integration` (`fix/54-world-map-input`).**
 - **(b, h)** `isBrowserShortcut` (`src/ui/browserShortcut.js`) is now keyboard-only and also covers a bare F5. As a result:
@@ -25,9 +43,7 @@ Build a fully playable tower defense game with 10 maps, 6 tower types with tier 
 - **Suite:** 4322 tests in 271 files, exit 0.
 - **Accepted:** one extra full-viewport backdrop paint per map entry, because `start` schedules a tick right after `redraw`.
 - **Backlog triage (2026-11-27):** every open `[auto]` sub-item was checked against the code. The results are under the Prioritized Backlog heading.
-- **Waiting on the user:**
-  - #66, the tier stroke ring over the tower art. The comparison sheet is `/private/tmp/claude-501/-Users-keithtimko-projects-tower-defense/8a95f03b-58d2-452c-b9a7-6b7e063ddf52/scratchpad/probe/66-compare.png` (scratch, may be cleared).
-  - #67 badge occlusion.
+- **Waiting on the user:** #67 badge occlusion. (#66 was decided 2026-11-27: drop the ring.)
 - **Next:** 6.4 publish (G5, the user's gate; #82 trademark check first).
 
 ## Earlier Status (2026-11-26, #65c)
@@ -530,6 +546,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
+- **2026-11-27:** #158 (#54 b, c, g, h) merged. #66 drop the tier ring on art towers PR open into `visual/integration` (`fix/66-tier-ring-art`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
 - **2026-11-27:** #156 (#65c) and #157 (#69d) merged. #54 (b, c, g, h) world-map input/re-layout PR open into `visual/integration` (`fix/54-world-map-input`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
 - **2026-11-26:** #155 (#65b) merged. #65(c) rally capture march-speed check PR open into `visual/integration` (`chore/65c-walk-budget`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
 - **2026-11-26:** #154 (#65a) merged. #65(b) pennant-geometry refactor PR open into `visual/integration` (`refactor/65b-pennant-geometry`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
@@ -639,7 +656,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
   - #73(d, e)
 - **Needs the user** (a design or palette call, real hardware, or a playtest):
   - real hardware or browsers: #41(b), #47(d)
-  - design or palette calls: #50(b, e), #53(a–d), #54(a, e), #66, #67, #69(a, e)
+  - design or palette calls: #50(b, e), #53(a–d), #54(a, e), #67, #69(a, e) (#66 decided and done 2026-11-27)
   - balance: #58
   - local art generation: #73(c), #83
 - **Ready to build without the user:**
@@ -833,7 +850,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 63. `[auto]` ~~**Move mode's stale rally drawing**~~ **DONE 2026-11-25** — rally-style ghost ring at the destination pad, PR `fix/63-reposition-overlay`. _Original:_ _(#48 follow-up)_. Reposition mode still draws its old range ring + road dots (`GameScene` reposition draw, ~:2256-2266); make it match the rally look (halo, ghost) or drop it.
 64. `[auto]` ✅ **DONE 2026-11-20 (fix/68-64-57-bug-bundle)** ~~Reposition mode: newest intent wins~~ `_leaveBarracksModes` drops a pending Move too. Original: _(#48 final review, pre-existing)_. Arming a HUD tower while Move mode is on leaves Move armed, so a pad tap moves the barracks instead of building. #48 fixed this for rally mode (`_leaveRallyMode`); apply the same rule to reposition.
 65. `[auto]` **#48 polish** _(final reviews)_. (a) ~~The out-of-range red ghost reads pink at `ghostAlpha` 0.6 on red maps — consider full alpha for the bad ghost.~~ **DONE 2026-11-26** (`fix/65a-bad-ghost-alpha`): bad marks and their halos draw at `RALLY_FLAG.badAlpha` 1. The remaining salmon tint is `PALETTE.danger` itself, a palette call. (b) ~~`pennantCorners`/`growTriangle` are pure geometry inside GameScene — move to `src/systems/`.~~ **DONE 2026-11-26** (`refactor/65b-pennant-geometry`): now in `src/systems/pennantGeometry.js` with unit tests. A degenerate triangle (inradius 0) still returns NaN corners; the only input is the frozen pennant. (c) ~~The capture run's walk budgets carry +5 s game-time slack, so they don't check speed (unit + scene tests do).~~ **DONE 2026-11-26** (`chore/65c-walk-budget`): an in-page recorder times the march, and `marchTimeProblem` fails it outside ±2 observed frames. A 0.7× march now fails the run. Leftover: the tolerance prints unrounded in the message. (d) Soldiers outpace drones by only 10 px/s; a following drone can re-engage once the 60-px disengage window ends — retune `disengagePx` if it feels sticky at G3.
-66. `[auto]` **Old tier stroke ring is now redundant** _(#49 follow-up)_. `Tower._redraw` still strokes the r=18 tier circle (1.5–4 px) OVER the sprite (S6 kept it). With pips/badge/core/ring it reads as clutter across the new core glow. Drop it when art is on, or keep only for the no-art fallback — user's call.
+66. `[auto]` ~~**Old tier stroke ring is now redundant**~~ **DONE 2026-11-27**: the user chose "drop the ring". Art towers no longer draw it; the fallback keeps the disc and ring. PR `fix/66-tier-ring-art`. _Original:_ _(#49 follow-up)_. `Tower._redraw` still strokes the r=18 tier circle (1.5–4 px) OVER the sprite (S6 kept it). With pips/badge/core/ring it reads as clutter across the new core glow. Drop it when art is on, or keep only for the no-art fallback — user's call.
 67. `[auto]` **Tier badge occlusion** _(#49 live check)_. (a) On the accepted tight pairs (map 5 slots 6/10, map 9 9/2) the upper archer's A/B badge is fully / half hidden by the lower tower — the ring still shows the branch. (b) A barracks on a road-hugging pad: the default rally squad stands on its own badge (4B's 4th soldier covers "B"; 4A squad overlaps its ring). Options: lift the badge above the core, or nudge the default rally point off the pad foot.
 68. `[auto]` ✅ **DONE 2026-11-20 (fix/68-64-57-bug-bundle)** ~~Stale tower depth after a barracks Move~~ `_repositionTo` re-sorts depth. Original: _(#49 spec non-goal, pre-existing)_. `_repositionTo` calls `setPosition` but tower depth is set only in the constructor, so a moved barracks Y-sorts from its old y; taller T4 art makes a wrong sort easier to see. Re-`setDepth(unitDepth(y))` after the move.
 69. `[auto]` **#49 polish** _(final reviews, deferred minors)_. (a) iPhone pips are ~3 CSS px — legible but tiny; badge font floor is `TIER_PIPS.badge.fontPx`. (b) Shield fill is a WebGL vertex gradient; the canvas renderer likely draws it dark (Risk R-3 accepted). (c) `Soldier` snapshot reads stored `_tierScale`; `groundSpec().footY` would throw if the soldier manifest lost `ground`. (d) ~~`fadeInFrac` 0/1 would NaN the ember envelope.~~ **CLOSED 2026-11-27, not a bug** (`fix/69d-fadein-frac`): each division in `emberPose` sits behind the branch that keeps its divisor non-zero. A sweep of 300k samples per value found no non-finite alpha, and the final review's 12M-sample probe agreed. NaN needs a negative clock, and Phaser clamps every delta at 0. A regression test now pins this against a `Math.min` refactor. (e) There is no in-level Ambient motion control (Settings opens from the world map only) — pre-existing. (f) A future single-image soldier state would get no tier variant (the SpriteSheet parser makes no frames).

@@ -51,8 +51,9 @@ export class Tower extends Phaser.GameObjects.Container {
     this._sprite = new EntitySprite(this, scene, {
       category: 'tower', type, initialState: 'idle',
     });
-    // _redraw ran before the sprite existed, so the fallback disc is on the
-    // canvas; redraw now that `_sprite.active` is known. The tier ring stays.
+    // _redraw ran before the sprite existed, so the fallback disc and ring are
+    // on the canvas; redraw now that `_sprite.active` is known, which drops both
+    // when art is on.
     if (this._sprite.active) { this._redraw(); this._icon.setVisible(false); }
     this._look = new TowerTierLook(this, scene, { type, sprite: this._sprite });
     this._applyTier();
@@ -96,14 +97,15 @@ export class Tower extends Phaser.GameObjects.Container {
     const def = TOWER_DEFS[this.type];
     const sw  = [1.5, 2, 3, 4][this.level - 1];
     this._bg.clear();
-    // With sprite art the disc would be an opaque plate behind the sprite; the
-    // ring alone still carries tier, which is encoded ONLY in this stroke width.
+    // With sprite art the disc would be an opaque plate and the ring would clutter
+    // the art; tier reads from the pips, badge and T4 ring. The art-less fallback
+    // keeps both: the disc is its only body, and the ring was kept by choice (#66).
     if (!this._sprite?.active) {
       this._bg.fillStyle(0x2a2a3a, 1);
       this._bg.fillCircle(0, 0, 18);
+      this._bg.lineStyle(sw, def.color, 1);
+      this._bg.strokeCircle(0, 0, 18);
     }
-    this._bg.lineStyle(sw, def.color, 1);
-    this._bg.strokeCircle(0, 0, 18);
 
     this._rangeRing.clear();
     this._rangeRing.lineStyle(1, 0xffd700, 0.25);
