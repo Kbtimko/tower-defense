@@ -3,7 +3,28 @@
 ## Goal
 Build a fully playable tower defense game with 10 maps, 6 tower types with tier branching, distinct alien enemy visuals, and a storyline — deployed at https://tower-defense-black.vercel.app
 
-## Current Status (2026-11-27, #66)
+## Current Status (2026-11-27, #55 a, b)
+
+**2026-11-27 (latest): #159 (#66) merged. Backlog #55 (a, b), the story dialog's focus and stacking, has a PR open into `visual/integration` (`fix/55-story-log-focus`).**
+- **(a)** A Story Log entry click focuses `#open-story-log` before the list hides. The dialog's existing restore then returns focus there and not to `<body>`. With a mouse there's no focus ring (`:focus-visible` stays false); with the keyboard there is.
+- **(b)** `.story-dialog-overlay` moves from z 18 to **55**. `#game` creates no stacking context, so the body-level floaters were painting over every dialog play: the inspectors (40), inspect peek (45), tower tooltip (50), ability card and hint peek (21), and the story banner (25). The dialog now stays under only `#title-screen` (60) and `#rotate-prompt` (1000).
+  - The new `src/ui/storyDialogStacking.test.js` derives all 29 z-index rules from `index.html`. It fails if any other rule reaches 55, or if a z-index value can't be parsed.
+  - The backlog's wave-preview claim was wrong: it sits inside `#hud-layer` (z 6).
+- **Live A/B** (capture builds, real Playwright input):
+
+  | Check | Before | After |
+  |---|---|---|
+  | focus after replay (mouse + Escape; keyboard only) | `<body>` | `#open-story-log` |
+  | next Tab after replay | first world-map node | `#open-codex-ms` |
+  | 5 floaters open under a playing dialog | all 5 paint on top | all 5 covered |
+
+  No page errors. The final commit was re-probed with the same results.
+- **Behaviour change accepted:** an auto-pause during the briefing now shows PAUSED after the dialog closes, not over it. The debug `#fps-meter` is covered during dialogs.
+- **Suite:** 4330 tests in 272 files, exit 0.
+- **Waiting on the user:** #67 badge occlusion.
+- **Next:** 6.4 publish (G5, the user's gate; #82 trademark check first). Ready `[auto]`: #56(a, b), #85, #71(a, g, h), #73(b, f).
+
+## Earlier Status (2026-11-27, #66)
 
 **2026-11-27 (latest): #158 (#54 b, c, g, h) merged. Backlog #66, the user's call "drop the ring", has a PR open into `visual/integration` (`fix/66-tier-ring-art`).**
 - `Tower._redraw` strokes the r=18 tier ring only on art-less fallback towers, together with their dark disc. Towers with art (barracks included, via inheritance) draw nothing on `_bg`. Tier still reads from the pips, the A/B badge and the T4 ring. Fallback towers have those marks too, so keeping their ring was a choice (the sheet's bottom row) and not a necessity.
@@ -546,6 +567,7 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
 - _(Resolved 2026-06-18: "hero not blocking on Level 2" verified as NOT a bug at the time — the hero was a ranged auto-attacker by design. **Superseded 2026-09-20:** PR #63 made heroes block enemies, take melee damage and regenerate out of combat, so the hero now does block.)_
 
 ## In Progress
+- **2026-11-27:** #159 (#66) merged. #55 (a, b) story dialog focus/stacking PR open into `visual/integration` (`fix/55-story-log-focus`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
 - **2026-11-27:** #158 (#54 b, c, g, h) merged. #66 drop the tier ring on art towers PR open into `visual/integration` (`fix/66-tier-ring-art`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
 - **2026-11-27:** #156 (#65c) and #157 (#69d) merged. #54 (b, c, g, h) world-map input/re-layout PR open into `visual/integration` (`fix/54-world-map-input`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
 - **2026-11-26:** #155 (#65b) merged. #65(c) rally capture march-speed check PR open into `visual/integration` (`chore/65c-walk-budget`). Next: 6.4 publish (G5, the user's gate; #82 trademark check first).
@@ -660,8 +682,6 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
   - balance: #58
   - local art generation: #73(c), #83
 - **Ready to build without the user:**
-  - #55(a): the Story Log replay drops focus to `<body>`.
-  - #55(b): the inspector or banner sits above the epilogue's z-index.
   - #56(a): await the `rs-fade` `finished` promise instead of a fixed wait.
   - #56(b): run the tall-results audit on defeat too.
   - #71(a, g, h): unguarded `JSON.parse` in apply/review/runJob, the README undo, and the Python tests not in `npm test`.
@@ -828,8 +848,8 @@ The sim gained opt-in purchase fields: `branch`, `maxTier` and `tag` on a build,
     - (h) ~~During the arrival, a Ctrl/Alt/Cmd-click on a node, LAUNCH or the meta bar is not swallowed as a skip, because the shortcut exemption also covers pointer events. Limit `isBrowserShortcut` to key events in `_skipArrival`.~~ **DONE 2026-11-27**: `isBrowserShortcut` is keyboard-only.
 
 55. `[auto]` **3.5 story-dialog follow-ups** _(2026-10-24, final review)_.
-    - (a) The Story Log replay returns focus to `<body>`; fall back to `#open-story-log` for keyboard users.
-    - (b) The inspector panel (z 40), `.story-banner` (z 25) and the wave preview (z 19) can sit above a victory epilogue (z 18) if they're open when victory fires. This predates 3.5.
+    - (a) ✅ **DONE 2026-11-27** (`fix/55-story-log-focus`). The Story Log replay returns focus to `<body>`; fall back to `#open-story-log` for keyboard users.
+    - (b) ✅ **DONE 2026-11-27** (`fix/55-story-log-focus`): dialog raised to z 55 with a derived guard test; the wave preview was already below (inside `#hud-layer`). The inspector panel (z 40), `.story-banner` (z 25) and the wave preview (z 19) can sit above a victory epilogue (z 18) if they're open when victory fires. This predates 3.5.
     - (c) A Skip-closing double tap can skip a chained sequence (no call site chains).
     - (d) Under reduced motion the portrait frame can be empty for about a frame until the PNG decodes.
     - (e) The glitch blip is fixed at 95 % of the period in the CSS, guarded against `STORY_DIALOG`.

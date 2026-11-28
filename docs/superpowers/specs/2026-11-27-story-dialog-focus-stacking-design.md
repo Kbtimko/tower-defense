@@ -28,7 +28,7 @@
   - `.rs-overlay` (26).
 - **The wave preview claim is wrong.** `#wave-preview` sits inside `#hud-layer` (z 6, a stacking context), so it is already below the dialog.
 - `GameScene._onVictory` plays the epilogue first. `_showResults`, which hides the tooltip, inspector, peek and wave preview, runs only after the epilogue closes. The story banner, ability card and hint peek are never hidden at all.
-- The same dialog element also plays mid-level and world-map beats, so this isn't only a victory problem.
+- The same dialog element also plays the pre-battle briefing, the world map's `campaign_intro` and Story Log replays, so this isn't only a victory problem. (Corrected after the final review: mid-level beats use `.story-banner`, not the dialog.)
 
 ## Design
 
@@ -41,7 +41,7 @@
 
 ## Approaches
 
-1. **(b) Raise the dialog's z-index, with a derived guard test (chosen).** One value fixes every play, including the victory epilogue, mid-level beats and the world map. It also covers floaters that the victory path never hides (the story banner, ability card and hint peek).
+1. **(b) Raise the dialog's z-index, with a derived guard test (chosen).** One value fixes every play, including the victory epilogue, the briefing and the world map. It also covers floaters that the victory path never hides (the story banner, ability card and hint peek).
 2. (b) Hide the level's floaters at victory, by moving `_showResults`'s hide block ahead of the epilogue and adding the banner and cards. That fixes only the victory epilogue, and every new floater has to remember to join the list.
 3. (a) Add a `returnFocus` option to `StoryDialogOverlay.play`. It's more API for the same result as focusing the opener first.
 
@@ -50,6 +50,7 @@
 - **z 55, above `#fps-meter` (50).** The debug FPS meter is covered while a dialog is up. If wrong: allowlist it in the test and pick 51.
 - **The dialog is also above `.rs-overlay` (26).** The two never show together: results open from the epilogue's onComplete. If wrong: nothing visible changes.
 - **The wave preview item is closed as already fine.** It's in `#hud-layer`.
+- **`#paused-overlay` (30) now sits under the dialog.** An auto-pause during the briefing (tab hide, phone portrait) used to paint PAUSED across it; now PAUSED shows when the briefing closes. Found by the final review; intended by (b). If wrong: give the paused overlay a z above 55.
 - **No victory-time hiding.** Under a modal at the top of the stack, an open inspector is simply covered, and `_showResults` still clears it before results appear.
 
 ## Edge cases
